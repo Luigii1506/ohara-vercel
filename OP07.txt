@@ -1,0 +1,126 @@
+OP07-001	Monkey.D.Dragon	Leader
+OP07-002	Ain	Rare
+OP07-003	Outlook III	Rare
+OP07-004	Curly.Dadan	Rare
+OP07-005	Carina	Rare
+OP07-006	Sterry	Common
+OP07-007	Dice	Common
+OP07-008	Mr. Tanaka	Uncommon
+OP07-009	Dogura & Magura	Common
+OP07-010	Baccarat	Rare
+OP07-011	Bluejam	Common
+OP07-012	Porchemy	Common
+OP07-013	Masked Deuce	Uncommon
+OP07-014	Moda	Uncommon
+OP07-015	Monkey.D.Dragon	Super Rare
+OP07-016	Galaxy Wink	Rare
+OP07-017	Dragon Breath	Uncommon
+OP07-018	KEEP OUT	Common
+OP07-019	Jewelry Bonney	Leader
+OP07-020	Aladine	Common
+OP07-021	Urouge	Rare
+OP07-022	Otama	Rare
+OP07-023	Caribou	Uncommon
+OP07-024	Koala	Common
+OP07-025	Coribou	Common
+OP07-026	Jewelry Bonney	Super Rare
+OP07-027	Jinbe	Common
+OP07-028	Scratchmen Apoo	Common
+OP07-029	Basil Hawkins	Super Rare
+OP07-030	Pappag	Common
+OP07-031	Bartolomeo	Uncommon
+OP07-032	Fisher Tiger	Rare
+OP07-033	Monkey.D.Luffy	Uncommon
+OP07-034	Roronoa Zoro	Uncommon
+OP07-035	Karmic Punishment	Common
+OP07-036	Demonic Aura Nine-Sword Style Asura Demon Nine Flash	Rare
+OP07-037	More Pizza!!	Uncommon
+OP07-038	Boa Hancock	Leader
+OP07-039	Edward Weevil	Common
+OP07-040	Crocodile	Uncommon
+OP07-041	Gloriosa (Grandma Nyon)	Uncommon
+OP07-042	Gecko Moria	Common
+OP07-043	Salome	Uncommon
+OP07-044	Dracule Mihawk	Common
+OP07-045	Jinbe	Super Rare
+OP07-046	Sengoku	Rare
+OP07-047	Trafalgar Law	Rare
+OP07-048	Donquixote Doflamingo	Uncommon
+OP07-049	Buckin	Common
+OP07-050	Boa Sandersonia	Common
+OP07-051	Boa Hancock	Super Rare
+OP07-052	Boa Marigold	Common
+OP07-053	Portgas.D.Ace	Rare
+OP07-054	Marguerite	Rare
+OP07-055	Snake Dance	Common
+OP07-056	Slave Arrow	Uncommon
+OP07-057	Perfume Femur	Rare
+OP07-058	Island of Women	Common
+OP07-059	Foxy	Leader
+OP07-060	Itomimizu	Uncommon
+OP07-061	Vinsmoke Sanji	Common
+OP07-062	Vinsmoke Reiju	Common
+OP07-063	Capote	Common
+OP07-064	Sanji	Super Rare
+OP07-065	Gina	Uncommon
+OP07-066	Tony Tony.Chopper	Rare
+OP07-067	Tonjit	Common
+OP07-068	Hamburg	Uncommon
+OP07-069	Pickles	Common
+OP07-070	Big Bun	Uncommon
+OP07-071	Foxy	Rare
+OP07-072	Porche	Super Rare
+OP07-073	Monkey.D.Luffy	Rare
+OP07-074	Monda	Common
+OP07-075	Slow-Slow Beam	Uncommon
+OP07-076	Slow-Slow Beam Sword	Common
+OP07-077	We're Going to Claim the One Piece!!!	Rare
+OP07-078	Megaton Nine-Tails Rush	Common
+OP07-079	Rob Lucci	Leader
+OP07-080	Kaku	Rare
+OP07-081	Kalifa	Common
+OP07-082	Captain John	Uncommon
+OP07-083	Gecko Moria	Uncommon
+OP07-084	Gismonda	Common
+OP07-085	Stussy	Super Rare
+OP07-086	Spandam	Common
+OP07-087	Baskerville	Common
+OP07-088	Hattori	Uncommon
+OP07-089	Maha	Common
+OP07-090	Morgans	Common
+OP07-091	Monkey.D.Luffy	Rare
+OP07-092	Joseph	Uncommon
+OP07-093	Rob Lucci	Rare
+OP07-094	Shave	Uncommon
+OP07-095	Iron Body	Common
+OP07-096	Tempest Kick	Rare
+OP07-097	Vegapunk	Leader
+OP07-098	Atlas	Uncommon
+OP07-099	Usopp	Common
+OP07-100	Edison	Common
+OP07-101	Shaka	Uncommon
+OP07-102	Jinbe	Common
+OP07-103	Tony Tony.Chopper	Common
+OP07-104	Nico Robin	Uncommon
+OP07-105	Pythagoras	Uncommon
+OP07-106	Fuza	Common
+OP07-107	Franky	Rare
+OP07-108	Vega Force 01	Common
+OP07-109	Monkey.D.Luffy	Super Rare
+OP07-110	York	Common
+OP07-111	Lilith	Super Rare
+OP07-112	Lucy	Rare
+OP07-113	Roronoa Zoro	Uncommon
+OP07-114	He Possesses the World's Most Brilliant Mind	Uncommon
+OP07-115	I Re-Quasar Helllp!!	Common
+OP07-116	Blaze Slice	Rare
+OP07-117	Egghead	Common
+OP07-118	Sabo	Secret Rare
+OP07-119	Portgas.D.Ace	Secret Rare
+OP01-035	Okiku	Special Card
+OP01-073	Donquixote Doflamingo	Special Card
+OP03-003	Izo	Special Card
+OP03-078	Issho	Special Card
+OP05-074	Eustass"Captain"Kid	Special Card
+OP06-101	O-Nami	Special Card
+ST10-010	Trafalgar Law	Treasure Rare

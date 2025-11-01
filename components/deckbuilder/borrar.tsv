@@ -1,0 +1,1299 @@
+// CompleteDeckBuilderLayout.tsx
+"use client";
+
+import {
+  useState,
+  useRef,
+  MouseEvent,
+  useEffect,
+  useMemo,
+  Fragment,
+} from "react";
+import { Button } from "@/components/ui/button";
+import { ChartColumnBigIcon, Grid, RotateCcw, X } from "lucide-react";
+import { Oswald } from "next/font/google";
+import DropdownSearch from "@/components/DropdownSearch";
+import FiltersSidebar from "@/components/FiltersSidebar";
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  Transition,
+  TransitionChild,
+} from "@headlessui/react";
+import { CardWithCollectionData } from "@/types";
+import { useDeckBuilder } from "@/hooks/useDeckBuilder";
+import { getColors } from "@/helpers/functions";
+import { showWarningToast } from "@/lib/toastify";
+import { TransitionGroup, CSSTransition } from "react-transition-group";
+import React from "react";
+import GroupedCardPreview from "./GroupedCardPreview";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { allColors } from "@/helpers/constants";
+import { Badge } from "@/components/ui/badge";
+import SearchFilters from "@/components/home/SearchFilters";
+import ClearFiltersButton from "../ClearFiltersButton";
+
+import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
+
+const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
+
+import { DeckCard } from "@/types";
+
+interface CompleteDeckBuilderLayoutProps {
+  onSave: () => void;
+  onRestart: () => void;
+  deckBuilder: ReturnType<typeof useDeckBuilder>;
+  initialCards: CardWithCollectionData[];
+  isFork?: boolean;
+}
+
+const CompleteDeckBuilderLayout = ({
+  onSave,
+  onRestart,
+  deckBuilder,
+  initialCards,
+  isFork = false,
+}: CompleteDeckBuilderLayoutProps) => {
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [showLargeImage, setShowLargeImage] = useState<boolean>(false);
+
+  const [showFab, setShowFab] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedSets, setSelectedSets] = useState<string[]>([]);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedCosts, setSelectedCosts] = useState<string[]>([]);
+  const [selectedPower, setSelectedPower] = useState<string[]>([]);
+
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
+  const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
+
+  const [isGrid, setIsGrid] = useState(false);
+
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  const [selectedCounter, setSelectedCounter] = useState<string>("");
+  const [selectedTrigger, setSelectedTrigger] = useState<string>("");
+  const [selectedSort, setSelectedSort] = useState<string>("");
+  const [viewSelected, setViewSelected] = useState<
+    "grid" | "list" | "alternate" | "text"
+  >("text");
+
+  const [visibleCount, setVisibleCount] = useState(50);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
+
+  const [showLargeImageCard, setShowLargeImageCard] = useState<boolean>(false);
+
+  const [selectedFilterSearch, setSelectedFilterSearch] =
+    useState<string>("all");
+
+  // --- NUEVA IMPLEMENTACIÓN PARA PANEL EXTENDIBLE ---
+  // Para evitar problemas con SSR, se utiliza un valor por defecto en caso de que window no esté definido.
+
+  // Estado para la altura del viewport (se actualiza al redimensionar la ventana)
+  const [viewportHeight, setViewportHeight] = useState<number>(
+    typeof window !== "undefined" ? window.innerHeight : 800
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportHeight(window.innerHeight);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Altura colapsada: valor mínimo para que se vea el "handle"
+  const collapsedHeight = 200;
+  // Altura inicial (panel abierto): 50% de la altura de la ventana
+  const defaultInitialHeight = viewportHeight * 0.4;
+  // Límite inferior: altura mínima (colapsada)
+  const minHeight = collapsedHeight;
+  // Límite superior: 90% de la altura de la ventana
+  const maxHeight = viewportHeight * 0.9;
+
+  // Estado para la altura del panel
+  const [panelHeight, setPanelHeight] = useState<number>(defaultInitialHeight);
+
+  // Si el viewport se reduce y el panel supera el nuevo maxHeight, actualízalo.
+  useEffect(() => {
+    if (panelHeight > maxHeight) {
+      setPanelHeight(maxHeight);
+    }
+  }, [viewportHeight, maxHeight, panelHeight]);
+
+  const startY = useRef<number>(0);
+  const startHeight = useRef<number>(defaultInitialHeight);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+    startHeight.current = panelHeight;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const diff = startY.current - e.touches[0].clientY;
+    let newHeight = startHeight.current + diff;
+    if (newHeight < minHeight) newHeight = minHeight;
+    if (newHeight > maxHeight) newHeight = maxHeight;
+    setPanelHeight(newHeight);
+  };
+
+  // --- FIN NUEVA IMPLEMENTACIÓN ---
+
+  const totalFilters =
+    selectedColors?.length +
+    selectedRarities?.length +
+    selectedCategories?.length +
+    (selectedCounter !== "" ? 1 : 0) +
+    (selectedTrigger !== "" ? 1 : 0) +
+    selectedEffects?.length +
+    selectedTypes?.length +
+    selectedSets?.length +
+    selectedCosts?.length +
+    selectedPower?.length +
+    selectedAttributes?.length;
+
+  const matchesCardCode = (code: string, search: string) => {
+    const query = search.toLowerCase().trim();
+    const fullCode = code.toLowerCase();
+
+    // Si el query incluye un guión, se busca de forma literal.
+    if (query.includes("-")) {
+      return fullCode.includes(query);
+    }
+
+    // Separamos el código en partes usando el guión.
+    const parts = code.split("-");
+
+    // Si el query es numérico.
+    if (/^\d+$/.test(query)) {
+      if (query[0] === "0") {
+        // Si inicia con cero, se compara la cadena exacta.
+        return parts.some((part) => {
+          const matchDigits = part.match(/\d+/);
+          return matchDigits ? matchDigits[0] === query : false;
+        });
+      } else {
+        // Si no inicia con cero, se compara numéricamente.
+        const queryNumber = parseInt(query, 10);
+        return parts.some((part) => {
+          const matchDigits = part.match(/\d+/);
+          return matchDigits
+            ? parseInt(matchDigits[0], 10) === queryNumber
+            : false;
+        });
+      }
+    }
+
+    // Si el query no es numérico, se busca por subcadena en cada parte.
+    return parts.some((part) => part.toLowerCase().includes(query));
+  };
+
+  const filteredCards = useMemo(() => {
+    if (!initialCards || initialCards.length === 0) return [];
+
+    return initialCards
+      .filter((card) => {
+        const searchLower = search.trim().toLowerCase();
+        let matchesSearch = false;
+
+        if (selectedFilterSearch === "all") {
+          matchesSearch =
+            card.name.toLowerCase().includes(searchLower) ||
+            (card.power ?? "").toLowerCase().includes(searchLower) ||
+            (card.cost ?? "").toLowerCase().includes(searchLower) ||
+            (card.attribute ?? "").toLowerCase().includes(searchLower) ||
+            (card.rarity ?? "").toLowerCase().includes(searchLower) ||
+            matchesCardCode(card.code, search) ||
+            (card.texts ?? []).some((item) =>
+              item.text.toLowerCase().includes(searchLower)
+            ) ||
+            (card.types ?? []).some((item) =>
+              item.type.toLowerCase().includes(searchLower)
+            ) ||
+            (card.sets ?? []).some((item) =>
+              item.set.title.toLowerCase().includes(searchLower)
+            );
+        } else if (selectedFilterSearch === "name") {
+          matchesSearch = card.name.toLowerCase().includes(searchLower);
+        } else if (selectedFilterSearch === "code") {
+          matchesSearch = matchesCardCode(card.code, search);
+        } else if (selectedFilterSearch === "text") {
+          matchesSearch = (card.texts ?? []).some((item) =>
+            item.text.toLowerCase().includes(searchLower)
+          );
+        }
+
+        const matchesColors =
+          selectedColors.length === 0 ||
+          card.colors.some((col) =>
+            selectedColors.includes(col.color.toLowerCase())
+          );
+
+        const matchesSets =
+          selectedSets?.length === 0 ||
+          card.sets.some((set) => selectedSets.includes(set.set.title)) ||
+          (card.alternates ?? []).some((alt) =>
+            alt.sets.some((set) => selectedSets.includes(set.set.title))
+          );
+
+        const matchesTypes =
+          selectedTypes.length === 0 ||
+          card.types.some((type) => selectedTypes.includes(type.type));
+
+        const matchesEffects =
+          selectedEffects.length === 0 ||
+          (card.effects ?? []).some((effect) =>
+            selectedEffects.includes(effect.effect)
+          );
+
+        const matchesRarity =
+          selectedRarities?.length === 0 ||
+          selectedRarities.includes(card.rarity ?? "");
+
+        const matchesAltArts =
+          selectedAltArts?.length === 0 ||
+          (card.alternates ?? []).some((alt) =>
+            selectedAltArts.includes(alt.alternateArt ?? "")
+          );
+
+        const matchesCosts =
+          selectedCosts.length === 0 || selectedCosts.includes(card.cost ?? "");
+
+        const matchesPower =
+          selectedPower.length === 0 ||
+          selectedPower.includes(card.power ?? "");
+
+        const matchesCategories =
+          selectedCategories.length === 0 ||
+          selectedCategories.includes(card.category ?? "");
+
+        const matchesAttributes =
+          selectedAttributes.length === 0 ||
+          selectedAttributes.includes(card.attribute ?? "");
+
+        const matchesCounter =
+          selectedCounter === ""
+            ? true
+            : selectedCounter === "No counter"
+            ? card.counter == null
+            : card.counter?.includes(selectedCounter);
+
+        const matchedTrigger =
+          selectedTrigger === ""
+            ? true
+            : selectedTrigger === "No trigger"
+            ? card.triggerCard === null
+            : card.triggerCard !== null;
+
+        const matchedCode =
+          selectedCodes?.length === 0 || selectedCodes.includes(card.setCode);
+
+        return (
+          matchesSearch &&
+          matchesColors &&
+          matchesRarity &&
+          matchesCategories &&
+          matchesCounter &&
+          matchedTrigger &&
+          matchesEffects &&
+          matchesTypes &&
+          matchesSets &&
+          matchesCosts &&
+          matchesPower &&
+          matchesAttributes &&
+          matchedCode &&
+          matchesAltArts
+        );
+      })
+      .sort((a, b) => {
+        if (selectedSort === "Most variants") {
+          return b.alternates?.length - a.alternates?.length;
+        } else if (selectedSort === "Less variants") {
+          return a.alternates?.length - b.alternates?.length;
+        }
+        return 0;
+      });
+  }, [
+    initialCards,
+    search,
+    selectedFilterSearch,
+    selectedColors,
+    selectedRarities,
+    selectedCategories,
+    selectedCounter,
+    selectedTrigger,
+    selectedEffects,
+    selectedTypes,
+    selectedSets,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedSort,
+    selectedAltArts,
+  ]);
+
+  const [isOn, setIsOn] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isInputClear, setIsInputClear] = useState(false);
+
+  // Ref para la lista de cartas (grid)
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+  // Estado para controlar el sidebar de filtros
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Si hay un Leader seleccionado, obtenemos sus colores
+  const leaderColors = deckBuilder.selectedLeader
+    ? deckBuilder.selectedLeader.colors.map((c: { color: string }) =>
+        c.color.toLowerCase()
+      )
+    : [];
+
+  const disabledColors = allColors?.filter(
+    (color) => !leaderColors.includes(color)
+  );
+
+  // Filtrado adicional:
+  // - Si NO hay un Leader seleccionado: mostramos solo cartas de la categoría "Leader".
+  // - Si hay un Leader seleccionado: mostramos solo cartas que no sean de la categoría "Leader"
+  //   y que tengan al menos un color en común con el Leader.
+  const filteredByLeader = useMemo(() => {
+    if (!filteredCards) return null; // ⚡ No calcular si filteredCards aún no está listo
+
+    return deckBuilder.selectedLeader
+      ? filteredCards.filter(
+          (card) =>
+            card.category !== "Leader" &&
+            card.colors.some((col) =>
+              leaderColors.includes(col.color.toLowerCase())
+            )
+        )
+      : filteredCards.filter((card) => card.category === "Leader");
+  }, [filteredCards, deckBuilder.selectedLeader]);
+
+  // Calcula el total de cartas agregadas en el deck
+  const totalCards = deckBuilder.deckCards.reduce(
+    (total, card) => total + card.quantity,
+    0
+  );
+
+  const handleScrollToTop = () => {
+    gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    setVisibleCount(50);
+  };
+
+  // Handler para el click en cada carta
+  const handleCardClick = (
+    e: MouseEvent<HTMLDivElement>,
+    card: CardWithCollectionData,
+    alternate: CardWithCollectionData
+  ) => {
+    // Si no hay leader seleccionado, asignamos este card como leader y
+    // hacemos scroll hasta el principio de la lista.
+    if (!deckBuilder.selectedLeader) {
+      deckBuilder.setSelectedLeader({
+        ...card,
+        src: alternate.src,
+        id: Number(alternate.id),
+      });
+      setSearch("");
+      setIsInputClear(true);
+      setTimeout(() => {
+        gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }, 100); // Puedes ajustar el tiempo si es necesario
+    } else {
+      if (totalCards >= 50) {
+        showWarningToast("You can't add more than 50 cards to the deck.");
+        return;
+      }
+
+      // Si ya hay leader, agregamos la carta y luego hacemos scroll al contenedor del card.
+      deckBuilder.handleAddCard({
+        cardId: Number(alternate.id),
+        name: card.name,
+        rarity: card.rarity ?? "",
+        src: alternate.src,
+        quantity: 1,
+        code: card.code,
+        color: card.colors.length ? card.colors[0].color : "gray",
+        cost: card.cost ?? "",
+        category: card.category,
+        set: alternate.sets[0].set.title,
+        power: card.power ?? "",
+        counter: card.counter ?? "",
+        attribute: card.attribute ?? "",
+      });
+      // Scroll para que el card clickeado quede centrado
+      // Scroll para que el card clickeado quede centrado solo si no se ve completamente
+      const containerRect = gridRef.current?.getBoundingClientRect();
+      const cardRect = e.currentTarget.getBoundingClientRect();
+
+      if (containerRect) {
+        if (
+          cardRect.top < containerRect.top ||
+          cardRect.bottom > containerRect.bottom
+        ) {
+          e.currentTarget.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }
+      } else {
+        // Si no se puede obtener el contenedor, se hace scroll como fallback.
+        e.currentTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      // Esperamos un momento para que se actualice el array de cartas y luego scroll al grupo de la carta agregada.
+      setTimeout(() => {
+        const groupElement = groupRefs.current[card.code];
+        if (groupElement) {
+          groupElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300); // Ajusta el delay si es necesario.
+    }
+  };
+
+  // Función para eliminar la carta al hacer swipe
+  const removeCard = (cardId: number) => {
+    deckBuilder.setDeckCards((prev) =>
+      prev?.filter((card) => card.cardId !== cardId)
+    );
+    containerRef.current?.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+  // Agrupamos las cartas por código sin modificar sus cantidades:
+  const groupedCards = Object.values(
+    deckBuilder.deckCards.reduce((groups, card) => {
+      if (!groups[card.code]) {
+        groups[card.code] = [];
+      }
+      groups[card.code].push(card);
+      return groups;
+    }, {} as Record<string, typeof deckBuilder.deckCards>)
+  );
+
+  // Ordenamos las cartas según el criterio:
+  // 1. Las cartas que no son "Event" se ordenan por costo de menor a mayor.
+  // 2. Las cartas de tipo "Event" se ubican siempre al final, sin importar el costo.
+  groupedCards.sort((groupA, groupB) => {
+    const cardA = groupA[0];
+    const cardB = groupB[0];
+
+    const isSpecialA = cardA.category === "Event" || cardA.category === "Stage";
+    const isSpecialB = cardB.category === "Event" || cardB.category === "Stage";
+
+    // Si uno es Event/Stage y el otro no, el Event/Stage va al final:
+    if (isSpecialA !== isSpecialB) {
+      return isSpecialA ? 1 : -1;
+    }
+
+    // Si ambos son Event/Stage o ninguno lo es, ordenar por costo ascendente.
+    const costA = parseInt(cardA.cost ?? "0", 10);
+    const costB = parseInt(cardB.cost ?? "0", 10);
+    return costA - costB;
+  });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Si el sentinel está visible y aún quedan elementos por cargar...
+        if (
+          entries[0].isIntersecting &&
+          visibleCount < (filteredCards?.length ?? 0)
+        ) {
+          setVisibleCount((prev) => prev + 50); // Incrementa de a 20 elementos (ajusta según convenga)
+        }
+      },
+      { rootMargin: "200px" } // Permite cargar antes de llegar al final
+    );
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => {
+      if (sentinelRef.current) observer.unobserve(sentinelRef.current);
+    };
+  }, [visibleCount, filteredCards?.length]);
+
+  useEffect(() => {
+    if (deckBuilder.deckCards.length > 0 || !isFork) {
+      setLoading(false);
+    }
+  }, [deckBuilder.deckCards, isFork]);
+
+  console.log("deckBuilder.deckCards", deckBuilder.deckCards);
+
+  return (
+    <div className="flex flex-col flex-1 bg-[#f2eede] w-full lg:flex-row">
+      {/* Sección superior con scroll */}
+      <div className="flex-grow overflow-auto flex flex-col">
+        {/* Header: DropdownSearch y botón de filtros */}
+        <div className="flex flex-row gap-3 border-b border-[#d3d3d3] bg-white">
+          <div className="bg-white w-full">
+            {/* Cabecera o contenedor superior */}
+            <div className="justify-center border-b border-[#f5f5f5] py-3 px-5 hidden md:flex gap-5">
+              {/* Filtros en Desktop */}
+              <SearchFilters
+                search={search}
+                setSearch={setSearch}
+                selectedColors={selectedColors}
+                setSelectedColors={setSelectedColors}
+                selectedRarities={selectedRarities}
+                setSelectedRarities={setSelectedRarities}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                selectedFilterSearch={selectedFilterSearch}
+                setSelectedFilterSearch={setSelectedFilterSearch}
+                selectedCounter={selectedCounter}
+                setSelectedCounter={setSelectedCounter}
+                selectedTrigger={selectedTrigger}
+                setSelectedTrigger={setSelectedTrigger}
+                selectedEffects={selectedEffects}
+                setSelectedEffects={setSelectedEffects}
+                selectedTypes={selectedTypes}
+                setSelectedTypes={setSelectedTypes}
+                setViewSelected={setViewSelected}
+                selectedSets={selectedSets}
+                setSelectedSets={setSelectedSets}
+                selectedCosts={selectedCosts}
+                setSelectedCosts={setSelectedCosts}
+                selectedPower={selectedPower}
+                setSelectedPower={setSelectedPower}
+                selectedAttributes={selectedAttributes}
+                setSelectedAttributes={setSelectedAttributes}
+                isDropdownActive={false}
+                isInputClear={isInputClear}
+                setIsInputClear={setIsInputClear}
+                selectedCodes={selectedCodes}
+                setSelectedCodes={setSelectedCodes}
+                selectedAltArts={selectedAltArts}
+                setSelectedAltArts={setSelectedAltArts}
+              />
+
+              {/* Otros controles */}
+            </div>
+
+            <div className="flex md:hidden p-3 flex-row gap-3 border-b border-[#f5f5f5]">
+              <div className="flex gap-2 justify-center items-center">
+                <div className="flex gap-2 justify-center items-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(true)}
+                    className={` flex
+              ${
+                totalFilters > 0
+                  ? "bg-[#2463eb] !text-white"
+                  : "bg-gray-100 !text-black"
+              }
+              px-4 py-2 text-black font-bold border rounded-lg
+                `}
+                  >
+                    {totalFilters > 0 ? "Filters" : "Filters"}
+                    {totalFilters > 0 && (
+                      <Badge className="ml-2 !bg-white !text-[#2463eb] font-bold">
+                        {totalFilters}
+                      </Badge>
+                    )}
+                  </button>
+
+                  <ClearFiltersButton
+                    isTouchable={
+                      selectedColors.length > 0 ||
+                      selectedRarities.length > 0 ||
+                      selectedCategories.length > 0 ||
+                      selectedCounter !== "" ||
+                      selectedTrigger !== "" ||
+                      selectedEffects.length > 0 ||
+                      selectedTypes.length > 0 ||
+                      selectedSets.length > 0 ||
+                      selectedCosts.length > 0 ||
+                      selectedPower.length > 0 ||
+                      selectedAttributes.length > 0 ||
+                      selectedCodes.length > 0
+                    }
+                    clearFilters={() => {
+                      setSelectedColors([]);
+                      setSelectedRarities([]);
+                      setSelectedCategories([]);
+                      setSelectedCounter("");
+                      setSelectedTrigger("");
+                      setSelectedEffects([]);
+                      setSelectedTypes([]);
+                      setSelectedSets([]);
+                      setSelectedCosts([]);
+                      setSelectedPower([]);
+                      setSelectedAttributes([]);
+                      setSelectedCodes([]);
+                    }}
+                    isMobile={true}
+                  />
+                </div>
+              </div>
+              <DropdownSearch
+                search={search}
+                setSearch={setSearch}
+                placeholder="Search..."
+                selectedFilterSearch={selectedFilterSearch}
+                setSelectedFilterSearch={setSelectedFilterSearch}
+                isDropdownActive={false}
+                isInputClear={isInputClear}
+                setIsInputClear={setIsInputClear}
+              />
+            </div>
+            <Transition
+              show={isModalOpen}
+              enter="transition transform duration-300"
+              enterFrom="-translate-x-full"
+              enterTo="translate-x-0"
+              leave="transition transform duration-200"
+              leaveFrom="translate-x-0"
+              leaveTo="-translate-x-full"
+            >
+              <FiltersSidebar
+                isOpen={isModalOpen}
+                setIsOpen={setIsModalOpen}
+                search={search}
+                setSearch={setSearch}
+                selectedColors={selectedColors}
+                setSelectedColors={setSelectedColors}
+                selectedRarities={selectedRarities}
+                setSelectedRarities={setSelectedRarities}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                selectedFilterSearch={selectedFilterSearch}
+                setSelectedFilterSearch={setSelectedFilterSearch}
+                selectedCounter={selectedCounter}
+                setSelectedCounter={setSelectedCounter}
+                selectedTrigger={selectedTrigger}
+                setSelectedTrigger={setSelectedTrigger}
+                selectedEffects={selectedEffects}
+                setSelectedEffects={setSelectedEffects}
+                selectedTypes={selectedTypes}
+                setSelectedTypes={setSelectedTypes}
+                selectedSets={selectedSets}
+                setSelectedSets={setSelectedSets}
+                selectedCosts={selectedCosts}
+                setSelectedCosts={setSelectedCosts}
+                selectedPower={selectedPower}
+                setSelectedPower={setSelectedPower}
+                selectedAttributes={selectedAttributes}
+                setSelectedAttributes={setSelectedAttributes}
+                selectedAltArts={selectedAltArts}
+                setSelectedAltArts={setSelectedAltArts}
+              />
+            </Transition>
+          </div>
+        </div>
+
+        <div
+          className="relative grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-2 p-3 flex-grow overflow-auto max-w-[1900px] m-auto"
+          ref={gridRef}
+          onScroll={(e) => {
+            const scrollTop = (e.target as HTMLDivElement).scrollTop;
+
+            if (scrollTop > 100) {
+              setShowFab(true);
+            } else {
+              setShowFab(false);
+            }
+            // Aquí tu lógica de scroll
+          }}
+        >
+          {loading ? (
+            <p className="col-span-4 sm:col-span-5 md:col-span-6 lg:col-span-5 xl:col-span-5 2xl:col-span-6 3xl:col-span-7">
+              Cargando cartas...
+            </p>
+          ) : (
+            filteredByLeader?.slice(0, visibleCount).map((card) => {
+              // Función que determina si la carta base cumple los filtros
+              const baseCardMatches = (
+                card: CardWithCollectionData
+              ): boolean => {
+                let match = true;
+
+                if (
+                  [
+                    "Demo Version",
+                    "Not for Sale",
+                    "Pre-Errata",
+                    "Pre-Release",
+                  ].includes(card.alternateArt ?? "")
+                ) {
+                  return false;
+                }
+
+                if (selectedSets.length > 0) {
+                  match =
+                    card.sets?.some((s) =>
+                      selectedSets.includes(s.set.title)
+                    ) ?? false;
+                }
+                if (selectedAltArts.length > 0) {
+                  match = match && selectedAltArts.includes(card?.rarity ?? "");
+                }
+                return match;
+              };
+
+              // Función que determina si una alterna cumple los filtros
+              const alternateMatches = (alt: any): boolean => {
+                let match = true;
+
+                if (
+                  [
+                    "Demo Version",
+                    "Not for Sale",
+                    "Pre-Errata",
+                    "Pre-Release",
+                  ].includes(alt.alternateArt ?? "")
+                ) {
+                  return false;
+                }
+
+                if (selectedSets.length > 0) {
+                  match =
+                    alt.sets?.some((s: any) =>
+                      selectedSets.includes(s.set.title)
+                    ) ?? false;
+                }
+                if (selectedAltArts.length > 0) {
+                  match =
+                    match && selectedAltArts.includes(alt.alternateArt ?? "");
+                }
+                return match;
+              };
+
+              // Filtrar las alternates que cumplen los criterios
+              const filteredAlternates =
+                card.alternates?.filter((alt) => alternateMatches(alt)) || [];
+
+              // Si ni la carta base ni ninguna alterna cumplen, no renderizamos nada para esta carta
+              if (!baseCardMatches(card) && filteredAlternates.length === 0)
+                return null;
+
+              // Obtener cantidad en deck para carta base
+              const cardInDeck = deckBuilder.deckCards.find(
+                (deckCard) => deckCard.cardId === Number(card.id)
+              );
+              const totalQuantityBase = deckBuilder.deckCards
+                ?.filter((card_alt) => card_alt.code === card.code)
+                .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
+
+              return (
+                <React.Fragment key={card.id}>
+                  {/* Render the base card only if it matches the filters */}
+                  {baseCardMatches(card) && (
+                    <div
+                      className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit"
+                      onClick={(e) => {
+                        if (totalQuantityBase >= 4) {
+                          // Optional: Add logic if the limit is reached.
+                        } else {
+                          handleCardClick(e, card, card);
+                        }
+                      }}
+                    >
+                      <img
+                        src={card?.src}
+                        alt={card?.name}
+                        className={`
+                          w-full
+                          ${
+                            totalQuantityBase >= 4 &&
+                            "filter grayscale opacity-70"
+                          }
+                        `}
+                      />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex justify-center items-center w-full flex-col">
+                              <span
+                                className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                              >
+                                {card?.code}
+                              </span>
+                              <span className="text-center text-[11px] md:text-[13px] line-clamp-1 leading-[16px] md:leading-[18px]">
+                                {card?.sets[0].set?.title}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{card?.sets[0].set?.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {cardInDeck && cardInDeck.quantity > 0 && (
+                        <div className="bg-[#000] text-white absolute -top-1 -right-1 rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white">
+                          <span className="mb-[2px]">
+                            {cardInDeck.quantity}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Render the filtered alternate cards */}
+                  {filteredAlternates.length > 0 &&
+                    filteredAlternates.map((alternate: any) => {
+                      const alternateInDeck = deckBuilder.deckCards.find(
+                        (deckCard) => deckCard.cardId === Number(alternate.id)
+                      );
+                      const totalQuantityAlt = deckBuilder.deckCards
+                        ?.filter((cardItem) => cardItem.code === alternate.code)
+                        .reduce((sum, cardItem) => sum + cardItem.quantity, 0);
+                      return (
+                        <div
+                          key={`alternate-${alternate.id}`}
+                          className="border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col h-fit cursor-pointer relative"
+                          onClick={(e) => {
+                            if (totalQuantityAlt >= 4) {
+                              // Optional: Add logic if the limit is reached.
+                            } else {
+                              handleCardClick(e, card, alternate);
+                            }
+                          }}
+                        >
+                          <img
+                            src={alternate.src}
+                            alt={alternate.name}
+                            className={`${
+                              totalQuantityAlt >= 4 &&
+                              "filter grayscale opacity-70"
+                            } w-full h-auto`}
+                          />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <div className="flex justify-center items-center w-full flex-col">
+                                  <span
+                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                                  >
+                                    {card?.code}
+                                  </span>
+                                  <span className="text-center text-[11px] md:text-[13px] line-clamp-1 leading-[16px] md:leading-[18px]">
+                                    {alternate?.sets[0].set?.title}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{alternate?.sets[0].set?.title}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {alternateInDeck && alternateInDeck.quantity > 0 && (
+                            <div className="bg-[#000] text-white absolute -top-1 -right-1 rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white">
+                              <span className="mb-[2px]">
+                                {alternateInDeck.quantity}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </React.Fragment>
+              );
+            })
+          )}
+
+          {visibleCount < (filteredCards?.length ?? 0) && (
+            <div ref={sentinelRef} style={{ height: "1px" }} />
+          )}
+        </div>
+      </div>
+      {/* Sección inferior: previsualización y acciones */}
+      <div
+        className="flex flex-col flex-shrink-0 bg-white px-4 py-2 lg:py-4 gap-2 lg:gap-4 border-t border-[#d3d3d3] transition-all duration-200 ease-in-out"
+        style={{ height: panelHeight, maxHeight: panelHeight }}
+      >
+        {/* Handle para arrastrar */}
+        <div
+          className="w-full flex justify-center cursor-grab"
+          style={{ height: "20px" }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+        >
+          <div
+            className="bg-gray-400 rounded-full"
+            style={{ width: "50px", height: "4px" }}
+          ></div>
+        </div>
+
+        {/* Contenido de la sección inferior */}
+        <div className="flex">
+          <div className="flex items-center gap-3 w-1/2">
+            {deckBuilder.selectedLeader && (
+              <div
+                className="relative w-[50px] h-[50px] rounded-full"
+                onClick={() => setShowLargeImage(true)}
+              >
+                {deckBuilder.selectedLeader.colors.length === 2 ? (
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: `linear-gradient(
+                        to right,
+                        ${getColors(
+                          deckBuilder.selectedLeader.colors[0].color
+                        )} 0%,
+                        ${getColors(
+                          deckBuilder.selectedLeader.colors[0].color
+                        )} 40%,
+                        ${getColors(
+                          deckBuilder.selectedLeader.colors[1].color
+                        )} 60%,
+                        ${getColors(
+                          deckBuilder.selectedLeader.colors[1].color
+                        )} 100%
+                      )`,
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      backgroundColor: getColors(
+                        deckBuilder.selectedLeader.colors[0].color
+                      ),
+                    }}
+                  />
+                )}
+                <div
+                  className="absolute inset-1 rounded-full bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(${deckBuilder.selectedLeader.src})`,
+                    backgroundSize: "150%",
+                    backgroundPosition: "-80px -5px",
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex flex-col flex-1">
+              <span className="font-semibold text-sm line-clamp-1 break-all text-left">
+                {deckBuilder.selectedLeader?.name ?? "Name"}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {deckBuilder.selectedLeader?.code ?? "-"}
+              </span>
+            </div>
+          </div>
+
+          <div className="w-1/2 flex justify-center items-center gap-2">
+            <div></div>
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              className={`w-full px-3 h-[50px] [&_svg]:size-5 ${
+                isGrid ? "bg-blue-500 hover:bg-blue-600 !text-white" : ""
+              }`}
+              onClick={() => setIsGrid(!isGrid)}
+            >
+              <Grid />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              className="w-full px-3 h-[50px] [&_svg]:size-5"
+              onClick={() => setIsStatsOpen(!isStatsOpen)}
+            >
+              <ChartColumnBigIcon />
+            </Button>
+          </div>
+        </div>
+
+        {/* Previsualización de cartas agregadas */}
+        <div
+          className="p-3 bg-[#F3F4F6] rounded-lg border overflow-auto flex-1"
+          ref={containerRef}
+        >
+          {deckBuilder.deckCards.length === 0 ? (
+            <>
+              {!deckBuilder.selectedLeader ? (
+                <p>First Select Leader</p>
+              ) : (
+                <p>Select Cards For Deck</p>
+              )}
+            </>
+          ) : isGrid ? (
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-9 2xl:grid-cols-10 max-w-[1900px] m-auto gap-2">
+              {groupedCards.map((group) =>
+                group.map((c, index) => {
+                  // Buscamos la carta en el mazo por su id
+                  const cardInDeck = deckBuilder.deckCards.find(
+                    (card) => card.cardId === c.cardId
+                  );
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => {
+                        setShowLargeImageCard(true);
+                        setSelectedCard(cardInDeck);
+                      }}
+                      className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit"
+                    >
+                      <img src={c?.src} alt={c?.name} className="w-full" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex justify-center items-center w-full flex-col">
+                              <span
+                                className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                              >
+                                {c?.code}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{c?.set}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {cardInDeck && cardInDeck.quantity > 0 && (
+                        <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white">
+                          <span className="mb-[2px]">
+                            {cardInDeck.quantity}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <TransitionGroup>
+              {groupedCards.map((group, index) => (
+                <CSSTransition
+                  key={group[0].code}
+                  timeout={1000}
+                  classNames="card"
+                >
+                  <div
+                    ref={(el) => {
+                      groupRefs.current[group[0].code] = el;
+                    }}
+                  >
+                    <GroupedCardPreview
+                      group={group}
+                      onQuantityChange={(cardId, newQuantity) => {
+                        deckBuilder.updateDeckCardQuantity(cardId, newQuantity);
+                      }}
+                      onSwipeLeft={(cardId) => removeCard(cardId)}
+                      index={index}
+                      length={groupedCards.length}
+                    />
+                  </div>
+                </CSSTransition>
+              ))}
+            </TransitionGroup>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4 w-full justify-between">
+          <Button
+            variant="outline"
+            size="icon"
+            type="button"
+            className="w-full px-3 h-[50px] [&_svg]:size-5 bg-red-500 !text-white hover:bg-red-600"
+            onClick={() => {
+              onRestart();
+              setSearch("");
+              setIsInputClear(true);
+              setVisibleCount(50);
+              setTimeout(() => {
+                gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+              }, 100);
+            }}
+          >
+            <span className="text-lg">Clear deck</span>
+          </Button>
+          <Button
+            onClick={onSave}
+            disabled={totalCards < 50 || deckBuilder.isSaving}
+            className={`w-full ${
+              totalCards < 50 || deckBuilder.isSaving
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600"
+            } text-white text-lg py-6 rounded-md transition-colors`}
+          >
+            {deckBuilder.isSaving ? "Saving Deck..." : "Save Deck"}
+          </Button>
+        </div>
+      </div>
+      {/* Sidebar de filtros */}
+      <Transition
+        show={isModalOpen}
+        enter="transition transform duration-300"
+        enterFrom="-translate-x-full"
+        enterTo="translate-x-0"
+        leave="transition transform duration-200"
+        leaveFrom="translate-x-0"
+        leaveTo="-translate-x-full"
+      >
+        <FiltersSidebar
+          isOpen={isModalOpen}
+          setIsOpen={setIsModalOpen}
+          search={search}
+          setSearch={setSearch}
+          selectedColors={selectedColors}
+          setSelectedColors={setSelectedColors}
+          selectedRarities={selectedRarities}
+          setSelectedRarities={setSelectedRarities}
+          selectedCategories={selectedCategories}
+          setSelectedCategories={setSelectedCategories}
+          selectedFilterSearch={selectedFilterSearch}
+          setSelectedFilterSearch={setSelectedFilterSearch}
+          selectedCounter={selectedCounter}
+          setSelectedCounter={setSelectedCounter}
+          selectedTrigger={selectedTrigger}
+          setSelectedTrigger={setSelectedTrigger}
+          selectedEffects={selectedEffects}
+          setSelectedEffects={setSelectedEffects}
+          selectedTypes={selectedTypes}
+          setSelectedTypes={setSelectedTypes}
+          selectedSets={selectedSets}
+          setSelectedSets={setSelectedSets}
+          selectedCosts={selectedCosts}
+          setSelectedCosts={setSelectedCosts}
+          selectedPower={selectedPower}
+          setSelectedPower={setSelectedPower}
+          selectedAttributes={selectedAttributes}
+          setSelectedAttributes={setSelectedAttributes}
+          disabledColors={deckBuilder.selectedLeader ? disabledColors : []}
+          selectedAltArts={selectedAltArts}
+          setSelectedAltArts={setSelectedAltArts}
+          disabledTypes={
+            deckBuilder.selectedLeader
+              ? ["Leader"]
+              : ["Character", "Event", "Stage"]
+          }
+        />
+      </Transition>
+
+      <Transition appear show={isStatsOpen} as={Fragment}>
+        <Dialog
+          as="div"
+          className="relative z-[999]"
+          onClose={() => {
+            setIsStatsOpen(false);
+          }}
+        >
+          <div
+            className={`fixed inset-0 flex w-screen items-center justify-center p-4 transition-all duration-500 ease-in-out bg-black/60`}
+          >
+            <TransitionChild
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave=""
+              leaveFrom=""
+              leaveTo=""
+            >
+              <DialogPanel
+                className={`w-full max-w-[900px] space-y-4 bg-white shadow-xl border transform transition-all rounded-lg`}
+              >
+                <div className="w-full max-w-[900px] h-screen md:h-fit max-h-[96dvh] bg-white rounded-lg shadow-2xl flex flex-col transition-shadow duration-300 overflow-auto">
+                  <div className="sticky top-0 bg-[#000] text-white p-4 flex flex-row justify-center items-center rounded-t-lg z-10 min-h-[80px] lg:min-h-[80px]">
+                    <DialogTitle className="text-lg lg:text-2xl font-bold">
+                      Stats
+                    </DialogTitle>
+                    <div className="absolute right-5 top-0 bottom-0 m-auto h-fit">
+                      <button
+                        onClick={() => setIsStatsOpen(false)}
+                        aria-label="Close"
+                      >
+                        <X className="h-[20px] w-[20px] md:h-[60px] md:w-[60px] text-white cursor-pointer" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <DeckStats deck={deckBuilder?.deckCards} />
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {showLargeImage && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[999999] px-5 overflow-auto"
+          onClick={() => setShowLargeImage(false)}
+        >
+          <div className="w-full max-w-3xl">
+            <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
+              Tap to close
+            </div>
+            <div className="flex flex-col items-center gap-3 px-5 mb-3">
+              <img
+                key={deckBuilder?.selectedLeader?.id}
+                src={deckBuilder?.selectedLeader?.src}
+                className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
+                alt=""
+              />
+              <div className="text-white text-lg font-[400] text-center px-5">
+                <span className={`${oswald.className} font-[500]`}>
+                  {deckBuilder?.selectedLeader?.code}
+                </span>
+                <br />
+                <span>{deckBuilder?.selectedLeader?.sets[0]?.set?.title}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLargeImageCard && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[999999] px-5 overflow-auto"
+          onClick={() => {
+            setShowLargeImageCard(false);
+          }}
+        >
+          <div className="w-full max-w-3xl">
+            <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
+              Tap to close
+            </div>
+            <div className="flex flex-col items-center gap-3 px-5 mb-3">
+              <img
+                src={selectedCard?.src}
+                className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
+                alt=""
+              />
+              <div className="text-white text-lg font-[400] text-center px-5">
+                <span className={`${oswald.className} font-[500]`}>
+                  {selectedCard?.code}
+                </span>
+                <br />
+                <span>{selectedCard?.set}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CompleteDeckBuilderLayout;

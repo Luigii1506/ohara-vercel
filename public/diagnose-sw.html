@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Diagnóstico Service Worker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+
+    h2 {
+      color: #667eea;
+      margin-bottom: 16px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .status.good { background: #d4edda; color: #155724; }
+    .status.warning { background: #fff3cd; color: #856404; }
+    .status.error { background: #f8d7da; color: #721c24; }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      margin-right: 12px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button.danger {
+      background: #dc3545;
+    }
+
+    button.danger:hover {
+      background: #c82333;
+    }
+
+    button.success {
+      background: #28a745;
+    }
+
+    button.success:hover {
+      background: #218838;
+    }
+
+    pre {
+      background: #f8f9fa;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .info-item {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 6px;
+      border-left: 3px solid #667eea;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .info-value {
+      color: #555;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+
+    .step-list {
+      list-style: none;
+      margin-top: 16px;
+    }
+
+    .step-list li {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border-left: 4px solid #667eea;
+    }
+
+    .step-list li strong {
+      color: #667eea;
+    }
+
+    .progress {
+      width: 100%;
+      height: 8px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transition: width 0.3s;
+    }
+
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 16px;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+      padding: 4px 0;
+    }
+
+    .log-success { color: #4ec9b0; }
+    .log-error { color: #f48771; }
+    .log-warning { color: #dcdcaa; }
+    .log-info { color: #9cdcfe; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>🔍 Diagnóstico Service Worker</h1>
+      <p style="color: #666; margin-bottom: 20px;">Herramienta para diagnosticar y limpiar el Service Worker</p>
+      <div id="mainStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>📊 Estado Actual</h2>
+      <div id="currentStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>💾 Cache Storage</h2>
+      <div id="cacheStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>🧹 Acciones de Limpieza</h2>
+      <button onclick="unregisterAll()">1️⃣ Desregistrar Service Workers</button>
+      <button onclick="clearAllCaches()">2️⃣ Limpiar Todos los Caches</button>
+      <button onclick="clearIndexedDB()">3️⃣ Limpiar IndexedDB</button>
+      <button class="danger" onclick="nukeEverything()">☢️ RESET COMPLETO</button>
+      <button class="success" onclick="diagnose()">🔄 Actualizar Diagnóstico</button>
+      <div id="actionLog" class="log" style="display: none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📋 Pasos para Arreglar el Error</h2>
+      <ol class="step-list">
+        <li>
+          <strong>1. Click "☢️ RESET COMPLETO"</strong> arriba
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            Esto desregistrará todos los Service Workers y limpiará todos los caches
+          </div>
+        </li>
+        <li>
+          <strong>2. Cierra TODAS las pestañas de localhost:3000</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            Incluyendo esta pestaña
+          </div>
+        </li>
+        <li>
+          <strong>3. Cierra el navegador COMPLETAMENTE</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            Mac: Cmd+Q | Windows: Alt+F4
+          </div>
+        </li>
+        <li>
+          <strong>4. Espera 5 segundos</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            Esto asegura que el proceso del navegador termine
+          </div>
+        </li>
+        <li>
+          <strong>5. Abre el navegador NUEVO</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            Nueva ventana, nueva sesión
+          </div>
+        </li>
+        <li>
+          <strong>6. Visita http://localhost:3000/card-list</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            El Service Worker nuevo se instalará correctamente
+          </div>
+        </li>
+        <li>
+          <strong>7. Verifica que funciona offline</strong>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            F12 → Network → Offline → Refresh
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    const log = (message, type = 'info') => {
+      const logDiv = document.getElementById('actionLog');
+      logDiv.style.display = 'block';
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    };
+
+    async function diagnose() {
+      log('🔍 Iniciando diagnóstico...', 'info');
+
+      // Check Service Workers
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      let statusHtml = '';
+
+      if (registrations.length === 0) {
+        statusHtml = '<div class="status good">✅ No hay Service Workers registrados</div>';
+        log('✅ No hay Service Workers registrados', 'success');
+      } else {
+        statusHtml = `<div class="status error">❌ ${registrations.length} Service Worker(s) encontrado(s)</div>`;
+        log(`❌ Encontrados ${registrations.length} Service Worker(s)`, 'error');
+      }
+
+      statusHtml += '<div class="info-grid">';
+
+      for (let i = 0; i < registrations.length; i++) {
+        const reg = registrations[i];
+        const sw = reg.active || reg.waiting || reg.installing;
+
+        statusHtml += `
+          <div class="info-item">
+            <div class="info-label">Service Worker ${i + 1}:</div>
+            <div class="info-value">
+              Scope: ${reg.scope}<br>
+              State: ${sw ? sw.state : 'unknown'}<br>
+              Script: ${sw ? sw.scriptURL : 'unknown'}
+            </div>
+          </div>
+        `;
+
+        log(`📍 SW ${i + 1}: ${reg.scope} - Estado: ${sw ? sw.state : 'unknown'}`, 'warning');
+      }
+
+      statusHtml += '</div>';
+      document.getElementById('currentStatus').innerHTML = statusHtml;
+
+      // Check Caches
+      const cacheNames = await caches.keys();
+
+      let cacheHtml = '';
+
+      if (cacheNames.length === 0) {
+        cacheHtml = '<div class="status good">✅ No hay caches almacenados</div>';
+        log('✅ No hay caches almacenados', 'success');
+      } else {
+        cacheHtml = `<div class="status warning">⚠️ ${cacheNames.length} cache(s) encontrado(s)</div>`;
+        log(`⚠️ Encontrados ${cacheNames.length} cache(s)`, 'warning');
+
+        cacheHtml += '<div class="info-grid">';
+
+        for (const name of cacheNames) {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+
+          cacheHtml += `
+            <div class="info-item">
+              <div class="info-label">${name}:</div>
+              <div class="info-value">${keys.length} archivos</div>
+            </div>
+          `;
+
+          log(`📦 Cache "${name}": ${keys.length} archivos`, 'info');
+        }
+
+        cacheHtml += '</div>';
+      }
+
+      document.getElementById('cacheStatus').innerHTML = cacheHtml;
+
+      // Overall status
+      if (registrations.length === 0 && cacheNames.length === 0) {
+        document.getElementById('mainStatus').innerHTML = `
+          <div class="status good">✅ ¡TODO LIMPIO! Ahora puedes:</div>
+          <ol style="margin-top: 12px; margin-left: 20px; color: #155724;">
+            <li>Cerrar TODAS las pestañas de localhost:3000</li>
+            <li>Cerrar el navegador completamente (Cmd+Q / Alt+F4)</li>
+            <li>Esperar 5 segundos</li>
+            <li>Abrir navegador nuevo</li>
+            <li>Visitar http://localhost:3000/card-list</li>
+          </ol>
+        `;
+        log('✅ LIMPIEZA COMPLETA - Listo para continuar', 'success');
+      } else {
+        document.getElementById('mainStatus').innerHTML = `
+          <div class="status error">❌ Hay archivos antiguos que limpiar</div>
+          <p style="margin-top: 12px; color: #721c24;">Click "☢️ RESET COMPLETO" para limpiar todo</p>
+        `;
+        log('❌ Se requiere limpieza', 'error');
+      }
+
+      log('🏁 Diagnóstico completado', 'success');
+    }
+
+    async function unregisterAll() {
+      log('🗑️ Desregistrando Service Workers...', 'info');
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      for (const registration of registrations) {
+        await registration.unregister();
+        log(`✅ Service Worker desregistrado: ${registration.scope}`, 'success');
+      }
+
+      log(`✅ Total desregistrados: ${registrations.length}`, 'success');
+      await diagnose();
+    }
+
+    async function clearAllCaches() {
+      log('🧹 Limpiando caches...', 'info');
+      const cacheNames = await caches.keys();
+
+      for (const name of cacheNames) {
+        await caches.delete(name);
+        log(`✅ Cache eliminado: ${name}`, 'success');
+      }
+
+      log(`✅ Total caches eliminados: ${cacheNames.length}`, 'success');
+      await diagnose();
+    }
+
+    async function clearIndexedDB() {
+      log('💾 Limpiando IndexedDB...', 'info');
+
+      const databases = await indexedDB.databases();
+
+      for (const db of databases) {
+        indexedDB.deleteDatabase(db.name);
+        log(`✅ IndexedDB eliminado: ${db.name}`, 'success');
+      }
+
+      log(`✅ Total IndexedDB eliminados: ${databases.length}`, 'success');
+      await diagnose();
+    }
+
+    async function nukeEverything() {
+      log('☢️ INICIANDO RESET COMPLETO...', 'warning');
+      log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'warning');
+
+      // 1. Unregister Service Workers
+      log('1️⃣ Desregistrando Service Workers...', 'info');
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+        log(`  ✅ Desregistrado: ${registration.scope}`, 'success');
+      }
+
+      // 2. Clear all caches
+      log('2️⃣ Limpiando Caches...', 'info');
+      const cacheNames = await caches.keys();
+      for (const name of cacheNames) {
+        await caches.delete(name);
+        log(`  ✅ Cache eliminado: ${name}`, 'success');
+      }
+
+      // 3. Clear IndexedDB
+      log('3️⃣ Limpiando IndexedDB...', 'info');
+      const databases = await indexedDB.databases();
+      for (const db of databases) {
+        indexedDB.deleteDatabase(db.name);
+        log(`  ✅ DB eliminado: ${db.name}`, 'success');
+      }
+
+      // 4. Clear localStorage
+      log('4️⃣ Limpiando localStorage...', 'info');
+      localStorage.clear();
+      log('  ✅ localStorage limpio', 'success');
+
+      // 5. Clear sessionStorage
+      log('5️⃣ Limpiando sessionStorage...', 'info');
+      sessionStorage.clear();
+      log('  ✅ sessionStorage limpio', 'success');
+
+      log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'success');
+      log('🎉 ¡RESET COMPLETO EXITOSO!', 'success');
+      log('', 'info');
+      log('📋 PRÓXIMOS PASOS:', 'warning');
+      log('1. Cierra TODAS las pestañas de localhost:3000', 'warning');
+      log('2. Cierra el navegador COMPLETAMENTE (Cmd+Q / Alt+F4)', 'warning');
+      log('3. Espera 5 segundos', 'warning');
+      log('4. Abre navegador NUEVO', 'warning');
+      log('5. Visita http://localhost:3000/card-list', 'warning');
+      log('6. El nuevo Service Worker se instalará correctamente ✅', 'success');
+
+      setTimeout(() => {
+        diagnose();
+      }, 1000);
+    }
+
+    // Run diagnosis on load
+    diagnose();
+  </script>
+</body>
+</html>

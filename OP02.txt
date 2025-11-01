@@ -1,0 +1,121 @@
+OP02-001	Edward.Newgate	Leader
+OP02-002	Monkey.D.Garp	Leader
+OP02-003	Atmos	Common
+OP02-004	Edward.Newgate	Super Rare
+OP02-005	Curly.Dadan	Uncommon
+OP02-006	Kingdew	Common
+OP02-007	Thatch	Common
+OP02-008	Jozu	Rare
+OP02-009	Squard	Uncommon
+OP02-010	Dogura	Common
+OP02-011	Vista	Rare
+OP02-012	Blenheim	Common
+OP02-013	Portgas.D.Ace	Super Rare
+OP02-014	Whitey Bay	Uncommon
+OP02-015	Makino	Uncommon
+OP02-016	Magura	Common
+OP02-017	Masked Deuce	Rare
+OP02-018	Marco	Rare
+OP02-019	Rakuyo	Uncommon
+OP02-020	LittleOars Jr.	Common
+OP02-021	Seaquake	Rare
+OP02-022	Whitebeard Pirates	Uncommon
+OP02-023	You May Be a Fool...but I Still Love You	Common
+OP02-024	Moby Dick	Common
+OP02-025	Kin'emon	Leader
+OP02-026	Sanji	Leader
+OP02-027	Inuarashi	Uncommon
+OP02-028	Usopp	Common
+OP02-029	Carrot	Rare
+OP02-030	Kouzuki Oden	Super Rare
+OP02-031	Kouzuki Toki	Uncommon
+OP02-032	Shishilian	Uncommon
+OP02-033	Jinbe	Common
+OP02-034	Tony Tony.Chopper	Uncommon
+OP02-035	Trafalgar Law	Common
+OP02-036	Nami	Super Rare
+OP02-037	Nico Robin	Uncommon
+OP02-038	Nekomamushi	Common
+OP02-039	Franky	Common
+OP02-040	Brook	Rare
+OP02-041	Monkey.D.Luffy	Rare
+OP02-042	Yamato	Rare
+OP02-043	Roronoa Zoro	Common
+OP02-044	Wanda	Common
+OP02-045	Three Sword Style Oni Giri	Common
+OP02-046	Diable Jambe Venaison Shoot	Uncommon
+OP02-047	Paradise Totsuka	Rare
+OP02-048	Land of Wano	Common
+OP02-049	Emporio.Ivankov	Leader
+OP02-050	Inazuma	Rare
+OP02-051	Emporio.Ivankov	Super Rare
+OP02-052	Cabaji	Common
+OP02-053	Crocodile	Common
+OP02-054	Gecko Moria	Common
+OP02-055	Dracule Mihawk	Common
+OP02-056	Donquixote Doflamingo	Uncommon
+OP02-057	Bartholomew Kuma	Uncommon
+OP02-058	Buggy	Rare
+OP02-059	Boa Hancock	Uncommon
+OP02-060	Mohji	Common
+OP02-061	Morley	Uncommon
+OP02-062	Monkey.D.Luffy	Super Rare
+OP02-063	Mr.1(Daz.Bonez)	Uncommon
+OP02-064	Mr.2.Bon.Kurei(Bentham)	Rare
+OP02-065	Mr.3(Galdino)	Rare
+OP02-066	Impel Down All Stars	Common
+OP02-067	Arabesque Brick Fist	Uncommon
+OP02-068	Gum-Gum Rain	Rare
+OP02-069	DEATH WINK	Common
+OP02-070	New Kama Land	Common
+OP02-071	Magellan	Leader
+OP02-072	Zephyr	Leader
+OP02-073	Little Sadi	Rare
+OP02-074	Saldeath	Common
+OP02-075	Shiki	Rare
+OP02-076	Shiryu	Rare
+OP02-077	Solitaire	Common
+OP02-078	Daifugo	Uncommon
+OP02-079	Douglas Bullet	Uncommon
+OP02-080	Dobon	Common
+OP02-081	Domino	Common
+OP02-082	Byrnndi World	Uncommon
+OP02-083	Hannyabal	Rare
+OP02-084	Blugori	Common
+OP02-085	Magellan	Super Rare
+OP02-086	Minokoala	Uncommon
+OP02-087	Minotaur	Uncommon
+OP02-088	Sphinx	Common
+OP02-089	Judgment of Hell	Rare
+OP02-090	Hydra	Uncommon
+OP02-091	Venom Road	Common
+OP02-092	Impel Down	Common
+OP02-093	Smoker	Leader
+OP02-094	Isuka	Uncommon
+OP02-095	Onigumo	Uncommon
+OP02-096	Kuzan	Super Rare
+OP02-097	Komille	Common
+OP02-098	Koby	Rare
+OP02-099	Sakazuki	Super Rare
+OP02-100	Jango	Common
+OP02-101	Strawberry	Common
+OP02-102	Smoker	Rare
+OP02-103	Sengoku	Rare
+OP02-104	Sentomaru	Common
+OP02-105	Tashigi	Common
+OP02-106	Tsuru	Uncommon
+OP02-107	Doberman	Common
+OP02-108	Donquixote Rosinante	Common
+OP02-109	Jaguar.D.Saul	Common
+OP02-110	Hina	Rare
+OP02-111	Fullbody	Common
+OP02-112	Bell-mère	Uncommon
+OP02-113	Helmeppo	Uncommon
+OP02-114	Borsalino	Super Rare
+OP02-115	Monkey.D.Garp	Rare
+OP02-116	Yamakaji	Common
+OP02-117	Ice Age	Uncommon
+OP02-118	Yasakani Sacred Jewel	Common
+OP02-119	Meteor Volcano	Rare
+OP02-120	Uta	Secret Rare
+OP02-121	Kuzan	Secret Rare

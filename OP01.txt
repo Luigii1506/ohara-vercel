@@ -1,0 +1,121 @@
+OP01-001	Roronoa Zoro	Leader
+OP01-002	Trafalgar Law	Leader
+OP01-003	Monkey.D.Luffy	Leader
+OP01-004	Usopp	Rare
+OP01-005	Uta	Rare
+OP01-006	Otama	Uncommon
+OP01-007	Caribou	Common
+OP01-008	Cavendish	Common
+OP01-009	Carrot	Common
+OP01-010	Komachiyo	Common
+OP01-011	Gordon	Uncommon
+OP01-012	Sai	Common
+OP01-013	Sanji	Rare
+OP01-014	Jinbe	Uncommon
+OP01-015	Tony Tony.Chopper	Uncommon
+OP01-016	Nami	Rare
+OP01-017	Nico Robin	Rare
+OP01-018	Hajrudin	Common
+OP01-019	Bartolomeo	Common
+OP01-020	Hyogoro	Common
+OP01-021	Franky	Uncommon
+OP01-022	Brook	Uncommon
+OP01-023	Marco	Common
+OP01-024	Monkey.D.Luffy	Super Rare
+OP01-025	Roronoa Zoro	Super Rare
+OP01-026	Gum-Gum Fire-Fist Pistol Red Hawk	Rare
+OP01-027	Round Table	Common
+OP01-028	Green Star Rafflesia	Common
+OP01-029	Radical Beam!!	Uncommon
+OP01-030	In Two Years!! At the Sabaody Archipelago!!	Uncommon
+OP01-031	Kouzuki Oden	Leader
+OP01-032	Ashura Doji	Uncommon
+OP01-033	Izo	Uncommon
+OP01-034	Inuarashi	Common
+OP01-035	Okiku	Rare
+OP01-036	Otsuru	Common
+OP01-037	Kawamatsu	Common
+OP01-038	Kanjuro	Common
+OP01-039	Killer	Uncommon
+OP01-040	Kin'emon	Super Rare
+OP01-041	Kouzuki Momonosuke	Rare
+OP01-042	Komurasaki	Uncommon
+OP01-043	Shinobu	Common
+OP01-044	Shachi	Common
+OP01-045	Jean Bart	Common
+OP01-046	Denjiro	Rare
+OP01-047	Trafalgar Law	Super Rare
+OP01-048	Nekomamushi	Common
+OP01-049	Bepo	Rare
+OP01-050	Penguin	Common
+OP01-051	Eustass"Captain"Kid	Super Rare
+OP01-052	Raizo	Uncommon
+OP01-053	Wire	Common
+OP01-054	X.Drake	Rare
+OP01-055	You Can Be My Samurai!!	Common
+OP01-056	Demon Face	Uncommon
+OP01-057	Paradise Waterfall	Uncommon
+OP01-058	Punk Gibson	Rare
+OP01-059	BE-BENG!!	Common
+OP01-060	Donquixote Doflamingo	Leader
+OP01-061	Kaido	Leader
+OP01-062	Crocodile	Leader
+OP01-063	Arlong	Uncommon
+OP01-064	Alvida	Common
+OP01-065	Vergo	Common
+OP01-066	Krieg	Common
+OP01-067	Crocodile	Super Rare
+OP01-068	Gecko Moria	Rare
+OP01-069	Caesar Clown	Rare
+OP01-070	Dracule Mihawk	Super Rare
+OP01-071	Jinbe	Rare
+OP01-072	Smiley	Common
+OP01-073	Donquixote Doflamingo	Rare
+OP01-074	Bartholomew Kuma	Rare
+OP01-075	Pacifista	Common
+OP01-076	Bellamy	Common
+OP01-077	Perona	Uncommon
+OP01-078	Boa Hancock	Super Rare
+OP01-079	Ms. All Sunday	Rare
+OP01-080	Miss Doublefinger(Zala)	Common
+OP01-081	Mocha	Common
+OP01-082	Monet	Common
+OP01-083	Mr.1(Daz.Bonez)	Uncommon
+OP01-084	Mr.2.Bon.Kurei(Bentham)	Uncommon
+OP01-085	Mr.3(Galdino)	Uncommon
+OP01-086	Overheat	Rare
+OP01-087	Officer Agents	Common
+OP01-088	Desert Spada	Uncommon
+OP01-089	Crescent Cutlass	Common
+OP01-090	Baroque Works	Uncommon
+OP01-091	King	Leader
+OP01-092	Urashima	Common
+OP01-093	Ulti	Rare
+OP01-094	Kaido	Super Rare
+OP01-095	Kyoshirou	Uncommon
+OP01-096	King	Super Rare
+OP01-097	Queen	Rare
+OP01-098	Kurozumi Orochi	Uncommon
+OP01-099	Kurozumi Semimaru	Common
+OP01-100	Kurozumi Higurashi	Common
+OP01-101	Sasaki	Uncommon
+OP01-102	Jack	Rare
+OP01-103	Scratchmen Apoo	Common
+OP01-104	Speed	Common
+OP01-105	Bao Huang	Common
+OP01-106	Basil Hawkins	Uncommon
+OP01-107	Babanuki	Common
+OP01-108	Hitokiri Kamazo	Uncommon
+OP01-109	Who's.Who	Uncommon
+OP01-110	Fukurokuju	Common
+OP01-111	Black Maria	Rare
+OP01-112	Page One	Rare
+OP01-113	Holedem	Common
+OP01-114	X.Drake	Rare
+OP01-115	Elephant's Marchoo	Common
+OP01-116	Artificial Devil Fruit SMILE	Uncommon
+OP01-117	Sheep's Horn	Common
+OP01-118	Ulti-Mortar	Uncommon
+OP01-119	Thunder Bagua	Rare
+OP01-120	Shanks	Secret Rare
+OP01-121	Yamato	Secret Rare

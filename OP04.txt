@@ -1,0 +1,124 @@
+OP04-001	Nefeltari Vivi	Leader
+OP04-002	Igaram	Rare
+OP04-003	Usopp	Uncommon
+OP04-004	Karoo	Common
+OP04-005	Kung Fu Jugon	Common
+OP04-006	Koza	Uncommon
+OP04-007	Sanji	Common
+OP04-008	Chaka	Rare
+OP04-009	Super Spot-Billed Duck Troops	Uncommon
+OP04-010	Tony Tony.Chopper	Common
+OP04-011	Nami	Common
+OP04-012	Nefeltari Cobra	Common
+OP04-013	Pell	Super Rare
+OP04-014	Monkey.D.Luffy	Uncommon
+OP04-015	Roronoa Zoro	Rare
+OP04-016	Bad Manners Kick Course	Rare
+OP04-017	Happiness Punch	Common
+OP04-018	Enchanting Vertigo Dance	Uncommon
+OP04-019	Donquixote Doflamingo	Leader
+OP04-020	Issho	Leader
+OP04-021	Viola	Common
+OP04-022	Eric	Uncommon
+OP04-023	Kuro	Common
+OP04-024	Sugar	Super Rare
+OP04-025	Giolla	Common
+OP04-026	Senor Pink	Rare
+OP04-027	Daddy Masterson	Common
+OP04-028	Diamante	Rare
+OP04-029	Dellinger	Common
+OP04-030	Trebol	Rare
+OP04-031	Donquixote Doflamingo	Super Rare
+OP04-032	Baby 5	Uncommon
+OP04-033	Machvise	Uncommon
+OP04-034	Lao.G	Uncommon
+OP04-035	Spiderweb	Rare
+OP04-036	Donquixote Family	Common
+OP04-037	Flapping Thread	Uncommon
+OP04-038	The Weak Do Not Have the Right to Choose How They Die!!!	Common
+OP04-039	Rebecca	Leader
+OP04-040	Queen	Leader
+OP04-041	Apis	Common
+OP04-042	Ipponmatsu	Common
+OP04-043	Ulti	Rare
+OP04-044	Kaido	Super Rare
+OP04-045	King	Rare
+OP04-046	Queen	Uncommon
+OP04-047	Ice Oni	Common
+OP04-048	Sasaki	Uncommon
+OP04-049	Jack	Uncommon
+OP04-050	Hanger	Common
+OP04-051	Who's.Who	Rare
+OP04-052	Black Maria	Common
+OP04-053	Page One	Uncommon
+OP04-054	Rokki	Common
+OP04-055	Plague Rounds	Common
+OP04-056	Gum-Gum Red Roc	Rare
+OP04-057	Dragon Twister Demolition Breath	Uncommon
+OP04-058	Crocodile	Leader
+OP04-059	Iceburg	Uncommon
+OP04-060	Crocodile	Super Rare
+OP04-061	Tom	Common
+OP04-062	Bananagator	Common
+OP04-063	Franky	Rare
+OP04-064	Ms. All Sunday	Super Rare
+OP04-065	Miss.Goldenweek(Marianne)	Common
+OP04-066	Miss.Valentine(Mikita)	Rare
+OP04-067	Miss.MerryChristmas(Drophy)	Common
+OP04-068	Yokozuna	Common
+OP04-069	Mr.2.Bon.Kurei(Bentham)	Uncommon
+OP04-070	Mr.3(Galdino)	Uncommon
+OP04-071	Mr.4(Babe)	Uncommon
+OP04-072	Mr.5(Gem)	Rare
+OP04-073	Mr.13 & Ms.Friday	Common
+OP04-074	Colors Trap	Rare
+OP04-075	Nez-Palm Cannon	Uncommon
+OP04-076	Weakness...Is an Unforgivable Sin.	Common
+OP04-077	Ideo	Common
+OP04-078	Oimo & Kashii	Common
+OP04-079	Orlumbus	Common
+OP04-080	Gyats	Uncommon
+OP04-081	Cavendish	Rare
+OP04-082	Kyros	Rare
+OP04-083	Sabo	Super Rare
+OP04-084	Stussy	Common
+OP04-085	Suleiman	Uncommon
+OP04-086	Chinjao	Common
+OP04-087	Trafalgar Law	Common
+OP04-088	Hajrudin	Uncommon
+OP04-089	Bartolomeo	Rare
+OP04-090	Monkey.D.Luffy	Super Rare
+OP04-091	Leo	Uncommon
+OP04-092	Rebecca	Rare
+OP04-093	Gum-Gum King Kong Gun	Uncommon
+OP04-094	Trueno Bastardo	Rare
+OP04-095	Barrier!!	Common
+OP04-096	Corrida Coliseum	Common
+OP04-097	Otama	Common
+OP04-098	Toko	Uncommon
+OP04-099	Olin	Rare
+OP04-100	Capone"Gang"Bege	Rare
+OP04-101	Carmel	Common
+OP04-102	Kin'emon	Rare
+OP04-103	Kouzuki Hiyori	Uncommon
+OP04-104	Sanji	Super Rare
+OP04-105	Charlotte Amande	Rare
+OP04-106	Charlotte Bavarois	Common
+OP04-107	Charlotte Perospero	Common
+OP04-108	Charlotte Moscato	Uncommon
+OP04-109	Tonoyasu	Common
+OP04-110	Pound	Common
+OP04-111	Hera	Uncommon
+OP04-112	Yamato	Super Rare
+OP04-113	Rabiyan	Common
+OP04-114	Randolph	Common
+OP04-115	Gun Modoki	Common
+OP04-116	Diable Jambe Joue Shot	Uncommon
+OP04-117	Heavenly Fire	Rare
+OP04-118	Nefeltari Vivi	Secret Rare
+OP04-119	Donquixote Rosinante	Secret Rare
+OP01-047	Trafalgar Law	Special Card
+OP01-078	Boa Hancock	Special Card
+OP02-004	Edward.Newgate	Special Card
+OP02-085	Magellan	Special Card
+OP02-099	Sakazuki	Special Card

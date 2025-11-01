@@ -1,0 +1,572 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Card {
+  id               Int             @id @default(autoincrement())
+  src              String
+  name             String
+  cost             String?
+  power            String?
+  attribute        String?
+  counter          String?
+  category         String
+  life             String?
+  rarity           String?
+  illustrator      String?
+  alternateArt     String?
+  status           String?
+  triggerCard      String?
+  code             String
+  setCode          String
+  isFirstEdition   Boolean
+  uuid             String          @unique @default(uuid())
+  createdAt        DateTime?       @default(now())
+  updatedAt        DateTime?       @updatedAt
+  tcgUrl           String?         @default("")
+  alias            String?         @default("")
+  order            String          @default("0")
+  isPro            Boolean         @default(false)
+  region           String?
+  colors           CardColor[]
+  conditions       CardCondition[]
+  effects          CardEffect[]
+  listings         CardListing[]
+  priceLogs        CardPriceLog[]
+  rulings          CardRuling[]
+  sets             CardSet[]
+  texts            CardText[]
+  types            CardType[]
+  DeckCard         DeckCard[]
+  opponentGameLogs GameLog[]       @relation("OpponentLeader")
+  GameLogCard      GameLogCard[]
+  userListCards    UserListCard[]
+}
+
+model Deck {
+  id             Int        @id @default(autoincrement())
+  name           String
+  createdAt      DateTime?  @default(now())
+  updatedAt      DateTime?  @updatedAt
+  originalDeckId Int?
+  uniqueUrl      String     @unique
+  description    String?    @default("")
+  userId         Int?
+  originalDeck   Deck?      @relation("OriginalDeck", fields: [originalDeckId], references: [id])
+  forks          Deck[]     @relation("OriginalDeck")
+  user           User?      @relation(fields: [userId], references: [id])
+  deckCards      DeckCard[]
+  gameLogs       GameLog[]
+
+  @@index([originalDeckId], map: "Deck_originalDeckId_fkey")
+  @@index([userId], map: "Deck_userId_fkey")
+}
+
+model DeckCard {
+  id       Int  @id @default(autoincrement())
+  deckId   Int
+  cardId   Int
+  quantity Int  @default(1)
+  card     Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  deck     Deck @relation(fields: [deckId], references: [id])
+
+  @@index([cardId], map: "DeckCard_cardId_fkey")
+  @@index([deckId], map: "DeckCard_deckId_fkey")
+}
+
+model GameLog {
+  id               Int           @id @default(autoincrement())
+  userId           Int
+  deckId           Int
+  opponentLeaderId Int
+  isWin            Boolean
+  wentFirst        Boolean
+  opponentName     String?
+  comments         String?       @db.Text
+  playedAt         DateTime      @default(now())
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deck             Deck          @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  opponentLeader   Card          @relation("OpponentLeader", fields: [opponentLeaderId], references: [id])
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finalHandCards   GameLogCard[]
+
+  @@index([deckId], map: "GameLog_deckId_fkey")
+  @@index([opponentLeaderId], map: "GameLog_opponentLeaderId_fkey")
+  @@index([userId], map: "GameLog_userId_fkey")
+}
+
+model GameLogCard {
+  id        Int     @id @default(autoincrement())
+  gameLogId Int
+  cardId    Int
+  card      Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  gameLog   GameLog @relation(fields: [gameLogId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "GameLogCard_cardId_fkey")
+  @@index([gameLogId], map: "GameLogCard_gameLogId_fkey")
+}
+
+model CardRuling {
+  id       Int    @id @default(autoincrement())
+  cardId   Int
+  question String @db.Text
+  answer   String @db.Text
+  card     Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardRuling_cardId_fkey")
+}
+
+model CardCondition {
+  id        Int    @id @default(autoincrement())
+  cardId    Int
+  condition String
+  card      Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardCondition_cardId_fkey")
+}
+
+model CardType {
+  id     Int    @id @default(autoincrement())
+  cardId Int
+  type   String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardType_cardId_fkey")
+}
+
+model CardColor {
+  id     Int    @id @default(autoincrement())
+  cardId Int
+  color  String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardColor_cardId_fkey")
+}
+
+model CardEffect {
+  id     Int    @id @default(autoincrement())
+  cardId Int
+  effect String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardEffect_cardId_fkey")
+}
+
+model CardText {
+  id     Int    @id @default(autoincrement())
+  cardId Int
+  text   String @db.LongText
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardText_cardId_fkey")
+}
+
+model User {
+  id                Int               @id @default(autoincrement())
+  email             String            @unique
+  name              String
+  createdAt         DateTime?         @default(now()) @map("createdAt")
+  updatedAt         DateTime?         @updatedAt @map("updatedAt")
+  role              Role              @default(USER)
+  emailVerified     DateTime?
+  image             String?
+  uuid              String            @unique @default(uuid())
+  accounts          Account[]
+  billingAddresses  BillingAddress[]
+  cardListings      CardListing[]     @relation("SellerListings")
+  CardPriceLog      CardPriceLog[]
+  cart              Cart?
+  decks             Deck[]
+  gameLogs          GameLog[]
+  buyerOrders       Order[]           @relation("BuyerOrders")
+  sellerSales       Order[]           @relation("SellerSales")
+  products          Product[]         @relation("SellerProducts")
+  reviews           Review[]
+  sellerProfile     SellerProfile?
+  sessions          Session[]
+  shippingAddresses ShippingAddress[]
+  lists             UserList[]
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String  @unique
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_userId_fkey")
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_userId_fkey")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model UserList {
+  id           Int                 @id @default(autoincrement())
+  userId       Int
+  name         String
+  description  String?
+  isOrdered    Boolean             @default(false)
+  isDeletable  Boolean             @default(true)
+  isCollection Boolean             @default(false)
+  maxRows      Int?
+  maxColumns   Int?
+  totalPages   Int                 @default(1)
+  color        String?
+  isPublic     Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards        UserListCard[]
+  backcards    UserListBackcard[] // 🎴 Relación con backcards
+
+  @@unique([userId, name])
+  @@index([userId, isPublic])
+  @@index([userId, isCollection])
+}
+
+model UserListCard {
+  id        Int      @id @default(autoincrement())
+  listId    Int
+  cardId    Int
+  quantity  Int      @default(1)
+  sortOrder Int?
+  page      Int?
+  row       Int?
+  column    Int?
+  notes     String?
+  condition String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  list      UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, page, row, column], name: "unique_physical_position")
+  @@index([listId, cardId])
+  @@index([listId, sortOrder])
+  @@index([cardId], map: "UserListCard_cardId_fkey")
+}
+
+// 🎴 Modelo para almacenar posiciones de backcard
+model UserListBackcard {
+  id        Int      @id @default(autoincrement())
+  listId    Int
+  page      Int
+  row       Int
+  column    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  list      UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, page, row, column], name: "unique_backcard_position")
+  @@index([listId])
+}
+
+model Event {
+  id        Int        @id @default(autoincrement())
+  name      String
+  eventDate DateTime   @map("event_date")
+  location  String
+  createdAt DateTime?  @default(now())
+  updatedAt DateTime?  @updatedAt
+  sets      EventSet[]
+}
+
+model Set {
+  id          Int        @id @default(autoincrement())
+  image       String
+  title       String
+  code        String?
+  releaseDate DateTime   @map("release_date")
+  isOpen      Boolean    @default(false) @map("is_open")
+  createdAt   DateTime?  @default(now()) @map("created_at")
+  updatedAt   DateTime?  @updatedAt @map("updated_at")
+  version     String?
+  cards       CardSet[]
+  events      EventSet[]
+}
+
+model EventSet {
+  eventId Int
+  setId   Int
+  event   Event @relation(fields: [eventId], references: [id])
+  set     Set   @relation(fields: [setId], references: [id])
+
+  @@id([eventId, setId])
+  @@index([setId], map: "EventSet_setId_fkey")
+}
+
+model CardSet {
+  cardId Int
+  setId  Int
+  id     Int  @id @default(autoincrement())
+  card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  set    Set  @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([cardId], map: "CardSet_cardId_fkey")
+  @@index([setId], map: "CardSet_setId_fkey")
+}
+
+model CardPriceLog {
+  id            Int      @id @default(autoincrement())
+  cardId        Int
+  previousPrice Float
+  newPrice      Float
+  userId        Int?
+  changedAt     DateTime @default(now())
+  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id])
+
+  @@index([cardId], map: "CardPriceLog_cardId_fkey")
+  @@index([userId], map: "CardPriceLog_userId_fkey")
+}
+
+model CardListing {
+  id                Int         @id @default(autoincrement())
+  uuid              String      @unique @default(uuid())
+  cardId            Int
+  sellerId          Int
+  price             Decimal
+  stock             Int
+  conditionForSale  String
+  sku               String?     @unique
+  isActive          Boolean     @default(true)
+  isDraft           Boolean     @default(false)
+  isFeatured        Boolean     @default(false)
+  lowStockThreshold Int         @default(5)
+  listingDate       DateTime    @default(now())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  card              Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  seller            User        @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Cascade)
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  reviews           Review[]
+
+  @@index([sellerId, isActive])
+  @@index([cardId, sellerId])
+  @@index([isActive, isFeatured])
+}
+
+model Product {
+  id                Int         @id @default(autoincrement())
+  uuid              String      @unique @default(uuid())
+  name              String
+  description       String?     @db.Text
+  price             Decimal
+  stock             Int
+  sku               String?     @unique
+  imageUrl          String?
+  categoryId        Int?
+  sellerId          Int
+  isActive          Boolean     @default(true)
+  isDraft           Boolean     @default(false)
+  isFeatured        Boolean     @default(false)
+  lowStockThreshold Int?        @default(5)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  seller            User        @relation("SellerProducts", fields: [sellerId], references: [id])
+  reviews           Review[]
+
+  @@index([sellerId], map: "Product_sellerId_fkey")
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+}
+
+model CartItem {
+  id              Int          @id @default(autoincrement())
+  cartId          Int
+  cardListingId   Int?
+  productId       Int?
+  quantity        Int
+  priceAtAddition Decimal
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  cardListing     CardListing? @relation(fields: [cardListingId], references: [id])
+  cart            Cart         @relation(fields: [cartId], references: [id])
+  product         Product?     @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, cardListingId, productId])
+  @@index([cardListingId], map: "CartItem_cardListingId_fkey")
+  @@index([productId], map: "CartItem_productId_fkey")
+}
+
+model Order {
+  id                      Int             @id @default(autoincrement())
+  uuid                    String          @unique @default(uuid())
+  buyerId                 Int
+  sellerId                Int?
+  totalAmount             Decimal
+  subtotal                Decimal
+  shippingCost            Decimal
+  taxAmount               Decimal
+  discountAmount          Decimal         @default(0.000000000000000000000000000000)
+  status                  OrderStatus     @default(PENDING)
+  trackingNumber          String?
+  shippingCarrier         String?
+  shippingAddressId       Int
+  billingAddressId        Int
+  stripePaymentIntentId   String?         @unique
+  stripeCheckoutSessionId String?         @unique
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  billingAddress          BillingAddress  @relation(fields: [billingAddressId], references: [id])
+  buyer                   User            @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller                  User?           @relation("SellerSales", fields: [sellerId], references: [id])
+  shippingAddress         ShippingAddress @relation(fields: [shippingAddressId], references: [id])
+  orderItems              OrderItem[]
+
+  @@index([billingAddressId], map: "Order_billingAddressId_fkey")
+  @@index([buyerId], map: "Order_buyerId_fkey")
+  @@index([sellerId], map: "Order_sellerId_fkey")
+  @@index([shippingAddressId], map: "Order_shippingAddressId_fkey")
+}
+
+model OrderItem {
+  id                  Int          @id @default(autoincrement())
+  orderId             Int
+  cardListingId       Int?
+  productId           Int?
+  quantity            Int
+  priceAtPurchase     Decimal
+  conditionAtPurchase String?
+  cardListing         CardListing? @relation(fields: [cardListingId], references: [id])
+  order               Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product?     @relation(fields: [productId], references: [id])
+
+  @@index([cardListingId], map: "OrderItem_cardListingId_fkey")
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+}
+
+model ShippingAddress {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  fullName  String
+  address1  String
+  address2  String?
+  city      String
+  state     String
+  zipCode   String
+  country   String
+  phone     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "ShippingAddress_userId_fkey")
+}
+
+model BillingAddress {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  fullName  String
+  address1  String
+  address2  String?
+  city      String
+  state     String
+  zipCode   String
+  country   String
+  phone     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  orders    Order[]
+
+  @@index([userId], map: "BillingAddress_userId_fkey")
+}
+
+model SellerProfile {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  stripeAccountId String?  @unique
+  bio             String?  @db.Text
+  storeName       String?  @unique
+  storeUrl        String?
+  isActive        Boolean  @default(false)
+  rating          Float?   @default(0)
+  reviewsCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  reviews         Review[]
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model Review {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  cardListingId   Int?
+  productId       Int?
+  sellerProfileId Int?
+  rating          Int            @db.UnsignedTinyInt
+  comment         String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  cardListing     CardListing?   @relation(fields: [cardListingId], references: [id])
+  product         Product?       @relation(fields: [productId], references: [id])
+  sellerProfile   SellerProfile? @relation(fields: [sellerProfileId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+
+  @@index([cardListingId], map: "Review_cardListingId_fkey")
+  @@index([productId], map: "Review_productId_fkey")
+  @@index([sellerProfileId], map: "Review_sellerProfileId_fkey")
+  @@index([userId], map: "Review_userId_fkey")
+}
+
+enum Role {
+  ADMIN
+  USER
+  SELLER
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}

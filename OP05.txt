@@ -1,0 +1,125 @@
+OP05-001	Sabo	Leader
+OP05-002	Belo Betty	Leader
+OP05-003	Inazuma	Uncommon
+OP05-004	Emporio.Ivankov	Uncommon
+OP05-005	Karasu	Rare
+OP05-006	Koala	Super Rare
+OP05-007	Sabo	Super Rare
+OP05-008	Chaka	Uncommon
+OP05-009	Toh-Toh	Common
+OP05-010	Nico Robin	Uncommon
+OP05-011	Bartholomew Kuma	Common
+OP05-012	Hack	Common
+OP05-013	Bunny Joe	Common
+OP05-014	Pell	Common
+OP05-015	Belo Betty	Rare
+OP05-016	Morley	Rare
+OP05-017	Lindbergh	Rare
+OP05-018	Emporio Energy Hormone	Common
+OP05-019	Fire Fist	Rare
+OP05-020	Four Thousand-Brick Fist	Uncommon
+OP05-021	Revolutionary Army HQ	Uncommon
+OP05-022	Donquixote Rosinante	Leader
+OP05-023	Vergo	Rare
+OP05-024	Kuween	Common
+OP05-025	Gladius	Common
+OP05-026	Sarquiss	Common
+OP05-027	Trafalgar Law	Uncommon
+OP05-028	Donquixote Doflamingo	Common
+OP05-029	Donquixote Doflamingo	Uncommon
+OP05-030	Donquixote Rosinante	Rare
+OP05-031	Buffalo	Common
+OP05-032	Pica	Super Rare
+OP05-033	Baby 5	Common
+OP05-034	Baby 5	Rare
+OP05-035	Bellamy	Common
+OP05-036	Monet	Uncommon
+OP05-037	Because the Side of Justice Will Be Whichever Side Wins!!	Rare
+OP05-038	Charlestone	Common
+OP05-039	Stick-Stickem Meteora	Uncommon
+OP05-040	Birdcage	Common
+OP05-041	Sakazuki	Leader
+OP05-042	Issho	Rare
+OP05-043	Ulti	Super Rare
+OP05-044	John Giant	Common
+OP05-045	Stainless	Common
+OP05-046	Dalmatian	Common
+OP05-047	Basil Hawkins	Common
+OP05-048	Bastille	Uncommon
+OP05-049	Haccha	Uncommon
+OP05-050	Hina	Rare
+OP05-051	Borsalino	Super Rare
+OP05-052	Maynard	Common
+OP05-053	Mozambia	Common
+OP05-054	Monkey.D.Garp	Uncommon
+OP05-055	X.Drake	Rare
+OP05-056	X.Barrels	Common
+OP05-057	Hound Blaze	Rare
+OP05-058	It's a Waste of Human Life!!	Common
+OP05-059	Let Us Begin the World of Violence!!!	Uncommon
+OP05-060	Monkey.D.Luffy	Leader
+OP05-061	Uso-Hachi	Uncommon
+OP05-062	O-Nami	Uncommon
+OP05-063	O-Robi	Common
+OP05-064	Killer	Rare
+OP05-065	San-Gorou	Common
+OP05-066	Jinbe	Common
+OP05-067	Zoro-Juurou	Rare
+OP05-068	Chopa-Emon	Common
+OP05-069	Trafalgar Law	Super Rare
+OP05-070	Fra-Nosuke	Uncommon
+OP05-071	Bepo	Rare
+OP05-072	Hone-Kichi	Common
+OP05-073	Miss Doublefinger(Zala)	Uncommon
+OP05-074	Eustass"Captain"Kid	Super Rare
+OP05-075	Mr.1(Daz.Bonez)	Common
+OP05-076	When You're at Sea You Fight against Pirates!!	Rare
+OP05-077	Gamma Knife	Common
+OP05-078	Punk Rotten	Uncommon
+OP05-079	Viola	Uncommon
+OP05-080	Elizabello II	Uncommon
+OP05-081	One-Legged Toy Soldier	Uncommon
+OP05-082	Shirahoshi	Rare
+OP05-083	Sterry	Common
+OP05-084	Saint Charlos	Common
+OP05-085	Nefeltari Cobra	Uncommon
+OP05-086	Nefeltari Vivi	Rare
+OP05-087	Hakuba	Common
+OP05-088	Mansherry	Rare
+OP05-089	Saint Mjosgard	Common
+OP05-090	Riku Doldo III	Common
+OP05-091	Rebecca	Super Rare
+OP05-092	Saint Rosward	Common
+OP05-093	Rob Lucci	Super Rare
+OP05-094	Haute Couture Patch★Work	Rare
+OP05-095	Dragon Claw	Common
+OP05-096	I Bid 500 Million!!	Uncommon
+OP05-097	Mary Geoise	Common
+OP05-098	Enel	Leader
+OP05-099	Amazon	Uncommon
+OP05-100	Enel	Special Card
+OP05-101	Ohm	Rare
+OP05-102	Gedatsu	Rare
+OP05-103	Kotori	Uncommon
+OP05-104	Conis	Uncommon
+OP05-105	Satori	Rare
+OP05-106	Shura	Rare
+OP05-107	Lieutenant Spacey	Common
+OP05-108	Nola	Common
+OP05-109	Pagaya	Common
+OP05-110	Holly	Common
+OP05-111	Hotori	Uncommon
+OP05-112	Captain McKinley	Common
+OP05-113	Yama	Common
+OP05-114	El Thor	Uncommon
+OP05-115	Two-Hundred Million Volts Amaru	Rare
+OP05-116	Hino Bird Zap	Common
+OP05-117	Upper Yard	Uncommon
+OP05-118	Kaido	Secret Rare
+OP05-119	Monkey.D.Luffy	Secret Rare
+OP01-016	Nami	Special Card
+OP01-121	Yamato	Special Card
+OP02-120	Uta	Special Card
+OP03-092	Rob Lucci	Special Card
+OP04-044	Kaido	Special Card
+ST01-012	Monkey.D.Luffy	Special Card

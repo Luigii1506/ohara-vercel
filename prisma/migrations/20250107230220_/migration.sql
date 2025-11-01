@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `Card` MODIFY `tcgUrl` VARCHAR(191) NULL DEFAULT '',
+    MODIFY `alias` VARCHAR(191) NULL DEFAULT '';

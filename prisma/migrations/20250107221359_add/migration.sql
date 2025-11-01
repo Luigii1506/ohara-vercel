@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Card` ADD COLUMN `alias` VARCHAR(191) NULL;

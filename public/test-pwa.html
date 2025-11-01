@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PWA Test - Ohara TCG</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-left: 10px;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .status.pending { background: #fff3cd; color: #856404; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    pre {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    h1 { color: #333; }
+    h2 { color: #666; margin-top: 30px; }
+    .result { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 PWA Test Suite - Ohara TCG</h1>
+  <p>Esta página te ayuda a verificar que tu PWA está funcionando correctamente.</p>
+
+  <!-- Test 1: Service Worker -->
+  <div class="test-card">
+    <h2>1. Service Worker <span id="sw-status" class="status pending">Probando...</span></h2>
+    <button onclick="testServiceWorker()">🔄 Verificar Service Worker</button>
+    <div id="sw-result" class="result"></div>
+  </div>
+
+  <!-- Test 2: Cachés Disponibles -->
+  <div class="test-card">
+    <h2>2. Cachés Disponibles <span id="cache-status" class="status pending">Probando...</span></h2>
+    <button onclick="testCaches()">🔄 Verificar Cachés</button>
+    <div id="cache-result" class="result"></div>
+  </div>
+
+  <!-- Test 3: Imágenes en Caché -->
+  <div class="test-card">
+    <h2>3. Imágenes en Caché <span id="images-status" class="status pending">Probando...</span></h2>
+    <button onclick="testImageCache()">🔄 Contar Imágenes</button>
+    <div id="images-result" class="result"></div>
+  </div>
+
+  <!-- Test 4: Zustand Store -->
+  <div class="test-card">
+    <h2>4. Zustand Store (localStorage) <span id="zustand-status" class="status pending">Probando...</span></h2>
+    <button onclick="testZustand()">🔄 Verificar Store</button>
+    <div id="zustand-result" class="result"></div>
+  </div>
+
+  <!-- Test 5: Offline -->
+  <div class="test-card">
+    <h2>5. Modo Offline <span id="offline-status" class="status pending">Manual</span></h2>
+    <p>Para probar offline:</p>
+    <ol>
+      <li>Abre DevTools (F12)</li>
+      <li>Application → Service Workers → ☑️ Offline</li>
+      <li>Recarga la página</li>
+      <li>Navega a <a href="/card-list">/card-list</a></li>
+    </ol>
+  </div>
+
+  <!-- Test 6: Performance -->
+  <div class="test-card">
+    <h2>6. Performance Test</h2>
+    <button onclick="testPerformance()">⚡ Medir Velocidad</button>
+    <div id="perf-result" class="result"></div>
+  </div>
+
+  <!-- Limpiar Caché -->
+  <div class="test-card" style="background: #fff3cd;">
+    <h2>🗑️ Limpiar Todo (Reset)</h2>
+    <button onclick="clearAll()" style="background: #dc3545;">Limpiar Cachés + localStorage</button>
+    <p style="font-size: 14px; color: #856404; margin-top: 10px;">
+      ⚠️ Esto eliminará todos los cachés y datos locales. Útil para testing.
+    </p>
+  </div>
+
+  <script>
+    // Test 1: Service Worker
+    async function testServiceWorker() {
+      const statusEl = document.getElementById('sw-status');
+      const resultEl = document.getElementById('sw-result');
+
+      try {
+        if (!('serviceWorker' in navigator)) {
+          throw new Error('Service Worker no soportado en este navegador');
+        }
+
+        const registration = await navigator.serviceWorker.getRegistration();
+
+        if (!registration) {
+          throw new Error('Service Worker no registrado');
+        }
+
+        const sw = registration.active || registration.installing || registration.waiting;
+
+        if (!sw) {
+          throw new Error('Service Worker no activo');
+        }
+
+        statusEl.className = 'status success';
+        statusEl.textContent = '✅ Activo';
+
+        resultEl.innerHTML = `
+          <pre>URL: ${sw.scriptURL}
+Estado: ${sw.state}
+Scope: ${registration.scope}
+Update: ${registration.updateViaCache}</pre>
+        `;
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = '❌ Error';
+        resultEl.innerHTML = `<pre style="color: red;">${error.message}</pre>`;
+      }
+    }
+
+    // Test 2: Cachés
+    async function testCaches() {
+      const statusEl = document.getElementById('cache-status');
+      const resultEl = document.getElementById('cache-result');
+
+      try {
+        const cacheNames = await caches.keys();
+
+        if (cacheNames.length === 0) {
+          statusEl.className = 'status pending';
+          statusEl.textContent = '⚠️ Sin cachés';
+          resultEl.innerHTML = '<p>No hay cachés todavía. Navega a /card-list para generar cachés.</p>';
+          return;
+        }
+
+        statusEl.className = 'status success';
+        statusEl.textContent = `✅ ${cacheNames.length} cachés`;
+
+        let html = '<pre>';
+        for (const name of cacheNames) {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          html += `${name}: ${keys.length} entradas\n`;
+        }
+        html += '</pre>';
+
+        resultEl.innerHTML = html;
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = '❌ Error';
+        resultEl.innerHTML = `<pre style="color: red;">${error.message}</pre>`;
+      }
+    }
+
+    // Test 3: Imágenes
+    async function testImageCache() {
+      const statusEl = document.getElementById('images-status');
+      const resultEl = document.getElementById('images-result');
+
+      try {
+        const cacheNames = await caches.keys();
+        const imageCaches = cacheNames.filter(name =>
+          name.includes('image') || name.includes('card')
+        );
+
+        if (imageCaches.length === 0) {
+          statusEl.className = 'status pending';
+          statusEl.textContent = '⚠️ Sin imágenes';
+          resultEl.innerHTML = '<p>No hay imágenes cacheadas. Ve a /card-list y espera que carguen.</p>';
+          return;
+        }
+
+        let totalImages = 0;
+        let html = '<pre>';
+
+        for (const cacheName of imageCaches) {
+          const cache = await caches.open(cacheName);
+          const keys = await cache.keys();
+          const imageKeys = keys.filter(req =>
+            req.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+          );
+          totalImages += imageKeys.length;
+          html += `${cacheName}: ${imageKeys.length} imágenes\n`;
+        }
+
+        html += `\nTOTAL: ${totalImages} imágenes en caché</pre>`;
+
+        statusEl.className = 'status success';
+        statusEl.textContent = `✅ ${totalImages} imágenes`;
+        resultEl.innerHTML = html;
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = '❌ Error';
+        resultEl.innerHTML = `<pre style="color: red;">${error.message}</pre>`;
+      }
+    }
+
+    // Test 4: Zustand
+    function testZustand() {
+      const statusEl = document.getElementById('zustand-status');
+      const resultEl = document.getElementById('zustand-result');
+
+      try {
+        const storeData = localStorage.getItem('card-store');
+
+        if (!storeData) {
+          statusEl.className = 'status pending';
+          statusEl.textContent = '⚠️ Sin datos';
+          resultEl.innerHTML = '<p>No hay datos en localStorage. Ve a /card-list para cargar cartas.</p>';
+          return;
+        }
+
+        const store = JSON.parse(storeData);
+        const cardsCount = store.state?.cards?.length || 0;
+        const lastUpdated = store.state?.lastUpdated;
+        const date = lastUpdated ? new Date(lastUpdated).toLocaleString() : 'N/A';
+
+        statusEl.className = 'status success';
+        statusEl.textContent = `✅ ${cardsCount} cartas`;
+
+        resultEl.innerHTML = `
+          <pre>Cartas en store: ${cardsCount}
+Última actualización: ${date}
+Tamaño: ${(storeData.length / 1024 / 1024).toFixed(2)} MB</pre>
+        `;
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = '❌ Error';
+        resultEl.innerHTML = `<pre style="color: red;">${error.message}</pre>`;
+      }
+    }
+
+    // Test 6: Performance
+    async function testPerformance() {
+      const resultEl = document.getElementById('perf-result');
+      resultEl.innerHTML = '<p>Midiendo...</p>';
+
+      const start = performance.now();
+
+      try {
+        // Test 1: Zustand load
+        const zustandStart = performance.now();
+        const storeData = localStorage.getItem('card-store');
+        const zustandTime = performance.now() - zustandStart;
+
+        // Test 2: Cache access
+        const cacheStart = performance.now();
+        const cacheNames = await caches.keys();
+        let totalCached = 0;
+        for (const name of cacheNames) {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          totalCached += keys.length;
+        }
+        const cacheTime = performance.now() - cacheStart;
+
+        const total = performance.now() - start;
+
+        let rating = '🐌 Lento';
+        let color = 'red';
+        if (total < 100) {
+          rating = '🚀 Excelente';
+          color = 'green';
+        } else if (total < 500) {
+          rating = '⚡ Rápido';
+          color = 'orange';
+        }
+
+        resultEl.innerHTML = `
+          <pre style="color: ${color};">Resultado: ${rating}
+
+Zustand (localStorage): ${zustandTime.toFixed(2)}ms
+Cachés (Service Worker): ${cacheTime.toFixed(2)}ms
+Total: ${total.toFixed(2)}ms
+
+Cartas: ${storeData ? JSON.parse(storeData).state?.cards?.length || 0 : 0}
+Cachés: ${totalCached} entradas</pre>
+        `;
+      } catch (error) {
+        resultEl.innerHTML = `<pre style="color: red;">${error.message}</pre>`;
+      }
+    }
+
+    // Limpiar todo
+    async function clearAll() {
+      if (!confirm('¿Estás seguro? Esto eliminará TODOS los cachés y datos locales.')) {
+        return;
+      }
+
+      try {
+        // Limpiar cachés
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+
+        // Limpiar localStorage
+        localStorage.clear();
+
+        alert('✅ Todo limpio! Recarga la página para empezar de nuevo.');
+        location.reload();
+      } catch (error) {
+        alert('❌ Error: ' + error.message);
+      }
+    }
+
+    // Auto-run on load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        testServiceWorker();
+        testCaches();
+        testImageCache();
+        testZustand();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

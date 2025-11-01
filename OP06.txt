@@ -1,0 +1,132 @@
+OP06-001	Uta	Leader
+OP06-002	Inazuma	Common
+OP06-003	Emporio.Ivankov	Uncommon
+OP06-004	Baron Omatsuri	Common
+OP06-005	Gasparde	Common
+OP06-006	Saga	Uncommon
+OP06-007	Shanks	Super Rare
+OP06-008	Schneider	Common
+OP06-009	Shuraiya	Super Rare
+OP06-010	Douglas Bullet	Rare
+OP06-011	Tot Musica	Rare
+OP06-012	Bear.King	Uncommon
+OP06-013	Monkey.D.Luffy	Rare
+OP06-014	Ratchet	Common
+OP06-015	Lily Carnation	Common
+OP06-016	Raise Max	Uncommon
+OP06-017	Meteor-Strike of Love	Common
+OP06-018	Gum-Gum King Kong Gatling	Rare
+OP06-019	Blue Dragon Seal Water Stream	Uncommon
+OP06-020	Hody Jones	Leader
+OP06-021	Perona	Leader
+OP06-022	Yamato	Leader
+OP06-023	Arlong	Rare
+OP06-024	Ikaros Much	Uncommon
+OP06-025	Camie	Rare
+OP06-026	Koushirou	Common
+OP06-027	Gyro	Common
+OP06-028	Zeo	Common
+OP06-029	Daruma	Uncommon
+OP06-030	Dosun	Common
+OP06-031	Hatchan	Uncommon
+OP06-032	Hammond	Common
+OP06-033	Vander Decken IX	Rare
+OP06-034	Hyouzou	Uncommon
+OP06-035	Hody Jones	Super Rare
+OP06-036	Ryuma	Rare
+OP06-037	Wadatsumi	Common
+OP06-038	The Billion-fold World Trichiliocosm	Uncommon
+OP06-039	You Ain't Even Worth Killing Time!!	Rare
+OP06-040	Shark Arrows	Common
+OP06-041	The Ark Noah	Common
+OP06-042	Vinsmoke Reiju	Leader
+OP06-043	Aramaki	Super Rare
+OP06-044	Gion	Uncommon
+OP06-045	Kuzan	Uncommon
+OP06-046	Sakazuki	Uncommon
+OP06-047	Charlotte Pudding	Rare
+OP06-048	Zeff	Common
+OP06-049	Sengoku	Common
+OP06-050	Tashigi	Rare
+OP06-051	Tsuru	Rare
+OP06-052	Tokikake	Common
+OP06-053	Jaguar.D.Saul	Common
+OP06-054	Borsalino	Uncommon
+OP06-055	Monkey.D.Garp	Common
+OP06-056	Ama no Murakumo Sword	Uncommon
+OP06-057	But I Will Never Doubt a Woman's Tears!!!!	Common
+OP06-058	Gravity Blade Raging Tiger	Rare
+OP06-059	White Snake	Uncommon
+OP06-060	Vinsmoke Ichiji	Common
+OP06-061	Vinsmoke Ichiji	Rare
+OP06-062	Vinsmoke Judge	Super Rare
+OP06-063	Vinsmoke Sora	Uncommon
+OP06-064	Vinsmoke Niji	Common
+OP06-065	Vinsmoke Niji	Rare
+OP06-066	Vinsmoke Yonji	Common
+OP06-067	Vinsmoke Yonji	Rare
+OP06-068	Vinsmoke Reiju	Common
+OP06-069	Vinsmoke Reiju	Super Rare
+OP06-070	Eldoraggo	Common
+OP06-071	Gild Tesoro	Uncommon
+OP06-072	Cosette	Common
+OP06-073	Shiki	Uncommon
+OP06-074	Zephyr (Navy)	Rare
+OP06-075	Count Battler	Common
+OP06-076	Hitokiri Kamazo	Uncommon
+OP06-077	Black Bug	Rare
+OP06-078	GERMA 66	Uncommon
+OP06-079	Kingdom of GERMA	Common
+OP06-080	Gecko Moria	Leader
+OP06-081	Absalom	Rare
+OP06-082	Inuppe	Common
+OP06-083	Oars	Uncommon
+OP06-084	Jigoro of the Wind	Common
+OP06-085	Kumacy	Uncommon
+OP06-086	Gecko Moria	Super Rare
+OP06-087	Cerberus	Common
+OP06-088	Sai	Uncommon
+OP06-089	Taralan	Common
+OP06-090	Dr. Hogback	Rare
+OP06-091	Victoria Cindry	Uncommon
+OP06-092	Brook	Rare
+OP06-093	Perona	Super Rare
+OP06-094	Lola	Common
+OP06-095	Shadows Asgard	Uncommon
+OP06-096	...Nothing...at All!!!	Common
+OP06-097	Negative Hollow	Rare
+OP06-098	Thriller Bark	Common
+OP06-099	Aisa	Common
+OP06-100	Inuarashi	Uncommon
+OP06-101	O-Nami	Rare
+OP06-102	Kamakiri	Common
+OP06-103	Kawamatsu	Common
+OP06-104	Kikunojo	Rare
+OP06-105	Genbo	Common
+OP06-106	Kouzuki Hiyori	Super Rare
+OP06-107	Kouzuki Momonosuke	Super Rare
+OP06-108	Tenguyama Hitetsu	Common
+OP06-109	Denjiro	Uncommon
+OP06-110	Nekomamushi	Uncommon
+OP06-111	Braham	Common
+OP06-112	Raizo	Common
+OP06-113	Raki	Common
+OP06-114	Wyper	Uncommon
+OP06-115	You're the One Who Should Disappear.	Rare
+OP06-116	Reject	Rare
+OP06-117	The Ark Maxim	Common
+OP06-118	Roronoa Zoro	Secret Rare
+OP06-119	Sanji	Secret Rare
+OP03-008	Buggy	Special Card
+OP03-114	Charlotte Linlin	Special Card
+OP04-024	Sugar	Special Card
+OP04-064	Ms. All Sunday	Special Card
+OP05-051	Borsalino	Special Card
+OP05-091	Rebecca	Special Card
+ST01-007	Nami	Treasure Rare
+
+
+
+
+
+

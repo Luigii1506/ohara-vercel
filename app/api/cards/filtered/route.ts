@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // Función optimizada para obtener el índice de orden según el prefijo
 function getPrefixIndex(code: string): number {

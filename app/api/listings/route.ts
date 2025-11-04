@@ -12,8 +12,7 @@ import { ProductFilters } from "@/lib/shop/types";
  */
 export async function GET(request: NextRequest) {
   try {
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+    const { prisma } = await import("@/lib/prisma");
 
     // Obtener parámetros de consulta
     const { searchParams } = new URL(request.url);

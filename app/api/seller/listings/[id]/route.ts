@@ -5,9 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // GET - Obtener listado por ID
 export async function GET(

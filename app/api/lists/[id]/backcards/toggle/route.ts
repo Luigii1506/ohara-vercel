@@ -3,11 +3,9 @@ export const dynamic = 'force-dynamic';
 // 🎴 API para toggle (alternar) backcards en listas de usuario
 // Fecha: 2024-09-09 - Funcionalidad de backcard toggle
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-
-const prisma = new PrismaClient();
 
 // POST: Toggle backcard (agregar si no existe, quitar si existe)
 export async function POST(

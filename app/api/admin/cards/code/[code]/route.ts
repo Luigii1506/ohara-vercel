@@ -1,9 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // GET: Obtener una carta por ID con soporte para "includeAlternates"
 export async function GET(

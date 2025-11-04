@@ -14,8 +14,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+    const { prisma } = await import("@/lib/prisma");
 
     const listingId = parseInt(params.id);
     if (isNaN(listingId)) {

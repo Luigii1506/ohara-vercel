@@ -3,9 +3,7 @@ export const dynamic = 'force-dynamic';
 // app/api/decks/[uniqueUrl]/fork/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // Función para generar un URL único para cada deck
 function generateUniqueUrl() {

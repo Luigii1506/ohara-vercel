@@ -1,9 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // * GET: Obtener un evento por ID, incluyendo los sets asociados
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {

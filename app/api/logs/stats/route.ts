@@ -2,11 +2,9 @@ export const dynamic = 'force-dynamic';
 
 // Modified 2025-01-31 - Refactored to use centralized auth system
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
 import { calculateGameLogStats } from "@/lib/gameLogStats";
-
-const prisma = new PrismaClient();
 
 // GET - Obtener estadísticas completas del usuario usando la nueva librería optimizada
 export async function GET(request: NextRequest) {

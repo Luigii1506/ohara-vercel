@@ -1,9 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, Card } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import type { Card } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 type CardWithAlternates = Card & { alternates: Card[] };
 

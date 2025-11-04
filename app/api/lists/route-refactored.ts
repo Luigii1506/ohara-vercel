@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "@/lib/prisma";
 import { withAuth, requireAuth, handleAuthError } from '@/lib/auth-helpers';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/lists - Obtener todas las listas del usuario

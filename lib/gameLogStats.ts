@@ -1,8 +1,6 @@
 // Game log statistics calculator - optimized for GameLog structure
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { GameLogStats, LeaderStats, OpponentLeaderStats } from "@/types";
-
-const prisma = new PrismaClient();
 
 export interface GameLogStatsResult {
   generalStats: GameLogStats;
@@ -105,12 +103,12 @@ async function calculateLeaderStats(userId: number): Promise<LeaderStats[]> {
     }>
   >`
     SELECT 
-      \`deckId\`,
-      COUNT(*) as totalGames,
-      SUM(CASE WHEN \`isWin\` = true THEN 1 ELSE 0 END) as wins
-    FROM \`GameLog\` 
-    WHERE \`userId\` = ${userId}
-    GROUP BY \`deckId\`
+      "deckId",
+      COUNT(*) AS "totalGames",
+      SUM(CASE WHEN "isWin" = true THEN 1 ELSE 0 END) AS "wins"
+    FROM "GameLog" 
+    WHERE "userId" = ${userId}
+    GROUP BY "deckId"
     ORDER BY COUNT(*) DESC
   `;
 
@@ -175,12 +173,12 @@ async function calculateOpponentStats(
     }>
   >`
     SELECT 
-      \`opponentLeaderId\`,
-      COUNT(*) as totalGames,
-      SUM(CASE WHEN \`isWin\` = true THEN 1 ELSE 0 END) as wins
-    FROM \`GameLog\` 
-    WHERE \`userId\` = ${userId}
-    GROUP BY \`opponentLeaderId\`
+      "opponentLeaderId",
+      COUNT(*) AS "totalGames",
+      SUM(CASE WHEN "isWin" = true THEN 1 ELSE 0 END) AS "wins"
+    FROM "GameLog" 
+    WHERE "userId" = ${userId}
+    GROUP BY "opponentLeaderId"
     ORDER BY COUNT(*) DESC
   `;
 
@@ -228,13 +226,13 @@ async function calculateCardPerformance(
     }>
   >`
     SELECT 
-      glc.\`cardId\`,
-      COUNT(*) as totalGames,
-      SUM(CASE WHEN gl.\`isWin\` = true THEN 1 ELSE 0 END) as wins
-    FROM \`GameLogCard\` glc
-    INNER JOIN \`GameLog\` gl ON glc.\`gameLogId\` = gl.id
-    WHERE gl.\`userId\` = ${userId}
-    GROUP BY glc.\`cardId\`
+      glc."cardId",
+      COUNT(*) AS "totalGames",
+      SUM(CASE WHEN gl."isWin" = true THEN 1 ELSE 0 END) AS "wins"
+    FROM "GameLogCard" glc
+    INNER JOIN "GameLog" gl ON glc."gameLogId" = gl."id"
+    WHERE gl."userId" = ${userId}
+    GROUP BY glc."cardId"
     HAVING COUNT(*) >= 2
     ORDER BY COUNT(*) DESC
     LIMIT 20

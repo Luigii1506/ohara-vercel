@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 model Card {
@@ -63,8 +64,8 @@ model Deck {
   deckCards      DeckCard[]
   gameLogs       GameLog[]
 
-  @@index([originalDeckId], map: "Deck_originalDeckId_fkey")
-  @@index([userId], map: "Deck_userId_fkey")
+  @@index([originalDeckId])
+  @@index([userId])
 }
 
 model DeckCard {
@@ -75,8 +76,8 @@ model DeckCard {
   card     Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
   deck     Deck @relation(fields: [deckId], references: [id])
 
-  @@index([cardId], map: "DeckCard_cardId_fkey")
-  @@index([deckId], map: "DeckCard_deckId_fkey")
+  @@index([cardId])
+  @@index([deckId])
 }
 
 model GameLog {
@@ -96,9 +97,9 @@ model GameLog {
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   finalHandCards   GameLogCard[]
 
-  @@index([deckId], map: "GameLog_deckId_fkey")
-  @@index([opponentLeaderId], map: "GameLog_opponentLeaderId_fkey")
-  @@index([userId], map: "GameLog_userId_fkey")
+  @@index([deckId])
+  @@index([opponentLeaderId])
+  @@index([userId])
 }
 
 model GameLogCard {
@@ -108,8 +109,8 @@ model GameLogCard {
   card      Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
   gameLog   GameLog @relation(fields: [gameLogId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "GameLogCard_cardId_fkey")
-  @@index([gameLogId], map: "GameLogCard_gameLogId_fkey")
+  @@index([cardId])
+  @@index([gameLogId])
 }
 
 model CardRuling {
@@ -119,7 +120,7 @@ model CardRuling {
   answer   String @db.Text
   card     Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardRuling_cardId_fkey")
+  @@index([cardId])
 }
 
 model CardCondition {
@@ -128,7 +129,7 @@ model CardCondition {
   condition String
   card      Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardCondition_cardId_fkey")
+  @@index([cardId])
 }
 
 model CardType {
@@ -137,7 +138,7 @@ model CardType {
   type   String
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardType_cardId_fkey")
+  @@index([cardId])
 }
 
 model CardColor {
@@ -146,7 +147,7 @@ model CardColor {
   color  String
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardColor_cardId_fkey")
+  @@index([cardId])
 }
 
 model CardEffect {
@@ -155,16 +156,16 @@ model CardEffect {
   effect String
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardEffect_cardId_fkey")
+  @@index([cardId])
 }
 
 model CardText {
   id     Int    @id @default(autoincrement())
   cardId Int
-  text   String @db.LongText
+  text   String @db.Text
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardText_cardId_fkey")
+  @@index([cardId])
 }
 
 model User {
@@ -210,7 +211,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@index([userId], map: "Account_userId_fkey")
+  @@index([userId])
 }
 
 model Session {
@@ -220,7 +221,7 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Session_userId_fkey")
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -274,7 +275,7 @@ model UserListCard {
   @@unique([listId, page, row, column], name: "unique_physical_position")
   @@index([listId, cardId])
   @@index([listId, sortOrder])
-  @@index([cardId], map: "UserListCard_cardId_fkey")
+  @@index([cardId])
 }
 
 // 🎴 Modelo para almacenar posiciones de backcard
@@ -323,7 +324,7 @@ model EventSet {
   set     Set   @relation(fields: [setId], references: [id])
 
   @@id([eventId, setId])
-  @@index([setId], map: "EventSet_setId_fkey")
+  @@index([setId])
 }
 
 model CardSet {
@@ -333,8 +334,8 @@ model CardSet {
   card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
   set    Set  @relation(fields: [setId], references: [id], onDelete: Cascade)
 
-  @@index([cardId], map: "CardSet_cardId_fkey")
-  @@index([setId], map: "CardSet_setId_fkey")
+  @@index([cardId])
+  @@index([setId])
 }
 
 model CardPriceLog {
@@ -347,8 +348,8 @@ model CardPriceLog {
   card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   user          User?    @relation(fields: [userId], references: [id])
 
-  @@index([cardId], map: "CardPriceLog_cardId_fkey")
-  @@index([userId], map: "CardPriceLog_userId_fkey")
+  @@index([cardId])
+  @@index([userId])
 }
 
 model CardListing {
@@ -400,7 +401,7 @@ model Product {
   seller            User        @relation("SellerProducts", fields: [sellerId], references: [id])
   reviews           Review[]
 
-  @@index([sellerId], map: "Product_sellerId_fkey")
+  @@index([sellerId])
 }
 
 model Cart {
@@ -426,8 +427,8 @@ model CartItem {
   product         Product?     @relation(fields: [productId], references: [id])
 
   @@unique([cartId, cardListingId, productId])
-  @@index([cardListingId], map: "CartItem_cardListingId_fkey")
-  @@index([productId], map: "CartItem_productId_fkey")
+  @@index([cardListingId])
+  @@index([productId])
 }
 
 model Order {
@@ -455,10 +456,10 @@ model Order {
   shippingAddress         ShippingAddress @relation(fields: [shippingAddressId], references: [id])
   orderItems              OrderItem[]
 
-  @@index([billingAddressId], map: "Order_billingAddressId_fkey")
-  @@index([buyerId], map: "Order_buyerId_fkey")
-  @@index([sellerId], map: "Order_sellerId_fkey")
-  @@index([shippingAddressId], map: "Order_shippingAddressId_fkey")
+  @@index([billingAddressId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([shippingAddressId])
 }
 
 model OrderItem {
@@ -473,9 +474,9 @@ model OrderItem {
   order               Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product             Product?     @relation(fields: [productId], references: [id])
 
-  @@index([cardListingId], map: "OrderItem_cardListingId_fkey")
-  @@index([orderId], map: "OrderItem_orderId_fkey")
-  @@index([productId], map: "OrderItem_productId_fkey")
+  @@index([cardListingId])
+  @@index([orderId])
+  @@index([productId])
 }
 
 model ShippingAddress {
@@ -495,7 +496,7 @@ model ShippingAddress {
   orders    Order[]
   user      User     @relation(fields: [userId], references: [id])
 
-  @@index([userId], map: "ShippingAddress_userId_fkey")
+  @@index([userId])
 }
 
 model BillingAddress {
@@ -515,7 +516,7 @@ model BillingAddress {
   user      User     @relation(fields: [userId], references: [id])
   orders    Order[]
 
-  @@index([userId], map: "BillingAddress_userId_fkey")
+  @@index([userId])
 }
 
 model SellerProfile {
@@ -540,7 +541,7 @@ model Review {
   cardListingId   Int?
   productId       Int?
   sellerProfileId Int?
-  rating          Int            @db.UnsignedTinyInt
+  rating          Int            @db.SmallInt
   comment         String?        @db.Text
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -549,10 +550,10 @@ model Review {
   sellerProfile   SellerProfile? @relation(fields: [sellerProfileId], references: [id])
   user            User           @relation(fields: [userId], references: [id])
 
-  @@index([cardListingId], map: "Review_cardListingId_fkey")
-  @@index([productId], map: "Review_productId_fkey")
-  @@index([sellerProfileId], map: "Review_sellerProfileId_fkey")
-  @@index([userId], map: "Review_userId_fkey")
+  @@index([cardListingId])
+  @@index([productId])
+  @@index([sellerProfileId])
+  @@index([userId])
 }
 
 enum Role {

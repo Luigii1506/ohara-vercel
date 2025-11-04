@@ -3,11 +3,9 @@ export const dynamic = 'force-dynamic';
 // 🎴 API para manejar backcards en listas de usuario
 // Fecha: 2024-09-09 - Funcionalidad de backcard
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-
-const prisma = new PrismaClient();
 
 // GET: Obtener todos los backcards de una lista
 export async function GET(

@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import {
   requireAuth,
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
-
-const prisma = new PrismaClient();
 
 // PUT /api/lists/[id]/cards/[cardId] - Actualizar carta en lista
 export async function PUT(

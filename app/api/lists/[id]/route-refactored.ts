@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError, validateListAccess } from '@/lib/auth-helpers';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/lists/[id] - Obtener lista específica con sus cartas

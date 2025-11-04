@@ -1,7 +1,7 @@
 // Servicios para la gestión de productos e inventario - Ohara TCG Shop
 // Fecha de modificación: 2025-01-19 - REFACTORIZADO para usar CardListing separado
 
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import {
   CardListing,
   Product,
@@ -25,8 +25,6 @@ import {
 } from "./utils";
 
 // Inicializar Prisma Client
-const prisma = new PrismaClient();
-
 /**
  * ===== SERVICIOS PARA LISTADOS DE CARTAS =====
  */

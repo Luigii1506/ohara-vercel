@@ -1,9 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // * GET: Obtener todas las cartas que tengan el mismo codigo de carta mediante code y que no sean isFirstEdition true
 

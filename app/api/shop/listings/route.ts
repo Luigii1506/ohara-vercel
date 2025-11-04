@@ -25,8 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar usuario en la base de datos
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+    const { prisma } = await import("@/lib/prisma");
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -124,8 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar usuario en la base de datos
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+    const { prisma } = await import("@/lib/prisma");
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },

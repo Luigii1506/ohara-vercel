@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import {
   requireAuth,
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
-
-const prisma = new PrismaClient();
 
 // POST /api/lists/[id]/move-card - Mover carta entre listas
 export async function POST(

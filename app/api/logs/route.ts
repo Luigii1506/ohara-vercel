@@ -2,10 +2,8 @@ export const dynamic = 'force-dynamic';
 
 // Modified 2025-01-31 - Refactored to use centralized auth system
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
-
-const prisma = new PrismaClient();
 
 // GET - Obtener logs del usuario con filtros y paginación
 export async function GET(request: NextRequest) {

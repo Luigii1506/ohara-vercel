@@ -34,6 +34,8 @@ model Card {
   order            String          @default("0")
   isPro            Boolean         @default(false)
   region           String?
+  baseCardId       Int?            // NULL si es carta base, ID de la base si es alternativa
+  baseCard         Card?           @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
   colors           CardColor[]
   conditions       CardCondition[]
   effects          CardEffect[]
@@ -47,6 +49,10 @@ model Card {
   opponentGameLogs GameLog[]       @relation("OpponentLeader")
   GameLogCard      GameLogCard[]
   userListCards    UserListCard[]
+  alternateCards   Card[]          @relation("CardAlternates") // Las alternativas de esta carta base
+
+  @@index([baseCardId]) // Índice para búsquedas rápidas
+  @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
 }
 
 model Deck {
@@ -174,7 +180,7 @@ model User {
   name              String
   createdAt         DateTime?         @default(now()) @map("createdAt")
   updatedAt         DateTime?         @updatedAt @map("updatedAt")
-  role              Role              @default(USER)
+  role              String            @default("USER")
   emailVerified     DateTime?
   image             String?
   uuid              String            @unique @default(uuid())

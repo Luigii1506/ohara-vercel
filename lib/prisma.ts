@@ -4,6 +4,8 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+let prismaClient: PrismaClient | undefined;
+
 function resolveDatabaseUrl(): string {
   const primary = process.env.DATABASE_URL;
   if (primary && primary.trim().length > 0) {
@@ -28,7 +30,7 @@ function resolveDatabaseUrl(): string {
   );
 }
 
-function createPrismaClient() {
+function instantiatePrisma() {
   resolveDatabaseUrl();
 
   const client = new PrismaClient({
@@ -38,14 +40,42 @@ function createPrismaClient() {
         : ["error"],
   });
 
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+  }
+
   return client;
 }
 
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? createPrismaClient();
+export function getPrisma(): PrismaClient {
+  if (prismaClient) {
+    return prismaClient;
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  if (globalForPrisma.prisma) {
+    prismaClient = globalForPrisma.prisma;
+    return prismaClient;
+  }
+
+  prismaClient = instantiatePrisma();
+  return prismaClient;
 }
 
-export default prisma;
+const prismaProxy = new Proxy(
+  {},
+  {
+    get(_target, prop, receiver) {
+      const client = getPrisma() as unknown as Record<PropertyKey, unknown>;
+      const value = Reflect.get(client, prop, receiver);
+
+      if (typeof value === "function") {
+        return value.bind(client);
+      }
+
+      return value;
+    },
+  }
+) as PrismaClient;
+
+export const prisma = prismaProxy;
+export default prismaProxy;

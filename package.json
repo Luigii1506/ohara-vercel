@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "dev:local": "next dev",
-    "build": "next build && npm run sw:inject",
+    "build": "prisma generate && next build && npm run sw:inject",
     "start": "next start -p $PORT",
     "start:prod": "next build && PORT=3000 next start",
     "lint": "next lint",

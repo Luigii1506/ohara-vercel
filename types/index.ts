@@ -101,6 +101,7 @@ export interface CardWithCollectionData extends CardData {
       set: {
         title: string;
         id: string;
+        code?: string | null;
       };
     }
   ];

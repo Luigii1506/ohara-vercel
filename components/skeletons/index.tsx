@@ -428,14 +428,7 @@ export const CardDetailSkeleton = () => {
 // Skeleton para página de lista de cartas
 export const CardListPageSkeleton = () => {
   return (
-    <div
-      className="bg-[#f2eede] flex-1 overflow-hidden flex flex-col max-h-dvh"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <div className="bg-[#f2eede] flex-1 overflow-hidden flex flex-col max-h-dvh">
       {/* Header y filtros */}
       <div className="bg-white w-full">
         {/* Desktop filters */}

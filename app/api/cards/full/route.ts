@@ -1,18 +1,17 @@
 import { NextResponse, NextRequest } from "next/server";
 import {
   buildFiltersFromSearchParams,
-  fetchCardsPageFromDb,
+  fetchAllCardsFromDb,
 } from "@/lib/cards/query";
 import { mergeFiltersWithSetCode } from "@/lib/cards/types";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const params = req.nextUrl.searchParams;
     const setCode = params.get("setCode");
     const limitParam = params.get("limit");
-    const cursorParam = params.get("cursor");
 
     const filters = mergeFiltersWithSetCode(
       buildFiltersFromSearchParams(params),
@@ -25,23 +24,26 @@ export async function GET(req: NextRequest) {
 
     const limit =
       limitParam && !Number.isNaN(Number(limitParam))
-        ? Math.min(Math.max(Number(limitParam), 1), 500)
-        : 150;
+        ? Math.min(Math.max(Number(limitParam), 1), 5000)
+        : null;
 
-    const cursor = cursorParam ? Number(cursorParam) : null;
-
-    const result = await fetchCardsPageFromDb({
+    const items = await fetchAllCardsFromDb({
       filters,
-      limit,
-      cursor,
       includeRelations,
       includeAlternates,
       includeCounts,
+      limit,
     });
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(
+      {
+        items,
+        count: items.length,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("Error fetching cards:", error);
+    console.error("Error fetching all cards:", error);
     return NextResponse.json(
       { error: "Failed to fetch cards" },
       { status: 500 }

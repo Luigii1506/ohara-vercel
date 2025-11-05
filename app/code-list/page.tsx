@@ -6,14 +6,7 @@ import Breadcrumb from "@/components/Breadcrumbs";
 
 const Home = () => {
   return (
-    <div
-      className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll flex-1"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <div className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll flex-1">
       {/*  Code Cards Collection */}
       <div className={"flex flex-col gap-8 mb-16"}>
         {/* Title */}
@@ -35,7 +28,9 @@ const Home = () => {
                 key={set + "_" + index}
                 className="h-[150px] md:h-[100px] lg:h-[230px] rounded-lg flex justify-center items-center cursor-pointer flex-col text-2xl font-bold"
               >
-                <div className="text-[#FFFFFF] mb-2 text-[3rem] shadow-text">{set}</div>
+                <div className="text-[#FFFFFF] mb-2 text-[3rem] shadow-text">
+                  {set}
+                </div>
               </div>
             </Link>
           ))}
@@ -59,7 +54,9 @@ const Home = () => {
                 key={set + "_" + index}
                 className="h-[150px] md:h-[100px] lg:h-[230px] rounded-lg flex items-center justify-center cursor-pointer flex-col text-2xl font-bold"
               >
-                <div className="text-[#FFFFFF] mb-2 text-[3rem] shadow-text">{set}</div>
+                <div className="text-[#FFFFFF] mb-2 text-[3rem] shadow-text">
+                  {set}
+                </div>
               </div>
             </Link>
           ))}

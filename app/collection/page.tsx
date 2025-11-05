@@ -52,20 +52,14 @@ const Collection = () => {
         console.error(error);
       }
     };
+    2;
 
     fetchCollection();
   }, [userId]);
 
   if (loading || collectionLoading) {
     return (
-      <div
-        className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll w-full flex justify-center items-center"
-        style={{
-          backgroundImage: "url('/assets/images/Map_15.png')",
-          backgroundRepeat: "no-repeat",
-          backgroundSize: "cover",
-        }}
-      >
+      <div className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll w-full flex justify-center items-center">
         <div className="max-w-6xl mx-auto">
           <TableSkeleton rows={10} columns={5} />
         </div>
@@ -74,14 +68,7 @@ const Collection = () => {
   }
 
   return (
-    <section
-      className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll w-full"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <section className="bg-[#f2eede] p-4 pt-8 md:p-16 overflow-y-scroll w-full">
       <>
         {userId && (
           <h1

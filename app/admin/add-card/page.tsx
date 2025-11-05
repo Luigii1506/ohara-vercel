@@ -173,14 +173,7 @@ const AddCard = () => {
   }, [selectedCard]);
 
   return (
-    <div
-      className="p-5 bg-[#f2eede] w-full overflow-auto"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <div className="p-5 bg-[#f2eede] w-full overflow-auto">
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Agregar nueva Carta</CardTitle>

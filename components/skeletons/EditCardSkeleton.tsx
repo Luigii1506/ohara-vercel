@@ -2,14 +2,7 @@ import React from "react";
 
 export const EditCardSkeleton = () => {
   return (
-    <div
-      className="flex bg-[#f2eede] w-full h-full"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <div className="flex bg-[#f2eede] w-full h-full">
       {/* Sidebar Skeleton */}
       <div className="bg-white w-full md:w-[300px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col flex">
         {/* Search and Filters Skeleton */}

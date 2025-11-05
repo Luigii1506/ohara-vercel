@@ -1100,14 +1100,7 @@ const EditCard = () => {
 
         {/* Main app UI - only shown when data is loaded */}
         {!cardsError && !isInitialLoading && (
-          <div
-            className="flex bg-[#f2eede] w-full h-full "
-            style={{
-              backgroundImage: "url('/assets/images/Map_15.png')",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-            }}
-          >
+          <div className="flex bg-[#f2eede] w-full h-full ">
             {/* Sidebar con lista de cartas */}
             <div
               className={`bg-white ${

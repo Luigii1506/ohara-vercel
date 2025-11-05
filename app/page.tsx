@@ -1,6 +1,10 @@
 // app/page.tsx
 import CardList from "@/app/card-list/page";
 
-export default async function HomePage() {
-  return <CardList />;
+type PageProps = {
+  searchParams: Record<string, string | string[] | undefined>;
+};
+
+export default async function HomePage({ searchParams }: PageProps) {
+  return <CardList searchParams={searchParams} />;
 }

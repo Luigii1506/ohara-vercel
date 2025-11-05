@@ -112,14 +112,7 @@ const CardList = ({ params }: { params: { id: string } }) => {
   }
 
   return (
-    <div
-      className="bg-[#f2eede] p-4 pt-8 md:py-16 md:px-[200px] overflow-y-scroll flex-1"
-      style={{
-        backgroundImage: "url('/assets/images/Map_15.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-      }}
-    >
+    <div className="bg-[#f2eede] p-4 pt-8 md:py-16 md:px-[200px] overflow-y-scroll flex-1">
       <Breadcrumb />
       <h2 className="title text-lg md:text-3xl mb-8  text-[#938156] text-left">
         CARD LIST ({id})

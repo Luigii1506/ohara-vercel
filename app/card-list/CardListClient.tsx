@@ -1109,7 +1109,6 @@ const CardListClient = ({
                               className="w-full"
                               priority={baseCardIndex < 20}
                               size="thumb"
-                              enableBlurPlaceholder={true}
                             />
                             <TooltipProvider>
                               <Tooltip>
@@ -1173,7 +1172,6 @@ const CardListClient = ({
                                 className="w-full"
                                 priority={altGlobalIndex < 20}
                                 size="thumb"
-                                enableBlurPlaceholder={true}
                               />
                               <TooltipProvider>
                                 <Tooltip>
@@ -1362,7 +1360,6 @@ const CardListClient = ({
                                   className="w-[80%] m-auto"
                                   priority={baseCardIndex < 20}
                                   size="small"
-                                  enableBlurPlaceholder={true}
                                 />
                               </div>
                               <div>
@@ -1408,15 +1405,14 @@ const CardListClient = ({
                             >
                               <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                 <div className="flex justify-center items-center w-full">
-                                  <LazyImage
-                                    src={alt?.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={alt?.name}
-                                    className="w-[80%] m-auto"
-                                    priority={altGlobalIndex < 20}
-                                    size="small"
-                                    enableBlurPlaceholder={true}
-                                  />
+                              <LazyImage
+                                src={alt?.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={alt?.name}
+                                className="w-[80%] m-auto"
+                                priority={altGlobalIndex < 20}
+                                size="small"
+                              />
                                 </div>
                                 <div>
                                   <div className="text-center font-bold mt-2">
@@ -1494,7 +1490,6 @@ const CardListClient = ({
                           className="w-full"
                           priority={baseCardIndex < 20}
                           size="thumb"
-                          enableBlurPlaceholder={true}
                         />
                         <TooltipProvider>
                           <Tooltip>
@@ -1545,7 +1540,6 @@ const CardListClient = ({
                             className="w-full"
                             priority={altGlobalIndex < 20}
                             size="thumb"
-                            enableBlurPlaceholder={true}
                           />
                           <TooltipProvider>
                             <Tooltip>

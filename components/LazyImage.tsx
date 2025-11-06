@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getOptimizedImageUrl, ImageSize } from "@/lib/imageOptimization";
 
 interface LazyImageProps {
@@ -18,7 +18,6 @@ interface LazyImageProps {
     enlarge?: 0 | 1;
     progressive?: 0 | 1;
   };
-  enableBlurPlaceholder?: boolean; // Progressive loading: blur → full image
 }
 
 const LazyImage: React.FC<LazyImageProps> = ({
@@ -29,191 +28,169 @@ const LazyImage: React.FC<LazyImageProps> = ({
   priority = false,
   size = "medium",
   customOptions,
-  enableBlurPlaceholder = true,
 }) => {
-  const [blurSrc, setBlurSrc] = useState<string | null>(null);
+  const isMissingSrc = !src || src.includes("example.com/missing");
   const [imageSrc, setImageSrc] = useState<string | null>(
-    priority ? src || fallbackSrc : null
+    priority && src && !isMissingSrc
+      ? getOptimizedSrc(src, size, customOptions)
+      : null
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(
+    priority ? false : true
+  );
   const [isInView, setIsInView] = useState(priority);
-  const [showBlur, setShowBlur] = useState(enableBlurPlaceholder);
-  const imgRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
-  // Generar URL optimizada para KeyCDN
-  const getOptimizedSrc = (originalSrc: string): string => {
+  function getOptimizedSrc(
+    originalSrc: string,
+    requestedSize: ImageSize,
+    options?: LazyImageProps["customOptions"]
+  ) {
     if (!originalSrc) return fallbackSrc;
 
-    if (customOptions) {
-      // Usar parámetros personalizados para KeyCDN
+    if (options) {
       const params = new URLSearchParams();
-      if (customOptions.width)
-        params.set("width", customOptions.width.toString());
-      if (customOptions.height)
-        params.set("height", customOptions.height.toString());
-      if (customOptions.quality)
-        params.set("quality", customOptions.quality.toString());
-      if (customOptions.format) params.set("format", customOptions.format);
-      if (customOptions.fit) params.set("fit", customOptions.fit);
-      if (customOptions.position)
-        params.set("position", customOptions.position);
-      if (customOptions.enlarge !== undefined)
-        params.set("enlarge", customOptions.enlarge.toString());
-      if (customOptions.progressive !== undefined)
-        params.set("progressive", customOptions.progressive.toString());
+      if (options.width) params.set("width", options.width.toString());
+      if (options.height) params.set("height", options.height.toString());
+      if (options.quality) params.set("quality", options.quality.toString());
+      if (options.format) params.set("format", options.format);
+      if (options.fit) params.set("fit", options.fit);
+      if (options.position) params.set("position", options.position);
+      if (options.enlarge !== undefined)
+        params.set("enlarge", options.enlarge.toString());
+      if (options.progressive !== undefined)
+        params.set("progressive", options.progressive.toString());
 
       return `${originalSrc}?${params.toString()}`;
-    } else {
-      // Usar tamaño predefinido
-      return getOptimizedImageUrl(originalSrc, size);
     }
-  };
 
-  // IntersectionObserver para lazy loading
+    return getOptimizedImageUrl(originalSrc, requestedSize);
+  }
+
+  useEffect(() => {
+    if (!priority) return;
+
+    if (!src || isMissingSrc) {
+      setImageSrc(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setImageSrc(getOptimizedSrc(src, size, customOptions));
+    setIsLoading(false);
+  }, [customOptions, fallbackSrc, isMissingSrc, priority, size, src]);
+
   useEffect(() => {
     if (priority) {
       setIsInView(true);
       return;
     }
 
-    if (!imgRef.current) return;
+    const node = wrapperRef.current;
+    if (!node) return;
 
-    const currentRef = imgRef.current;
-
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            if (observerRef.current) {
-              observerRef.current.disconnect();
-            }
-          }
+          const visible = entry.isIntersecting || entry.intersectionRatio > 0;
+          setIsInView(visible);
         });
       },
       {
-        rootMargin: "400px", // Reduced from 800px for better performance
+        rootMargin: "200px",
         threshold: 0.01,
       }
     );
 
-    const timeoutId = setTimeout(() => {
-      if (currentRef && observerRef.current) {
-        observerRef.current.observe(currentRef);
-      }
-    }, 0);
+    observer.observe(node);
 
     return () => {
-      clearTimeout(timeoutId);
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      observer.disconnect();
     };
   }, [priority]);
 
-  // Cargar blur placeholder primero (LQIP - Low Quality Image Placeholder)
   useEffect(() => {
-    if (!enableBlurPlaceholder || !src) return;
-
-    // Load tiny blur image immediately for priority images
-    if (priority) {
-      const tinyUrl = getOptimizedImageUrl(src, "tiny");
-      setBlurSrc(tinyUrl);
-    }
-  }, [src, priority, enableBlurPlaceholder]);
-
-  // Cargar imagen optimizada cuando esté en viewport
-  useEffect(() => {
-    if (!isInView) return;
-
-    if (src) {
-      // Load blur placeholder if not already loaded
-      if (enableBlurPlaceholder && !blurSrc) {
-        const tinyUrl = getOptimizedImageUrl(src, "tiny");
-        setBlurSrc(tinyUrl);
+    if (!isInView) {
+      if (imageRef.current) {
+        imageRef.current.src = "";
+        imageRef.current = null;
       }
-
-      // Load full quality image
-      const optimizedSrc = getOptimizedSrc(src);
-      setImageSrc(optimizedSrc);
-    } else {
-      setImageSrc(fallbackSrc);
+      if (src && imageSrc) {
+        setImageSrc(null);
+        setIsLoading(true);
+      }
+      return;
     }
-  }, [isInView, src, fallbackSrc, size, customOptions, enableBlurPlaceholder, blurSrc]);
 
-  const handleLoad = () => {
+    if (!src || isMissingSrc) {
+      setImageSrc(fallbackSrc);
+      setIsLoading(false);
+      return;
+    }
+
+    const optimized = getOptimizedSrc(src, size, customOptions);
+    if (optimized !== imageSrc) {
+      setIsLoading(true);
+      setImageSrc(optimized);
+    }
+  }, [
+    customOptions,
+    fallbackSrc,
+    imageSrc,
+    isInView,
+    size,
+    src,
+  ]);
+
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    imageRef.current = event.currentTarget;
     setIsLoading(false);
-    setShowBlur(false); // Hide blur when full image loads
   };
 
   const handleError = () => {
-    // Fallback a imagen original si la optimizada falla
+    imageRef.current = null;
     if (src && imageSrc !== src) {
       setImageSrc(src);
     } else {
       setImageSrc(fallbackSrc);
     }
     setIsLoading(false);
-    setShowBlur(false);
   };
 
   return (
-    <div ref={imgRef} className={`relative w-full ${className}`}>
-      {/* LQIP Blur Placeholder - loads instantly (~1KB) */}
-      {showBlur && blurSrc && (
+    <div ref={wrapperRef} className={`relative w-full ${className}`}>
+      <div className="relative w-full overflow-hidden aspect-[3/4] rounded">
         <img
-          src={blurSrc}
+          src={fallbackSrc}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover blur-sm scale-105"
-          loading="eager"
           aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+          loading="lazy"
         />
-      )}
 
-      {/* Skeleton mientras carga (fallback si no hay blur) */}
-      {isLoading && !blurSrc && imageSrc && (
-        <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse rounded" />
-      )}
+        {isLoading && (
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse" />
+        )}
 
-      {/* Imagen real de alta calidad */}
-      {imageSrc && (
-        <img
-          src={imageSrc}
-          alt={alt}
-          loading={priority ? "eager" : "lazy"}
-          decoding="async"
-          fetchPriority={priority ? "high" : "auto"}
-          onLoad={handleLoad}
-          onError={handleError}
-          className={`relative w-full transition-opacity duration-500 ${
-            isLoading ? "opacity-0" : "opacity-100"
-          }`}
-        />
-      )}
-
-      {/* Placeholder si aún no se carga */}
-      {!imageSrc && (
-        <div className="w-full aspect-[2/3] bg-gray-200 rounded flex items-center justify-center">
-          <svg
-            className="w-12 h-12 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-        </div>
-      )}
+        {imageSrc && imageSrc !== fallbackSrc && (
+          <img
+            ref={(node) => {
+              imageRef.current = node;
+            }}
+            src={imageSrc}
+            alt={alt}
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={priority ? "high" : "auto"}
+            onLoad={handleLoad}
+            onError={handleError}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+              isLoading ? "opacity-0" : "opacity-100"
+            }`}
+          />
+        )}
+      </div>
     </div>
   );
 };

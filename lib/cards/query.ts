@@ -117,10 +117,11 @@ export const buildFiltersFromSearchParams = (
 };
 
 const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+  const excludeNullSetCode = { NOT: [{ setCode: null } as any] } as Prisma.CardWhereInput;
+
   const where: Prisma.CardWhereInput = {
     baseCardId: null,
-    NOT: [{ setCode: null }],
-    AND: [],
+    AND: [excludeNullSetCode],
   };
 
   if (filters.search) {
@@ -232,8 +233,22 @@ const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   }
 
   // Limpiar AND si está vacío
-  if (Array.isArray(where.AND) && where.AND.length === 0) {
-    delete where.AND;
+  if (Array.isArray(where.AND)) {
+    const sanitizedAnd = where.AND.filter(
+      (condition) => condition && Object.keys(condition).length > 0
+    );
+    if (!sanitizedAnd.length) {
+      sanitizedAnd.push(excludeNullSetCode);
+    } else {
+      const hasExcludeCondition = sanitizedAnd.some((condition) => {
+        if (!condition) return false;
+        return "NOT" in condition;
+      });
+      if (!hasExcludeCondition) {
+        sanitizedAnd.push(excludeNullSetCode);
+      }
+    }
+    where.AND = sanitizedAnd;
   }
 
   return where;

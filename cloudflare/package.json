@@ -1,0 +1,29 @@
+{
+  "name": "ohara-cloudflare-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for R2 image optimization",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "build": "esbuild src/index.ts --bundle --outdir=dist --format=esm",
+    "test": "vitest",
+    "test:upload": "node scripts/test-upload.js",
+    "create:kv": "wrangler kv:namespace create IMAGE_CACHE",
+    "create:bucket": "wrangler r2 bucket create ohara-cards-images"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@aws-sdk/client-s3": "^3.679.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0",
+    "wrangler": "^3.80.0"
+  }
+}

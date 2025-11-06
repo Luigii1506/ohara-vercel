@@ -6,7 +6,7 @@ import {
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import { mergeFiltersWithSetCode } from "@/lib/cards/types";
 
-const DEFAULT_LIMIT = 150;
+const DEFAULT_LIMIT = 200;
 
 type PageProps = {
   searchParams: Record<string, string | string[] | undefined>;

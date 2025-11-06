@@ -229,8 +229,7 @@ const matchesCardFilters = (
   if (effects?.length) {
     const normalized = effects.map((value) => value.toLowerCase());
     const cardEffects =
-      card.effects?.map((entry) => toLower(entry.effect)).filter(Boolean) ??
-      [];
+      card.effects?.map((entry) => toLower(entry.effect)).filter(Boolean) ?? [];
     if (!cardEffects.some((effect) => normalized.includes(effect))) {
       return false;
     }
@@ -281,7 +280,6 @@ const CardListClient = ({
   initialFilters,
 }: CardListClientProps) => {
   const searchParams = useSearchParams();
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const getArrayParam = useCallback(
     (key: string, fallback: string[] = []) =>
       searchParams.get(key)?.split(",").filter(Boolean) ?? fallback,
@@ -360,9 +358,7 @@ const CardListClient = ({
   const { data: session } = useSession();
 
   // ✅ UI state desde Zustand
-  const isFiltersCollapsed = useCardStore(
-    (state) => state.isFiltersCollapsed
-  );
+  const isFiltersCollapsed = useCardStore((state) => state.isFiltersCollapsed);
   const setIsFiltersCollapsed = useCardStore(
     (state) => state.setIsFiltersCollapsed
   );
@@ -370,9 +366,7 @@ const CardListClient = ({
   const setAllCards = useCardStore((state) => state.setAllCards);
   const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
   const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
-  const [hasCompletedOnce, setHasCompletedOnce] = useState(
-    () => isFullyLoaded
-  );
+  const [hasCompletedOnce, setHasCompletedOnce] = useState(() => isFullyLoaded);
 
   // Estado local para animación de refresh
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -425,10 +419,7 @@ const CardListClient = ({
   ]);
 
   const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
-  const initialItems = useMemo(
-    () => initialData?.items ?? [],
-    [initialData]
-  );
+  const initialItems = useMemo(() => initialData?.items ?? [], [initialData]);
 
   const {
     data: allCardsData,
@@ -487,12 +478,7 @@ const CardListClient = ({
       setIsFullyLoaded(true);
       setHasCompletedOnce(true);
     }
-  }, [
-    allCardsData,
-    isFetchingAllCards,
-    setAllCards,
-    setIsFullyLoaded,
-  ]);
+  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
 
   const { isSyncing, lastUpdated } = useCardsSyncStatus(allCardsQueryKey);
   const isOnline = useOnlineStatus();
@@ -551,33 +537,12 @@ const CardListClient = ({
 
   // ✅ Datos ahora vienen de TanStack Query (arriba)
 
-  const DEFAULT_VISIBLE_COUNT = 36;
-  const SCROLL_RESET_COUNT = 24;
+  const BATCH_SIZE = 200;
+  const LOAD_THRESHOLD_PX = 10000;
+  const DEFAULT_VISIBLE_COUNT = BATCH_SIZE;
+  const SCROLL_RESET_COUNT = BATCH_SIZE;
   const [visibleCount, setVisibleCount] = useState(DEFAULT_VISIBLE_COUNT);
-
-  useEffect(() => {
-    const nav = navigator as any;
-    const connection =
-      nav?.connection || nav?.mozConnection || nav?.webkitConnection;
-    const resolveVisibleCount = (type?: string | null) => {
-      if (type === "4g") return 48;
-      if (type === "3g") return 24;
-      if (type === "2g") return 12;
-      return DEFAULT_VISIBLE_COUNT;
-    };
-
-    const updateFromConnection = () => {
-      const type = connection?.effectiveType ?? null;
-      setVisibleCount(resolveVisibleCount(type));
-    };
-
-    updateFromConnection();
-    connection?.addEventListener?.("change", updateFromConnection);
-
-    return () => {
-      connection?.removeEventListener?.("change", updateFromConnection);
-    };
-  }, []);
+  const isLoadingMoreRef = useRef(false);
 
   const handleScrollToTop = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -638,24 +603,28 @@ const CardListClient = ({
       : dataSource;
 
     const normalizedCards = baseList.map((card) => {
-        // Filtrar alternates pro (client-side porque es específico del usuario)
-        if (!isProVersion && card.alternates && card.alternates.length > 0) {
-          const filteredAlts = card.alternates.filter(
-            (alt) => alt.isPro === false
-          );
-          if (filteredAlts.length !== card.alternates.length) {
-            return { ...card, alternates: filteredAlts };
-          }
+      // Filtrar alternates pro (client-side porque es específico del usuario)
+      if (!isProVersion && card.alternates && card.alternates.length > 0) {
+        const filteredAlts = card.alternates.filter(
+          (alt) => alt.isPro === false
+        );
+        if (filteredAlts.length !== card.alternates.length) {
+          return { ...card, alternates: filteredAlts };
         }
-        return card;
-      });
+      }
+      return card;
+    });
 
     const sortedCards = [...normalizedCards];
 
     if (selectedSort === "Most variants") {
-      sortedCards.sort((a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0));
+      sortedCards.sort(
+        (a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0)
+      );
     } else if (selectedSort === "Less variants") {
-      sortedCards.sort((a, b) => (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0));
+      sortedCards.sort(
+        (a, b) => (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0)
+      );
     } else if (selectedSort === "Ascending code") {
       sortedCards.sort((a, b) => a.code.localeCompare(b.code));
     } else if (selectedSort === "Descending code") {
@@ -676,37 +645,24 @@ const CardListClient = ({
     search,
   ]);
 
+  // Calcular el total incluyendo alternativas
+  const totalCardsWithAlternates = useMemo(() => {
+    return filteredCards.reduce((total, card) => {
+      // Contar la carta base + sus alternativas
+      return total + 1 + (card.alternates?.length ?? 0);
+    }, 0);
+  }, [filteredCards]);
+
   // Actualizar URL cuando cambien los filtros
   useEffect(() => {
     updateURLParams();
   }, [updateURLParams]);
 
-  // IntersectionObserver para aumentar el visibleCount cuando se llega al final
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting) return;
-
-        if (visibleCount < filteredCards.length) {
-          setVisibleCount((prev) => Math.min(prev + 48, filteredCards.length));
-        }
-      },
-      { rootMargin: "1000px" }
-    );
-
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
-
-    return () => {
-      if (sentinelRef.current) observer.unobserve(sentinelRef.current);
-    };
-  }, [visibleCount, filteredCards.length]);
-
   // Scroll to top y resetear visibleCount cuando cambien filtros
   useEffect(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    setVisibleCount(24);
+    setVisibleCount(SCROLL_RESET_COUNT);
+    isLoadingMoreRef.current = false;
   }, [
     viewSelected,
     search,
@@ -727,12 +683,14 @@ const CardListClient = ({
   useEffect(() => {
     if (filteredCards.length === 0) {
       setVisibleCount(0);
+      isLoadingMoreRef.current = false;
       return;
     }
 
     if (visibleCount > filteredCards.length) {
       setVisibleCount(filteredCards.length);
     }
+    isLoadingMoreRef.current = false;
   }, [filteredCards.length, visibleCount]);
 
   const shouldShowSkeleton =
@@ -937,7 +895,10 @@ const CardListClient = ({
 
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <SearchResults count={filteredCards?.length ?? 0} />
+          <SearchResults
+            count={filteredCards?.length ?? 0}
+            totalWithAlternates={totalCardsWithAlternates}
+          />
 
           {/* Botón para colapsar/expandir filtros - Solo visible en desktop */}
           <button
@@ -1049,14 +1010,48 @@ const CardListClient = ({
         className="p-3 md:p-5 overflow-y-scroll flex-1"
         ref={scrollContainerRef}
         onScroll={(e) => {
-          const scrollTop = (e.target as HTMLDivElement).scrollTop;
+          const target = e.target as HTMLDivElement;
+          const { scrollTop, clientHeight, scrollHeight } = target;
           setShowFab(scrollTop > 100);
+
+          const remaining = scrollHeight - (scrollTop + clientHeight);
+          console.log("[CardList] scroll metrics", {
+            scrollTop,
+            clientHeight,
+            scrollHeight,
+            remaining,
+            threshold: LOAD_THRESHOLD_PX,
+            isLoadingMore: isLoadingMoreRef.current,
+            visibleCount,
+            totalFiltered: filteredCards.length,
+          });
+          if (
+            remaining <= LOAD_THRESHOLD_PX &&
+            !isLoadingMoreRef.current &&
+            visibleCount < filteredCards.length
+          ) {
+            isLoadingMoreRef.current = true;
+            console.log("[CardList] threshold reached", {
+              scrollTop,
+              clientHeight,
+              scrollHeight,
+              remaining,
+              visibleCount,
+              nextVisibleCount: Math.min(
+                visibleCount + BATCH_SIZE,
+                filteredCards.length
+              ),
+            });
+            setVisibleCount((prev) =>
+              Math.min(prev + BATCH_SIZE, filteredCards.length)
+            );
+          }
         }}
       >
         {showFab && <FAB onClick={handleScrollToTop} />}
 
         {viewSelected === "list" && (
-          <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
             {(() => {
               let globalIndex = 0; // Contador global incluyendo alternativas
 
@@ -1405,14 +1400,14 @@ const CardListClient = ({
                             >
                               <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                 <div className="flex justify-center items-center w-full">
-                              <LazyImage
-                                src={alt?.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt?.name}
-                                className="w-[80%] m-auto"
-                                priority={altGlobalIndex < 20}
-                                size="small"
-                              />
+                                  <LazyImage
+                                    src={alt?.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={alt?.name}
+                                    className="w-[80%] m-auto"
+                                    priority={altGlobalIndex < 20}
+                                    size="small"
+                                  />
                                 </div>
                                 <div>
                                   <div className="text-center font-bold mt-2">
@@ -1565,11 +1560,6 @@ const CardListClient = ({
               });
             })()}
           </div>
-        )}
-
-        {/* Infinite scroll sentinel */}
-        {visibleCount < filteredCards.length && (
-          <div ref={sentinelRef} className="h-1" />
         )}
       </div>
 

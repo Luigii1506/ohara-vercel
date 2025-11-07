@@ -43,6 +43,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const isInViewRef = useRef(isInView);
   const failedUrlsRef = useRef<Set<string>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!priority) return;
@@ -100,8 +101,23 @@ const LazyImage: React.FC<LazyImageProps> = ({
     isInViewRef.current = isInView;
   }, [isInView]);
 
+  // Cleanup: cancelar request pendiente al desmontar componente
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!isInView) {
+      // Cancelar request en vuelo si la imagen sale del viewport
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       return;
     }
 
@@ -123,6 +139,8 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
     // Actualizar la imagen si cambió la URL
     if (optimized !== imageSrc) {
+      // Crear nuevo AbortController para este request
+      abortControllerRef.current = new AbortController();
       setIsLoading(true);
       setImageSrc(optimized);
     }
@@ -131,6 +149,10 @@ const LazyImage: React.FC<LazyImageProps> = ({
   const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
     imageRef.current = event.currentTarget;
     setIsLoading(false);
+    // Limpiar AbortController cuando imagen carga exitosamente
+    if (abortControllerRef.current) {
+      abortControllerRef.current = null;
+    }
   };
 
   const handleError = () => {
@@ -142,6 +164,10 @@ const LazyImage: React.FC<LazyImageProps> = ({
     imageRef.current = null;
     setImageSrc(null);
     setIsLoading(false);
+    // Limpiar AbortController en caso de error
+    if (abortControllerRef.current) {
+      abortControllerRef.current = null;
+    }
   };
 
   return (
@@ -171,7 +197,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             fetchPriority={priority ? "high" : "auto"}
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           />

@@ -24,7 +24,9 @@
     "migrate:update-migrated": "ts-node scripts/update-migrated-urls.ts",
     "migrate:convert-webp": "ts-node scripts/convert-png-to-webp-urls.ts",
     "migrate:check-urls": "ts-node scripts/check-db-urls.ts",
-    "migrate:analyze": "ts-node scripts/analyze-image-sources.ts"
+    "migrate:analyze": "ts-node scripts/analyze-image-sources.ts",
+    "migrate:op01": "ts-node scripts/migrate-op01-images.ts",
+    "migrate:op01-json": "ts-node scripts/migrate-op01-from-json.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",
@@ -64,6 +66,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.2.3",
     "framer-motion": "^11.18.2",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",

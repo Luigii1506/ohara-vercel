@@ -39,10 +39,8 @@ const LazyImage: React.FC<LazyImageProps> = ({
   );
   const [isLoading, setIsLoading] = useState<boolean>(!priority);
   const [isInView, setIsInView] = useState(priority);
-  const [hasError, setHasError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const unloadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInViewRef = useRef(isInView);
   const failedUrlsRef = useRef<Set<string>>(new Set());
 
@@ -61,13 +59,11 @@ const LazyImage: React.FC<LazyImageProps> = ({
     if (failedUrlsRef.current.has(optimized)) {
       setImageSrc(null);
       setIsLoading(false);
-      setHasError(true);
       return;
     }
 
     setImageSrc(optimized);
     setIsLoading(false);
-    setHasError(false);
   }, [customOptions, fallbackSrc, isMissingSrc, priority, size, src]);
 
   useEffect(() => {
@@ -102,32 +98,14 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
   useEffect(() => {
     isInViewRef.current = isInView;
-    if (isInView && unloadTimeoutRef.current) {
-      clearTimeout(unloadTimeoutRef.current);
-      unloadTimeoutRef.current = null;
-    }
   }, [isInView]);
 
   useEffect(() => {
     if (!isInView) {
-      if (!unloadTimeoutRef.current) {
-        unloadTimeoutRef.current = setTimeout(() => {
-          if (isInViewRef.current) return;
-
-          if (imageRef.current) {
-            imageRef.current.src = "";
-            imageRef.current = null;
-          }
-          if (src && imageSrc) {
-            setImageSrc(null);
-            setIsLoading(true);
-          }
-          unloadTimeoutRef.current = null;
-        }, 600);
-      }
       return;
     }
 
+    // Imagen está en viewport - cargar si es necesario
     if (!src || isMissingSrc) {
       setImageSrc(null);
       setIsLoading(false);
@@ -140,14 +118,13 @@ const LazyImage: React.FC<LazyImageProps> = ({
     if (failedUrlsRef.current.has(optimized)) {
       setImageSrc(null);
       setIsLoading(false);
-      setHasError(true);
       return;
     }
 
+    // Actualizar la imagen si cambió la URL
     if (optimized !== imageSrc) {
       setIsLoading(true);
       setImageSrc(optimized);
-      setHasError(false);
     }
   }, [customOptions, fallbackSrc, imageSrc, isInView, isMissingSrc, size, src]);
 
@@ -165,17 +142,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
     imageRef.current = null;
     setImageSrc(null);
     setIsLoading(false);
-    setHasError(true);
   };
-
-  useEffect(() => {
-    return () => {
-      if (unloadTimeoutRef.current) {
-        clearTimeout(unloadTimeoutRef.current);
-        unloadTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>

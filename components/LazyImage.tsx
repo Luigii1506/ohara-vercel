@@ -20,6 +20,8 @@ interface LazyImageProps {
   };
 }
 
+const MISSING_IMAGE_PATTERN = "example.com/missing";
+
 const LazyImage: React.FC<LazyImageProps> = ({
   src,
   fallbackSrc,
@@ -29,44 +31,19 @@ const LazyImage: React.FC<LazyImageProps> = ({
   size = "medium",
   customOptions,
 }) => {
-  const isMissingSrc = !src || src.includes("example.com/missing");
+  const isMissingSrc = !src || src.includes(MISSING_IMAGE_PATTERN);
   const [imageSrc, setImageSrc] = useState<string | null>(
     priority && src && !isMissingSrc
-      ? getOptimizedSrc(src, size, customOptions)
+      ? buildOptimizedSrc(src, fallbackSrc, size, customOptions)
       : null
   );
-  const [isLoading, setIsLoading] = useState<boolean>(
-    priority ? false : true
-  );
+  const [isLoading, setIsLoading] = useState<boolean>(!priority);
   const [isInView, setIsInView] = useState(priority);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-
-  function getOptimizedSrc(
-    originalSrc: string,
-    requestedSize: ImageSize,
-    options?: LazyImageProps["customOptions"]
-  ) {
-    if (!originalSrc) return fallbackSrc;
-
-    if (options) {
-      const params = new URLSearchParams();
-      if (options.width) params.set("width", options.width.toString());
-      if (options.height) params.set("height", options.height.toString());
-      if (options.quality) params.set("quality", options.quality.toString());
-      if (options.format) params.set("format", options.format);
-      if (options.fit) params.set("fit", options.fit);
-      if (options.position) params.set("position", options.position);
-      if (options.enlarge !== undefined)
-        params.set("enlarge", options.enlarge.toString());
-      if (options.progressive !== undefined)
-        params.set("progressive", options.progressive.toString());
-
-      return `${originalSrc}?${params.toString()}`;
-    }
-
-    return getOptimizedImageUrl(originalSrc, requestedSize);
-  }
+  const isInViewRef = useRef(isInView);
+  const failedUrlsRef = useRef<Set<string>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!priority) return;
@@ -77,7 +54,16 @@ const LazyImage: React.FC<LazyImageProps> = ({
       return;
     }
 
-    setImageSrc(getOptimizedSrc(src, size, customOptions));
+    const optimized = buildOptimizedSrc(src, fallbackSrc, size, customOptions);
+
+    // Don't try to load URLs that have already failed
+    if (failedUrlsRef.current.has(optimized)) {
+      setImageSrc(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setImageSrc(optimized);
     setIsLoading(false);
   }, [customOptions, fallbackSrc, isMissingSrc, priority, size, src]);
 
@@ -87,79 +73,105 @@ const LazyImage: React.FC<LazyImageProps> = ({
       return;
     }
 
-    const node = wrapperRef.current;
+    const node = containerRef.current;
     if (!node) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const visible = entry.isIntersecting || entry.intersectionRatio > 0;
-          setIsInView(visible);
+          const shouldPreload =
+            entry.boundingClientRect.top < 0 &&
+            Math.abs(entry.boundingClientRect.top) < 800;
+          setIsInView(visible || shouldPreload);
         });
       },
       {
-        rootMargin: "200px",
+        rootMargin: "600px 0px",
         threshold: 0.01,
       }
     );
 
     observer.observe(node);
 
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, [priority]);
 
   useEffect(() => {
-    if (!isInView) {
-      if (imageRef.current) {
-        imageRef.current.src = "";
-        imageRef.current = null;
+    isInViewRef.current = isInView;
+  }, [isInView]);
+
+  // Cleanup: cancelar request pendiente al desmontar componente
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
-      if (src && imageSrc) {
-        setImageSrc(null);
-        setIsLoading(true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isInView) {
+      // Cancelar request en vuelo si la imagen sale del viewport
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
       return;
     }
 
+    // Imagen está en viewport - cargar si es necesario
     if (!src || isMissingSrc) {
-      setImageSrc(fallbackSrc);
+      setImageSrc(null);
       setIsLoading(false);
       return;
     }
 
-    const optimized = getOptimizedSrc(src, size, customOptions);
+    const optimized = buildOptimizedSrc(src, fallbackSrc, size, customOptions);
+
+    // Don't try to load URLs that have already failed
+    if (failedUrlsRef.current.has(optimized)) {
+      setImageSrc(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Actualizar la imagen si cambió la URL
     if (optimized !== imageSrc) {
+      // Crear nuevo AbortController para este request
+      abortControllerRef.current = new AbortController();
       setIsLoading(true);
       setImageSrc(optimized);
     }
-  }, [
-    customOptions,
-    fallbackSrc,
-    imageSrc,
-    isInView,
-    size,
-    src,
-  ]);
+  }, [customOptions, fallbackSrc, imageSrc, isInView, isMissingSrc, size, src]);
 
   const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
     imageRef.current = event.currentTarget;
     setIsLoading(false);
+    // Limpiar AbortController cuando imagen carga exitosamente
+    if (abortControllerRef.current) {
+      abortControllerRef.current = null;
+    }
   };
 
   const handleError = () => {
-    imageRef.current = null;
-    if (src && imageSrc !== src) {
-      setImageSrc(src);
-    } else {
-      setImageSrc(fallbackSrc);
+    if (imageSrc) {
+      // Mark this URL as failed to prevent retry loops
+      failedUrlsRef.current.add(imageSrc);
+      console.warn(`Failed to load image: ${imageSrc}`);
     }
+    imageRef.current = null;
+    setImageSrc(null);
     setIsLoading(false);
+    // Limpiar AbortController en caso de error
+    if (abortControllerRef.current) {
+      abortControllerRef.current = null;
+    }
   };
 
   return (
-    <div ref={wrapperRef} className={`relative w-full ${className}`}>
+    <div ref={containerRef} className={`relative w-full ${className}`}>
       <div className="relative w-full overflow-hidden aspect-[3/4] rounded">
         <img
           src={fallbackSrc}
@@ -169,11 +181,11 @@ const LazyImage: React.FC<LazyImageProps> = ({
           loading="lazy"
         />
 
-        {isLoading && (
+        {isLoading && imageSrc && (
           <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse" />
         )}
 
-        {imageSrc && imageSrc !== fallbackSrc && (
+        {imageSrc && (
           <img
             ref={(node) => {
               imageRef.current = node;
@@ -185,7 +197,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             fetchPriority={priority ? "high" : "auto"}
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           />
@@ -196,3 +208,29 @@ const LazyImage: React.FC<LazyImageProps> = ({
 };
 
 export default LazyImage;
+const buildOptimizedSrc = (
+  originalSrc: string,
+  fallback: string,
+  size: ImageSize,
+  options?: LazyImageProps["customOptions"]
+) => {
+  if (!originalSrc) return fallback;
+
+  if (options) {
+    const params = new URLSearchParams();
+    if (options.width) params.set("width", options.width.toString());
+    if (options.height) params.set("height", options.height.toString());
+    if (options.quality) params.set("quality", options.quality.toString());
+    if (options.format) params.set("format", options.format);
+    if (options.fit) params.set("fit", options.fit);
+    if (options.position) params.set("position", options.position);
+    if (options.enlarge !== undefined)
+      params.set("enlarge", options.enlarge.toString());
+    if (options.progressive !== undefined)
+      params.set("progressive", options.progressive.toString());
+
+    return `${originalSrc}?${params.toString()}`;
+  }
+
+  return getOptimizedImageUrl(originalSrc, size);
+};

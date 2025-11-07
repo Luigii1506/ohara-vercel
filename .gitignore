@@ -40,3 +40,13 @@ next-env.d.ts
 **/public/sw.js.map
 **/public/workbox-*.js.map
 **/public/worker-*.js.map
+
+# Cloudflare Worker (mantener src y config, ignorar builds)
+/cloudflare/dist
+/cloudflare/.wrangler
+/cloudflare/.dev.vars
+
+# Migration temporary files
+migration-report-*.json
+*-cards.json
+main.sql

@@ -1,0 +1,44 @@
+name = "ohara-image-worker"
+main = "src/worker-simple.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers Paid plan (requerido para unlimited requests)
+# Free plan: 100,000 requests/day
+# Paid plan: $5/mo + $0.50/million requests
+workers_dev = true
+
+# R2 Bucket Bindings
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "ohara"
+
+# KV for caching metadata (opcional - comentado por ahora)
+# [[kv_namespaces]]
+# binding = "IMAGE_CACHE"
+# id = "" # Crear con: wrangler kv:namespace create IMAGE_CACHE
+
+# Environment Variables
+[env.production]
+name = "ohara-image-worker-prod"
+route = { pattern = "images.oharatcg.com/*", zone_name = "oharatcg.com" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
+CACHE_TTL = "31536000" # 1 year
+MAX_IMAGE_SIZE = "5242880" # 5MB
+ALLOWED_FORMATS = "webp,avif,jpeg,png"
+
+[env.staging]
+name = "ohara-image-worker-staging"
+route = { pattern = "images-staging.oharatcg.com/*", zone_name = "oharatcg.com" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+CACHE_TTL = "86400" # 1 day
+MAX_IMAGE_SIZE = "5242880"
+ALLOWED_FORMATS = "webp,avif,jpeg,png"
+
+# Build configuration (opcional)
+# [build]
+# command = "npm run build"

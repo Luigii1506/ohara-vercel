@@ -1,7 +1,11 @@
 /**
- * Utilidades para optimización de imágenes con KeyCDN
- * Actualizado: 2025-10-07
- * Servidor: oharatcg-21eab.kxcdn.com
+ * Utilidades para optimización de imágenes
+ * Soporta: Cloudflare R2, KeyCDN, Cloudinary, Imgix, S3, Cloudflare Images
+ * Actualizado: 2025-01-06
+ *
+ * MIGRACIÓN R2:
+ * - Primary: Cloudflare R2 + Workers (images.oharatcg.com)
+ * - Fallback: KeyCDN (oharatcg-21eab.kxcdn.com)
  */
 
 export type ImageSize =
@@ -34,8 +38,13 @@ const IMAGE_CONFIG: ImageOptimizationConfig = {
 };
 
 /**
- * Optimiza URL de imagen usando KeyCDN Image Processing
- * Soporta: KeyCDN, Cloudinary, Imgix, DigitalOcean Spaces, Cloudflare Images
+ * Optimiza URL de imagen
+ * Soporta: Cloudflare R2, KeyCDN, Cloudinary, Imgix, S3, Cloudflare Images
+ *
+ * ESTRATEGIA DE MIGRACIÓN:
+ * 1. Si es URL de R2 → usar size suffix pre-generado (cards/image-thumb.webp)
+ * 2. Si es URL antigua (KeyCDN) → agregar parámetros de transformación
+ * 3. Fallback automático si falla
  */
 export const getOptimizedImageUrl = (
   url: string | undefined,
@@ -48,7 +57,38 @@ export const getOptimizedImageUrl = (
   try {
     const urlObj = new URL(url);
 
-    // KeyCDN - Servidor principal oharatcg-21eab.kxcdn.com
+    // ============================================
+    // CLOUDFLARE R2 (NUEVO - PRIMARY)
+    // ============================================
+    // R2 URLs: https://images.oharatcg.com/* or https://pub-xxxxx.r2.dev/* or https://xxx.workers.dev/*
+    if (
+      urlObj.hostname.includes("oharatcg.com") ||
+      urlObj.hostname.includes(".r2.dev") ||
+      urlObj.hostname.includes(".workers.dev")
+    ) {
+      // R2 usa pre-generated sizes con suffix
+      // Ejemplo: cards/OP01-001-thumb.webp, cards/OP01-001-medium.webp
+      const sizeSuffix = getSizeSuffix(size);
+      const pathname = urlObj.pathname;
+
+      // Si ya tiene suffix, retornar as-is
+      if (pathname.includes(sizeSuffix)) {
+        return url;
+      }
+
+      // Agregar suffix al nombre del archivo
+      const ext = pathname.substring(pathname.lastIndexOf("."));
+      const basePath = pathname.substring(0, pathname.lastIndexOf("."));
+
+      // Cambiar extensión a WebP si no lo es ya
+      const outputExt = ext.toLowerCase() === ".gif" ? ext : ".webp";
+
+      return `${urlObj.origin}${basePath}${sizeSuffix}${outputExt}`;
+    }
+
+    // ============================================
+    // KeyCDN (LEGACY - FALLBACK)
+    // ============================================
     if (
       urlObj.hostname.includes("kxcdn.com") ||
       urlObj.hostname.includes("oharatcg")
@@ -280,3 +320,21 @@ export const batchPreloadImages = async (
     });
   }
 };
+
+/**
+ * Get size suffix for R2 pre-generated images
+ * Matches the migration script naming convention
+ */
+function getSizeSuffix(size: ImageSize): string {
+  const suffixMap: Record<ImageSize, string> = {
+    tiny: "-tiny",
+    xs: "-xs",
+    thumb: "-thumb",
+    small: "-small",
+    medium: "-medium",
+    large: "-large",
+    original: "",
+  };
+
+  return suffixMap[size];
+}

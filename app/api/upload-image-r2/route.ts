@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import sharp from "sharp";
 
 // Image size configurations (matching migration script)
@@ -28,7 +28,7 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || "";
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl, filename } = await request.json();
+    const { imageUrl, filename, overwrite } = await request.json();
 
     if (!imageUrl || !filename) {
       return NextResponse.json(
@@ -49,6 +49,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Clean filename (remove extension if provided)
+    const cleanFilename = filename.replace(/\.(jpg|jpeg|png|webp|gif)$/i, "");
+
+    // Check if file already exists in R2
+    if (!overwrite) {
+      const r2Key = `cards/${cleanFilename}.webp`;
+
+      try {
+        const headCommand = new HeadObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+        });
+
+        await s3Client.send(headCommand);
+
+        // If we get here, the file exists
+        console.log(`⚠️  File already exists: ${r2Key}`);
+        return NextResponse.json({
+          exists: true,
+          filename: cleanFilename,
+          message: `Image ${cleanFilename} already exists in R2`,
+        });
+      } catch (error: any) {
+        // If error code is NotFound, file doesn't exist - continue with upload
+        if (error.name !== 'NotFound' && error.$metadata?.httpStatusCode !== 404) {
+          // Some other error occurred
+          throw error;
+        }
+        // File doesn't exist, continue with upload
+        console.log(`✅ File doesn't exist, proceeding with upload`);
+      }
+    }
+
     console.log(`📥 Downloading image from: ${imageUrl}`);
 
     // Download image
@@ -60,9 +93,6 @@ export async function POST(request: NextRequest) {
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
 
     console.log(`✅ Downloaded ${imageBuffer.length} bytes`);
-
-    // Clean filename (remove extension if provided)
-    const cleanFilename = filename.replace(/\.(jpg|jpeg|png|webp|gif)$/i, "");
 
     // Generate and upload all sizes
     let uploadedCount = 0;

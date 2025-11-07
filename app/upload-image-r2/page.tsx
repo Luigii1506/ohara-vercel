@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, Image as ImageIcon, Check, X, Loader2 } from "lucide-react";
+import { Upload, Image as ImageIcon, Check, X, Loader2, AlertTriangle } from "lucide-react";
 
 export default function AdminUploadImagePage() {
   const [imageUrl, setImageUrl] = useState("");
@@ -13,8 +13,10 @@ export default function AdminUploadImagePage() {
     r2Url?: string;
   }>({ type: null, message: "" });
   const [previewUrl, setPreviewUrl] = useState("");
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [existingFilename, setExistingFilename] = useState("");
 
-  const handleUpload = async (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent, forceOverwrite = false) => {
     e.preventDefault();
 
     if (!imageUrl || !customFilename) {
@@ -37,10 +39,19 @@ export default function AdminUploadImagePage() {
         body: JSON.stringify({
           imageUrl,
           filename: customFilename,
+          overwrite: forceOverwrite,
         }),
       });
 
       const data = await response.json();
+
+      // Check if file already exists
+      if (data.exists && !forceOverwrite) {
+        setExistingFilename(data.filename);
+        setShowOverwriteConfirm(true);
+        setIsUploading(false);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Upload failed");
@@ -56,6 +67,7 @@ export default function AdminUploadImagePage() {
       setImageUrl("");
       setCustomFilename("");
       setPreviewUrl("");
+      setShowOverwriteConfirm(false);
     } catch (error) {
       setUploadStatus({
         type: "error",
@@ -64,6 +76,16 @@ export default function AdminUploadImagePage() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleConfirmOverwrite = (e: React.FormEvent) => {
+    setShowOverwriteConfirm(false);
+    handleUpload(e, true);
+  };
+
+  const handleCancelOverwrite = () => {
+    setShowOverwriteConfirm(false);
+    setIsUploading(false);
   };
 
   const handlePreview = () => {
@@ -241,6 +263,51 @@ export default function AdminUploadImagePage() {
           </div>
         </div>
       </div>
+
+      {/* Overwrite Confirmation Modal */}
+      {showOverwriteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Image Already Exists
+                </h3>
+                <p className="text-sm text-gray-700">
+                  The image <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-sm">{existingFilename}</code> already exists in R2 storage.
+                </p>
+                <p className="text-sm text-gray-700 mt-2">
+                  Do you want to overwrite it with the new image? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={handleCancelOverwrite}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOverwrite}
+                disabled={isUploading}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 transition-colors flex items-center gap-2"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Overwriting...
+                  </>
+                ) : (
+                  "Overwrite"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

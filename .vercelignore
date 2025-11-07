@@ -1,0 +1,14 @@
+# Cloudflare Worker - No debe ser procesado por Vercel
+cloudflare/
+
+# Scripts de migración
+scripts/migrate-*.ts
+scripts/test-*.js
+scripts/check-*.ts
+scripts/analyze-*.ts
+scripts/convert-*.ts
+scripts/update-*.ts
+
+# Archivos temporales de migración
+migration-report-*.json
+*-cards.json

@@ -8,6 +8,7 @@ interface LazyImageProps {
   className?: string;
   priority?: boolean;
   size?: ImageSize;
+  objectFit?: "cover" | "contain";
   customOptions?: {
     width?: number;
     height?: number;
@@ -29,6 +30,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
   className = "",
   priority = false,
   size = "medium",
+  objectFit = "contain",
   customOptions,
 }) => {
   const isMissingSrc = !src || src.includes(MISSING_IMAGE_PATTERN);
@@ -170,15 +172,17 @@ const LazyImage: React.FC<LazyImageProps> = ({
     }
   };
 
+  const objectPositionClass = objectFit === "cover" ? "object-top" : "";
+
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
-      <div className="relative w-full overflow-hidden aspect-[3/4] rounded">
+      <div className="relative w-full overflow-hidden aspect-[5/7] rounded">
         {/* Fallback con transición suave */}
         <img
           src={fallbackSrc}
           alt=""
           aria-hidden="true"
-          className={`rounded-xl absolute inset-0 w-full h-full object-contain select-none pointer-events-none transition-opacity duration-300 ${
+          className={`rounded-xl absolute inset-0 w-full h-full object-${objectFit} ${objectPositionClass} select-none pointer-events-none transition-opacity duration-300 ${
             imageSrc && !isLoading ? "opacity-0" : "opacity-100"
           }`}
           loading="lazy"
@@ -200,7 +204,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             fetchPriority={priority ? "high" : "auto"}
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
+            className={`absolute inset-0 w-full h-full object-${objectFit} ${objectPositionClass} transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           />

@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "framer-motion";
 
 interface SkeletonCardProps {
   variant?: "list" | "text" | "alternate" | "grid";
@@ -7,21 +6,10 @@ interface SkeletonCardProps {
 }
 
 const SkeletonCard: React.FC<SkeletonCardProps> = ({ variant = "list", index = 0 }) => {
-  // Shimmer animation keyframes
-  const shimmer = {
-    "0%": { transform: "translateX(-100%)" },
-    "100%": { transform: "translateX(100%)" }
-  };
-
   if (variant === "list") {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        className="w-full"
-      >
+      <div className="w-full animate-fade-in">
+
         <div className="border border-slate-100 rounded-xl shadow-sm p-3 bg-white overflow-hidden relative">
           {/* Shimmer effect */}
           <div
@@ -49,19 +37,14 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({ variant = "list", index = 0
             100% { transform: translateX(100%); }
           }
         `}</style>
-      </motion.div>
+      </div>
     );
   }
 
   if (variant === "text") {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        className="w-full max-w-[450px]"
-      >
+      <div className="w-full max-w-[450px] animate-fade-in">
+
         <div className="border border-slate-100 rounded-xl shadow-sm p-4 bg-white overflow-hidden relative">
           <div
             className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent"
@@ -91,19 +74,14 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({ variant = "list", index = 0
             100% { transform: translateX(100%); }
           }
         `}</style>
-      </motion.div>
+      </div>
     );
   }
 
   if (variant === "alternate") {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        className="w-full"
-      >
+      <div className="w-full animate-fade-in">
+
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {/* Info card skeleton - black with subtle animation */}
           <div className="bg-gradient-to-br from-gray-900 to-black rounded-xl p-5 h-48 flex items-center justify-center relative overflow-hidden">
@@ -133,19 +111,14 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({ variant = "list", index = 0
             100% { transform: translateX(100%); }
           }
         `}</style>
-      </motion.div>
+      </div>
     );
   }
 
   // Grid variant
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.1 }}
-      className="w-full"
-    >
+    <div className="w-full animate-fade-in">
+
       <div className="border border-slate-100 rounded-lg shadow-sm p-1 bg-white overflow-hidden relative">
         <div
           className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent"
@@ -161,7 +134,7 @@ const SkeletonCard: React.FC<SkeletonCardProps> = ({ variant = "list", index = 0
           100% { transform: translateX(100%); }
         }
       `}</style>
-    </motion.div>
+    </div>
   );
 };
 

@@ -1,6 +1,5 @@
 "use server";
 
-import axios from "axios";
 import * as cheerio from "cheerio";
 import { CardData } from "@/types";
 
@@ -107,10 +106,24 @@ export async function scrapeAmazonProduct(
   };
 
   try {
-    const response = await axios.get(url, options);
+    // Use native fetch with proxy configuration
+    const proxyUrl = `http://${options.auth.username}:${options.auth.password}@${options.host}:${options.port}`;
+
+    const response = await fetch(url, {
+      // Note: fetch doesn't support proxy auth directly, using headers instead
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.text();
     console.log("responsess", response);
 
-    const $ = cheerio.load(response.data);
+    const $ = cheerio.load(data);
 
     let results: CardData[] = [];
 

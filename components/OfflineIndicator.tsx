@@ -3,7 +3,6 @@
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { WifiOff, Wifi } from "lucide-react";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 /**
  * 📡 Componente que muestra estado de conexión
@@ -33,40 +32,26 @@ export const OfflineIndicator = () => {
   return (
     <>
       {/* Banner Offline */}
-      <AnimatePresence>
-        {!isOnline && (
-          <motion.div
-            initial={{ y: -100 }}
-            animate={{ y: 0 }}
-            exit={{ y: -100 }}
-            className="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-white py-3 px-4 shadow-lg"
-          >
-            <div className="container mx-auto flex items-center justify-center gap-2">
-              <WifiOff className="h-5 w-5" />
-              <span className="font-medium">
-                Sin conexión a internet - Modo Offline
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-white py-3 px-4 shadow-lg animate-slide-down">
+          <div className="container mx-auto flex items-center justify-center gap-2">
+            <WifiOff className="h-5 w-5" />
+            <span className="font-medium">
+              Sin conexión a internet - Modo Offline
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Toast Reconectado */}
-      <AnimatePresence>
-        {showReconnected && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl"
-          >
-            <div className="flex items-center gap-2">
-              <Wifi className="h-5 w-5" />
-              <span className="font-medium">Conexión restablecida</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showReconnected && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl animate-slide-up">
+          <div className="flex items-center gap-2">
+            <Wifi className="h-5 w-5" />
+            <span className="font-medium">Conexión restablecida</span>
+          </div>
+        </div>
+      )}
     </>
   );
 };

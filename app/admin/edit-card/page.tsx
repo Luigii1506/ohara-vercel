@@ -14,7 +14,6 @@ import MultiSelect from "@/components/MultiSelect";
 import { setCodesOptions } from "@/helpers/constants";
 import { Oswald } from "next/font/google";
 import { Plus, Edit, Trash2, RefreshCcw, Loader2, Eye } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import DropdownSearch from "@/components/DropdownSearch";
 import ViewSwitch from "@/components/ViewSwitch";
@@ -1469,61 +1468,19 @@ const EditCard = () => {
                   {/* Grid de alternas */}
                   <div className="flex-1 overflow-y-auto px-4 py-4 bg-gradient-to-b from-transparent via-white/5 to-transparent">
                     {alternates.length > 0 ? (
-                      <AnimatePresence mode="popLayout">
-                        <div
-                          className="gap-3 grid-alternates-responsive"
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, 220px)",
-                            justifyContent: "start",
-                            width: "100%",
-                          }}
-                        >
-                          {alternates.map((alternate, index) => (
-                            <motion.div
-                              key={alternate.id}
-                              layout
-                              initial={{
-                                opacity: 0,
-                                scale: 0.8,
-                                y: 20,
-                                rotateX: -15,
-                              }}
-                              animate={{
-                                opacity: 1,
-                                scale: 1,
-                                y: 0,
-                                rotateX: 0,
-                              }}
-                              exit={{
-                                opacity: 0,
-                                scale: 0.8,
-                                y: -20,
-                                rotateX: 15,
-                                transition: {
-                                  duration: 0.3,
-                                  ease: "easeInOut",
-                                },
-                              }}
-                              transition={{
-                                duration: 0.6,
-                                delay: index * 0.08, // 🚀 Stagger effect! Each card appears 80ms after the previous
-                                ease: [0.25, 0.46, 0.45, 0.94], // Custom cubic-bezier for smoothness
-                                type: "spring",
-                                stiffness: 100,
-                                damping: 15,
-                              }}
-                              whileHover={{
-                                scale: 1.02,
-                                y: -8,
-                                rotateY: 5,
-                                transition: { duration: 0.2, ease: "easeOut" },
-                              }}
-                              whileTap={{
-                                scale: 0.98,
-                                transition: { duration: 0.1 },
-                              }}
-                              className={`relative group overflow-hidden alternate-card-shimmer alternate-perspective ${
+                      <div
+                        className="gap-3 grid-alternates-responsive"
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, 220px)",
+                          justifyContent: "start",
+                          width: "100%",
+                        }}
+                      >
+                        {alternates.map((alternate, index) => (
+                          <div
+                            key={alternate.id}
+                            className={`relative group overflow-hidden alternate-card-shimmer alternate-perspective animate-fade-in hover:scale-[1.02] hover:-translate-y-2 active:scale-[0.98] transition-all duration-300 ${
                                 alternate.id.toString().startsWith("temp-")
                                   ? "alternate-sparkle alternate-temp-glow alternate-new-pulse"
                                   : "bg-white rounded-xl border"
@@ -1573,6 +1530,9 @@ const EditCard = () => {
                               }}
                               onDragEnd={() => {
                                 setDraggedItem(null);
+                              }}
+                              style={{
+                                animationDelay: `${index * 80}ms`
                               }}
                             >
                               {/* 🚀 Special wrapper for temporary cards with gradient border */}
@@ -1791,10 +1751,9 @@ const EditCard = () => {
                                 </div>
                               </div>{" "}
                               {/* Close special wrapper for temporary cards */}
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
-                      </AnimatePresence>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-80 text-gray-500 p-8">
                         <div className="relative mb-6">

@@ -11,19 +11,27 @@ import QueryProvider from "@/components/QueryProvider";
 import { DynamicThemeColor } from "@/components/DynamicThemeColor";
 import UnregisterSW from "@/components/UnregisterSW";
 
-// Definición de las fuentes (las que necesites)
-const inter = Inter({ subsets: ["latin"] });
+// Definición de las fuentes con optimización de carga
+const inter = Inter({
+  subsets: ["latin"],
+  display: 'swap', // Mejora FCP y LCP
+  preload: true,
+});
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  display: 'swap',
 });
 const notoSansJP = Noto_Sans_JP({
   weight: ["200", "400", "500", "600", "700", "800", "900"],
   subsets: ["latin"],
+  display: 'swap',
+  preload: true, // Principal fuente del body
 });
 const oswald = Oswald({
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {

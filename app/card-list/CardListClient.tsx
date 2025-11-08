@@ -20,9 +20,7 @@ import {
 import { CardListPageSkeleton } from "@/components/skeletons";
 import SearchFilters from "@/components/home/SearchFilters";
 import CardModal from "@/components/CardModal";
-const FiltersSidebar = dynamic(() => import("@/components/FiltersSidebar"), {
-  loading: () => <div className="w-64 bg-gray-100 animate-pulse rounded" />,
-});
+import FiltersSidebar from "@/components/FiltersSidebar";
 
 // Componentes críticos - carga inmediata
 import StoreCard from "@/components/StoreCard";
@@ -832,45 +830,47 @@ const CardListClient = ({
           </div>
         </div>
 
-        <Transition
-          show={isModalOpen}
-          enter="transition transform duration-300"
-          enterFrom="-translate-x-full"
-          enterTo="translate-x-0"
-          leave="transition transform duration-200"
-          leaveFrom="translate-x-0"
-          leaveTo="-translate-x-full"
-        >
-          <FiltersSidebar
-            isOpen={isModalOpen}
-            setIsOpen={setIsModalOpen}
-            search={search}
-            setSearch={setSearch}
-            selectedColors={selectedColors}
-            setSelectedColors={setSelectedColors}
-            selectedRarities={selectedRarities}
-            setSelectedRarities={setSelectedRarities}
-            selectedCategories={selectedCategories}
-            setSelectedCategories={setSelectedCategories}
-            selectedCounter={selectedCounter}
-            setSelectedCounter={setSelectedCounter}
-            selectedTrigger={selectedTrigger}
-            setSelectedTrigger={setSelectedTrigger}
-            selectedEffects={selectedEffects}
-            setSelectedEffects={setSelectedEffects}
-            selectedTypes={selectedTypes}
-            setSelectedTypes={setSelectedTypes}
-            selectedSets={selectedSets}
-            setSelectedSets={setSelectedSets}
-            selectedCosts={selectedCosts}
-            setSelectedCosts={setSelectedCosts}
-            selectedPower={selectedPower}
-            setSelectedPower={setSelectedPower}
-            selectedAttributes={selectedAttributes}
-            setSelectedAttributes={setSelectedAttributes}
-            selectedAltArts={selectedAltArts}
-            setSelectedAltArts={setSelectedAltArts}
-          />
+        <Transition show={isModalOpen} as={Fragment}>
+          <TransitionChild
+            as={Fragment}
+            enter="transition transform duration-300"
+            enterFrom="-translate-x-full"
+            enterTo="translate-x-0"
+            leave="transition transform duration-200"
+            leaveFrom="translate-x-0"
+            leaveTo="-translate-x-full"
+          >
+            <FiltersSidebar
+              isOpen={isModalOpen}
+              setIsOpen={setIsModalOpen}
+              search={search}
+              setSearch={setSearch}
+              selectedColors={selectedColors}
+              setSelectedColors={setSelectedColors}
+              selectedRarities={selectedRarities}
+              setSelectedRarities={setSelectedRarities}
+              selectedCategories={selectedCategories}
+              setSelectedCategories={setSelectedCategories}
+              selectedCounter={selectedCounter}
+              setSelectedCounter={setSelectedCounter}
+              selectedTrigger={selectedTrigger}
+              setSelectedTrigger={setSelectedTrigger}
+              selectedEffects={selectedEffects}
+              setSelectedEffects={setSelectedEffects}
+              selectedTypes={selectedTypes}
+              setSelectedTypes={setSelectedTypes}
+              selectedSets={selectedSets}
+              setSelectedSets={setSelectedSets}
+              selectedCosts={selectedCosts}
+              setSelectedCosts={setSelectedCosts}
+              selectedPower={selectedPower}
+              setSelectedPower={setSelectedPower}
+              selectedAttributes={selectedAttributes}
+              setSelectedAttributes={setSelectedAttributes}
+              selectedAltArts={selectedAltArts}
+              setSelectedAltArts={setSelectedAltArts}
+            />
+          </TransitionChild>
         </Transition>
       </div>
 
@@ -1012,7 +1012,7 @@ const CardListClient = ({
         {showFab && <FAB onClick={handleScrollToTop} />}
 
         {viewSelected === "list" && (
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
+          <div className="grid gap-2 md:gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
             {(() => {
               let globalIndex = 0; // Contador global incluyendo alternativas
 
@@ -1391,134 +1391,6 @@ const CardListClient = ({
                     </div>
                   );
                 });
-            })()}
-          </div>
-        )}
-
-        {viewSelected === "grid" && (
-          <div className="grid gap-3 grid-cols-1 justify-items-center">
-            {(() => {
-              let globalIndex = 0;
-
-              return filteredCards?.slice(0, visibleCount).map((card) => {
-                const filteredAlts = getFilteredAlternates(
-                  card,
-                  selectedSets,
-                  selectedAltArts
-                );
-                const isBaseMatch = baseCardMatches(
-                  card,
-                  selectedSets,
-                  selectedAltArts
-                );
-
-                if (!isBaseMatch && filteredAlts.length === 0) return null;
-
-                const baseCardIndex = globalIndex;
-                if (isBaseMatch) globalIndex++;
-
-                return (
-                  <Fragment key={card._id || card.id}>
-                    {isBaseMatch && (
-                      <div
-                        className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                        onClick={() => {
-                          const cardIndex = filteredCards.findIndex(
-                            (c) => c.id === card.id
-                          );
-                          setCurrentCardIndex(cardIndex);
-                          setSelectedCard(card);
-                          setBaseCard(card);
-                          setAlternatesCards(card.alternates);
-                          setIsOpen(true);
-                        }}
-                        onMouseEnter={() =>
-                          card.src && smartPrefetch(card.src, "large", true)
-                        }
-                        onTouchStart={() =>
-                          card.src && smartPrefetch(card.src, "large", true)
-                        }
-                      >
-                        <LazyImage
-                          src={card.src}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={card?.name}
-                          className="w-full"
-                          priority={baseCardIndex < 20}
-                          size="small"
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex justify-center items-center w-full flex-col">
-                                <span
-                                  className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                                >
-                                  {card.code}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{card.sets?.[0]?.set?.title}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    )}
-
-                    {filteredAlts.map((alt) => {
-                      const altGlobalIndex = globalIndex++;
-                      return (
-                        <div
-                          key={alt._id || alt.id}
-                          className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                          onClick={() => {
-                            const cardIndex = filteredCards.findIndex(
-                              (c) => c.id === card.id
-                            );
-                            setCurrentCardIndex(cardIndex);
-                            setSelectedCard(alt);
-                            setBaseCard(card);
-                            setAlternatesCards(card.alternates);
-                            setIsOpen(true);
-                          }}
-                          onMouseEnter={() =>
-                            alt.src && smartPrefetch(alt.src, "large", true)
-                          }
-                          onTouchStart={() =>
-                            alt.src && smartPrefetch(alt.src, "large", true)
-                          }
-                        >
-                          <LazyImage
-                            src={alt.src}
-                            fallbackSrc="/assets/images/backcard.webp"
-                            alt={alt?.name}
-                            className="w-full"
-                            priority={altGlobalIndex < 20}
-                            size="small"
-                          />
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex justify-center items-center w-full flex-col">
-                                  <span
-                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                                  >
-                                    {card.code}
-                                  </span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{alt.sets?.[0]?.set?.title}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      );
-                    })}
-                  </Fragment>
-                );
-              });
             })()}
           </div>
         )}

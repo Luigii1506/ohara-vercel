@@ -178,7 +178,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
           src={fallbackSrc}
           alt=""
           aria-hidden="true"
-          className={`rounded-xl absolute inset-0 w-full h-full select-none pointer-events-none transition-opacity duration-300 ${
+          className={`rounded-xl absolute inset-0 w-full h-full object-contain select-none pointer-events-none transition-opacity duration-300 ${
             imageSrc && !isLoading ? "opacity-0" : "opacity-100"
           }`}
           loading="lazy"
@@ -200,7 +200,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             fetchPriority={priority ? "high" : "auto"}
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           />

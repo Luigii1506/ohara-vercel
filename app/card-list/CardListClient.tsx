@@ -19,10 +19,7 @@ import {
 } from "@headlessui/react";
 import { CardListPageSkeleton } from "@/components/skeletons";
 import SearchFilters from "@/components/home/SearchFilters";
-
-const CardModal = dynamic(() => import("@/components/CardModal"), {
-  ssr: false, // Modal no necesita SSR
-});
+import CardModal from "@/components/CardModal";
 const FiltersSidebar = dynamic(() => import("@/components/FiltersSidebar"), {
   loading: () => <div className="w-64 bg-gray-100 animate-pulse rounded" />,
 });

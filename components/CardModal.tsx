@@ -256,9 +256,9 @@ const CardModal: React.FC<CardModalProps> = ({
                     </div>
 
                     <Link
-                      href={`${
-                        selectedCard?.tcgUrl !== ""
-                          ? selectedCard?.tcgUrl
+                      href={
+                        selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                          ? selectedCard.tcgUrl
                           : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
                               baseCard.name
                             )}&Rarity=${encodeURIComponent(
@@ -268,7 +268,7 @@ const CardModal: React.FC<CardModalProps> = ({
                             )}&CardType=${encodeURIComponent(
                               baseCard.category ?? ""
                             )}`
-                      }`}
+                      }
                       target="_blank"
                       className="underline text-blue-500 font-bold text-[13px]"
                       onClick={(e) => {
@@ -307,9 +307,9 @@ const CardModal: React.FC<CardModalProps> = ({
                   </div>
 
                   <Link
-                    href={`${
-                      selectedCard?.tcgUrl !== ""
-                        ? selectedCard?.tcgUrl
+                    href={
+                      selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                        ? selectedCard.tcgUrl
                         : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
                             baseCard.name
                           )}&Rarity=${encodeURIComponent(
@@ -319,7 +319,7 @@ const CardModal: React.FC<CardModalProps> = ({
                           )}&CardType=${encodeURIComponent(
                             baseCard.category ?? ""
                           )}`
-                    }`}
+                    }
                     target="_blank"
                     className="underline text-blue-500 font-bold text-[13px]"
                     onClick={(e) => {

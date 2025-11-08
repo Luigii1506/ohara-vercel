@@ -514,7 +514,9 @@ const ProxiesBuilder = ({
         // Cargar todas las imágenes en paralelo usando el proxy para dominios problemáticos
         for (let i = 0; i < expandedCards.length; i++) {
           const card = expandedCards[i];
-          const proxiedUrl = getProxiedImageUrl(card.src);
+          // Usar la versión "large" optimizada para mejor calidad en el PDF
+          const optimizedUrl = getOptimizedImageUrl(card.src, "large");
+          const proxiedUrl = getProxiedImageUrl(optimizedUrl);
 
           const promise = loadImageWithProxy(proxiedUrl)
             .then((imgData: string) => {
@@ -1402,7 +1404,7 @@ const ProxiesBuilder = ({
                     onClick={(e) => handleCardClick(e, card, card)}
                     className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                   >
-                    <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                    <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                       <LazyImage
                         src={card.src}
                         fallbackSrc="/assets/images/backcard.webp"
@@ -1458,7 +1460,7 @@ const ProxiesBuilder = ({
                         onClick={(e) => handleCardClick(e, card, alt)}
                         className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                       >
-                        <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                        <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                           <LazyImage
                             src={alt.src}
                             fallbackSrc="/assets/images/backcard.webp"
@@ -1690,14 +1692,13 @@ const ProxiesBuilder = ({
                           setSelectedCard(proxy);
                           setShowLargeImageCard(true);
                         }}
+                        className="w-full aspect-[3/4] relative overflow-hidden rounded"
                       >
-                        <LazyImage
-                          src={proxy.src}
-                          fallbackSrc="/assets/images/backcard.webp"
+                        <img
+                          src={getOptimizedImageUrl(proxy.src, "small")}
                           alt={proxy.name}
-                          priority={index < 20}
-                          size="small"
-                          className="w-full rounded"
+                          className="w-full h-full object-cover"
+                          loading={index < 20 ? "eager" : "lazy"}
                         />
                       </div>
                       <TooltipProvider>

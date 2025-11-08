@@ -173,11 +173,14 @@ const LazyImage: React.FC<LazyImageProps> = ({
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
       <div className="relative w-full overflow-hidden aspect-[3/4] rounded">
+        {/* Fallback con transición suave */}
         <img
           src={fallbackSrc}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+          className={`rounded-xl absolute inset-0 w-full h-full select-none pointer-events-none transition-opacity duration-300 ${
+            imageSrc && !isLoading ? "opacity-0" : "opacity-100"
+          }`}
           loading="lazy"
         />
 
@@ -197,7 +200,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             fetchPriority={priority ? "high" : "auto"}
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+            className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           />

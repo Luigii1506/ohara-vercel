@@ -882,6 +882,7 @@ const CardListClient = ({
           <SearchResults
             count={filteredCards?.length ?? 0}
             totalWithAlternates={totalCardsWithAlternates}
+            showResult={isFullyLoaded || hasCompletedOnce}
           />
 
           {/* Botón para colapsar/expandir filtros - Solo visible en desktop */}
@@ -999,33 +1000,12 @@ const CardListClient = ({
           setShowFab(scrollTop > 100);
 
           const remaining = scrollHeight - (scrollTop + clientHeight);
-          console.log("[CardList] scroll metrics", {
-            scrollTop,
-            clientHeight,
-            scrollHeight,
-            remaining,
-            threshold: LOAD_THRESHOLD_PX,
-            isLoadingMore: isLoadingMoreRef.current,
-            visibleCount,
-            totalFiltered: filteredCards.length,
-          });
           if (
             remaining <= LOAD_THRESHOLD_PX &&
             !isLoadingMoreRef.current &&
             visibleCount < filteredCards.length
           ) {
             isLoadingMoreRef.current = true;
-            console.log("[CardList] threshold reached", {
-              scrollTop,
-              clientHeight,
-              scrollHeight,
-              remaining,
-              visibleCount,
-              nextVisibleCount: Math.min(
-                visibleCount + BATCH_SIZE,
-                filteredCards.length
-              ),
-            });
             setVisibleCount((prev) =>
               Math.min(prev + BATCH_SIZE, filteredCards.length)
             );
@@ -1080,14 +1060,14 @@ const CardListClient = ({
                           }
                           className="w-full cursor-pointer max-w-[450px]"
                         >
-                          <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
+                          <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
                             <LazyImage
                               src={card.src}
                               fallbackSrc="/assets/images/backcard.webp"
                               alt={card.name}
                               className="w-full"
                               priority={baseCardIndex < 20}
-                              size="thumb"
+                              size="small"
                             />
                             <TooltipProvider>
                               <Tooltip>
@@ -1143,14 +1123,14 @@ const CardListClient = ({
                             }
                             className="w-full cursor-pointer max-w-[450px]"
                           >
-                            <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
+                            <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
                               <LazyImage
                                 src={alt.src}
                                 fallbackSrc="/assets/images/backcard.webp"
                                 alt={alt.name}
                                 className="w-full"
                                 priority={altGlobalIndex < 20}
-                                size="thumb"
+                                size="small"
                               />
                               <TooltipProvider>
                                 <Tooltip>
@@ -1254,7 +1234,7 @@ const CardListClient = ({
                     >
                       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,250px))] mb-3">
                         <Card>
-                          <CardContent className="p-5 h-full bg-black rounded-lg text-white">
+                          <CardContent className="p-5 h-full bg-black rounded-lg text-white justify-start">
                             <div className="h-full flex flex-col justify-around items-center relative">
                               <div className="flex items-center justify-between flex-col mt-4">
                                 <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
@@ -1330,7 +1310,7 @@ const CardListClient = ({
                             }
                             className="cursor-pointer"
                           >
-                            <CardContent className="flex justify-center items-center p-4 flex-col h-full">
+                            <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
                               <div className="flex justify-center items-center w-full">
                                 <LazyImage
                                   src={card?.src}
@@ -1382,7 +1362,7 @@ const CardListClient = ({
                               }
                               className="cursor-pointer"
                             >
-                              <CardContent className="flex justify-center items-center p-4 flex-col h-full">
+                              <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
                                 <div className="flex justify-center items-center w-full">
                                   <LazyImage
                                     src={alt?.src}
@@ -1468,7 +1448,7 @@ const CardListClient = ({
                           alt={card?.name}
                           className="w-full"
                           priority={baseCardIndex < 20}
-                          size="thumb"
+                          size="small"
                         />
                         <TooltipProvider>
                           <Tooltip>
@@ -1518,7 +1498,7 @@ const CardListClient = ({
                             alt={alt?.name}
                             className="w-full"
                             priority={altGlobalIndex < 20}
-                            size="thumb"
+                            size="small"
                           />
                           <TooltipProvider>
                             <Tooltip>

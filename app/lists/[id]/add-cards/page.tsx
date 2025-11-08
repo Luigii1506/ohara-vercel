@@ -2292,7 +2292,7 @@ const AddCardsPage = () => {
                                 : ""
                             }`}
                           >
-                            <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                            <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                               <img
                                 src={card.src}
                                 alt={card.name}
@@ -2363,7 +2363,7 @@ const AddCardsPage = () => {
                                   : ""
                               }`}
                             >
-                              <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                              <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                                 <img
                                   src={alt.src}
                                   alt={alt.alias}

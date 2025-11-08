@@ -1088,7 +1088,7 @@ const CompleteDeckBuilderLayout = ({
                           totalQuantityBase >= 4 ? "opacity-70 grayscale" : ""
                         }`}
                       >
-                        <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                        <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                           <LazyImage
                             src={card.src}
                             fallbackSrc="/assets/images/backcard.webp"
@@ -1160,7 +1160,7 @@ const CompleteDeckBuilderLayout = ({
                               totalQuantity >= 4 ? "opacity-70 grayscale" : ""
                             }`}
                           >
-                            <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col relative">
+                            <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
                               <LazyImage
                                 src={alt.src}
                                 fallbackSrc="/assets/images/backcard.webp"
@@ -1682,13 +1682,13 @@ const CompleteDeckBuilderLayout = ({
                               setSelectedCard(card);
                               setShowLargeImageCard(true);
                             }}
+                            className="w-full aspect-[3/4] relative overflow-hidden rounded"
                           >
-                            <LazyImage
-                              src={card.src}
-                              fallbackSrc="/assets/images/backcard.webp"
+                            <img
+                              src={getOptimizedImageUrl(card.src, "small")}
                               alt={card.name}
-                              size="small"
-                              className="w-full rounded"
+                              className="w-full h-full object-cover"
+                              loading={cardIndex < 20 ? "eager" : "lazy"}
                             />
                           </div>
 
@@ -2042,7 +2042,7 @@ const CompleteDeckBuilderLayout = ({
                 key={deckBuilder?.selectedLeader?.id}
                 src={getOptimizedImageUrl(
                   deckBuilder?.selectedLeader?.src ??
-                  "/assets/images/backcard.webp",
+                    "/assets/images/backcard.webp",
                   "large"
                 )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"

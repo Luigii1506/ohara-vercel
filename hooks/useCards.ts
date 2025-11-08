@@ -66,8 +66,7 @@ export const useCards = (options?: { alwaysFresh?: boolean }) => {
     gcTime: 1000 * 60 * 60 * 24, // 24 horas - retención en memoria
     refetchOnReconnect: true, // Refetch cuando se recupera conexión
     retry: 2,
-    retryDelay: (attemptIndex) =>
-      Math.min(1000 * 2 ** attemptIndex, 10000),
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
 
     meta: {
       errorMessage: "Error al cargar cartas",
@@ -148,7 +147,9 @@ const buildQueryString = (params: FetchCardsPageParams): string => {
 
   entries.forEach(([filterKey, paramKey]) => {
     const filterValue = filters[filterKey];
-    const value = normalizeList(Array.isArray(filterValue) ? filterValue : undefined);
+    const value = normalizeList(
+      Array.isArray(filterValue) ? filterValue : undefined
+    );
     if (value && value.length) {
       searchParams.set(paramKey, value.join(","));
     }
@@ -218,7 +219,9 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
 
   entries.forEach(([filterKey, paramKey]) => {
     const filterValue = filters[filterKey];
-    const value = normalizeList(Array.isArray(filterValue) ? filterValue : undefined);
+    const value = normalizeList(
+      Array.isArray(filterValue) ? filterValue : undefined
+    );
     if (value && value.length) {
       searchParams.set(paramKey, value.join(","));
     }
@@ -255,7 +258,11 @@ const fetchCardsPage = async (
   if (Array.isArray(data)) {
     const cards = data as CardWithCollectionData[];
     const lastCard = cards.length ? cards[cards.length - 1] : null;
-    const lastId = lastCard ? (typeof lastCard.id === 'number' ? lastCard.id : null) : null;
+    const lastId = lastCard
+      ? typeof lastCard.id === "number"
+        ? lastCard.id
+        : null
+      : null;
     return {
       items: cards,
       nextCursor: lastId,
@@ -265,8 +272,7 @@ const fetchCardsPage = async (
 
   return {
     items: (data.items ?? []) as CardWithCollectionData[],
-    nextCursor:
-      typeof data.nextCursor === "number" ? data.nextCursor : null,
+    nextCursor: typeof data.nextCursor === "number" ? data.nextCursor : null,
     hasMore: Boolean(data.hasMore),
   };
 };
@@ -301,11 +307,7 @@ export const usePaginatedCards = (
   const limit = options?.limit ?? 60;
   const serializedFilters = serializeFiltersForKey(filters);
 
-  const queryKey: QueryKey = [
-    "cards-paginated",
-    serializedFilters,
-    limit,
-  ];
+  const queryKey: QueryKey = ["cards-paginated", serializedFilters, limit];
 
   const query = useInfiniteQuery({
     queryKey,
@@ -361,7 +363,9 @@ const fetchAllCards = async (
 ): Promise<CardWithCollectionData[]> => {
   const queryString = buildFullQueryString(params);
 
-  const url = queryString ? `/api/cards/full?${queryString}` : `/api/cards/full`;
+  const url = queryString
+    ? `/api/cards/full?${queryString}`
+    : `/api/cards/full`;
 
   const res = await fetch(url, {
     cache: "no-store",

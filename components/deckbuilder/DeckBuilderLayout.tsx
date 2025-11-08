@@ -48,6 +48,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { allColors } from "@/helpers/constants";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
 import ClearFiltersButton from "../ClearFiltersButton";
@@ -57,6 +58,7 @@ import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 import LazyImage from "@/components/LazyImage";
+import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 
 import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
@@ -115,7 +117,6 @@ const CompleteDeckBuilderLayout = ({
   >("list");
 
   const [visibleCount, setVisibleCount] = useState(50);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
 
   const [showLargeImageCard, setShowLargeImageCard] = useState<boolean>(false);
@@ -329,12 +330,17 @@ const CompleteDeckBuilderLayout = ({
         );
       })
       .sort((a, b) => {
+        // Primero ordenar por el sort seleccionado si existe
         if (selectedSort === "Most variants") {
-          return b.alternates?.length - a.alternates?.length;
+          const variantDiff = b.alternates?.length - a.alternates?.length;
+          if (variantDiff !== 0) return variantDiff;
         } else if (selectedSort === "Less variants") {
-          return a.alternates?.length - b.alternates?.length;
+          const variantDiff = a.alternates?.length - b.alternates?.length;
+          if (variantDiff !== 0) return variantDiff;
         }
-        return 0;
+
+        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
+        return sortByCollectionOrder(a, b);
       });
   }, [
     initialCards,
@@ -355,6 +361,8 @@ const CompleteDeckBuilderLayout = ({
     selectedCodes,
   ]);
 
+  console.log("initial", initialCards);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInputClear, setIsInputClear] = useState(false);
 
@@ -366,7 +374,6 @@ const CompleteDeckBuilderLayout = ({
   // Estado para controlar el sidebar de filtros
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  console.log("deckBuilder", deckBuilder.selectedLeader);
   // Si hay un Leader seleccionado, obtenemos sus colores
   const leaderColors = deckBuilder.selectedLeader
     ? deckBuilder.selectedLeader.colors.map((c: { color: string }) =>
@@ -383,9 +390,9 @@ const CompleteDeckBuilderLayout = ({
   // - Si hay un Leader seleccionado: mostramos solo cartas que no sean de la categoría "Leader"
   //   y que tengan al menos un color en común con el Leader.
   const filteredByLeader = useMemo(() => {
-    if (!filteredCards) return null; // ⚡ No calcular si filteredCards aún no está listo
+    if (!filteredCards) return []; // ⚡ Retornar array vacío en vez de null
 
-    return deckBuilder.selectedLeader
+    const filtered = deckBuilder.selectedLeader
       ? filteredCards.filter(
           (card) =>
             card.category !== "Leader" &&
@@ -394,8 +401,12 @@ const CompleteDeckBuilderLayout = ({
             )
         )
       : filteredCards.filter((card) => card.category === "Leader");
-  }, [filteredCards, deckBuilder.selectedLeader]);
 
+    // Las cartas ya vienen ordenadas de filteredCards, pero aseguramos el orden
+    return filtered.sort(sortByCollectionOrder);
+  }, [filteredCards, deckBuilder.selectedLeader, leaderColors]);
+
+  console.log("filteredCards", filteredCards);
   // Calcula el total de cartas agregadas en el deck
   const totalCards = deckBuilder.deckCards.reduce(
     (total, card) => total + card.quantity,
@@ -523,27 +534,36 @@ const CompleteDeckBuilderLayout = ({
     return costA - costB;
   });
 
+  // Infinite scroll usando scroll event (como en card-list)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Si el sentinel está visible y aún quedan elementos por cargar...
-        if (
-          entries[0].isIntersecting &&
-          visibleCount < (filteredByLeader?.length ?? 0)
-        ) {
-          setVisibleCount((prev) => prev + 50); // Incrementa de a 20 elementos (ajusta según convenga)
-        }
-      },
-      { rootMargin: "200px" } // Permite cargar antes de llegar al final
-    );
+    const container = gridRef.current;
+    if (!container) return;
 
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
+    const BATCH_SIZE = 50;
+    const LOAD_THRESHOLD_PX = 800;
+    const isLoadingMoreRef = { current: false };
 
-    return () => {
-      if (sentinelRef.current) observer.unobserve(sentinelRef.current);
+    const handleScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = container;
+      const remaining = scrollHeight - (scrollTop + clientHeight);
+
+      if (
+        remaining <= LOAD_THRESHOLD_PX &&
+        !isLoadingMoreRef.current &&
+        visibleCount < (filteredByLeader?.length ?? 0)
+      ) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount((prev) =>
+          Math.min(prev + BATCH_SIZE, filteredByLeader?.length ?? 0)
+        );
+        setTimeout(() => {
+          isLoadingMoreRef.current = false;
+        }, 100);
+      }
     };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
   }, [visibleCount, filteredByLeader?.length]);
 
   useEffect(() => {
@@ -562,7 +582,7 @@ const CompleteDeckBuilderLayout = ({
     }
   }, [showLargeImageCard]);
 
-  console.log(groupedCards);
+  console.log("12", filteredByLeader);
   return (
     <div className="flex flex-1 bg-[#f2eede] w-full h-full overflow-hidden">
       {/* Mobile Navigation */}
@@ -685,7 +705,7 @@ const CompleteDeckBuilderLayout = ({
         >
           {viewSelected === "alternate" && (
             <div className="flex flex-col gap-5">
-              {filteredByLeader?.slice(0, visibleCount).map((card) => {
+              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
                 // Función que verifica si la carta base cumple con los filtros
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
@@ -804,6 +824,8 @@ const CompleteDeckBuilderLayout = ({
                               src={card?.src}
                               fallbackSrc="/assets/images/backcard.webp"
                               alt={card?.name}
+                              priority={index < 20}
+                              size="small"
                               className="w-[80%] m-auto"
                             />
                             {(() => {
@@ -871,6 +893,8 @@ const CompleteDeckBuilderLayout = ({
                                 src={alt?.src}
                                 fallbackSrc="/assets/images/backcard.webp"
                                 alt={alt?.name}
+                                priority={index < 20}
+                                size="small"
                                 className="w-[80%] m-auto"
                               />
                               {alternateInDeck && (
@@ -906,7 +930,7 @@ const CompleteDeckBuilderLayout = ({
 
           {viewSelected === "text" && (
             <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredByLeader?.slice(0, visibleCount).map((card) => {
+              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
                 const totalQuantityBase = deckBuilder.deckCards
                   ?.filter((card_alt) => card_alt.code === card.code)
                   .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
@@ -965,6 +989,8 @@ const CompleteDeckBuilderLayout = ({
                                   src={alt?.src}
                                   fallbackSrc="/assets/images/backcard.webp"
                                   alt={alt?.name}
+                                  priority={index < 20}
+                                  size="small"
                                   className="w-full"
                                 />
                                 <TooltipProvider>
@@ -1001,7 +1027,7 @@ const CompleteDeckBuilderLayout = ({
 
           {viewSelected === "list" && (
             <div className="grid gap-3 grid-cols-3 justify-items-center">
-              {filteredByLeader?.slice(0, visibleCount).map((card) => {
+              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
                 // Función que determina si la carta base coincide con los filtros
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
@@ -1067,6 +1093,8 @@ const CompleteDeckBuilderLayout = ({
                             src={card.src}
                             fallbackSrc="/assets/images/backcard.webp"
                             alt={card.name}
+                            priority={index < 20}
+                            size="small"
                             className="w-full"
                           />
                           <TooltipProvider>
@@ -1137,6 +1165,8 @@ const CompleteDeckBuilderLayout = ({
                                 src={alt.src}
                                 fallbackSrc="/assets/images/backcard.webp"
                                 alt={alt.name}
+                                priority={index < 20}
+                                size="small"
                                 className="w-full"
                               />
                               <TooltipProvider>
@@ -1266,6 +1296,8 @@ const CompleteDeckBuilderLayout = ({
                           src={card.src ?? "/assets/images/backcard.webp"}
                           fallbackSrc="/assets/images/backcard.webp"
                           alt={card?.name}
+                          priority={index < 20}
+                          size="small"
                           className={`
                         w-full
                         ${
@@ -1339,6 +1371,8 @@ const CompleteDeckBuilderLayout = ({
                             src={alt.src ?? "/assets/images/backcard.webp"}
                             fallbackSrc="/assets/images/backcard.webp"
                             alt={alt?.name}
+                            priority={index < 20}
+                            size="small"
                             className={`
                               w-full
                               ${
@@ -1385,10 +1419,6 @@ const CompleteDeckBuilderLayout = ({
                 );
               })}
             </div>
-          )}
-
-          {visibleCount < (filteredByLeader?.length ?? 0) && (
-            <div ref={sentinelRef} style={{ height: "1px" }} />
           )}
         </div>
       </div>
@@ -1657,6 +1687,7 @@ const CompleteDeckBuilderLayout = ({
                               src={card.src}
                               fallbackSrc="/assets/images/backcard.webp"
                               alt={card.name}
+                              size="small"
                               className="w-full rounded"
                             />
                           </div>
@@ -1953,6 +1984,8 @@ const CompleteDeckBuilderLayout = ({
                               }
                               fallbackSrc="/assets/images/backcard.webp"
                               alt={group[0].name}
+                              priority={index < 20}
+                              size="small"
                               className="w-full"
                             />
                             <TooltipProvider>
@@ -2007,10 +2040,11 @@ const CompleteDeckBuilderLayout = ({
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
                 key={deckBuilder?.selectedLeader?.id}
-                src={
+                src={getOptimizedImageUrl(
                   deckBuilder?.selectedLeader?.src ??
-                  "/assets/images/backcard.webp"
-                }
+                  "/assets/images/backcard.webp",
+                  "large"
+                )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt=""
               />
@@ -2043,7 +2077,10 @@ const CompleteDeckBuilderLayout = ({
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
-                src={selectedCard?.src ?? "/assets/images/backcard.webp"}
+                src={getOptimizedImageUrl(
+                  selectedCard?.src ?? "/assets/images/backcard.webp",
+                  "large"
+                )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt=""
               />

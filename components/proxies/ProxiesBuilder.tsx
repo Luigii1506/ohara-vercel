@@ -45,10 +45,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
 import ClearFiltersButton from "../ClearFiltersButton";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 import LazyImage from "@/components/LazyImage";
+import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 
 import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
@@ -98,7 +100,6 @@ const ProxiesBuilder = ({
   >("list");
 
   const [visibleCount, setVisibleCount] = useState(50);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
 
   const [showLargeImageCard, setShowLargeImageCard] = useState<boolean>(false);
@@ -878,12 +879,17 @@ const ProxiesBuilder = ({
         );
       })
       .sort((a, b) => {
+        // Primero ordenar por el sort seleccionado si existe
         if (selectedSort === "Most variants") {
-          return b.alternates?.length - a.alternates?.length;
+          const variantDiff = b.alternates?.length - a.alternates?.length;
+          if (variantDiff !== 0) return variantDiff;
         } else if (selectedSort === "Less variants") {
-          return a.alternates?.length - b.alternates?.length;
+          const variantDiff = a.alternates?.length - b.alternates?.length;
+          if (variantDiff !== 0) return variantDiff;
         }
-        return 0;
+
+        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
+        return sortByCollectionOrder(a, b);
       });
   }, [
     initialCards,
@@ -1038,27 +1044,36 @@ const ProxiesBuilder = ({
     return costA - costB;
   });
 
+  // Infinite scroll usando scroll event (como en card-list)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Si el sentinel está visible y aún quedan elementos por cargar...
-        if (
-          entries[0].isIntersecting &&
-          visibleCount < (filteredCards?.length ?? 0)
-        ) {
-          setVisibleCount((prev) => prev + 50); // Incrementa de a 20 elementos (ajusta según convenga)
-        }
-      },
-      { rootMargin: "200px" } // Permite cargar antes de llegar al final
-    );
+    const container = gridRef.current;
+    if (!container) return;
 
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
+    const BATCH_SIZE = 50;
+    const LOAD_THRESHOLD_PX = 800;
+    const isLoadingMoreRef = { current: false };
 
-    return () => {
-      if (sentinelRef.current) observer.unobserve(sentinelRef.current);
+    const handleScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = container;
+      const remaining = scrollHeight - (scrollTop + clientHeight);
+
+      if (
+        remaining <= LOAD_THRESHOLD_PX &&
+        !isLoadingMoreRef.current &&
+        visibleCount < (filteredCards?.length ?? 0)
+      ) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount((prev) =>
+          Math.min(prev + BATCH_SIZE, filteredCards?.length ?? 0)
+        );
+        setTimeout(() => {
+          isLoadingMoreRef.current = false;
+        }, 100);
+      }
     };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
   }, [visibleCount, filteredCards?.length]);
 
   useEffect(() => {
@@ -1196,7 +1211,7 @@ const ProxiesBuilder = ({
         >
           {viewSelected === "alternate" && (
             <div className="flex flex-col gap-5">
-              {filteredCards?.slice(0, visibleCount).map((card) => {
+              {filteredCards?.slice(0, visibleCount).map((card, index) => {
                 const totalQuantityBase = proxies
                   ?.filter((card_alt) => card_alt.code === card.code)
                   .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
@@ -1267,6 +1282,8 @@ const ProxiesBuilder = ({
                             src={card?.src}
                             fallbackSrc="/assets/images/backcard.webp"
                             alt={card?.name}
+                            priority={index < 20}
+                            size="small"
                             className="w-[80%] m-auto"
                           />
                           {(() => {
@@ -1315,6 +1332,8 @@ const ProxiesBuilder = ({
                                 src={alt?.src}
                                 fallbackSrc="/assets/images/backcard.webp"
                                 alt={alt?.name}
+                                priority={index < 20}
+                                size="small"
                                 className="w-[80%] m-auto"
                               />
                               {alternateInProxies && (
@@ -1377,7 +1396,7 @@ const ProxiesBuilder = ({
 
           {viewSelected === "list" && (
             <div className="grid gap-3 grid-cols-3 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card) => (
+              {filteredCards?.slice(0, visibleCount).map((card, index) => (
                 <React.Fragment key={card.id}>
                   <div
                     onClick={(e) => handleCardClick(e, card, card)}
@@ -1388,6 +1407,8 @@ const ProxiesBuilder = ({
                         src={card.src}
                         fallbackSrc="/assets/images/backcard.webp"
                         alt={card.name}
+                        priority={index < 20}
+                        size="small"
                         className="w-full"
                       />
                       <TooltipProvider>
@@ -1442,6 +1463,8 @@ const ProxiesBuilder = ({
                             src={alt.src}
                             fallbackSrc="/assets/images/backcard.webp"
                             alt={alt.name}
+                            priority={index < 20}
+                            size="small"
                             className="w-full"
                           />
                           <TooltipProvider>
@@ -1481,7 +1504,7 @@ const ProxiesBuilder = ({
 
           {viewSelected === "grid" && (
             <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card) => (
+              {filteredCards?.slice(0, visibleCount).map((card, index) => (
                 <React.Fragment key={card.id}>
                   <div
                     className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
@@ -1491,6 +1514,8 @@ const ProxiesBuilder = ({
                       src={card.src ?? "/assets/images/backcard.webp"}
                       fallbackSrc="/assets/images/backcard.webp"
                       alt={card?.name}
+                      priority={index < 20}
+                      size="small"
                       className="w-full"
                     />
                     <TooltipProvider>
@@ -1540,6 +1565,8 @@ const ProxiesBuilder = ({
                           src={alt.src ?? "/assets/images/backcard.webp"}
                           fallbackSrc="/assets/images/backcard.webp"
                           alt={alt?.name}
+                          priority={index < 20}
+                          size="small"
                           className="w-full"
                         />
                         <TooltipProvider>
@@ -1571,10 +1598,6 @@ const ProxiesBuilder = ({
                 </React.Fragment>
               ))}
             </div>
-          )}
-
-          {visibleCount < (filteredCards?.length ?? 0) && (
-            <div ref={sentinelRef} style={{ height: "1px" }} />
           )}
         </div>
       </div>
@@ -1672,6 +1695,8 @@ const ProxiesBuilder = ({
                           src={proxy.src}
                           fallbackSrc="/assets/images/backcard.webp"
                           alt={proxy.name}
+                          priority={index < 20}
+                          size="small"
                           className="w-full rounded"
                         />
                       </div>
@@ -1807,7 +1832,10 @@ const ProxiesBuilder = ({
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
-                src={selectedCard?.src ?? "/assets/images/backcard.webp"}
+                src={getOptimizedImageUrl(
+                  selectedCard?.src ?? "/assets/images/backcard.webp",
+                  "large"
+                )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt=""
               />

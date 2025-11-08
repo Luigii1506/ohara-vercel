@@ -18,11 +18,8 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import { CardListPageSkeleton } from "@/components/skeletons";
+import SearchFilters from "@/components/home/SearchFilters";
 
-// Lazy load componentes pesados que no son críticos para el render inicial
-const SearchFilters = dynamic(() => import("@/components/home/SearchFilters"), {
-  loading: () => <div className="h-12 bg-gray-100 animate-pulse rounded" />,
-});
 const CardModal = dynamic(() => import("@/components/CardModal"), {
   ssr: false, // Modal no necesita SSR
 });
@@ -71,6 +68,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -89,31 +87,6 @@ const NO_TRIGGER_LABEL = "No trigger";
 
 const toLower = (value: string | null | undefined) =>
   value?.toLowerCase().trim() ?? "";
-
-const prefixIndexCache: Record<string, number> = {};
-
-const getPrefixIndex = (code: string) => {
-  if (prefixIndexCache[code]) return prefixIndexCache[code];
-
-  let index = 4;
-  if (code.startsWith("OP")) index = 0;
-  else if (code.startsWith("EB")) index = 1;
-  else if (code.startsWith("ST")) index = 2;
-  else if (code.startsWith("P")) index = 3;
-
-  prefixIndexCache[code] = index;
-  return index;
-};
-
-const sortByCollectionOrder = (
-  a: CardWithCollectionData,
-  b: CardWithCollectionData
-) => {
-  const idxA = getPrefixIndex(a.code);
-  const idxB = getPrefixIndex(b.code);
-  if (idxA !== idxB) return idxA - idxB;
-  return a.code.localeCompare(b.code);
-};
 
 const matchesCardFilters = (
   card: CardWithCollectionData,

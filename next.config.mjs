@@ -153,11 +153,14 @@ const nextConfig = {
     } : false,
   },
 
-  // Optimización de módulos
+  // Optimización de módulos - Tree shaking automático
   modularizeImports: {
     'lucide-react': {
       transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
       skipDefaultConversion: true,
+    },
+    '@headlessui/react': {
+      transform: '@headlessui/react/dist/components/{{member}}/{{member}}.js',
     },
   },
 

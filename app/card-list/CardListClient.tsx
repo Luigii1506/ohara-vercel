@@ -8,6 +8,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { CardWithCollectionData } from "@/types";
 import {
@@ -17,12 +18,22 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import { CardListPageSkeleton } from "@/components/skeletons";
-import SearchFilters from "@/components/home/SearchFilters";
-import CardModal from "@/components/CardModal";
+
+// Lazy load componentes pesados que no son críticos para el render inicial
+const SearchFilters = dynamic(() => import("@/components/home/SearchFilters"), {
+  loading: () => <div className="h-12 bg-gray-100 animate-pulse rounded" />,
+});
+const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false, // Modal no necesita SSR
+});
+const FiltersSidebar = dynamic(() => import("@/components/FiltersSidebar"), {
+  loading: () => <div className="w-64 bg-gray-100 animate-pulse rounded" />,
+});
+
+// Componentes críticos - carga inmediata
 import StoreCard from "@/components/StoreCard";
 import ViewSwitch from "@/components/ViewSwitch";
 import SearchResults from "@/components/SearchResults";
-import FiltersSidebar from "@/components/FiltersSidebar";
 import DropdownSearch from "@/components/DropdownSearch";
 import { rarityFormatter } from "@/helpers/formatters";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";

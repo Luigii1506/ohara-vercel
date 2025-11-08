@@ -1,4 +1,9 @@
 import withPWAInit from "@ducanh2912/next-pwa";
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
+const bundleAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -138,8 +143,27 @@ const nextConfig = {
   compress: true, // Habilitar compresión gzip
   swcMinify: true, // Minificación más rápida con SWC
 
+  // Optimizaciones de producción
+  productionBrowserSourceMaps: false, // Deshabilitar source maps en producción
+
+  // Optimización de CSS
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
+
+  // Optimización de módulos
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+      skipDefaultConversion: true,
+    },
+  },
+
   experimental: {
     serverComponentsExternalPackages: ["mongoose"],
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
 
   images: {
@@ -187,4 +211,4 @@ const nextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+export default bundleAnalyzer(withPWA(nextConfig));

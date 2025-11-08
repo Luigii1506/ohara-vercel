@@ -6,6 +6,7 @@
     "dev": "next dev -H 0.0.0.0",
     "dev:local": "next dev",
     "build": "prisma generate && next build && npm run sw:inject",
+    "build:analyze": "ANALYZE=true npm run build",
     "start": "next start -p $PORT",
     "start:prod": "next build && PORT=3000 next start",
     "lint": "next lint",
@@ -105,6 +106,7 @@
   },
   "devDependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@next/bundle-analyzer": "^16.0.1",
     "@types/lodash": "^4.17.14",
     "@types/node": "^20.19.24",
     "@types/react": "^18",

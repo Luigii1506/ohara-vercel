@@ -350,7 +350,7 @@ export default function AddToInventory() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ['cards'] });
+                  queryClient.invalidateQueries({ queryKey: ["cards"] });
                   fetchInventory();
                 }}
               >
@@ -476,7 +476,7 @@ export default function AddToInventory() {
 
       {/* Results Header */}
       <div className="py-2 px-4 border-b bg-white flex justify-between">
-        <SearchResults count={filteredCards?.length ?? 0} />
+        <SearchResults count={filteredCards?.length ?? 0} showResult={true} />
         <div className="hidden md:flex justify-center items-center">
           <ViewSwitch
             viewSelected={viewSelected}

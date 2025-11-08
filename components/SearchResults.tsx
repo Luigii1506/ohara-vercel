@@ -1,7 +1,7 @@
 interface SearchResultsProps {
   count: number;
   totalWithAlternates?: number;
-  showResult: boolean;
+  showResult?: boolean;
 }
 
 export default function SearchResults({

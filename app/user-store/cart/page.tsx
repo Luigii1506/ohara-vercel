@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data del carrito
 const mockCartItems = [
@@ -123,7 +123,7 @@ export default function CartPage() {
 
   const removeFromCart = (itemId: number) => {
     setCartItems(cartItems.filter((item) => item.id !== itemId));
-    toast.success("Producto eliminado del carrito");
+    showSuccessToast("Producto eliminado del carrito");
   };
 
   const getCartTotal = () => {
@@ -658,7 +658,7 @@ export default function CartPage() {
                     </Button>
                     <Button
                       onClick={() => {
-                        toast.success("¡Pedido realizado con éxito!");
+                        showSuccessToast("¡Pedido realizado con éxito!");
                         setIsCheckoutModalOpen(false);
                         setCartItems([]);
                         router.push("/user-store/orders");

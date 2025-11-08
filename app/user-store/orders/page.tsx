@@ -39,7 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data de órdenes
 const mockOrders = [
@@ -402,7 +402,7 @@ export default function OrdersPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    toast.success("Abriendo seguimiento...");
+                                    showSuccessToast("Abriendo seguimiento...");
                                     // Aquí iría la lógica para abrir el tracking
                                   }}
                                 >
@@ -415,7 +415,7 @@ export default function OrdersPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  toast.success("Descargando factura...");
+                                  showSuccessToast("Descargando factura...");
                                   // Aquí iría la lógica para descargar la factura
                                 }}
                               >
@@ -573,7 +573,7 @@ export default function OrdersPage() {
                       size="sm"
                       className="mt-2"
                       onClick={() => {
-                        toast.success("Abriendo seguimiento...");
+                        showSuccessToast("Abriendo seguimiento...");
                       }}
                     >
                       <Truck className="w-4 h-4 mr-1" />
@@ -635,7 +635,7 @@ export default function OrdersPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      toast.success("Descargando factura...");
+                      showSuccessToast("Descargando factura...");
                     }}
                   >
                     <Download className="w-4 h-4 mr-2" />
@@ -646,7 +646,7 @@ export default function OrdersPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      toast.success("Contactando soporte...");
+                      showSuccessToast("Contactando soporte...");
                     }}
                   >
                     Cancelar Pedido
@@ -654,7 +654,7 @@ export default function OrdersPage() {
                 )}
                 <Button
                   onClick={() => {
-                    toast.success("Contactando soporte...");
+                    showSuccessToast("Contactando soporte...");
                   }}
                 >
                   Contactar Soporte

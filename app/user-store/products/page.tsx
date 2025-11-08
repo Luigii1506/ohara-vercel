@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data - será reemplazado por API calls
 const mockCards = [
@@ -117,7 +117,7 @@ export default function ProductsPage() {
 
   // Función para agregar al carrito (temporal)
   const addToCart = (card: any, quantity: number = 1) => {
-    toast.success(`Added ${card.name} to cart!`);
+    showSuccessToast(`Added ${card.name} to cart!`);
   };
 
   // Filtrado de cartas
@@ -336,7 +336,7 @@ export default function ProductsPage() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        toast.success("Agregado a favoritos!");
+                        showSuccessToast("Agregado a favoritos!");
                       }}
                     >
                       <Heart className="w-4 h-4" />
@@ -415,7 +415,7 @@ export default function ProductsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                toast.success("Agregado a favoritos!")
+                                showSuccessToast("Agregado a favoritos!")
                               }
                             >
                               <Heart className="w-4 h-4" />

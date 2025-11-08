@@ -59,7 +59,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data - será reemplazado por API calls
 const mockCards = [
@@ -244,7 +244,7 @@ export default function ShopPage() {
       setCartItems([...cartItems, newItem]);
     }
 
-    toast.success(`Added ${card.name} to cart!`);
+    showSuccessToast(`Added ${card.name} to cart!`);
   };
 
   const updateCartQuantity = (itemId: number, newQuantity: number) => {
@@ -262,7 +262,7 @@ export default function ShopPage() {
 
   const removeFromCart = (itemId: number) => {
     setCartItems(cartItems.filter((item) => item.id !== itemId));
-    toast.success("Item removed from cart");
+    showSuccessToast("Item removed from cart");
   };
 
   const getCartTotal = () => {
@@ -1446,7 +1446,7 @@ export default function ShopPage() {
                     </Button>
                     <Button
                       onClick={() => {
-                        toast.success("Order placed successfully!");
+                        showSuccessToast("Order placed successfully!");
                         setIsCheckoutModalOpen(false);
                         setCartItems([]);
                         setActiveView("orders");

@@ -167,7 +167,6 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [
       "mongoose",
-      "puppeteer",
       "cheerio",
       "@neondatabase/serverless",
       "@aws-sdk/client-s3",
@@ -191,7 +190,6 @@ const nextConfig = {
       '@radix-ui/react-alert-dialog',
       '@radix-ui/react-collapsible',
       '@radix-ui/react-progress',
-      'framer-motion',
       'react-chartjs-2',
       'chart.js',
     ],

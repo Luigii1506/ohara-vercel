@@ -31,7 +31,7 @@ import { rarityFormatter } from "@/helpers/formatters";
 
 import FAB from "@/components/Fab";
 import { useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 import AddToInventoryModal from "@/components/seller/AddToInventoryModal";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";
 
@@ -289,7 +289,7 @@ export default function AddToInventory() {
   const handleModalSuccess = () => {
     // Recargar inventario
     fetchInventory();
-    toast.success("Producto agregado al inventario exitosamente");
+    showSuccessToast("Producto agregado al inventario exitosamente");
   };
 
   const totalFilters =

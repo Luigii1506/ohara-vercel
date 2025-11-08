@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data de favoritos
 const mockWishlistItems = [
@@ -127,11 +127,11 @@ export default function WishlistPage() {
   const removeFromWishlist = (itemId: number) => {
     setWishlistItems(wishlistItems.filter((item) => item.id !== itemId));
     setSelectedItems(selectedItems.filter((id) => id !== itemId));
-    toast.success("Eliminado de favoritos");
+    showSuccessToast("Eliminado de favoritos");
   };
 
   const addToCart = (card: any) => {
-    toast.success(`${card.name} agregado al carrito!`);
+    showSuccessToast(`${card.name} agregado al carrito!`);
   };
 
   const addAllToCart = () => {
@@ -140,7 +140,7 @@ export default function WishlistPage() {
         ? wishlistItems.filter((item) => selectedItems.includes(item.id))
         : wishlistItems;
 
-    toast.success(`${itemsToAdd.length} productos agregados al carrito!`);
+    showSuccessToast(`${itemsToAdd.length} productos agregados al carrito!`);
   };
 
   const removeSelectedItems = () => {
@@ -148,7 +148,7 @@ export default function WishlistPage() {
       wishlistItems.filter((item) => !selectedItems.includes(item.id))
     );
     setSelectedItems([]);
-    toast.success("Productos eliminados de favoritos");
+    showSuccessToast("Productos eliminados de favoritos");
   };
 
   const toggleItemSelection = (itemId: number) => {

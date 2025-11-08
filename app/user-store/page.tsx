@@ -23,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "react-hot-toast";
+import { showSuccessToast } from "@/lib/toastify";
 
 // Mock data para el dashboard
 const mockRecentOrders = [
@@ -81,7 +81,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const addToCart = (card: any) => {
-    toast.success(`${card.name} agregado al carrito!`);
+    showSuccessToast(`${card.name} agregado al carrito!`);
   };
 
   const getStatusColor = (status: string) => {
@@ -326,7 +326,7 @@ export default function DashboardPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => toast.success("Agregado a favoritos!")}
+                        onClick={() => showSuccessToast("Agregado a favoritos!")}
                       >
                         <Heart className="w-4 h-4" />
                       </Button>

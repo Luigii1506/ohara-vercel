@@ -165,8 +165,36 @@ const nextConfig = {
   },
 
   experimental: {
-    serverComponentsExternalPackages: ["mongoose"],
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    serverComponentsExternalPackages: [
+      "mongoose",
+      "puppeteer",
+      "cheerio",
+      "@neondatabase/serverless",
+      "@aws-sdk/client-s3",
+      "xlsx",
+    ],
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-icons',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tooltip',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-label',
+      '@radix-ui/react-radio-group',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-collapsible',
+      '@radix-ui/react-progress',
+      'framer-motion',
+      'react-chartjs-2',
+      'chart.js',
+    ],
   },
 
   images: {

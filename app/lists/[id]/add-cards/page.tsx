@@ -62,8 +62,10 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import CardModal from "@/components/CardModal";
-import { useCards } from "@/hooks/useCards";
+import { useAllCards } from "@/hooks/useCards";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCardStore } from "@/store/cardStore";
+import type { CardsFilters } from "@/lib/cards/types";
 import { Oswald } from "next/font/google";
 import { BookFlipContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
@@ -85,6 +87,8 @@ import {
 import { highlightText } from "@/helpers/functions";
 import { rarityFormatter } from "@/helpers/formatters";
 import Alternates from "@/public/assets/images/variantsICON_VERTICAL.svg";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
+import LazyImage from "@/components/LazyImage";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -434,14 +438,75 @@ const AddCardsPage = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Refs for card-list functionality
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mobileModalScrollRef = useRef<HTMLDivElement>(null);
-  const mobileModalSentinelRef = useRef<HTMLDivElement>(null);
 
-  const { data: cards, isLoading } = useCards();
+  // ✅ Obtener todas las cartas usando el mismo sistema que deckbuilder y proxies
+  const cachedCards = useCardStore((state) => state.allCards);
+  const setAllCards = useCardStore((state) => state.setAllCards);
+  const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
+  const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
+  const allCardsSignatureRef = useRef<string | null>(null);
+
+  // Filtros vacíos para traer TODAS las cartas
+  const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
+
+  const {
+    data: allCardsData,
+    isLoading: isLoadingAllCards,
+    isFetching: isFetchingAllCards,
+  } = useAllCards(fullQueryFilters, {
+    includeRelations: true,
+    includeAlternates: true,
+    includeCounts: true,
+  });
+
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ✅ Guardar en Zustand cuando lleguen las cartas
+  useEffect(() => {
+    if (!allCardsData) return;
+
+    if (!allCardsData.length) {
+      if (allCardsSignatureRef.current !== "empty") {
+        allCardsSignatureRef.current = "empty";
+        setAllCards([]);
+      }
+      return;
+    }
+
+    const firstCard = allCardsData[0];
+    const lastCard = allCardsData[allCardsData.length - 1];
+
+    const normalizeTimestamp = (value: Date | string | undefined) => {
+      if (!value) return "";
+      if (value instanceof Date) return value.getTime().toString();
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? String(value) : parsed.toString();
+    };
+
+    const signature = [
+      allCardsData.length,
+      firstCard?.id ?? "",
+      lastCard?.id ?? "",
+      normalizeTimestamp(firstCard?.updatedAt),
+      normalizeTimestamp(lastCard?.updatedAt),
+    ].join("-");
+
+    if (allCardsSignatureRef.current !== signature) {
+      allCardsSignatureRef.current = signature;
+      setAllCards(allCardsData);
+    }
+
+    if (!isFetchingAllCards) {
+      setIsFullyLoaded(true);
+    }
+  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
+
+  // ✅ Usar cachedCards si existen, sino allCardsData
+  const cards = cachedCards.length > 0 ? cachedCards : allCardsData ?? [];
+  const isLoading = isLoadingAllCards;
 
   // 🔄 Handle refresh with visual feedback
   const handleRefreshCards = async () => {
@@ -950,9 +1015,11 @@ const AddCardsPage = () => {
   };
 
   // Card-list style filtered cards (for sidebar display)
-  const allFilteredCards = useMemo(
-    () =>
-      cards?.filter((card) => {
+  const allFilteredCards = useMemo(() => {
+    if (!cards || cards.length === 0) return [];
+
+    return cards
+      .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
           card.name.toLowerCase().includes(searchLower) ||
@@ -1039,24 +1106,39 @@ const AddCardsPage = () => {
           matchesAttributes &&
           matchesCodes
         );
-      }) || [],
-    [
-      cards,
-      search,
-      selectedColors,
-      selectedSets,
-      selectedTypes,
-      selectedEffects,
-      selectedRarities,
-      selectedCategories,
-      selectedCounter,
-      selectedTrigger,
-      selectedCosts,
-      selectedPower,
-      selectedAttributes,
-      selectedCodes,
-    ]
-  );
+      })
+      .sort((a, b) => {
+        // Primero ordenar por el sort seleccionado si existe
+        if (selectedSort === "Most variants") {
+          const variantDiff =
+            (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
+          if (variantDiff !== 0) return variantDiff;
+        } else if (selectedSort === "Less variants") {
+          const variantDiff =
+            (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
+          if (variantDiff !== 0) return variantDiff;
+        }
+
+        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
+        return sortByCollectionOrder(a, b);
+      });
+  }, [
+    cards,
+    search,
+    selectedColors,
+    selectedSets,
+    selectedTypes,
+    selectedEffects,
+    selectedRarities,
+    selectedCategories,
+    selectedCounter,
+    selectedTrigger,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedCodes,
+    selectedSort,
+  ]);
 
   // Sliced version for display
   const cardListFilteredCards = useMemo(
@@ -1064,130 +1146,101 @@ const AddCardsPage = () => {
     [allFilteredCards, visibleCount]
   );
 
-  // Infinite scroll observer for cards in sidebar
+  // Infinite scroll usando scroll event (como en deckbuilder)
   useEffect(() => {
-    let observer: IntersectionObserver | null = null;
+    const container = scrollContainerRef.current;
+    if (!container) {
+      console.log("📍 scrollContainerRef no está disponible");
+      return;
+    }
 
-    // Usar un timeout para asegurar que el DOM esté listo
-    const timeoutId = setTimeout(() => {
-      if (!sentinelRef.current || !scrollContainerRef.current) {
-        return;
-      }
-
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries[0].isIntersecting &&
-            visibleCount < (allFilteredCards?.length ?? 0)
-          ) {
-            setVisibleCount((prev) => prev + 50); // Incrementa de a 50 elementos
-          }
-        },
-        {
-          root: scrollContainerRef.current, // Usar el contenedor específico como root
-          rootMargin: "50px", // Reducir el margen
-          threshold: 0.1, // Threshold para mejor detección
-        }
-      );
-
-      observer.observe(sentinelRef.current);
-    }, 200); // Aumentar timeout para asegurar que el DOM esté listo
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (observer) {
-        observer.disconnect();
-      }
-    };
-  }, [visibleCount, allFilteredCards?.length]);
-
-  // Infinite scroll observer for mobile modal
-  useEffect(() => {
-    if (!showMobileCardModal) return;
-
-    let observer: IntersectionObserver | null = null;
-
-    const timeoutId = setTimeout(() => {
-      if (!mobileModalSentinelRef.current) return;
-
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries[0].isIntersecting &&
-            visibleCount < (allFilteredCards?.length ?? 0)
-          ) {
-            setVisibleCount((prev) => prev + 50);
-          }
-        },
-        {
-          root: mobileModalScrollRef.current,
-          rootMargin: "100px",
-          threshold: 0.1,
-        }
-      );
-
-      observer.observe(mobileModalSentinelRef.current);
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (observer) {
-        observer.disconnect();
-      }
-    };
-  }, [visibleCount, allFilteredCards?.length, showMobileCardModal]);
-
-  // Fallback scroll event listener for mobile modal
-  useEffect(() => {
-    if (!showMobileCardModal) return;
+    const BATCH_SIZE = 50;
+    const LOAD_THRESHOLD_PX = 800;
+    let isLoadingMore = false;
 
     const handleScroll = () => {
-      if (!mobileModalScrollRef.current) return;
+      const { scrollTop, clientHeight, scrollHeight } = container;
+      const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      const container = mobileModalScrollRef.current;
-      const scrollTop = container.scrollTop;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
+      console.log("📜 Scroll:", {
+        scrollTop,
+        clientHeight,
+        scrollHeight,
+        remaining,
+        isLoadingMore,
+      });
 
-      // Si está cerca del final (100px)
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        if (visibleCount < (allFilteredCards?.length ?? 0)) {
-          setVisibleCount((prev) => prev + 50);
-        }
+      if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMore) {
+        isLoadingMore = true;
+        console.log("✅ Cargando más cartas...");
+        setVisibleCount((prev) => {
+          const total = allFilteredCards?.length ?? 0;
+          const newCount = Math.min(prev + BATCH_SIZE, total);
+          console.log(`Incrementando de ${prev} a ${newCount} (total: ${total})`);
+          return newCount;
+        });
+        setTimeout(() => {
+          isLoadingMore = false;
+        }, 100);
       }
     };
+
+    console.log("🎯 Registrando scroll listener en sidebar");
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      console.log("🔴 Removiendo scroll listener de sidebar");
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [allFilteredCards?.length]);
+
+  // Infinite scroll for mobile modal
+  useEffect(() => {
+    if (!showMobileCardModal) return;
 
     const container = mobileModalScrollRef.current;
-    if (container) {
-      container.addEventListener("scroll", handleScroll);
-      return () => container.removeEventListener("scroll", handleScroll);
+    if (!container) {
+      console.log("📍 mobileModalScrollRef no está disponible");
+      return;
     }
-  }, [visibleCount, allFilteredCards?.length, showMobileCardModal]);
 
-  // Fallback scroll event listener
-  useEffect(() => {
+    const BATCH_SIZE = 50;
+    const LOAD_THRESHOLD_PX = 800;
+    let isLoadingMore = false;
+
     const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
+      const { scrollTop, clientHeight, scrollHeight } = container;
+      const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      const container = scrollContainerRef.current;
-      const scrollTop = container.scrollTop;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
+      console.log("📱 Mobile Scroll:", {
+        scrollTop,
+        clientHeight,
+        scrollHeight,
+        remaining,
+        isLoadingMore,
+      });
 
-      // Si está cerca del final (100px)
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        if (visibleCount < (allFilteredCards?.length ?? 0)) {
-          setVisibleCount((prev) => prev + 50);
-        }
+      if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMore) {
+        isLoadingMore = true;
+        console.log("✅ Mobile: Cargando más cartas...");
+        setVisibleCount((prev) => {
+          const total = allFilteredCards?.length ?? 0;
+          const newCount = Math.min(prev + BATCH_SIZE, total);
+          console.log(`Mobile: Incrementando de ${prev} a ${newCount} (total: ${total})`);
+          return newCount;
+        });
+        setTimeout(() => {
+          isLoadingMore = false;
+        }, 100);
       }
     };
 
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.addEventListener("scroll", handleScroll);
-      return () => container.removeEventListener("scroll", handleScroll);
-    }
-  }, [visibleCount, allFilteredCards?.length]);
+    console.log("🎯 Registrando scroll listener en mobile modal");
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      console.log("🔴 Removiendo scroll listener de mobile modal");
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [allFilteredCards?.length, showMobileCardModal]);
 
   // Reset visibleCount when filters change
   useEffect(() => {
@@ -1793,6 +1846,8 @@ const AddCardsPage = () => {
     );
   }
 
+  console.log("cardListFilteredCards", cardListFilteredCards);
+
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 w-full">
       <div className="flex-1 flex overflow-hidden">
@@ -1979,10 +2034,13 @@ const AddCardsPage = () => {
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-11 flex-shrink-0">
-                      <img
+                      <LazyImage
                         src={selectedCardForPlacement.src}
+                        fallbackSrc="/assets/images/backcard.webp"
                         alt={selectedCardForPlacement.name}
-                        className="w-full h-full object-contain rounded border"
+                        className="w-full rounded border"
+                        priority={true}
+                        size="small"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -2123,16 +2181,22 @@ const AddCardsPage = () => {
                             >
                               <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                 <div className="flex justify-center items-center w-full relative">
-                                  <img
-                                    src={card?.src}
-                                    alt={card?.name}
+                                  <div
                                     className="w-[80%] m-auto cursor-pointer"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedCard(card);
                                       setShowLargeImage(true);
                                     }}
-                                  />
+                                  >
+                                    <LazyImage
+                                      src={card?.src}
+                                      fallbackSrc="/assets/images/backcard.webp"
+                                      alt={card?.name}
+                                      className="w-full"
+                                      size="small"
+                                    />
+                                  </div>
                                   {/* Botón de ver carta en grande */}
                                   <button
                                     onClick={(e) => {
@@ -2184,16 +2248,22 @@ const AddCardsPage = () => {
                               >
                                 <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                   <div className="flex justify-center items-center w-full relative">
-                                    <img
-                                      src={alt?.src}
-                                      alt={alt?.name}
+                                    <div
                                       className="w-[80%] m-auto cursor-pointer"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setSelectedCard(alt);
                                         setShowLargeImage(true);
                                       }}
-                                    />
+                                    >
+                                      <LazyImage
+                                        src={alt?.src}
+                                        fallbackSrc="/assets/images/backcard.webp"
+                                        alt={alt?.name}
+                                        className="w-full"
+                                        size="small"
+                                      />
+                                    </div>
                                     {/* Botón de ver carta en grande */}
                                     <button
                                       onClick={(e) => {
@@ -2293,16 +2363,22 @@ const AddCardsPage = () => {
                             }`}
                           >
                             <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                              <img
-                                src={card.src}
-                                alt={card.name}
+                              <div
                                 className="w-full cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedCard(card);
                                   setShowLargeImage(true);
                                 }}
-                              />
+                              >
+                                <LazyImage
+                                  src={card.src}
+                                  fallbackSrc="/assets/images/backcard.webp"
+                                  alt={card.name}
+                                  className="w-full"
+                                  size="small"
+                                />
+                              </div>
                               {/* Botón de ver carta en grande */}
                               <button
                                 onClick={(e) => {
@@ -2364,16 +2440,22 @@ const AddCardsPage = () => {
                               }`}
                             >
                               <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                                <img
-                                  src={alt.src}
-                                  alt={alt.alias}
+                                <div
                                   className="w-full cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedCard(alt);
                                     setShowLargeImage(true);
                                   }}
-                                />
+                                >
+                                  <LazyImage
+                                    src={alt.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={alt.alias}
+                                    className="w-full"
+                                    size="small"
+                                  />
+                                </div>
                                 {/* Botón de ver carta en grande */}
                                 <button
                                   onClick={(e) => {
@@ -2421,26 +2503,6 @@ const AddCardsPage = () => {
                 </div>
               )}
 
-              {visibleCount < (allFilteredCards?.length ?? 0) && (
-                <div
-                  ref={sentinelRef}
-                  style={{
-                    height: "40px",
-                    margin: "20px 0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "12px",
-                    color: "blue",
-                    backgroundColor: "rgba(0, 0, 255, 0.1)",
-                    border: "1px dashed blue",
-                    borderRadius: "4px",
-                  }}
-                >
-                  Loading more... ({visibleCount} /{" "}
-                  {allFilteredCards?.length ?? 0})
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -2902,10 +2964,12 @@ const AddCardsPage = () => {
                               className="w-20 h-28 flex-shrink-0 cursor-pointer"
                               onClick={() => handleCardClick(item.card)}
                             >
-                              <img
+                              <LazyImage
                                 src={item.card.src}
+                                fallbackSrc="/assets/images/backcard.webp"
                                 alt={item.card.name}
-                                className="w-full h-full object-contain rounded-lg shadow-sm"
+                                className="w-full rounded-lg shadow-sm"
+                                size="small"
                               />
                             </div>
 
@@ -3139,10 +3203,13 @@ const AddCardsPage = () => {
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-11 flex-shrink-0">
-                      <img
+                      <LazyImage
                         src={selectedCardForPlacement.src}
+                        fallbackSrc="/assets/images/backcard.webp"
                         alt={selectedCardForPlacement.name}
-                        className="w-full h-full object-contain rounded border"
+                        className="w-full rounded border"
+                        priority={true}
+                        size="small"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -3502,10 +3569,12 @@ const AddCardsPage = () => {
                             }`}
                           >
                             <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
-                              <img
+                              <LazyImage
                                 src={card.src}
+                                fallbackSrc="/assets/images/backcard.webp"
                                 alt={card.name}
                                 className="w-full"
+                                size="small"
                               />
                               <TooltipProvider>
                                 <Tooltip>
@@ -3642,10 +3711,12 @@ const AddCardsPage = () => {
                               }`}
                             >
                               <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
-                                <img
+                                <LazyImage
                                   src={alt.src}
+                                  fallbackSrc="/assets/images/backcard.webp"
                                   alt={alt.alias}
                                   className="w-full"
+                                  size="small"
                                 />
                                 <TooltipProvider>
                                   <Tooltip>
@@ -3682,24 +3753,6 @@ const AddCardsPage = () => {
                 </div>
               )}
 
-              {/* Infinite scroll sentinel */}
-              {visibleCount < (allFilteredCards?.length ?? 0) && (
-                <div
-                  ref={mobileModalSentinelRef}
-                  style={{
-                    height: "20px",
-                    margin: "10px 0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "12px",
-                    color: "red",
-                  }}
-                >
-                  Mobile loading more... ({visibleCount}/
-                  {allFilteredCards?.length ?? 0})
-                </div>
-              )}
             </div>
 
             {/* Mobile filters - moved to bottom */}
@@ -3768,12 +3821,17 @@ const AddCardsPage = () => {
               Tap to close
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
-              <img
-                key={selectedCard?.id}
-                src={selectedCard?.src}
-                className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
-                alt=""
-              />
+              <div className="max-w-full max-h-[calc(100dvh-130px)]">
+                <LazyImage
+                  key={selectedCard?.id}
+                  src={selectedCard?.src}
+                  fallbackSrc="/assets/images/backcard.webp"
+                  alt={selectedCard?.name || ""}
+                  className="w-full"
+                  priority={true}
+                  size="large"
+                />
+              </div>
               <div className="text-white text-lg font-[400] text-center px-5">
                 <span className={`${oswald.className} font-[500]`}>
                   {selectedCard?.code}

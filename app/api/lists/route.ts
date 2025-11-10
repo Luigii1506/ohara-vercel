@@ -140,16 +140,53 @@ export async function POST(request: NextRequest) {
       if (createError.code === "P2002") {
         const target = createError.meta?.target || [];
 
-        if (target.includes("userId_name") || target.includes("name")) {
+        // Error de ID duplicado - resetear secuencia
+        if (target.includes("id")) {
+          console.log("🔧 Reseteando secuencia de UserList...");
+
+          // Resetear la secuencia de autoincremento
+          await prisma.$executeRaw`
+            SELECT setval(
+              pg_get_serial_sequence('"UserList"', 'id'),
+              COALESCE(MAX(id), 1),
+              true
+            )
+            FROM "UserList";
+          `;
+
+          console.log("✅ Secuencia reseteada, reintentando...");
+
+          // Reintentar la creación
+          newList = await prisma.userList.create({
+            data: {
+              userId: user.id,
+              name: name.trim(),
+              description: description?.trim() || null,
+              isOrdered,
+              maxRows: isOrdered ? maxRows : null,
+              maxColumns: isOrdered ? maxColumns : null,
+              totalPages: 1,
+              color: color || null,
+              isPublic,
+              isDeletable: true,
+              isCollection: false,
+            },
+            include: {
+              _count: {
+                select: { cards: true },
+              },
+            },
+          });
+        } else if (target.includes("userId_name") || target.includes("name")) {
           return NextResponse.json(
             { error: "Ya existe una lista con ese nombre" },
             { status: 400 }
           );
         }
+      } else {
+        // Para otros errores
+        throw createError;
       }
-
-      // Para otros errores
-      throw createError;
     }
 
     return NextResponse.json(

@@ -162,6 +162,7 @@ export async function POST(
     let maxPageUpdated = list.totalPages;
 
     for (const cardInput of cardsToProcess) {
+      // Extraer solo los campos necesarios, ignorando 'id' si viene en el input
       const {
         cardId,
         quantity = 1,
@@ -170,6 +171,9 @@ export async function POST(
         page,
         row,
         column,
+        // Ignorar id si viene en el input
+        id: _ignoredId,
+        ...otherFields
       } = cardInput;
 
       // Verificar que la carta existe
@@ -265,6 +269,7 @@ export async function POST(
       }
 
       // Preparar datos para nueva carta
+      // NO incluir 'id' - Prisma lo genera automáticamente con autoincrement()
       const cardData: any = {
         listId,
         cardId,
@@ -272,6 +277,12 @@ export async function POST(
         notes: notes || null,
         condition: condition || "Near Mint",
       };
+
+      // Asegurarse de que no se pase 'id' del input
+      delete cardData.id;
+
+      console.log("📝 cardData before create:", JSON.stringify(cardData, null, 2));
+      console.log("📝 Has 'id' property?", 'id' in cardData);
 
       if (list.isOrdered) {
         // Lista ordenada - manejar posicionamiento físico
@@ -328,22 +339,64 @@ export async function POST(
       }
 
       // Crear la nueva entrada
-      const newCard = await prisma.userListCard.create({
-        data: cardData,
-        include: {
-          card: {
-            include: {
-              colors: true,
-              types: true,
-              sets: {
-                include: { set: true },
+      try {
+        const newCard = await prisma.userListCard.create({
+          data: cardData,
+          include: {
+            card: {
+              include: {
+                colors: true,
+                types: true,
+                sets: {
+                  include: { set: true },
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      results.push(newCard);
+        results.push(newCard);
+      } catch (createError: any) {
+        console.error("❌ Error creating card:", createError);
+        console.error("❌ Card data was:", JSON.stringify(cardData, null, 2));
+
+        // Si es error de ID duplicado, intentar resetear la secuencia
+        if (createError.code === 'P2002' && createError.meta?.target?.includes('id')) {
+          console.log("🔧 Attempting to fix sequence...");
+
+          // Resetear la secuencia de autoincremento
+          await prisma.$executeRaw`
+            SELECT setval(
+              pg_get_serial_sequence('"UserListCard"', 'id'),
+              COALESCE(MAX(id), 1),
+              true
+            )
+            FROM "UserListCard";
+          `;
+
+          console.log("✅ Sequence reset, retrying...");
+
+          // Reintentar la creación
+          const newCard = await prisma.userListCard.create({
+            data: cardData,
+            include: {
+              card: {
+                include: {
+                  colors: true,
+                  types: true,
+                  sets: {
+                    include: { set: true },
+                  },
+                },
+              },
+            },
+          });
+
+          results.push(newCard);
+        } else {
+          throw createError;
+        }
+      }
     }
 
     // Actualizar totalPages si es necesario

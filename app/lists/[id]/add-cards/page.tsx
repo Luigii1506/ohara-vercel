@@ -1148,6 +1148,8 @@ const AddCardsPage = () => {
 
   // Infinite scroll para el sidebar de cartas (desktop)
   useEffect(() => {
+    if (loading || isMobile) return;
+
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -1176,7 +1178,7 @@ const AddCardsPage = () => {
 
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [visibleCount, allFilteredCards?.length]);
+  }, [loading, isMobile, visibleCount, allFilteredCards?.length]);
 
   // Infinite scroll para el modal mobile
   useEffect(() => {
@@ -2453,7 +2455,6 @@ const AddCardsPage = () => {
                   })}
                 </div>
               )}
-
             </div>
           </div>
         )}
@@ -3703,7 +3704,6 @@ const AddCardsPage = () => {
                   })}
                 </div>
               )}
-
             </div>
 
             {/* Mobile filters - moved to bottom */}

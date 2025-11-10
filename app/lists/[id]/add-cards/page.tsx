@@ -1146,120 +1146,71 @@ const AddCardsPage = () => {
     [allFilteredCards, visibleCount]
   );
 
-  // Infinite scroll usando scroll event (como en deckbuilder)
+  // Infinite scroll para el sidebar de cartas (desktop)
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container) {
-      console.log("📍 scrollContainerRef no está disponible");
-      return;
-    }
+    if (!container) return;
 
     const BATCH_SIZE = 50;
     const LOAD_THRESHOLD_PX = 800;
-    let isLoadingMore = false;
+    const isLoadingMoreRef = { current: false };
 
     const handleScroll = () => {
       const { scrollTop, clientHeight, scrollHeight } = container;
       const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      console.log("📜 Scroll:", {
-        scrollTop,
-        clientHeight,
-        scrollHeight,
-        remaining,
-        isLoadingMore,
-      });
-
-      if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMore) {
-        isLoadingMore = true;
-        console.log("✅ Cargando más cartas...");
-        setVisibleCount((prev) => {
-          const total = allFilteredCards?.length ?? 0;
-          const newCount = Math.min(prev + BATCH_SIZE, total);
-          console.log(`Incrementando de ${prev} a ${newCount} (total: ${total})`);
-          return newCount;
-        });
+      if (
+        remaining <= LOAD_THRESHOLD_PX &&
+        !isLoadingMoreRef.current &&
+        visibleCount < (allFilteredCards?.length ?? 0)
+      ) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount((prev) =>
+          Math.min(prev + BATCH_SIZE, allFilteredCards?.length ?? 0)
+        );
         setTimeout(() => {
-          isLoadingMore = false;
+          isLoadingMoreRef.current = false;
         }, 100);
       }
     };
 
-    console.log("🎯 Registrando scroll listener en sidebar");
     container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      console.log("🔴 Removiendo scroll listener de sidebar");
-      container.removeEventListener("scroll", handleScroll);
-    };
-  }, [allFilteredCards?.length]);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [visibleCount, allFilteredCards?.length]);
 
-  // Infinite scroll for mobile modal
+  // Infinite scroll para el modal mobile
   useEffect(() => {
     if (!showMobileCardModal) return;
 
     const container = mobileModalScrollRef.current;
-    if (!container) {
-      console.log("📍 mobileModalScrollRef no está disponible");
-      return;
-    }
+    if (!container) return;
 
     const BATCH_SIZE = 50;
     const LOAD_THRESHOLD_PX = 800;
-    let isLoadingMore = false;
+    const isLoadingMoreRef = { current: false };
 
     const handleScroll = () => {
       const { scrollTop, clientHeight, scrollHeight } = container;
       const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      console.log("📱 Mobile Scroll:", {
-        scrollTop,
-        clientHeight,
-        scrollHeight,
-        remaining,
-        isLoadingMore,
-      });
-
-      if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMore) {
-        isLoadingMore = true;
-        console.log("✅ Mobile: Cargando más cartas...");
-        setVisibleCount((prev) => {
-          const total = allFilteredCards?.length ?? 0;
-          const newCount = Math.min(prev + BATCH_SIZE, total);
-          console.log(`Mobile: Incrementando de ${prev} a ${newCount} (total: ${total})`);
-          return newCount;
-        });
+      if (
+        remaining <= LOAD_THRESHOLD_PX &&
+        !isLoadingMoreRef.current &&
+        visibleCount < (allFilteredCards?.length ?? 0)
+      ) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount((prev) =>
+          Math.min(prev + BATCH_SIZE, allFilteredCards?.length ?? 0)
+        );
         setTimeout(() => {
-          isLoadingMore = false;
+          isLoadingMoreRef.current = false;
         }, 100);
       }
     };
 
-    console.log("🎯 Registrando scroll listener en mobile modal");
     container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      console.log("🔴 Removiendo scroll listener de mobile modal");
-      container.removeEventListener("scroll", handleScroll);
-    };
-  }, [allFilteredCards?.length, showMobileCardModal]);
-
-  // Reset visibleCount when filters change
-  useEffect(() => {
-    setVisibleCount(50);
-  }, [
-    search,
-    selectedColors,
-    selectedSets,
-    selectedRarities,
-    selectedCategories,
-    selectedEffects,
-    selectedTypes,
-    selectedCounter,
-    selectedTrigger,
-    selectedCosts,
-    selectedPower,
-    selectedAttributes,
-    selectedCodes,
-  ]);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [showMobileCardModal, visibleCount, allFilteredCards?.length]);
 
   // Drag and Drop handlers
   const handleDragStart = (
@@ -2015,7 +1966,7 @@ const AddCardsPage = () => {
             </Transition>
 
             <div
-              className=" p-3 overflow-y-scroll flex-1 min-h-0"
+              className="p-3 overflow-y-auto flex-1 min-h-0"
               ref={scrollContainerRef}
               onScroll={(e) => {
                 const scrollTop = (e.target as HTMLDivElement).scrollTop;

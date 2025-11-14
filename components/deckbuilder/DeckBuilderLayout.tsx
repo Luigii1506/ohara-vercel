@@ -23,6 +23,7 @@ import {
   Save,
   Minus,
   Plus,
+  Download,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
@@ -72,6 +73,7 @@ interface CompleteDeckBuilderLayoutProps {
   isFork?: boolean;
   deckName?: string;
   setDeckName?: (name: string) => void;
+  onProxies?: () => void;
 }
 
 const CompleteDeckBuilderLayout = ({
@@ -82,6 +84,7 @@ const CompleteDeckBuilderLayout = ({
   isFork = false,
   deckName,
   setDeckName,
+  onProxies,
 }: CompleteDeckBuilderLayoutProps) => {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -1794,6 +1797,20 @@ const CompleteDeckBuilderLayout = ({
                 <RotateCcw className="h-5 w-5 mr-2" />
                 Clear Deck
               </Button>
+              {/* Proxies Button - Only show if onProxies is provided */}
+              {onProxies && (
+                <Button
+                  onClick={onProxies}
+                  disabled={totalCards === 0}
+                  variant="outline"
+                  size="lg"
+                  type="button"
+                  className="flex-1 h-14 border-2 border-violet-300 text-violet-600 hover:bg-violet-50 hover:border-violet-400 transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  Proxies
+                </Button>
+              )}
               {/* Save Deck Button */}
               <Button
                 onClick={onSave}

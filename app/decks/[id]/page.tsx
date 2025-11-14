@@ -178,10 +178,34 @@ const MyDeck = () => {
   };
 
   const handleProxies = () => {
+    // Incluir el leader al inicio si existe
+    const leaderCards = selectedLeader
+      ? [
+          {
+            cardId: Number(selectedLeader.id),
+            id: Number(selectedLeader.id),
+            name: selectedLeader.name,
+            rarity: selectedLeader.rarity ?? "",
+            quantity: 1,
+            src: selectedLeader.src,
+            code: selectedLeader.code,
+            category: selectedLeader.category,
+            color: selectedLeader.colors[0].color,
+            colors: selectedLeader.colors,
+            cost: selectedLeader.cost ?? "",
+            set: selectedLeader.sets[0].set.title,
+            power: selectedLeader.power ?? "",
+            counter: selectedLeader.counter ?? "",
+            attribute: selectedLeader.attribute ?? "",
+          },
+        ]
+      : [];
+
     // Expandir cartas según su cantidad para impresión
-    const expandedCards = deckCards.flatMap((card) =>
-      Array(card.quantity).fill(card)
-    );
+    const expandedCards = [
+      ...leaderCards,
+      ...deckCards.flatMap((card) => Array(card.quantity).fill(card)),
+    ];
 
     if (expandedCards.length === 0) {
       alert("No hay cartas en el deck para imprimir");

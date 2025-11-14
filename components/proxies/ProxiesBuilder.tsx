@@ -1812,6 +1812,8 @@ const ProxiesBuilder = ({
           disabledColors={[]}
           selectedAltArts={selectedAltArts}
           setSelectedAltArts={setSelectedAltArts}
+          selectedCodes={selectedCodes}
+          setSelectedCodes={setSelectedCodes}
           disabledTypes={[]}
         />
       </Transition>

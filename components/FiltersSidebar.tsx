@@ -19,6 +19,7 @@ import {
   powerOptions,
   atributeOptions,
   altArtOptions,
+  setCodesOptions,
 } from "@/helpers/constants";
 
 interface FiltersSidebarProps {
@@ -52,6 +53,8 @@ interface FiltersSidebarProps {
   disabledTypes?: string[];
   selectedAltArts: string[];
   setSelectedAltArts: (altArts: string[]) => void;
+  selectedCodes: string[];
+  setSelectedCodes: (codes: string[]) => void;
 }
 
 const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
@@ -87,6 +90,8 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
       disabledTypes,
       selectedAltArts,
       setSelectedAltArts,
+      selectedCodes,
+      setSelectedCodes,
     },
     ref
   ) => {
@@ -114,6 +119,18 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
 
           {/* Contenedor de filtros con scroll */}
           <div className="overflow-y-auto p-4 flex gap-4 justify-start flex-wrap items-center">
+            <MultiSelect
+              options={setCodesOptions}
+              selected={selectedCodes}
+              setSelected={setSelectedCodes}
+              displaySelectedAs={(selected) =>
+                selected.length === 1 ? selected[0] : "Codes"
+              }
+              searchPlaceholder="Search code..."
+              isSearchable={true}
+              isSolid={true}
+            />
+
             <MultiSelect
               options={setOptions}
               selected={selectedSets}
@@ -263,7 +280,8 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
                 selectedSets.length > 0 ||
                 selectedCosts.length > 0 ||
                 selectedPower.length > 0 ||
-                selectedAttributes.length > 0
+                selectedAttributes.length > 0 ||
+                selectedCodes.length > 0
                   ? "!bg-[#ef4444] opacity-1 cursor-pointer"
                   : "opacity-[0.5] cursor-not-allowed"
               }`}
@@ -280,6 +298,7 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
                 setSelectedCosts([]);
                 setSelectedPower([]);
                 setSelectedAttributes([]);
+                setSelectedCodes([]);
               }}
             >
               <FilterX className="h-4 w-4" />

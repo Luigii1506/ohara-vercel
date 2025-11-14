@@ -869,6 +869,8 @@ const CardListClient = ({
               setSelectedAttributes={setSelectedAttributes}
               selectedAltArts={selectedAltArts}
               setSelectedAltArts={setSelectedAltArts}
+              selectedCodes={selectedCodes}
+              setSelectedCodes={setSelectedCodes}
             />
           </TransitionChild>
         </Transition>

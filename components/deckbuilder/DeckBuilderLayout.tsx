@@ -1889,6 +1889,8 @@ const CompleteDeckBuilderLayout = ({
           disabledColors={deckBuilder.selectedLeader ? disabledColors : []}
           selectedAltArts={selectedAltArts}
           setSelectedAltArts={setSelectedAltArts}
+          selectedCodes={selectedCodes}
+          setSelectedCodes={setSelectedCodes}
           disabledTypes={
             deckBuilder.selectedLeader
               ? ["Leader"]

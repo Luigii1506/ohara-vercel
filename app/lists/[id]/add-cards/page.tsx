@@ -1964,6 +1964,8 @@ const AddCardsPage = () => {
                 setSelectedAttributes={setSelectedAttributes}
                 selectedAltArts={selectedAltArts}
                 setSelectedAltArts={setSelectedAltArts}
+                selectedCodes={selectedCodes}
+                setSelectedCodes={setSelectedCodes}
               />
             </Transition>
 
@@ -3072,6 +3074,8 @@ const AddCardsPage = () => {
                 setSelectedAttributes={setSelectedAttributes}
                 selectedAltArts={selectedAltArts}
                 setSelectedAltArts={setSelectedAltArts}
+                selectedCodes={selectedCodes}
+                setSelectedCodes={setSelectedCodes}
               />
             </Transition>
 

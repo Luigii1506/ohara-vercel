@@ -3,53 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  ArrowLeft,
-  Grid3X3,
-  List,
-  ChevronLeft,
-  ChevronRight,
-  Layout,
-  FolderOpen,
-  Search,
-  Filter,
-  X,
-  Menu,
-  Eye,
-} from "lucide-react";
+import { ArrowLeft, List } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import {
-  MainContentSkeleton,
-  SimpleListSkeleton,
-} from "@/components/skeletons";
+import { MainContentSkeleton } from "@/components/skeletons";
 import { CardWithCollectionData } from "@/types";
 import { BookFlipContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
-import CardModal from "@/components/CardModal";
-import { useCardStore } from "@/store/cardStore";
-import { cn } from "@/lib/utils";
+
 import { Oswald } from "next/font/google";
-import ViewSwitch from "@/components/ViewSwitch";
-import SingleSelect from "@/components/SingleSelect";
-import { Transition } from "@headlessui/react";
-import StoreCard from "@/components/StoreCard";
-import ClearFiltersButton from "@/components/ClearFiltersButton";
-import DropdownSearch from "@/components/DropdownSearch";
-import FiltersSidebar from "@/components/FiltersSidebar";
-import SearchResults from "@/components/SearchResults";
-import FAB from "@/components/Fab";
-import { Fragment } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Card, CardContent } from "@/components/ui/card";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],

@@ -193,7 +193,9 @@ const ProxiesBuilder = ({
     selectedSets?.length +
     selectedCosts?.length +
     selectedPower?.length +
-    selectedAttributes?.length;
+    selectedAttributes?.length +
+    selectedCodes?.length +
+    selectedAltArts?.length;
 
   const matchesCardCode = (code: string, search: string) => {
     const query = search.toLowerCase().trim();
@@ -1177,7 +1179,8 @@ const ProxiesBuilder = ({
                   selectedCosts.length > 0 ||
                   selectedPower.length > 0 ||
                   selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0
+                  selectedCodes.length > 0 ||
+                  selectedAltArts.length > 0
                 }
                 clearFilters={() => {
                   setSelectedColors([]);
@@ -1192,6 +1195,7 @@ const ProxiesBuilder = ({
                   setSelectedPower([]);
                   setSelectedAttributes([]);
                   setSelectedCodes([]);
+                  setSelectedAltArts([]);
                 }}
                 isMobile={true}
               />

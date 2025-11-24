@@ -189,7 +189,9 @@ const CompleteDeckBuilderLayout = ({
     selectedSets?.length +
     selectedCosts?.length +
     selectedPower?.length +
-    selectedAttributes?.length;
+    selectedAttributes?.length +
+    selectedCodes?.length +
+    selectedAltArts?.length;
 
   const matchesCardCode = (code: string, search: string) => {
     const query = search.toLowerCase().trim();
@@ -279,6 +281,7 @@ const CompleteDeckBuilderLayout = ({
 
         const matchesAltArts =
           selectedAltArts?.length === 0 ||
+          selectedAltArts.includes(card.alternateArt ?? "") ||
           (card.alternates ?? []).some((alt) =>
             selectedAltArts.includes(alt.alternateArt ?? "")
           );
@@ -672,7 +675,8 @@ const CompleteDeckBuilderLayout = ({
                   selectedCosts.length > 0 ||
                   selectedPower.length > 0 ||
                   selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0
+                  selectedCodes.length > 0 ||
+                  selectedAltArts.length > 0
                 }
                 clearFilters={() => {
                   setSelectedColors([]);
@@ -687,6 +691,7 @@ const CompleteDeckBuilderLayout = ({
                   setSelectedPower([]);
                   setSelectedAttributes([]);
                   setSelectedCodes([]);
+                  setSelectedAltArts([]);
                 }}
                 isMobile={true}
               />
@@ -721,7 +726,7 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.rarity ?? "");
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -1043,7 +1048,7 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.rarity ?? "");
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -1235,7 +1240,7 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     match =
-                      match && selectedAltArts.includes(card?.rarity ?? "");
+                      match && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return match;
                 };

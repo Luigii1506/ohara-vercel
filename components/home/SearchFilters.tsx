@@ -143,6 +143,8 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 setSelectedPower([]);
                 setSelectedAttributes([]);
                 setSelectedCodes([]);
+                setSelectedAltArts([]);
+                setSelectedRegion?.("");
               }}
               isTouchable={
                 selectedColors.length > 0 ||
@@ -156,7 +158,9 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 selectedCosts.length > 0 ||
                 selectedPower.length > 0 ||
                 selectedAttributes.length > 0 ||
-                selectedCodes.length > 0
+                selectedCodes.length > 0 ||
+                selectedAltArts.length > 0 ||
+                (selectedRegion ?? "") !== ""
               }
             />
 

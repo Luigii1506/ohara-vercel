@@ -18,6 +18,13 @@ import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import DropdownSearch from "@/components/DropdownSearch";
 import ViewSwitch from "@/components/ViewSwitch";
 import LazyImage from "@/components/LazyImage";
+import FiltersSidebar from "@/components/FiltersSidebar";
+import {
+  Dialog,
+  DialogPanel,
+  Transition,
+  TransitionChild,
+} from "@headlessui/react";
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +33,7 @@ import {
 } from "@/components/ui/tooltip";
 import EditCardModal from "./components/EditCardModal";
 import EditAlternateModal from "./components/EditAlternateModal";
-import { useCards } from "@/hooks/useCards";
+import { useAllCards } from "@/hooks/useCards";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateCardMutation,
@@ -41,6 +48,9 @@ import {
   EditCardSkeleton,
   CardDetailSkeleton,
 } from "@/components/skeletons/EditCardSkeleton";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
+import { useCardStore } from "@/store/cardStore";
+import type { CardsFilters } from "@/lib/cards/types";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -68,24 +78,79 @@ interface Set {
 
 const EditCard = () => {
   const gridRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // ✅ OPTIMIZADO: Cache unificado con alwaysFresh para admin
+  // ✅ Obtener todas las cartas usando el mismo sistema que proxies
+  const cachedCards = useCardStore((state) => state.allCards);
+  const setAllCards = useCardStore((state) => state.setAllCards);
+  const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
+  const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
+  const allCardsSignatureRef = useRef<string | null>(null);
+
+  // Filtros vacíos para traer TODAS las cartas
+  const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
+
   const {
-    data: cards = [],
+    data: allCardsData,
     isLoading: cardsLoading,
-    isFetching: cardsRefetching,
+    isFetching: isFetchingAllCards,
     error: cardsError,
-    refetch: refetchCards,
-  } = useCards({ alwaysFresh: true }); // 🚀 Admin siempre tiene datos frescos
+  } = useAllCards(fullQueryFilters, {
+    includeRelations: true,
+    includeAlternates: true,
+    includeCounts: true,
+  });
+
+  // ✅ Guardar en Zustand cuando lleguen las cartas
+  useEffect(() => {
+    if (!allCardsData) return;
+
+    if (!allCardsData.length) {
+      if (allCardsSignatureRef.current !== "empty") {
+        allCardsSignatureRef.current = "empty";
+        setAllCards([]);
+      }
+      return;
+    }
+
+    const firstCard = allCardsData[0];
+    const lastCard = allCardsData[allCardsData.length - 1];
+
+    const normalizeTimestamp = (value: Date | string | undefined) => {
+      if (!value) return "";
+      if (value instanceof Date) return value.getTime().toString();
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? String(value) : parsed.toString();
+    };
+
+    const signature = [
+      allCardsData.length,
+      firstCard?.id ?? "",
+      lastCard?.id ?? "",
+      normalizeTimestamp(firstCard?.updatedAt),
+      normalizeTimestamp(lastCard?.updatedAt),
+    ].join("-");
+
+    if (allCardsSignatureRef.current !== signature) {
+      allCardsSignatureRef.current = signature;
+      setAllCards(allCardsData);
+    }
+
+    if (!isFetchingAllCards) {
+      setIsFullyLoaded(true);
+    }
+  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
+
+  // ✅ Usar cachedCards si existen, sino allCardsData
+  const cards = cachedCards.length > 0 ? cachedCards : allCardsData ?? [];
 
   const queryClient = useQueryClient();
 
-  const {
-    data: setsDropdown = [],
-    isLoading: setsLoading,
-    isFetching: setsRefetching,
-  } = useSetsDropdownQuery();
+  const refetchCards = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["cards"] });
+  }, [queryClient]);
+
+  const { data: setsDropdown = [], isLoading: setsLoading } =
+    useSetsDropdownQuery();
 
   const { data: sets = [] } = useSetsQuery();
 
@@ -113,8 +178,6 @@ const EditCard = () => {
 
   // 🚀 SPEED OPTIMIZATION: Simple loading logic (like DeckBuilderLayout)
   const isInitialLoading = !cards || cards.length === 0;
-  // Background fetching indicators (subtle, non-blocking)
-  const isBackgroundFetching = cardsRefetching || setsRefetching;
   const isMutating =
     updateCardMutation.isPending || deleteCardMutation.isPending;
 
@@ -184,89 +247,290 @@ const EditCard = () => {
     return (alternates.length + 1).toString(); // Simplificado: siguiente en la secuencia
   }, [alternates]);
 
-  // Estados del sidebar (originales)
+  // Estados del sidebar (igual que ProxiesBuilder)
   const [search, setSearch] = useState("");
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSets, setSelectedSets] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedCosts, setSelectedCosts] = useState<string[]>([]);
+  const [selectedPower, setSelectedPower] = useState<string[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
+  const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  const [selectedCounter, setSelectedCounter] = useState<string>("");
+  const [selectedTrigger, setSelectedTrigger] = useState<string>("");
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
   const [visibleCount, setVisibleCount] = useState(50);
   const [mobileView, setMobileView] = useState<"cards" | "deck">("cards");
 
+  // Estado para controlar el modal de filtros
+  const [isFiltersModalOpen, setIsFiltersModalOpen] = useState(false);
+
   // 🚀 Hybrid refresh function for backward compatibility (EditAlternateModal + other pages)
   const refreshData = useCallback(async () => {
     await syncForceRefresh(); // 🚀 This syncs both TanStack Query + Zustand
   }, [syncForceRefresh]);
 
-  // Filtrado de cartas
+  // Helper para búsqueda de código de carta (igual que ProxiesBuilder)
+  const matchesCardCode = useCallback((code: string, search: string) => {
+    const query = search.toLowerCase().trim();
+    const fullCode = code.toLowerCase();
+
+    // Si el query incluye un guión, se busca de forma literal.
+    if (query.includes("-")) {
+      return fullCode.includes(query);
+    }
+
+    // Separamos el código en partes usando el guión.
+    const parts = code.split("-");
+
+    // Si el query es numérico.
+    if (/^\d+$/.test(query)) {
+      if (query[0] === "0") {
+        // Si inicia con cero, se compara la cadena exacta.
+        return parts.some((part) => {
+          const matchDigits = part.match(/\d+/);
+          return matchDigits ? matchDigits[0] === query : false;
+        });
+      } else {
+        // Si no inicia con cero, se compara numéricamente.
+        const queryNumber = parseInt(query, 10);
+        return parts.some((part) => {
+          const matchDigits = part.match(/\d+/);
+          return matchDigits
+            ? parseInt(matchDigits[0], 10) === queryNumber
+            : false;
+        });
+      }
+    }
+
+    // Si el query no es numérico, se busca por subcadena en cada parte.
+    return parts.some((part) => part.toLowerCase().includes(query));
+  }, []);
+
+  // Filtrado de cartas (igual que ProxiesBuilder)
   const filteredCards = useMemo(() => {
-    let filtered: CardWithCollectionData[] = Array.isArray(cards) ? cards : [];
+    if (!cards || cards.length === 0) return [];
 
-    // Filtro por sets seleccionados
-    if (selectedSets.length > 0) {
-      filtered = filtered.filter((card) => selectedSets.includes(card.setCode));
-    }
-
-    // Filtro por raridades seleccionadas
-    if (selectedRarities.length > 0) {
-      filtered = filtered.filter((card) =>
-        selectedRarities.includes(card.rarity || "")
-      );
-    }
-
-    // Filtro por búsqueda
-    if (search.trim()) {
-      filtered = filtered.filter((card) => {
-        const searchLower = search.toLowerCase();
-        return (
+    return cards
+      .filter((card) => {
+        const searchLower = search.trim().toLowerCase();
+        const matchesSearch =
           card.name.toLowerCase().includes(searchLower) ||
-          card.code.toLowerCase().includes(searchLower) ||
-          card.texts?.some((t) => t.text.toLowerCase().includes(searchLower)) ||
-          card.types?.some((t) => t.type.toLowerCase().includes(searchLower)) ||
-          card.sets?.some(
-            (s) =>
-              s.set.title.toLowerCase().includes(searchLower) ||
-              String(s.set.id).toLowerCase().includes(searchLower)
-          )
+          (card.power ?? "").toLowerCase().includes(searchLower) ||
+          (card.cost ?? "").toLowerCase().includes(searchLower) ||
+          (card.attribute ?? "").toLowerCase().includes(searchLower) ||
+          (card.rarity ?? "").toLowerCase().includes(searchLower) ||
+          matchesCardCode(card.code, search) ||
+          (card.texts ?? []).some((item) =>
+            item.text.toLowerCase().includes(searchLower)
+          ) ||
+          (card.types ?? []).some((item) =>
+            item.type.toLowerCase().includes(searchLower)
+          ) ||
+          (card.sets ?? []).some((item) =>
+            item.set.title.toLowerCase().includes(searchLower)
+          );
+
+        const matchesColors =
+          selectedColors.length === 0 ||
+          card.colors.some((col) =>
+            selectedColors.includes(col.color.toLowerCase())
+          );
+
+        const matchesSets =
+          selectedSets?.length === 0 ||
+          card.sets.some((set) => selectedSets.includes(set.set.title)) ||
+          (card.alternates ?? []).some((alt) =>
+            alt.sets.some((set) => selectedSets.includes(set.set.title))
+          );
+
+        const matchesTypes =
+          selectedTypes.length === 0 ||
+          card.types.some((type) => selectedTypes.includes(type.type));
+
+        const matchesEffects =
+          selectedEffects.length === 0 ||
+          (card.effects ?? []).some((effect) =>
+            selectedEffects.includes(effect.effect)
+          );
+
+        const matchesRarity =
+          selectedRarities?.length === 0 ||
+          selectedRarities.includes(card.rarity ?? "");
+
+        const matchesAltArts =
+          selectedAltArts?.length === 0 ||
+          (card.alternates ?? []).some((alt) =>
+            selectedAltArts.includes(alt.alternateArt ?? "")
+          );
+
+        const matchesCosts =
+          selectedCosts.length === 0 || selectedCosts.includes(card.cost ?? "");
+
+        const matchesPower =
+          selectedPower.length === 0 ||
+          selectedPower.includes(card.power ?? "");
+
+        const matchesCategories =
+          selectedCategories.length === 0 ||
+          selectedCategories.includes(card.category ?? "");
+
+        const matchesAttributes =
+          selectedAttributes.length === 0 ||
+          selectedAttributes.includes(card.attribute ?? "");
+
+        const matchesCounter =
+          selectedCounter === ""
+            ? true
+            : selectedCounter === "No counter"
+            ? card.counter == null
+            : card.counter?.includes(selectedCounter);
+
+        const matchedTrigger =
+          selectedTrigger === ""
+            ? true
+            : selectedTrigger === "No trigger"
+            ? card.triggerCard === null
+            : card.triggerCard !== null;
+
+        const matchedCode =
+          selectedCodes?.length === 0 || selectedCodes.includes(card.setCode);
+
+        return (
+          matchesSearch &&
+          matchesColors &&
+          matchesSets &&
+          matchesTypes &&
+          matchesEffects &&
+          matchesRarity &&
+          matchesAltArts &&
+          matchesCosts &&
+          matchesPower &&
+          matchesCategories &&
+          matchesAttributes &&
+          matchesCounter &&
+          matchedTrigger &&
+          matchedCode
         );
+      })
+      .sort((a, b) => {
+        // Aplicar orden estándar de colección (OP → EB → ST → P → otros)
+        return sortByCollectionOrder(a, b);
       });
-    }
+  }, [
+    cards,
+    search,
+    selectedColors,
+    selectedSets,
+    selectedTypes,
+    selectedEffects,
+    selectedRarities,
+    selectedAltArts,
+    selectedCosts,
+    selectedPower,
+    selectedCategories,
+    selectedAttributes,
+    selectedCounter,
+    selectedTrigger,
+    selectedCodes,
+    matchesCardCode,
+  ]);
 
-    return filtered;
-  }, [cards, selectedSets, selectedRarities, search]);
+  const visibleCards = useMemo(
+    () => filteredCards.slice(0, visibleCount),
+    [filteredCards, visibleCount]
+  );
 
-  // Función para contar filtros activos
+  // Función para contar filtros activos (igual que ProxiesBuilder)
   const totalFilters = useMemo(() => {
-    return selectedSets.length + selectedRarities.length;
-  }, [selectedSets, selectedRarities]);
+    return (
+      selectedColors.length +
+      selectedSets.length +
+      selectedCodes.length +
+      selectedRarities.length +
+      selectedCategories.length +
+      (selectedCounter !== "" ? 1 : 0) +
+      (selectedTrigger !== "" ? 1 : 0) +
+      selectedEffects.length +
+      selectedTypes.length +
+      selectedCosts.length +
+      selectedPower.length +
+      selectedAttributes.length +
+      selectedAltArts.length
+    );
+  }, [
+    selectedColors,
+    selectedSets,
+    selectedCodes,
+    selectedRarities,
+    selectedCategories,
+    selectedCounter,
+    selectedTrigger,
+    selectedEffects,
+    selectedTypes,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedAltArts,
+  ]);
 
-  // Función para limpiar filtros
+  // Función para limpiar filtros (igual que ProxiesBuilder)
   const clearFilters = () => {
+    setSelectedColors([]);
     setSelectedSets([]);
+    setSelectedCodes([]);
     setSelectedRarities([]);
+    setSelectedCategories([]);
+    setSelectedCounter("");
+    setSelectedTrigger("");
+    setSelectedEffects([]);
+    setSelectedTypes([]);
+    setSelectedCosts([]);
+    setSelectedPower([]);
+    setSelectedAttributes([]);
+    setSelectedAltArts([]);
     setSearch("");
   };
 
   // ✅ Cards ya se cargan automáticamente con TanStack Query
 
-  // Scroll infinito
+  // Infinite scroll usando scroll event (igual que ProxiesBuilder)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && visibleCount < filteredCards.length) {
-          setVisibleCount((prev) => Math.min(prev + 50, filteredCards.length));
-        }
-      },
-      { threshold: 0.1 }
-    );
+    const container = gridRef.current;
+    if (!container) return;
 
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
+    const BATCH_SIZE = 50;
+    const LOAD_THRESHOLD_PX = 800;
+    const isLoadingMoreRef = { current: false };
 
-    return () => observer.disconnect();
-  }, [filteredCards.length, visibleCount]);
+    const handleScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = container;
+      const remaining = scrollHeight - (scrollTop + clientHeight);
+
+      if (
+        remaining <= LOAD_THRESHOLD_PX &&
+        !isLoadingMoreRef.current &&
+        visibleCount < (filteredCards?.length ?? 0)
+      ) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount((prev) =>
+          Math.min(prev + BATCH_SIZE, filteredCards?.length ?? 0)
+        );
+        setTimeout(() => {
+          isLoadingMoreRef.current = false;
+        }, 100);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [visibleCount, filteredCards?.length]);
 
   // Reset count cuando cambian filtros
   useEffect(() => {
@@ -1099,7 +1363,7 @@ const EditCard = () => {
 
         {/* Main app UI - only shown when data is loaded */}
         {!cardsError && !isInitialLoading && (
-          <div className="flex bg-[#f2eede] w-full h-full ">
+          <div className="flex flex-1 bg-[#f2eede] w-full h-full overflow-hidden">
             {/* Sidebar con lista de cartas */}
             <div
               className={`bg-white ${
@@ -1139,6 +1403,7 @@ const EditCard = () => {
                   <div className="flex gap-2 justify-center items-center">
                     <button
                       type="button"
+                      onClick={() => setIsFiltersModalOpen(true)}
                       className={`
                   ${
                     totalFilters > 0
@@ -1182,23 +1447,13 @@ const EditCard = () => {
                 className="p-3 pb-20 md:pb-3 overflow-y-auto flex-1 min-h-0"
                 ref={gridRef}
               >
-                {/* 🚀 Background fetching indicator for sidebar */}
-                {isBackgroundFetching && (
-                  <div className="flex items-center gap-2 px-2 py-1 bg-blue-50 border border-blue-200 rounded mb-2">
-                    <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                    <span className="text-xs text-blue-700">
-                      Actualizando cartas...
-                    </span>
-                  </div>
-                )}
-
                 <div className="text-sm text-gray-600 mb-3">
                   {filteredCards.length} cartas encontradas
                 </div>
 
                 {viewSelected === "list" && (
                   <div className="grid gap-3 grid-cols-3 justify-items-center">
-                    {filteredCards.slice(0, visibleCount).map((card) => (
+                    {visibleCards.map((card) => (
                       <div
                         key={card.id}
                         onClick={() => handleSelectCard(card)}
@@ -1254,7 +1509,7 @@ const EditCard = () => {
 
                 {viewSelected === "text" && (
                   <div className="flex flex-col gap-2">
-                    {filteredCards.slice(0, visibleCount).map((card) => (
+                    {visibleCards.map((card) => (
                       <div
                         key={card.id}
                         onClick={() => handleSelectCard(card)}
@@ -1301,11 +1556,6 @@ const EditCard = () => {
                       </div>
                     ))}
                   </div>
-                )}
-
-                {/* Sentinel para IntersectionObserver */}
-                {visibleCount < filteredCards.length && (
-                  <div ref={sentinelRef} style={{ height: "1px" }} />
                 )}
 
                 {/* Botón de fallback para cargar más */}
@@ -1406,17 +1656,6 @@ const EditCard = () => {
                           </div>
                         )}
 
-                        {/* 🚀 Background fetching indicator (subtle) */}
-                        {isBackgroundFetching &&
-                          !isAnyOperationInProgress() && (
-                            <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200 rounded">
-                              <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
-                              <span className="text-xs text-gray-600">
-                                Actualizando...
-                              </span>
-                            </div>
-                          )}
-
                         <Button
                           variant="outline"
                           size="sm"
@@ -1481,279 +1720,275 @@ const EditCard = () => {
                           <div
                             key={alternate.id}
                             className={`relative group overflow-hidden alternate-card-shimmer alternate-perspective animate-fade-in hover:scale-[1.02] hover:-translate-y-2 active:scale-[0.98] transition-all duration-300 ${
-                                alternate.id.toString().startsWith("temp-")
-                                  ? "alternate-sparkle alternate-temp-glow alternate-new-pulse"
-                                  : "bg-white rounded-xl border"
-                              } ${
-                                isAnyOperationInProgress()
-                                  ? "cursor-not-allowed opacity-75"
-                                  : "cursor-move"
-                              } ${
-                                draggedItem?.index === index
-                                  ? "border-blue-400 shadow-xl ring-2 ring-blue-200/50 bg-blue-50/50"
-                                  : alternate.id.toString().startsWith("temp-")
-                                  ? "" // No additional styles for temp cards as they have gradient border
-                                  : "border-gray-200 hover:border-blue-300 shadow-sm hover:shadow-xl hover:alternate-card-glow"
-                              }`}
-                              draggable={!isAnyOperationInProgress()}
-                              onDragStart={(e) =>
-                                handleDragStart(
-                                  e as unknown as React.DragEvent,
-                                  alternate,
-                                  index
-                                )
-                              }
-                              onDragOver={(e) => handleDragOver(e)}
-                              onDrop={(e) => handleDrop(e, index)}
-                              onDragEnter={(e) => {
-                                if (
-                                  draggedItem &&
-                                  draggedItem.index !== index
-                                ) {
-                                  e.currentTarget.classList.add(
-                                    "border-dashed",
-                                    "border-blue-400",
-                                    "bg-blue-25",
-                                    "ring-2",
-                                    "ring-blue-200"
-                                  );
-                                }
-                              }}
-                              onDragLeave={(e) => {
-                                e.currentTarget.classList.remove(
+                              alternate.id.toString().startsWith("temp-")
+                                ? "alternate-sparkle alternate-temp-glow alternate-new-pulse"
+                                : "bg-white rounded-xl border"
+                            } ${
+                              isAnyOperationInProgress()
+                                ? "cursor-not-allowed opacity-75"
+                                : "cursor-move"
+                            } ${
+                              draggedItem?.index === index
+                                ? "border-blue-400 shadow-xl ring-2 ring-blue-200/50 bg-blue-50/50"
+                                : alternate.id.toString().startsWith("temp-")
+                                ? "" // No additional styles for temp cards as they have gradient border
+                                : "border-gray-200 hover:border-blue-300 shadow-sm hover:shadow-xl hover:alternate-card-glow"
+                            }`}
+                            draggable={!isAnyOperationInProgress()}
+                            onDragStart={(e) =>
+                              handleDragStart(
+                                e as unknown as React.DragEvent,
+                                alternate,
+                                index
+                              )
+                            }
+                            onDragOver={(e) => handleDragOver(e)}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnter={(e) => {
+                              if (draggedItem && draggedItem.index !== index) {
+                                e.currentTarget.classList.add(
                                   "border-dashed",
                                   "border-blue-400",
                                   "bg-blue-25",
                                   "ring-2",
                                   "ring-blue-200"
                                 );
-                              }}
-                              onDragEnd={() => {
-                                setDraggedItem(null);
-                              }}
-                              style={{
-                                animationDelay: `${index * 80}ms`
-                              }}
+                              }
+                            }}
+                            onDragLeave={(e) => {
+                              e.currentTarget.classList.remove(
+                                "border-dashed",
+                                "border-blue-400",
+                                "bg-blue-25",
+                                "ring-2",
+                                "ring-blue-200"
+                              );
+                            }}
+                            onDragEnd={() => {
+                              setDraggedItem(null);
+                            }}
+                            style={{
+                              animationDelay: `${index * 80}ms`,
+                            }}
+                          >
+                            {/* 🚀 Special wrapper for temporary cards with gradient border */}
+                            <div
+                              className={
+                                alternate.id.toString().startsWith("temp-")
+                                  ? "alternate-temp-inner relative"
+                                  : "relative"
+                              }
                             >
-                              {/* 🚀 Special wrapper for temporary cards with gradient border */}
+                              {/* Indicador de loading sutil - solo para carta específica */}
+                              {isCardLoading(alternate.id) && (
+                                <div className="absolute top-2 right-2 z-10">
+                                  <div className="flex items-center gap-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full border border-blue-200 shadow-sm">
+                                    <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+                                    <span className="text-xs font-medium text-blue-700">
+                                      {globalLoading.type === "deleting"
+                                        ? "Eliminando"
+                                        : globalLoading.type === "reordering"
+                                        ? "Reordenando"
+                                        : "Cargando"}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Imagen principal - tamaño fijo y consistente */}
                               <div
-                                className={
-                                  alternate.id.toString().startsWith("temp-")
-                                    ? "alternate-temp-inner relative"
-                                    : "relative"
-                                }
+                                className="relative aspect-[2.5/3.5] bg-gray-50 overflow-hidden"
+                                onClick={(e) => {
+                                  console.log("clicked");
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  console.log("clicked1");
+                                  setSelectedCardForImage(alternate);
+                                  setIsModalLarge(true);
+                                }}
                               >
-                                {/* Indicador de loading sutil - solo para carta específica */}
-                                {isCardLoading(alternate.id) && (
-                                  <div className="absolute top-2 right-2 z-10">
-                                    <div className="flex items-center gap-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full border border-blue-200 shadow-sm">
-                                      <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                                      <span className="text-xs font-medium text-blue-700">
-                                        {globalLoading.type === "deleting"
-                                          ? "Eliminando"
-                                          : globalLoading.type === "reordering"
-                                          ? "Reordenando"
-                                          : "Cargando"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Imagen principal - tamaño fijo y consistente */}
-                                <div
-                                  className="relative aspect-[2.5/3.5] bg-gray-50 overflow-hidden"
-                                  onClick={(e) => {
-                                    console.log("clicked");
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    console.log("clicked1");
-                                    setSelectedCardForImage(alternate);
-                                    setIsModalLarge(true);
+                                <LazyImage
+                                  src={alternate.src}
+                                  fallbackSrc="/assets/images/backcard.webp"
+                                  alt={
+                                    alternate.alias || `Alterna ${alternate.id}`
+                                  }
+                                  className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                                  size="small"
+                                  customOptions={{
+                                    width: 300,
+                                    height: 420,
+                                    quality: 75,
+                                    format: "webp",
+                                    fit: "cover",
+                                    position: "center",
+                                    enlarge: 0,
+                                    progressive: 1,
                                   }}
-                                >
-                                  <LazyImage
-                                    src={alternate.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={
-                                      alternate.alias ||
-                                      `Alterna ${alternate.id}`
-                                    }
-                                    className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                                    size="small"
-                                    customOptions={{
-                                      width: 300,
-                                      height: 420,
-                                      quality: 75,
-                                      format: "webp",
-                                      fit: "cover",
-                                      position: "center",
-                                      enlarge: 0,
-                                      progressive: 1,
-                                    }}
-                                  />
+                                />
 
-                                  {/* Badge de orden en esquina superior izquierda */}
-                                  <div className="absolute top-2 left-2 z-20">
-                                    <div
-                                      className={`px-2 py-1 rounded-md text-xs font-bold shadow-md ${
-                                        alternate.order &&
-                                        parseInt(alternate.order) === index + 1
-                                          ? "bg-emerald-500 text-white"
-                                          : "bg-amber-500 text-white"
-                                      }`}
-                                    >
-                                      #{alternate.order || index + 1}
-                                      {alternate.order &&
-                                        parseInt(alternate.order) !==
-                                          index + 1 && (
-                                          <span className="ml-1">⚠</span>
-                                        )}
-                                    </div>
-                                  </div>
-
-                                  {/* Badges de estado en esquina superior derecha */}
-                                  <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
-                                    {alternate.isPro && (
-                                      <Badge className="text-xs px-2 py-1 bg-purple-500 text-white shadow-md">
-                                        PRO
-                                      </Badge>
-                                    )}
-                                    {alternate.region && (
-                                      <Badge className="text-xs px-2 py-1 bg-emerald-500 text-white shadow-md">
-                                        {alternate.region}
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  {/* Overlay con botones de acción */}
-                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-2">
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          size="sm"
-                                          variant="secondary"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditAlternate(alternate);
-                                          }}
-                                          disabled={isAnyOperationInProgress()}
-                                          className="h-9 w-9 p-0 bg-white hover:bg-gray-50 text-emerald-600 rounded-full shadow-lg"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        Editar alterna
-                                      </TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          size="sm"
-                                          variant="secondary"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Clonar la alterna específica
-                                            handleCloneAlternate(alternate);
-                                          }}
-                                          disabled={
-                                            isAnyOperationInProgress() ||
-                                            !selectedCard
-                                          }
-                                          className="h-9 w-9 p-0 bg-white hover:bg-gray-50 text-blue-600 rounded-full shadow-lg"
-                                        >
-                                          <svg
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <rect
-                                              x="9"
-                                              y="9"
-                                              width="13"
-                                              height="13"
-                                              rx="2"
-                                              ry="2"
-                                            />
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                          </svg>
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        Clonar como nueva alterna
-                                      </TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteAlternate(alternate.id);
-                                          }}
-                                          disabled={isAnyOperationInProgress()}
-                                          className="h-9 w-9 p-0 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        Eliminar alterna
-                                      </TooltipContent>
-                                    </Tooltip>
+                                {/* Badge de orden en esquina superior izquierda */}
+                                <div className="absolute top-2 left-2 z-20">
+                                  <div
+                                    className={`px-2 py-1 rounded-md text-xs font-bold shadow-md ${
+                                      alternate.order &&
+                                      parseInt(alternate.order) === index + 1
+                                        ? "bg-emerald-500 text-white"
+                                        : "bg-amber-500 text-white"
+                                    }`}
+                                  >
+                                    #{alternate.order || index + 1}
+                                    {alternate.order &&
+                                      parseInt(alternate.order) !==
+                                        index + 1 && (
+                                        <span className="ml-1">⚠</span>
+                                      )}
                                   </div>
                                 </div>
 
-                                {/* Información inferior */}
-                                <div className="p-3 space-y-2">
-                                  {/* Título */}
-                                  {alternate.alias &&
-                                    alternate.alias !== "" &&
-                                    alternate.alias !== "0" && (
-                                      <h4 className="font-semibold text-gray-900 text-sm truncate">
-                                        {alternate.alias}
-                                      </h4>
-                                    )}
+                                {/* Badges de estado en esquina superior derecha */}
+                                <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
+                                  {alternate.isPro && (
+                                    <Badge className="text-xs px-2 py-1 bg-purple-500 text-white shadow-md">
+                                      PRO
+                                    </Badge>
+                                  )}
+                                  {alternate.region && (
+                                    <Badge className="text-xs px-2 py-1 bg-emerald-500 text-white shadow-md">
+                                      {alternate.region}
+                                    </Badge>
+                                  )}
+                                </div>
 
-                                  {/* Sets */}
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    {alternate.sets &&
-                                    alternate.sets.length > 0 ? (
-                                      <>
-                                        <Badge
-                                          variant="outline"
-                                          className="text-xs px-2 py-0.5 bg-slate-50 text-slate-700 border-slate-200"
+                                {/* Overlay con botones de acción */}
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-2">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditAlternate(alternate);
+                                        }}
+                                        disabled={isAnyOperationInProgress()}
+                                        className="h-9 w-9 p-0 bg-white hover:bg-gray-50 text-emerald-600 rounded-full shadow-lg"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Editar alterna
+                                    </TooltipContent>
+                                  </Tooltip>
+
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Clonar la alterna específica
+                                          handleCloneAlternate(alternate);
+                                        }}
+                                        disabled={
+                                          isAnyOperationInProgress() ||
+                                          !selectedCard
+                                        }
+                                        className="h-9 w-9 p-0 bg-white hover:bg-gray-50 text-blue-600 rounded-full shadow-lg"
+                                      >
+                                        <svg
+                                          className="h-4 w-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
                                         >
-                                          {alternate.sets[0].set.title}
-                                        </Badge>
-                                        {alternate.sets.length > 1 && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200"
-                                          >
-                                            +{alternate.sets.length - 1}
-                                          </Badge>
-                                        )}
-                                      </>
-                                    ) : (
+                                          <rect
+                                            x="9"
+                                            y="9"
+                                            width="13"
+                                            height="13"
+                                            rx="2"
+                                            ry="2"
+                                          />
+                                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                        </svg>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Clonar como nueva alterna
+                                    </TooltipContent>
+                                  </Tooltip>
+
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteAlternate(alternate.id);
+                                        }}
+                                        disabled={isAnyOperationInProgress()}
+                                        className="h-9 w-9 p-0 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Eliminar alterna
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </div>
+
+                              {/* Información inferior */}
+                              <div className="p-3 space-y-2">
+                                {/* Título */}
+                                {alternate.alias &&
+                                  alternate.alias !== "" &&
+                                  alternate.alias !== "0" && (
+                                    <h4 className="font-semibold text-gray-900 text-sm truncate">
+                                      {alternate.alias}
+                                    </h4>
+                                  )}
+
+                                {/* Sets */}
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {alternate.sets &&
+                                  alternate.sets.length > 0 ? (
+                                    <>
                                       <Badge
                                         variant="outline"
-                                        className="text-xs px-2 py-0.5 bg-red-50 text-red-700 border-red-200"
+                                        className="text-xs px-2 py-0.5 bg-slate-50 text-slate-700 border-slate-200"
                                       >
-                                        Sin set
+                                        {alternate.sets[0].set.title}
                                       </Badge>
-                                    )}
-                                  </div>
+                                      {alternate.sets.length > 1 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200"
+                                        >
+                                          +{alternate.sets.length - 1}
+                                        </Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs px-2 py-0.5 bg-red-50 text-red-700 border-red-200"
+                                    >
+                                      Sin set
+                                    </Badge>
+                                  )}
                                 </div>
-                              </div>{" "}
-                              {/* Close special wrapper for temporary cards */}
-                            </div>
-                          ))}
-                        </div>
+                              </div>
+                            </div>{" "}
+                            {/* Close special wrapper for temporary cards */}
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-80 text-gray-500 p-8">
                         <div className="relative mb-6">
@@ -1874,6 +2109,52 @@ const EditCard = () => {
             <span className="text-sm font-medium">Guardando cambios...</span>
           </div>
         )}
+
+        {/* Modal de filtros (igual que ProxiesBuilder) */}
+        <Transition
+          show={isFiltersModalOpen}
+          enter="transition transform duration-300"
+          enterFrom="-translate-x-full"
+          enterTo="translate-x-0"
+          leave="transition transform duration-200"
+          leaveFrom="translate-x-0"
+          leaveTo="-translate-x-full"
+        >
+          <FiltersSidebar
+            isOpen={isFiltersModalOpen}
+            setIsOpen={setIsFiltersModalOpen}
+            search={search}
+            setSearch={setSearch}
+            selectedColors={selectedColors}
+            setSelectedColors={setSelectedColors}
+            selectedRarities={selectedRarities}
+            setSelectedRarities={setSelectedRarities}
+            selectedCategories={selectedCategories}
+            setSelectedCategories={setSelectedCategories}
+            selectedCounter={selectedCounter}
+            setSelectedCounter={setSelectedCounter}
+            selectedTrigger={selectedTrigger}
+            setSelectedTrigger={setSelectedTrigger}
+            selectedEffects={selectedEffects}
+            setSelectedEffects={setSelectedEffects}
+            selectedTypes={selectedTypes}
+            setSelectedTypes={setSelectedTypes}
+            selectedSets={selectedSets}
+            setSelectedSets={setSelectedSets}
+            selectedCosts={selectedCosts}
+            setSelectedCosts={setSelectedCosts}
+            selectedPower={selectedPower}
+            setSelectedPower={setSelectedPower}
+            selectedAttributes={selectedAttributes}
+            setSelectedAttributes={setSelectedAttributes}
+            disabledColors={[]}
+            selectedAltArts={selectedAltArts}
+            setSelectedAltArts={setSelectedAltArts}
+            selectedCodes={selectedCodes}
+            setSelectedCodes={setSelectedCodes}
+            disabledTypes={[]}
+          />
+        </Transition>
       </TooltipProvider>
     </>
   );

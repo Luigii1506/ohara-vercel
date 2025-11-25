@@ -11,6 +11,7 @@ datasource db {
 model Card {
   id               Int             @id @default(autoincrement())
   src              String
+  imageKey         String?
   name             String
   cost             String?
   power            String?
@@ -64,6 +65,10 @@ model Deck {
   uniqueUrl      String     @unique
   description    String?    @default("")
   userId         Int?
+  isShopDeck     Boolean    @default(false)
+  isPublished    Boolean    @default(false)
+  shopSlug       String?    @unique
+  shopUrl        String?
   originalDeck   Deck?      @relation("OriginalDeck", fields: [originalDeckId], references: [id])
   forks          Deck[]     @relation("OriginalDeck")
   user           User?      @relation(fields: [userId], references: [id])
@@ -72,6 +77,7 @@ model Deck {
 
   @@index([originalDeckId])
   @@index([userId])
+  @@index([isShopDeck])
 }
 
 model DeckCard {

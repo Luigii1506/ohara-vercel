@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   ChartColumnBigIcon,
   ChevronDown,
@@ -27,6 +28,7 @@ import {
   Check,
   Copy,
   Share2,
+  ShoppingBag,
 } from "lucide-react";
 import { Deck, GroupedDecks, DeckCard } from "@/types";
 import { useSession } from "next-auth/react";
@@ -61,11 +63,18 @@ const SelectedDeckCards = ({
   deck,
   onBackToList,
   onDelete = () => {},
+  mode = "user",
 }: {
   deck: Deck;
   onBackToList: () => void;
   onDelete?: () => void;
+  mode?: "user" | "shop" | "shop-admin";
 }) => {
+  const isShopView = mode === "shop" || mode === "shop-admin";
+  const isAdminShopView = mode === "shop-admin";
+  const isPublicShopView = mode === "shop";
+  const canEditDeck = mode === "user" || isAdminShopView;
+  const canDeleteDeck = mode === "user" || isAdminShopView;
   // Filter states for deck cards
   const [search, setSearch] = useState("");
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
@@ -86,7 +95,6 @@ const SelectedDeckCards = ({
   // State for mobile tooltips
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  // State for export modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [content, setContent] = useState("");
   const [activeTab, setActiveTab] = useState("sansan");
@@ -113,7 +121,10 @@ const SelectedDeckCards = ({
   // Function to handle deck deletion
   const handleDelete = async (deckId: number) => {
     try {
-      const res = await fetch(`/api/admin/deck/${deckId}`, {
+      const endpoint = isShopView
+        ? `/api/admin/shop-decks/${deckId}`
+        : `/api/admin/deck/${deckId}`;
+      const res = await fetch(endpoint, {
         method: "DELETE",
       });
 
@@ -942,15 +953,6 @@ const SelectedDeckCards = ({
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b p-4 sm:p-6 rounded-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBackToList}
-                className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 flex-shrink-0"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Volver</span>
-              </Button>
               <div className="border-l border-gray-300 pl-3 sm:pl-4 min-w-0 flex-1">
                 <div className="flex items-center gap-2 sm:gap-3">
                   {leaderCard && (
@@ -1000,110 +1002,118 @@ const SelectedDeckCards = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleExport}
-                      className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Exportar lista</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {!isAdminShopView && !isPublicShopView && (
+                <>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleExport}
+                          className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Exportar lista</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleProxies}
-                      className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Generar PDF proxies</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleProxies}
+                          className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Generar PDF proxies</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </>
+              )}
 
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      asChild
-                      className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                    >
-                      <Link href={`/decks/edit/${deck.id}`}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Editar deck</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      asChild
-                      className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                    >
-                      <Link href={`/decks/${deck.uniqueUrl}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Ver deck completo</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DeleteDeckModal
-                      deck={deck}
-                      onConfirm={() => handleDelete(Number(deck.id))}
-                    >
+              {!isAdminShopView && isShopView && deck.shopUrl && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button
                         size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors duration-200 p-2"
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-3"
+                        asChild
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <a
+                          href={deck.shopUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1"
+                        >
+                          <ShoppingBag className="h-4 w-4" />
+                          <span className="hidden sm:inline">Comprar</span>
+                        </a>
                       </Button>
-                    </DeleteDeckModal>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Eliminar deck</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Ir a la tienda</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              <div
+                className={cn(
+                  "flex gap-2",
+                  isAdminShopView && "w-full justify-center flex-wrap"
+                )}
+              >
+                <Button
+                  className="bg-black text-white hover:bg-black/90 rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2"
+                  asChild
+                >
+                  <Link
+                    href={
+                      isAdminShopView
+                        ? `/admin/shop-decks/${deck.id}`
+                        : `/decks/edit/${deck.id}`
+                    }
+                  >
+                    <Edit className="h-4 w-4" />
+                    Editar
+                  </Link>
+                </Button>
+                {canDeleteDeck && (
+                  <DeleteDeckModal
+                    deck={deck}
+                    onConfirm={() => handleDelete(Number(deck.id))}
+                  >
+                    <Button className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  </DeleteDeckModal>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Advanced Card Statistics */}
           <div className="mt-4 pt-4 sm:pt-6 border-t border-gray-200">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div
+              className={cn(
+                "flex items-center gap-1 sm:gap-2 flex-shrink-0",
+                isAdminShopView && "w-full justify-center flex-wrap gap-2"
+              )}
+            >
               {/* Counter +2000 Badge */}
               <div className="flex items-center gap-1.5 bg-amber-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-amber-200">
                 <span className="text-amber-600 text-xs">⚡</span>
@@ -1292,6 +1302,23 @@ const SelectedDeckCards = ({
               </div>
             </div>
           )}
+          {isPublicShopView && deck.shopUrl && (
+            <div className="flex justify-center mt-5">
+              <Button
+                className="w-full sm:w-2/3 lg:w-1/2 bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-semibold py-6 rounded-xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2"
+                asChild
+              >
+                <a
+                  href={deck.shopUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ShoppingBag className="h-5 w-5" />
+                  Comprar deck
+                </a>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1345,7 +1372,6 @@ const SelectedDeckCards = ({
                 Copia la lista del deck en formato SanSan Events o OPSim
               </DialogDescription>
             </DialogHeader>
-
             {/* Content */}
             <div className="p-3 md:p-6 flex-1 flex flex-col min-h-0 gap-4">
               {/* Tabs */}
@@ -1438,46 +1464,46 @@ const SelectedDeckCards = ({
                 )}
               </Button>
             </div>
-
-            {/* URL and Share Section */}
-            <div className="w-full flex flex-col gap-5 p-4">
-              <div className="flex w-full flex-col space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="deck-url"
-                    type="text"
-                    value={`https://oharatcg.com/decks/${deck.uniqueUrl}`}
-                    readOnly
-                    className="font-mono h-[48px]"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="w-fit px-2 h-[48px]"
-                    onClick={() =>
-                      handleCopyUrl(
-                        `https://oharatcg.com/decks/${deck.uniqueUrl}`
-                      )
-                    }
-                  >
-                    {copiedUrl ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <Copy className="size-4" />
-                    )}
-                    Copy URL
-                  </Button>
+            {!isPublicShopView && (
+              <div className="w-full flex flex-col gap-5 p-4">
+                <div className="flex w-full flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      id="deck-url"
+                      type="text"
+                      value={`https://oharatcg.com/decks/${deck.uniqueUrl}`}
+                      readOnly
+                      className="font-mono h-[48px]"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="w-fit px-2 h-[48px]"
+                      onClick={() =>
+                        handleCopyUrl(
+                          `https://oharatcg.com/decks/${deck.uniqueUrl}`
+                        )
+                      }
+                    >
+                      {copiedUrl ? (
+                        <Check className="size-4" />
+                      ) : (
+                        <Copy className="size-4" />
+                      )}
+                      Copy URL
+                    </Button>
+                  </div>
                 </div>
+                <Button
+                  onClick={handleShare}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-6 text-lg font-medium"
+                >
+                  <Share2 className="w-5 h-5 mr-2" />
+                  <span className="text-lg font-medium">Share</span>
+                </Button>
               </div>
-              <Button
-                onClick={handleShare}
-                className="w-full bg-green-500 hover:bg-green-600 text-white py-6 text-lg font-medium"
-              >
-                <Share2 className="w-5 h-5 mr-2" />
-                <span className="text-lg font-medium">Share</span>
-              </Button>
-            </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1486,42 +1512,86 @@ const SelectedDeckCards = ({
 };
 
 // New component for when no deck is selected
-const WelcomeDeckSelection = () => {
+const WelcomeDeckSelection = ({
+  isShopView = false,
+  isAdminShopView = false,
+}: {
+  isShopView?: boolean;
+  isAdminShopView?: boolean;
+}) => {
+  const title = isAdminShopView
+    ? "Gestiona tus decks de venta"
+    : isShopView
+    ? "Explora la tienda de decks"
+    : "Explora tus Mazos";
+  const description = isAdminShopView
+    ? "Selecciona un deck de la lista lateral para ver su detalle y editarlo antes de publicarlo."
+    : isShopView
+    ? "Selecciona un deck de la lista lateral para ver su detalle y continuar la compra en la tienda asociada."
+    : "Selecciona un mazo de la lista lateral para ver todas sus cartas organizadas por categorías.";
+  const primaryLabel = isAdminShopView
+    ? "Crear deck para venta"
+    : isShopView
+    ? "Crear mi propio deck"
+    : "Crear Nuevo Mazo";
+  const secondaryLabel = isShopView ? "Explorar cartas" : "Explorar Cartas";
+  const primaryHref = isAdminShopView ? "/admin/create-decks" : "/deckbuilder";
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in duration-500 h-full">
       <div className="text-center space-y-4 max-w-md">
-        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
-          <Eye className="h-10 w-10 text-white" />
-        </div>
-
-        <h2 className="text-3xl font-bold text-gray-800">Explora tus Mazos</h2>
+        <h2 className="text-3xl font-bold text-gray-800 mb-3">{title}</h2>
 
         <p className="text-lg text-muted-foreground leading-relaxed">
-          Selecciona un mazo de la lista lateral para ver todas sus cartas
-          organizadas por categorías.
+          {description}
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 pt-4">
-          <Button
-            asChild
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300"
-          >
-            <Link href="/deckbuilder">
-              <Plus className="h-4 w-4 mr-2" />
-              Crear Nuevo Mazo
-            </Link>
-          </Button>
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 justify-center">
+          {isAdminShopView ? (
+            <>
+              <Button
+                asChild
+                className="bg-black text-white hover:bg-black/90 transition-all duration-300 rounded-xl py-6 text-base tracking-wide"
+              >
+                <Link href="/admin/create-decks">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear deck para venta
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                asChild
+                className="border-gray-300 hover:bg-gray-100 transition-colors duration-200 rounded-xl py-6 text-base tracking-wide"
+              >
+                <Link href="/shop">
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Ver tienda
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                asChild
+                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300"
+              >
+                <Link href={primaryHref}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {primaryLabel}
+                </Link>
+              </Button>
 
-          <Button
-            variant="outline"
-            asChild
-            className="hover:bg-muted/50 transition-colors duration-200"
-          >
-            <Link href="/">
-              <ChartColumnBigIcon className="h-4 w-4 mr-2" />
-              Explorar Cartas
-            </Link>
-          </Button>
+              <Button
+                variant="outline"
+                asChild
+                className="hover:bg-muted/50 transition-colors duration-200"
+              >
+                <Link href="/">
+                  <ChartColumnBigIcon className="h-4 w-4 mr-2" />
+                  {secondaryLabel}
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="pt-6 border-t border-muted-foreground/20">
@@ -1573,88 +1643,81 @@ const DeleteDeckModal = ({
     <>
       <div onClick={() => setIsOpen(true)}>{children}</div>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center shadow-sm">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+        <DialogContent className="max-w-lg overflow-hidden px-0 pb-0">
+          <div className="bg-white flex flex-col h-full">
+            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-5 text-white flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-semibold text-gray-900">
-                  Eliminar Deck
+                <DialogTitle className="text-2xl font-bold">
+                  ¿Eliminar este deck?
                 </DialogTitle>
-                <DialogDescription className="text-gray-600">
+                <DialogDescription className="text-white/80">
                   Esta acción no se puede deshacer
                 </DialogDescription>
               </div>
             </div>
-          </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <h4 className="font-semibold text-red-800 mb-2">
-                ¿Qué se eliminará?
-              </h4>
-              <ul className="text-sm text-red-700 space-y-1">
-                <li>
-                  • El deck "<span className="font-medium">{deck.name}</span>"
-                </li>
-                <li>
-                  • Todas las cartas del deck ({deck.deckCards?.length || 0}{" "}
-                  cartas)
-                </li>
-                <li>• Configuración y metadatos</li>
-              </ul>
+            <div className="px-6 py-5 space-y-5">
+              <div className="border border-red-100 rounded-xl p-4 bg-red-50">
+                <p className="text-sm text-red-700">
+                  Estás a punto de eliminar el deck{" "}
+                  <span className="font-semibold">{deck.name}</span>. También se
+                  eliminarán todas las cartas asociadas (
+                  {deck.deckCards?.length || 0}) y su historial.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Escribe <strong>{deck.name}</strong> para confirmar:
+                </label>
+                <Input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  autoComplete="off"
+                  className="h-12 text-base"
+                />
+                {confirmText && confirmText !== deck.name && (
+                  <p className="text-sm text-red-500">
+                    El nombre no coincide, verifica e inténtalo de nuevo.
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Para confirmar, escribe el nombre del deck:
-              </label>
-              <Input
-                type="text"
-                placeholder={`Escribe "${deck.name}" para confirmar`}
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                className="w-full"
+            <div className="px-6 py-4 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 text-base font-semibold border-gray-200"
+                onClick={() => setIsOpen(false)}
                 disabled={isDeleting}
-                autoComplete="off"
-              />
-              {confirmText && confirmText !== deck.name && (
-                <p className="text-sm text-red-600 mt-1">
-                  El nombre no coincide
-                </p>
-              )}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 h-12 text-base font-semibold bg-red-600 hover:bg-red-700"
+                onClick={handleConfirm}
+                disabled={confirmText !== deck.name || isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-5 h-5 mr-2" />
+                    Eliminar deck
+                  </>
+                )}
+              </Button>
             </div>
           </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirm}
-              disabled={confirmText !== deck.name || isDeleting}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Eliminando...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Eliminar Definitivamente
-                </>
-              )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
@@ -1663,8 +1726,14 @@ const DeleteDeckModal = ({
 
 const DecksPage = () => {
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [isFetchingDecks, setIsFetchingDecks] = useState(true);
   const { data: session } = useSession();
   const userId = session?.user?.id;
+  const pathname = usePathname();
+  const currentPath = pathname ?? "";
+  const isAdminShopView = currentPath.startsWith("/admin/shop-decks");
+  const isPublicShopView = currentPath.startsWith("/shop");
+  const isShopView = isAdminShopView || isPublicShopView;
 
   // Filters
   const [search, setSearch] = useState("");
@@ -1763,17 +1832,51 @@ const DecksPage = () => {
   };
 
   const fetchDecks = async () => {
-    if (!userId) return null;
-    const res = await fetch(`/api/admin/decks/user/${userId}`);
-    if (!res.ok) throw new Error("No tienes decks");
-    const data = await res.json();
-    console.log("data", data);
-    setDecks(data);
+    setIsFetchingDecks(true);
+    try {
+      let endpoint: string | null = null;
+      if (isShopView) {
+        const includeUnpublished =
+          session?.user?.role === "ADMIN" ? "?includeUnpublished=true" : "";
+        endpoint = `/api/admin/shop-decks${includeUnpublished}`;
+      } else if (userId) {
+        endpoint = `/api/admin/decks/user/${userId}`;
+      }
+
+      if (!endpoint) return;
+
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        throw new Error(
+          isShopView ? "No hay decks de tienda" : "No tienes decks"
+        );
+      }
+      const data = await res.json();
+      const filteredDecks = Array.isArray(data)
+        ? data.filter((deck: Deck) =>
+            isShopView ? deck.isShopDeck : !deck.isShopDeck
+          )
+        : [];
+      setDecks(filteredDecks);
+    } catch (error) {
+      console.error("Error fetching decks:", error);
+      showErrorToast(
+        isShopView
+          ? "No pudimos cargar los decks de la tienda"
+          : "No pudimos cargar tus decks"
+      );
+    } finally {
+      setIsFetchingDecks(false);
+    }
   };
 
   useEffect(() => {
-    fetchDecks();
-  }, [session, userId]);
+    if (isShopView || userId) {
+      fetchDecks();
+    } else {
+      setIsFetchingDecks(false);
+    }
+  }, [session, userId, isShopView]);
 
   const handleSelectDeck = (deck: Deck) => {
     setSelectedDeck(deck);
@@ -1816,6 +1919,64 @@ const DecksPage = () => {
   const handleBackToList = () => {
     setSelectedDeck(null);
   };
+
+  if (isShopView && isFetchingDecks) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] bg-gradient-to-b from-[#fbf6ef] to-[#f2e2c7] w-full">
+        <div className="text-center space-y-4">
+          <div className="w-14 h-14 border-4 border-amber-300 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-semibold tracking-wide text-amber-700">
+            Consultando decks disponibles...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPublicShopView && !isFetchingDecks && decks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center bg-gradient-to-b from-[#fbf6ef] to-[#f2e2c7] w-full">
+        <div className="max-w-3xl space-y-7">
+          <div className="inline-flex items-center px-5 py-2 rounded-full bg-white/80 border border-amber-300 text-amber-700 text-sm font-semibold shadow-sm tracking-wide">
+            <span className="mr-2 animate-pulse">🧭</span>
+            Sin decks disponibles por ahora
+          </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-snug tracking-tight">
+            No hay decks disponibles en la tienda en este momento
+          </h1>
+          <div className="mt-2">
+            <p className="text-lg md:text-xl text-gray-600 leading-relaxed tracking-wide px-2">
+              Por ahora no tenemos decks listos para comprar, pero estamos
+              preparando nuevos listados y reponiendo inventario. Mientras
+              llegan, inspírate en la colección o arma tu propia lista
+              competitiva.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Link
+              href="/card-list"
+              className="px-7 py-3.5 rounded-xl bg-black text-white font-semibold shadow-xl hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-200 tracking-wide"
+            >
+              Explorar cartas
+            </Link>
+            <Link
+              href="/deckbuilder"
+              className="px-7 py-3.5 rounded-xl border border-gray-400 text-gray-800 font-semibold bg-white/90 hover:bg-white transition-all duration-200 tracking-wide"
+            >
+              Crear mi propio deck
+            </Link>
+          </div>
+          <div className="mt-1">
+            <p className="text-sm text-gray-500 tracking-wide mt-3">
+              ¿Buscas algo específico? Escríbenos y te avisamos cuando vuelva a
+              estar disponible.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row flex-1 bg-[#f2eede] w-full">
@@ -1976,13 +2137,20 @@ const DecksPage = () => {
               deck={selectedDeck}
               onBackToList={handleBackToList}
               onDelete={fetchDecks}
+              mode={
+                isAdminShopView ? "shop-admin" : isShopView ? "shop" : "user"
+              }
             />
           ) : (
-            <WelcomeDeckSelection />
+            <WelcomeDeckSelection
+              isShopView={isShopView}
+              isAdminShopView={isAdminShopView}
+            />
           )}
         </div>
       </div>
     </div>
   );
 };
+
 export default DecksPage;

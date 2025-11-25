@@ -69,6 +69,7 @@ export default function MultiSelect({
   const [searchValue, setSearchValue] = React.useState("");
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
 
   // Auto focus en el input de búsqueda cuando se abre el dropdown
   React.useEffect(() => {
@@ -92,12 +93,15 @@ export default function MultiSelect({
     if (!open || !isSolid) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      // No cerrar si el click es en el botón o en el dropdown
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        buttonRef.current?.contains(event.target as Node) ||
+        dropdownRef.current?.contains(event.target as Node)
       ) {
-        setOpen(false);
+        return;
       }
+
+      setOpen(false);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -431,8 +435,12 @@ export default function MultiSelect({
     return (
       <div className="w-full">
         <Button
+          ref={buttonRef}
           variant="outline"
-          onClick={() => setOpen(!open)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
           disabled={isDisabled}
           className={`group w-full justify-between bg-white hover:bg-gray-100 h-[50px] ${
             selected?.length > 0 &&

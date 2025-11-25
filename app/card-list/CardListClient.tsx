@@ -215,7 +215,14 @@ const matchesCardFilters = (
   }
 
   if (altArts?.length) {
-    if (!card.alternateArt || !altArts.includes(card.alternateArt)) {
+    // La carta debe coincidir si su alternateArt está en el filtro
+    // O si alguna de sus alternativas tiene ese alternateArt
+    const baseMatches = card.alternateArt && altArts.includes(card.alternateArt);
+    const hasMatchingAlternate = card.alternates?.some(alt =>
+      alt.alternateArt && altArts.includes(alt.alternateArt)
+    ) ?? false;
+
+    if (!baseMatches && !hasMatchingAlternate) {
       return false;
     }
   }
@@ -540,7 +547,10 @@ const CardListClient = ({
       selectedSets?.length +
       selectedCosts?.length +
       selectedPower?.length +
-      selectedAttributes?.length,
+      selectedAttributes?.length +
+      selectedCodes?.length +
+      selectedAltArts?.length +
+      (selectedRegion !== "" ? 1 : 0),
     [
       selectedColors,
       selectedRarities,
@@ -552,6 +562,10 @@ const CardListClient = ({
       selectedCosts,
       selectedPower,
       selectedAttributes,
+      selectedSets,
+      selectedCodes,
+      selectedAltArts,
+      selectedRegion,
     ]
   );
 
@@ -801,7 +815,9 @@ const CardListClient = ({
                   selectedCosts.length > 0 ||
                   selectedPower.length > 0 ||
                   selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0
+                  selectedCodes.length > 0 ||
+                  selectedAltArts.length > 0 ||
+                  selectedRegion !== ""
                 }
                 clearFilters={() => {
                   setSelectedColors([]);
@@ -816,6 +832,8 @@ const CardListClient = ({
                   setSelectedPower([]);
                   setSelectedAttributes([]);
                   setSelectedCodes([]);
+                  setSelectedAltArts([]);
+                  setSelectedRegion("");
                 }}
                 isMobile={true}
               />

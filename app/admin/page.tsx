@@ -17,6 +17,8 @@ import {
   ArrowRight,
   Upload,
   Calendar,
+  ShoppingBag,
+  Layers,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -118,6 +120,18 @@ export default function AdminDashboard() {
           label: "User Management",
           icon: Users,
           description: "Manage user accounts and permissions",
+        },
+        {
+          href: "/admin/create-decks",
+          label: "Create Shop Decks",
+          icon: ShoppingBag,
+          description: "Build and publish decks for the store",
+        },
+        {
+          href: "/admin/shop-decks",
+          label: "Manage Shop Decks",
+          icon: Layers,
+          description: "Edit and manage decks available in the shop",
         },
       ],
     },

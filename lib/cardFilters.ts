@@ -40,7 +40,7 @@ export const baseCardMatches = (
     matches = card.sets?.some((s) => selectedSets.includes(s.set.title)) || false;
   }
   if (selectedAltArts.length > 0) {
-    matches = matches && selectedAltArts.includes(card?.rarity ?? "");
+    matches = matches && selectedAltArts.includes(card?.alternateArt ?? "");
   }
   return matches;
 };

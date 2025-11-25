@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   ChartColumnBigIcon,
   Eye,
@@ -74,6 +75,13 @@ interface CompleteDeckBuilderLayoutProps {
   deckName?: string;
   setDeckName?: (name: string) => void;
   onProxies?: () => void;
+  isShopMode?: boolean;
+  shopSlug?: string;
+  setShopSlug?: (slug: string) => void;
+  shopUrl?: string;
+  setShopUrl?: (url: string) => void;
+  isPublished?: boolean;
+  setIsPublished?: (value: boolean) => void;
 }
 
 const CompleteDeckBuilderLayout = ({
@@ -85,6 +93,13 @@ const CompleteDeckBuilderLayout = ({
   deckName,
   setDeckName,
   onProxies,
+  isShopMode = false,
+  shopSlug,
+  setShopSlug,
+  shopUrl,
+  setShopUrl,
+  isPublished,
+  setIsPublished,
 }: CompleteDeckBuilderLayoutProps) => {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -131,6 +146,26 @@ const CompleteDeckBuilderLayout = ({
 
   // Estado para controlar la vista mobile
   const [mobileView, setMobileView] = useState<"cards" | "deck">("cards");
+  const isShopView = Boolean(isShopMode);
+  const showShopFields = isShopView && Boolean(setShopSlug) && Boolean(setShopUrl);
+  const shopSlugValue = shopSlug ?? "";
+  const shopUrlValue = shopUrl ?? "";
+  const shopFieldsMissing =
+    isShopView && (!shopSlugValue.trim() || !shopUrlValue.trim());
+
+  const handleSlugInputChange = (value: string) => {
+    if (!setShopSlug) return;
+    const normalized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    setShopSlug(normalized);
+  };
+
+  const handleShopUrlChange = (value: string) => {
+    if (!setShopUrl) return;
+    setShopUrl(value);
+  };
 
   // Función para resaltar texto en búsquedas
   const highlightText = (text: string, searchTerm: string) => {
@@ -189,7 +224,9 @@ const CompleteDeckBuilderLayout = ({
     selectedSets?.length +
     selectedCosts?.length +
     selectedPower?.length +
-    selectedAttributes?.length;
+    selectedAttributes?.length +
+    selectedCodes?.length +
+    selectedAltArts?.length;
 
   const matchesCardCode = (code: string, search: string) => {
     const query = search.toLowerCase().trim();
@@ -281,7 +318,8 @@ const CompleteDeckBuilderLayout = ({
           selectedAltArts?.length === 0 ||
           (card.alternates ?? []).some((alt) =>
             selectedAltArts.includes(alt.alternateArt ?? "")
-          );
+          ) ||
+          selectedAltArts.includes(card.alternateArt ?? "");
 
         const matchesCosts =
           selectedCosts.length === 0 || selectedCosts.includes(card.cost ?? "");
@@ -672,7 +710,8 @@ const CompleteDeckBuilderLayout = ({
                   selectedCosts.length > 0 ||
                   selectedPower.length > 0 ||
                   selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0
+                  selectedCodes.length > 0 ||
+                  selectedAltArts.length > 0
                 }
                 clearFilters={() => {
                   setSelectedColors([]);
@@ -687,6 +726,7 @@ const CompleteDeckBuilderLayout = ({
                   setSelectedPower([]);
                   setSelectedAttributes([]);
                   setSelectedCodes([]);
+                  setSelectedAltArts([]);
                 }}
                 isMobile={true}
               />
@@ -709,19 +749,21 @@ const CompleteDeckBuilderLayout = ({
           {viewSelected === "alternate" && (
             <div className="flex flex-col gap-5">
               {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                // Función que verifica si la carta base cumple con los filtros
+                // Función que verifica si la carta base cumple con los filtros de display
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
                   let matches = true;
+                  // Solo aplicar filtro de Sets para display
                   if (selectedSets.length > 0) {
                     matches =
                       card.sets?.some((s) =>
                         selectedSets.includes(s.set.title)
                       ) || false;
                   }
+                  // Si hay filtro de altArts, solo mostrar la base si coincide
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.rarity ?? "");
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -730,12 +772,14 @@ const CompleteDeckBuilderLayout = ({
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
                     let matches = true;
+                    // Solo aplicar filtro de Sets para display
                     if (selectedSets.length > 0) {
                       matches =
                         alt.sets?.some((s) =>
                           selectedSets.includes(s.set.title)
                         ) || false;
                     }
+                    // Si hay filtro de altArts, solo mostrar alternativas que coinciden
                     if (selectedAltArts.length > 0) {
                       matches =
                         matches &&
@@ -1043,7 +1087,7 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.rarity ?? "");
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -1235,7 +1279,7 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     match =
-                      match && selectedAltArts.includes(card?.rarity ?? "");
+                      match && selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return match;
                 };
@@ -1542,7 +1586,7 @@ const CompleteDeckBuilderLayout = ({
 
             {/* Center Section - Deck Name Input */}
             {deckName !== undefined && setDeckName && (
-              <div className="flex-1 w-full sm:max-w-xs lg:max-w-md">
+              <div className="flex-1 w-full sm:max-w-xs lg:max-w-md flex flex-col gap-2">
                 <Input
                   type="text"
                   value={deckName}
@@ -1551,6 +1595,39 @@ const CompleteDeckBuilderLayout = ({
                   className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
                   maxLength={50}
                 />
+                {showShopFields && (
+                  <>
+                    <Input
+                      type="text"
+                      value={shopSlugValue}
+                      onChange={(e) => handleSlugInputChange(e.target.value)}
+                      placeholder="Slug para la tienda (ej. super-deck)"
+                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                      maxLength={60}
+                    />
+                    <Input
+                      type="url"
+                      value={shopUrlValue}
+                      onChange={(e) => handleShopUrlChange(e.target.value)}
+                      placeholder="URL de la tienda (https://...)"
+                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                    />
+                    <div className="flex items-center justify-center gap-3 pt-1">
+                      <Switch
+                        checked={Boolean(isPublished)}
+                        onCheckedChange={(checked) => setIsPublished?.(checked)}
+                      />
+                      <span className="text-xs font-semibold text-gray-600">
+                        {isPublished ? "Publicado" : "Sin publicar"}
+                      </span>
+                    </div>
+                    {shopSlugValue && (
+                      <p className="text-[11px] text-gray-500 text-center">
+                        /shop/{shopSlugValue}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -1815,11 +1892,17 @@ const CompleteDeckBuilderLayout = ({
               <Button
                 onClick={onSave}
                 disabled={
-                  totalCards < 50 || deckBuilder.isSaving || !deckName?.trim()
+                  totalCards < 50 ||
+                  deckBuilder.isSaving ||
+                  !deckName?.trim() ||
+                  shopFieldsMissing
                 }
                 size="lg"
                 className={`flex-1 h-14 font-semibold transition-all duration-200 ${
-                  totalCards < 50 || deckBuilder.isSaving || !deckName?.trim()
+                  totalCards < 50 ||
+                  deckBuilder.isSaving ||
+                  !deckName?.trim() ||
+                  shopFieldsMissing
                     ? "bg-gray-400 cursor-not-allowed hover:bg-gray-400"
                     : "bg-blue-600 hover:bg-blue-700"
                 } text-white shadow-lg`}
@@ -1840,6 +1923,11 @@ const CompleteDeckBuilderLayout = ({
                     </div>
                     {totalCards >= 50 && deckName === "" && (
                       <span className="text-xs text-white">Name your deck</span>
+                    )}
+                    {shopFieldsMissing && (
+                      <span className="text-xs text-white">
+                        Completa slug y URL de la tienda
+                      </span>
                     )}
                   </div>
                 )}

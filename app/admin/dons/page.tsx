@@ -144,11 +144,9 @@ const AdminDonsPage = () => {
 
   const handleSetChange = (value: string) => {
     const setId = value ? Number(value) : null;
-    const selected = sets.find((set) => set.id === setId);
     setForm((prev) => ({
       ...prev,
       setId,
-      setCode: selected?.code ?? prev.setCode,
     }));
   };
 

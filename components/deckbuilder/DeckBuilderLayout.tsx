@@ -147,7 +147,8 @@ const CompleteDeckBuilderLayout = ({
   // Estado para controlar la vista mobile
   const [mobileView, setMobileView] = useState<"cards" | "deck">("cards");
   const isShopView = Boolean(isShopMode);
-  const showShopFields = isShopView && Boolean(setShopSlug) && Boolean(setShopUrl);
+  const showShopFields =
+    isShopView && Boolean(setShopSlug) && Boolean(setShopUrl);
   const shopSlugValue = shopSlug ?? "";
   const shopUrlValue = shopUrl ?? "";
   const shopFieldsMissing =
@@ -763,7 +764,8 @@ const CompleteDeckBuilderLayout = ({
                   // Si hay filtro de altArts, solo mostrar la base si coincide
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                      matches &&
+                      selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -1087,7 +1089,8 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     matches =
-                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                      matches &&
+                      selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return matches;
                 };
@@ -1279,7 +1282,8 @@ const CompleteDeckBuilderLayout = ({
                   }
                   if (selectedAltArts.length > 0) {
                     match =
-                      match && selectedAltArts.includes(card?.alternateArt ?? "");
+                      match &&
+                      selectedAltArts.includes(card?.alternateArt ?? "");
                   }
                   return match;
                 };
@@ -1735,7 +1739,7 @@ const CompleteDeckBuilderLayout = ({
                 )}
               </div>
             ) : (
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
+              <div className="grid gap-2 grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
                 {groupedCards.flatMap((group) =>
                   group.map((card, cardIndex) => {
                     // Calcular cuántas cartas del mismo código hay en total en el deck
@@ -1756,7 +1760,7 @@ const CompleteDeckBuilderLayout = ({
                         className="flex flex-col items-center"
                       >
                         {/* Card Display */}
-                        <div className="cursor-pointer border rounded-lg shadow p-2 bg-white justify-center items-center flex flex-col relative h-fit hover:shadow-xl transition-all duration-200 w-full mb-2">
+                        <div className="cursor-pointer border rounded-lg shadow  bg-white justify-center items-center flex flex-col relative h-fit hover:shadow-xl transition-all duration-200 w-full mb-2">
                           <div
                             onClick={() => {
                               setSelectedCard(card);
@@ -1777,7 +1781,7 @@ const CompleteDeckBuilderLayout = ({
                               <TooltipTrigger asChild>
                                 <div className="flex justify-center items-center w-full flex-col">
                                   <span
-                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                                    className={`${oswald.className} text-[13px] font-[500] mt-2`}
                                   >
                                     {card.code}
                                   </span>
@@ -1793,7 +1797,7 @@ const CompleteDeckBuilderLayout = ({
                               <span className="mb-[2px]">{card.quantity}</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-2 w-full mt-3">
+                          <div className="flex items-center gap-2 w-full mt-2 p-2">
                             <Button
                               onClick={() => {
                                 const newQuantity = Math.max(

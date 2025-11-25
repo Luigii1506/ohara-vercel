@@ -12,9 +12,10 @@ import type { CardsFilters } from "@/lib/cards/types";
 
 const DeckBuilder = () => {
   const router = useRouter();
-  const [deckName, setDeckName] = useState("");
-
   const { data: session } = useSession();
+  const deckBuilder = useDeckBuilder(); // sin URL, deck nuevo
+  const [deckName, setDeckNameState] = useState(deckBuilder.deckName ?? "");
+  const [isDeckNameManual, setIsDeckNameManual] = useState(false);
 
   // ✅ Obtener todas las cartas usando el mismo sistema que card-list
   const cachedCards = useCardStore((state) => state.allCards);
@@ -37,6 +38,20 @@ const DeckBuilder = () => {
   });
 
   // ✅ Guardar en Zustand cuando lleguen las cartas
+  useEffect(() => {
+    if (!deckBuilder.selectedLeader) {
+      if (!isDeckNameManual) {
+        setDeckNameState("");
+      }
+      return;
+    }
+    if (isDeckNameManual) return;
+    const leaderName = deckBuilder.selectedLeader.name ?? "";
+    if (leaderName) {
+      setDeckNameState(leaderName);
+    }
+  }, [deckBuilder.selectedLeader, isDeckNameManual]);
+
   useEffect(() => {
     if (!allCardsData) return;
 
@@ -78,12 +93,17 @@ const DeckBuilder = () => {
 
   // ✅ Usar cachedCards si existen, sino allCardsData
   const dataSource = cachedCards.length > 0 ? cachedCards : allCardsData ?? [];
-
-  const deckBuilder = useDeckBuilder(); // sin URL, deck nuevo
   const totalCards = deckBuilder.deckCards.reduce(
     (total, card) => total + card.quantity,
     0
   );
+
+  const handleDeckNameChange = (value: string) => {
+    if (!isDeckNameManual) {
+      setIsDeckNameManual(true);
+    }
+    setDeckNameState(value);
+  };
 
   const handleSave = async () => {
     if (deckBuilder.isSaving) return;
@@ -104,13 +124,18 @@ const DeckBuilder = () => {
       })),
     ];
 
+    const baseName =
+      deckName.trim() ||
+      deckBuilder.selectedLeader?.name ||
+      "Mi Deck";
+
     deckBuilder.setIsSaving(true);
     try {
       const response = await fetch("/api/admin/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: deckName.trim(),
+          name: baseName,
           cards: payloadCards,
           userId: session ? session.user.id : null,
         }),
@@ -137,6 +162,8 @@ const DeckBuilder = () => {
   const handleRestart = () => {
     deckBuilder.setSelectedLeader(undefined);
     deckBuilder.setDeckCards([]);
+    setIsDeckNameManual(false);
+    setDeckNameState("");
   };
 
   // ✅ TanStack Query maneja el fetch automáticamente
@@ -148,7 +175,7 @@ const DeckBuilder = () => {
       onRestart={handleRestart}
       initialCards={dataSource as CardWithCollectionData[]}
       deckName={deckName}
-      setDeckName={setDeckName}
+      setDeckName={handleDeckNameChange}
     />
   );
 };

@@ -1004,43 +1004,22 @@ const SelectedDeckCards = ({
             {/* Action Buttons */}
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               {!isAdminShopView && !isPublicShopView && (
-                <>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={handleExport}
-                          className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Exportar lista</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={handleProxies}
-                          className="text-gray-700 hover:bg-gray-200 transition-colors duration-200 p-2"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Generar PDF proxies</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleExport}
+                    className="bg-gray-900 text-white hover:bg-gray-800 rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Exportar
+                  </Button>
+                  <Button
+                    onClick={handleProxies}
+                    className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Proxies
+                  </Button>
+                </div>
               )}
 
               {!isAdminShopView && isShopView && deck.shopUrl && (
@@ -1070,175 +1049,181 @@ const SelectedDeckCards = ({
                 </TooltipProvider>
               )}
 
-              <div
-                className={cn(
-                  "flex gap-2",
-                  isAdminShopView && "w-full justify-center flex-wrap"
-                )}
-              >
-                <Button
-                  className="bg-black text-white hover:bg-black/90 rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2"
-                  asChild
+              {canEditDeck && (
+                <div
+                  className={cn(
+                    "flex gap-2",
+                    isAdminShopView && "w-full justify-center flex-wrap"
+                  )}
                 >
-                  <Link
-                    href={
-                      isAdminShopView
-                        ? `/admin/shop-decks/${deck.id}`
-                        : `/decks/edit/${deck.id}`
-                    }
+                  <Button
+                    className="bg-black text-white hover:bg-black/90 rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2"
+                    asChild
                   >
-                    <Edit className="h-4 w-4" />
-                    Editar
-                  </Link>
-                </Button>
-                {canDeleteDeck && (
-                  <DeleteDeckModal
-                    deck={deck}
-                    onConfirm={() => handleDelete(Number(deck.id))}
-                  >
-                    <Button className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
-                      <Trash2 className="h-4 w-4" />
-                      Eliminar
-                    </Button>
-                  </DeleteDeckModal>
-                )}
-              </div>
+                    <Link
+                      href={
+                        isAdminShopView
+                          ? `/admin/shop-decks/${deck.id}`
+                          : `/decks/edit/${deck.id}`
+                      }
+                    >
+                      <Edit className="h-4 w-4" />
+                      Editar
+                    </Link>
+                  </Button>
+                  {canDeleteDeck && (
+                    <DeleteDeckModal
+                      deck={deck}
+                      onConfirm={() => handleDelete(Number(deck.id))}
+                    >
+                      <Button className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-3 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </Button>
+                    </DeleteDeckModal>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Advanced Card Statistics */}
           <div className="mt-4 pt-4 sm:pt-6 border-t border-gray-200">
-            <div
-              className={cn(
-                "flex items-center gap-1 sm:gap-2 flex-shrink-0",
-                isAdminShopView && "w-full justify-center flex-wrap gap-2"
-              )}
-            >
-              {/* Counter +2000 Badge */}
-              <div className="flex items-center gap-1.5 bg-amber-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-amber-200">
-                <span className="text-amber-600 text-xs">⚡</span>
-                <span className="text-xs font-medium text-amber-700">
-                  +2000
-                </span>
-                <span className="text-sm font-bold text-amber-800">
-                  {deck.deckCards
-                    .filter(
-                      (card) =>
-                        card.card?.counter?.includes("+2000") ||
-                        card.counter?.includes("+2000")
-                    )
-                    .reduce((sum, card) => sum + card.quantity, 0)}
-                </span>
-              </div>
+            <div className="overflow-x-auto">
+              <div
+                className={cn(
+                  "flex items-center gap-2 sm:gap-3 flex-nowrap min-w-max pr-4",
+                  isAdminShopView && "w-full justify-center flex-wrap gap-2"
+                )}
+              >
+                {/* Counter +2000 Badge */}
+                <div className="flex items-center gap-1.5 bg-amber-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-amber-200">
+                  <span className="text-amber-600 text-xs">⚡</span>
+                  <span className="text-xs font-medium text-amber-700">
+                    +2000
+                  </span>
+                  <span className="text-sm font-bold text-amber-800">
+                    {deck.deckCards
+                      .filter(
+                        (card) =>
+                          card.card?.counter?.includes("+2000") ||
+                          card.counter?.includes("+2000")
+                      )
+                      .reduce((sum, card) => sum + card.quantity, 0)}
+                  </span>
+                </div>
 
-              {/* Counter +1000 Badge */}
-              <div className="flex items-center gap-1.5 bg-sky-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-sky-200">
-                <span className="text-sky-600 text-xs">⚡</span>
-                <span className="text-xs font-medium text-sky-700">+1000</span>
-                <span className="text-sm font-bold text-sky-800">
-                  {deck.deckCards
-                    .filter(
-                      (card) =>
-                        card.card?.counter?.includes("+1000") ||
-                        card.counter?.includes("+1000")
-                    )
-                    .reduce((sum, card) => sum + card.quantity, 0)}
-                </span>
-              </div>
+                {/* Counter +1000 Badge */}
+                <div className="flex items-center gap-1.5 bg-sky-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-sky-200">
+                  <span className="text-sky-600 text-xs">⚡</span>
+                  <span className="text-xs font-medium text-sky-700">
+                    +1000
+                  </span>
+                  <span className="text-sm font-bold text-sky-800">
+                    {deck.deckCards
+                      .filter(
+                        (card) =>
+                          card.card?.counter?.includes("+1000") ||
+                          card.counter?.includes("+1000")
+                      )
+                      .reduce((sum, card) => sum + card.quantity, 0)}
+                  </span>
+                </div>
 
-              {/* Trigger Badge */}
-              <div className="flex items-center gap-1.5 bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-emerald-200">
-                <span className="text-emerald-600 text-xs">🔥</span>
-                <span className="text-xs font-medium text-emerald-700">
-                  Trigger
-                </span>
-                <span className="text-sm font-bold text-emerald-800">
-                  {deck.deckCards
-                    .filter(
-                      (card) =>
-                        card.card?.triggerCard &&
-                        card.card.triggerCard !== null &&
-                        card.card.triggerCard !== ""
-                    )
-                    .reduce((sum, card) => sum + card.quantity, 0)}
-                </span>
-              </div>
+                {/* Trigger Badge */}
+                <div className="flex items-center gap-1.5 bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-emerald-200">
+                  <span className="text-emerald-600 text-xs">🔥</span>
+                  <span className="text-xs font-medium text-emerald-700">
+                    Trigger
+                  </span>
+                  <span className="text-sm font-bold text-emerald-800">
+                    {deck.deckCards
+                      .filter(
+                        (card) =>
+                          card.card?.triggerCard &&
+                          card.card.triggerCard !== null &&
+                          card.card.triggerCard !== ""
+                      )
+                      .reduce((sum, card) => sum + card.quantity, 0)}
+                  </span>
+                </div>
 
-              {/* Types Badges */}
-              {(() => {
-                // Crear un objeto para contar tipos
-                const typeCounts: Record<string, number> = {};
+                {/* Types Badges */}
+                {(() => {
+                  // Crear un objeto para contar tipos
+                  const typeCounts: Record<string, number> = {};
 
-                deck.deckCards.forEach((deckCard) => {
-                  if (deckCard.card?.types) {
-                    deckCard.card.types.forEach((typeObj) => {
-                      const typeName = typeObj.type;
-                      if (!typeCounts[typeName]) {
-                        typeCounts[typeName] = 0;
-                      }
-                      typeCounts[typeName] += deckCard.quantity;
-                    });
-                  }
-                });
+                  deck.deckCards.forEach((deckCard) => {
+                    if (deckCard.card?.types) {
+                      deckCard.card.types.forEach((typeObj) => {
+                        const typeName = typeObj.type;
+                        if (!typeCounts[typeName]) {
+                          typeCounts[typeName] = 0;
+                        }
+                        typeCounts[typeName] += deckCard.quantity;
+                      });
+                    }
+                  });
 
-                // Convertir a array y ordenar por cantidad (descendente)
-                const sortedTypes = Object.entries(typeCounts)
-                  .sort(([, a], [, b]) => (b as number) - (a as number))
-                  .slice(0, 3); // Reducir a 3 en móvil para mejor responsividad
+                  // Convertir a array y ordenar por cantidad (descendente)
+                  const sortedTypes = Object.entries(typeCounts)
+                    .sort(([, a], [, b]) => (b as number) - (a as number))
+                    .slice(0, 3); // Reducir a 3 en móvil para mejor responsividad
 
-                return sortedTypes.map(([typeName, count]) => (
-                  <TooltipProvider key={typeName}>
-                    <Tooltip open={activeTooltip === typeName}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="flex items-center gap-1.5 bg-purple-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-purple-200 cursor-help active:bg-purple-100 touch-manipulation transition-colors"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // Toggle tooltip para móvil
-                            setActiveTooltip(
-                              activeTooltip === typeName ? null : typeName
-                            );
-                            // Auto-cerrar después de 3 segundos
-                            if (activeTooltip !== typeName) {
-                              setTimeout(() => setActiveTooltip(null), 3000);
-                            }
-                          }}
-                          onMouseEnter={() => {
-                            // Solo en desktop (pantallas grandes)
-                            if (window.innerWidth >= 768) {
-                              setActiveTooltip(typeName);
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            // Solo en desktop
-                            if (window.innerWidth >= 768) {
-                              setActiveTooltip(null);
-                            }
-                          }}
+                  return sortedTypes.map(([typeName, count]) => (
+                    <TooltipProvider key={typeName}>
+                      <Tooltip open={activeTooltip === typeName}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="flex items-center gap-1.5 bg-purple-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-purple-200 cursor-help active:bg-purple-100 touch-manipulation transition-colors"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Toggle tooltip para móvil
+                              setActiveTooltip(
+                                activeTooltip === typeName ? null : typeName
+                              );
+                              // Auto-cerrar después de 3 segundos
+                              if (activeTooltip !== typeName) {
+                                setTimeout(() => setActiveTooltip(null), 3000);
+                              }
+                            }}
+                            onMouseEnter={() => {
+                              // Solo en desktop (pantallas grandes)
+                              if (window.innerWidth >= 768) {
+                                setActiveTooltip(typeName);
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              // Solo en desktop
+                              if (window.innerWidth >= 768) {
+                                setActiveTooltip(null);
+                              }
+                            }}
+                          >
+                            <span className="text-purple-600 text-xs">🏷️</span>
+                            <span className="text-xs font-medium text-purple-700 truncate max-w-16 sm:max-w-20">
+                              {typeName}
+                            </span>
+                            <span className="text-sm font-bold text-purple-800">
+                              {count}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="bg-gray-900 text-white px-3 py-2 rounded-md text-sm shadow-lg z-50 pointer-events-none"
+                          sideOffset={5}
                         >
-                          <span className="text-purple-600 text-xs">🏷️</span>
-                          <span className="text-xs font-medium text-purple-700 truncate max-w-16 sm:max-w-20">
-                            {typeName}
-                          </span>
-                          <span className="text-sm font-bold text-purple-800">
-                            {count}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        className="bg-gray-900 text-white px-3 py-2 rounded-md text-sm shadow-lg z-50 pointer-events-none"
-                        sideOffset={5}
-                      >
-                        <p>
-                          {typeName} ({count} cartas)
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ));
-              })()}
+                          <p>
+                            {typeName} ({count} cartas)
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ));
+                })()}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -1605,7 +1590,6 @@ const WelcomeDeckSelection = ({
   );
 };
 
-// Componente para el modal de confirmación de borrado
 interface DeleteDeckModalProps {
   deck: Deck;
   onConfirm: () => void;

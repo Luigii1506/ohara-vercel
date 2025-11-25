@@ -25,7 +25,8 @@ const ShopDeckBuilder = () => {
   const { data: session } = useSession();
   const { role, loading } = useUser();
 
-  const [deckName, setDeckName] = useState("");
+  const [deckName, setDeckNameState] = useState("");
+  const [isDeckNameManual, setIsDeckNameManual] = useState(false);
   const [shopSlug, setShopSlug] = useState("");
   const [shopUrl, setShopUrl] = useState("");
   const [isPublished, setIsPublished] = useState(false);
@@ -85,6 +86,20 @@ const ShopDeckBuilder = () => {
   }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
 
   useEffect(() => {
+    if (!deckBuilder.selectedLeader) {
+      if (!isDeckNameManual) {
+        setDeckNameState("");
+      }
+      return;
+    }
+    if (isDeckNameManual) return;
+    const leaderName = deckBuilder.selectedLeader.name ?? "";
+    if (leaderName) {
+      setDeckNameState(leaderName);
+    }
+  }, [deckBuilder.selectedLeader, isDeckNameManual]);
+
+  useEffect(() => {
     if (!hasEditedSlug) {
       setShopSlug(deckName ? slugify(deckName) : "");
     }
@@ -101,6 +116,13 @@ const ShopDeckBuilder = () => {
     (total, card) => total + card.quantity,
     0
   );
+
+  const handleDeckNameChange = (value: string) => {
+    if (!isDeckNameManual) {
+      setIsDeckNameManual(true);
+    }
+    setDeckNameState(value);
+  };
 
   const handleSave = async () => {
     if (deckBuilder.isSaving) return;
@@ -136,13 +158,18 @@ const ShopDeckBuilder = () => {
       })),
     ];
 
+    const baseName =
+      deckName.trim() ||
+      deckBuilder.selectedLeader?.name ||
+      "Mi Deck";
+
     deckBuilder.setIsSaving(true);
     try {
       const response = await fetch("/api/admin/shop-decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: deckName.trim(),
+          name: baseName,
           cards: payloadCards,
           userId: session ? session.user.id : null,
           shopSlug: normalizedSlug,
@@ -192,7 +219,7 @@ const ShopDeckBuilder = () => {
       onRestart={handleRestart}
       initialCards={dataSource as CardWithCollectionData[]}
       deckName={deckName}
-      setDeckName={setDeckName}
+      setDeckName={handleDeckNameChange}
       isShopMode
       shopSlug={shopSlug}
       setShopSlug={handleSlugFromLayout}

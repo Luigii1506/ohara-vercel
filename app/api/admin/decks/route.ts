@@ -4,14 +4,22 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 // Función para generar un URL único para cada deck
 function generateUniqueUrl() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
     const { name, cards, userId } = await req.json();
 
     if (!name) {
@@ -88,10 +96,49 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const resolvedUserId = userId
+      ? Number(userId)
+      : session?.user?.id
+      ? Number(session.user.id)
+      : undefined;
+
+    const baseName = (name as string).trim() || "Mi Deck";
+    let finalName = baseName;
+
+    if (resolvedUserId) {
+      const existingNames = await prisma.deck.findMany({
+        where: {
+          userId: resolvedUserId,
+          name: {
+            startsWith: baseName,
+          },
+        },
+        select: { name: true },
+      });
+
+      const regex = new RegExp(
+        `^${escapeRegex(baseName)}(?: #(\\d+))?$`,
+        "i"
+      );
+      let nextSuffix = 1;
+      for (const existing of existingNames) {
+        const match = existing.name.match(regex);
+        if (match) {
+          const current = match[1] ? parseInt(match[1], 10) : 1;
+          if (current >= nextSuffix) {
+            nextSuffix = current + 1;
+          }
+        }
+      }
+      if (nextSuffix > 1) {
+        finalName = `${baseName} #${nextSuffix}`;
+      }
+    }
+
     // Crear el deck y relacionarlo con el usuario (si se encontró)
     const newDeck = await prisma.deck.create({
       data: {
-        name,
+        name: finalName,
         uniqueUrl: generateUniqueUrl(),
         deckCards: {
           create: cards.map((c: any) => ({
@@ -99,7 +146,7 @@ export async function POST(req: NextRequest) {
             quantity: c.quantity,
           })),
         },
-        userId: userId ? Number(userId) : undefined, // Relación con el usuario creador
+        userId: resolvedUserId,
       },
       include: {
         deckCards: { include: { card: true } },

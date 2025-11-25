@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   ChartColumnBigIcon,
   Eye,
@@ -74,6 +75,13 @@ interface CompleteDeckBuilderLayoutProps {
   deckName?: string;
   setDeckName?: (name: string) => void;
   onProxies?: () => void;
+  isShopMode?: boolean;
+  shopSlug?: string;
+  setShopSlug?: (slug: string) => void;
+  shopUrl?: string;
+  setShopUrl?: (url: string) => void;
+  isPublished?: boolean;
+  setIsPublished?: (value: boolean) => void;
 }
 
 const CompleteDeckBuilderLayout = ({
@@ -85,6 +93,13 @@ const CompleteDeckBuilderLayout = ({
   deckName,
   setDeckName,
   onProxies,
+  isShopMode = false,
+  shopSlug,
+  setShopSlug,
+  shopUrl,
+  setShopUrl,
+  isPublished,
+  setIsPublished,
 }: CompleteDeckBuilderLayoutProps) => {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -131,6 +146,26 @@ const CompleteDeckBuilderLayout = ({
 
   // Estado para controlar la vista mobile
   const [mobileView, setMobileView] = useState<"cards" | "deck">("cards");
+  const isShopView = Boolean(isShopMode);
+  const showShopFields = isShopView && Boolean(setShopSlug) && Boolean(setShopUrl);
+  const shopSlugValue = shopSlug ?? "";
+  const shopUrlValue = shopUrl ?? "";
+  const shopFieldsMissing =
+    isShopView && (!shopSlugValue.trim() || !shopUrlValue.trim());
+
+  const handleSlugInputChange = (value: string) => {
+    if (!setShopSlug) return;
+    const normalized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    setShopSlug(normalized);
+  };
+
+  const handleShopUrlChange = (value: string) => {
+    if (!setShopUrl) return;
+    setShopUrl(value);
+  };
 
   // Función para resaltar texto en búsquedas
   const highlightText = (text: string, searchTerm: string) => {
@@ -1551,7 +1586,7 @@ const CompleteDeckBuilderLayout = ({
 
             {/* Center Section - Deck Name Input */}
             {deckName !== undefined && setDeckName && (
-              <div className="flex-1 w-full sm:max-w-xs lg:max-w-md">
+              <div className="flex-1 w-full sm:max-w-xs lg:max-w-md flex flex-col gap-2">
                 <Input
                   type="text"
                   value={deckName}
@@ -1560,6 +1595,39 @@ const CompleteDeckBuilderLayout = ({
                   className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
                   maxLength={50}
                 />
+                {showShopFields && (
+                  <>
+                    <Input
+                      type="text"
+                      value={shopSlugValue}
+                      onChange={(e) => handleSlugInputChange(e.target.value)}
+                      placeholder="Slug para la tienda (ej. super-deck)"
+                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                      maxLength={60}
+                    />
+                    <Input
+                      type="url"
+                      value={shopUrlValue}
+                      onChange={(e) => handleShopUrlChange(e.target.value)}
+                      placeholder="URL de la tienda (https://...)"
+                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                    />
+                    <div className="flex items-center justify-center gap-3 pt-1">
+                      <Switch
+                        checked={Boolean(isPublished)}
+                        onCheckedChange={(checked) => setIsPublished?.(checked)}
+                      />
+                      <span className="text-xs font-semibold text-gray-600">
+                        {isPublished ? "Publicado" : "Sin publicar"}
+                      </span>
+                    </div>
+                    {shopSlugValue && (
+                      <p className="text-[11px] text-gray-500 text-center">
+                        /shop/{shopSlugValue}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -1824,11 +1892,17 @@ const CompleteDeckBuilderLayout = ({
               <Button
                 onClick={onSave}
                 disabled={
-                  totalCards < 50 || deckBuilder.isSaving || !deckName?.trim()
+                  totalCards < 50 ||
+                  deckBuilder.isSaving ||
+                  !deckName?.trim() ||
+                  shopFieldsMissing
                 }
                 size="lg"
                 className={`flex-1 h-14 font-semibold transition-all duration-200 ${
-                  totalCards < 50 || deckBuilder.isSaving || !deckName?.trim()
+                  totalCards < 50 ||
+                  deckBuilder.isSaving ||
+                  !deckName?.trim() ||
+                  shopFieldsMissing
                     ? "bg-gray-400 cursor-not-allowed hover:bg-gray-400"
                     : "bg-blue-600 hover:bg-blue-700"
                 } text-white shadow-lg`}
@@ -1849,6 +1923,11 @@ const CompleteDeckBuilderLayout = ({
                     </div>
                     {totalCards >= 50 && deckName === "" && (
                       <span className="text-xs text-white">Name your deck</span>
+                    )}
+                    {shopFieldsMissing && (
+                      <span className="text-xs text-white">
+                        Completa slug y URL de la tienda
+                      </span>
                     )}
                   </div>
                 )}

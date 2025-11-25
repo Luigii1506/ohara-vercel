@@ -150,6 +150,10 @@ export type Deck = {
   userId: string;
   user: User;
   deckCards: DeckCard[];
+  isShopDeck?: boolean;
+  isPublished?: boolean;
+  shopSlug?: string | null;
+  shopUrl?: string | null;
 };
 
 export interface GroupedDeck {

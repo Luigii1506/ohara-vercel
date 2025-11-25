@@ -19,27 +19,6 @@ const oswald = Oswald({
   subsets: ["latin"],
 });
 
-// Helper functions for highlighting text
-const highlightText = (text: string, searchTerm: string): string => {
-  if (!searchTerm.trim()) return text;
-  const regex = new RegExp(`(${searchTerm})`, "gi");
-  return text.replace(regex, "<mark>$1</mark>");
-};
-
-const rarityFormatter = (rarity: string): string => {
-  const rarityMap: { [key: string]: string } = {
-    Common: "C",
-    Uncommon: "UC",
-    Rare: "R",
-    "Super Rare": "SR",
-    "Secret Rare": "SEC",
-    Leader: "L",
-    Special: "SP",
-    Promo: "P",
-  };
-  return rarityMap[rarity] || rarity;
-};
-
 interface ListCard {
   id: number;
   cardId: string;

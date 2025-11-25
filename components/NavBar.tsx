@@ -26,6 +26,7 @@ import {
   Layers,
   Copy,
   FolderOpen,
+  ShoppingBag,
 } from "lucide-react";
 import LoginModal from "./LoginModal";
 
@@ -147,12 +148,25 @@ const NavBar = () => {
       icon: Upload,
       description: "Bulk upload card sets",
     },
+    {
+      href: "/admin/create-decks",
+      label: "Decks para venta",
+      icon: ShoppingBag,
+      description: "Crea decks especiales para la tienda",
+    },
+    {
+      href: "/admin/shop-decks",
+      label: "Gestionar decks venta",
+      icon: Layers,
+      description: "Edita y publica tus decks de tienda",
+    },
   ];
 
   // Menú completo para desktop
   const desktopMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
+    { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
@@ -178,6 +192,7 @@ const NavBar = () => {
   const mobileMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
+    { href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 
   if (userId) {

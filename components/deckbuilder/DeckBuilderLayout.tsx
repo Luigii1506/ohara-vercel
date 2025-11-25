@@ -281,10 +281,10 @@ const CompleteDeckBuilderLayout = ({
 
         const matchesAltArts =
           selectedAltArts?.length === 0 ||
-          selectedAltArts.includes(card.alternateArt ?? "") ||
           (card.alternates ?? []).some((alt) =>
             selectedAltArts.includes(alt.alternateArt ?? "")
-          );
+          ) ||
+          selectedAltArts.includes(card.alternateArt ?? "");
 
         const matchesCosts =
           selectedCosts.length === 0 || selectedCosts.includes(card.cost ?? "");
@@ -714,16 +714,18 @@ const CompleteDeckBuilderLayout = ({
           {viewSelected === "alternate" && (
             <div className="flex flex-col gap-5">
               {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                // Función que verifica si la carta base cumple con los filtros
+                // Función que verifica si la carta base cumple con los filtros de display
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
                   let matches = true;
+                  // Solo aplicar filtro de Sets para display
                   if (selectedSets.length > 0) {
                     matches =
                       card.sets?.some((s) =>
                         selectedSets.includes(s.set.title)
                       ) || false;
                   }
+                  // Si hay filtro de altArts, solo mostrar la base si coincide
                   if (selectedAltArts.length > 0) {
                     matches =
                       matches && selectedAltArts.includes(card?.alternateArt ?? "");
@@ -735,12 +737,14 @@ const CompleteDeckBuilderLayout = ({
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
                     let matches = true;
+                    // Solo aplicar filtro de Sets para display
                     if (selectedSets.length > 0) {
                       matches =
                         alt.sets?.some((s) =>
                           selectedSets.includes(s.set.title)
                         ) || false;
                     }
+                    // Si hay filtro de altArts, solo mostrar alternativas que coinciden
                     if (selectedAltArts.length > 0) {
                       matches =
                         matches &&

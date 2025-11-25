@@ -968,6 +968,10 @@ export const categoryOptions = [
     value: "Stage",
     label: "Stage",
   },
+  {
+    value: "DON",
+    label: "Don!!",
+  },
 ];
 
 export const rarityOptions = [

@@ -831,7 +831,8 @@ const ProxiesBuilder = ({
           selectedAltArts?.length === 0 ||
           (card.alternates ?? []).some((alt) =>
             selectedAltArts.includes(alt.alternateArt ?? "")
-          );
+          ) ||
+          selectedAltArts.includes(card.alternateArt ?? "");
 
         const matchesCosts =
           selectedCosts.length === 0 || selectedCosts.includes(card.cost ?? "");
@@ -1218,6 +1219,51 @@ const ProxiesBuilder = ({
           {viewSelected === "alternate" && (
             <div className="flex flex-col gap-5">
               {filteredCards?.slice(0, visibleCount).map((card, index) => {
+                // Función que verifica si la carta base cumple con los filtros de display
+                const baseCardMatches = (): boolean => {
+                  if (!card) return false;
+                  let matches = true;
+                  // Solo aplicar filtro de Sets para display
+                  if (selectedSets.length > 0) {
+                    matches =
+                      card.sets?.some((s) =>
+                        selectedSets.includes(s.set.title)
+                      ) || false;
+                  }
+                  // Si hay filtro de altArts, solo mostrar la base si coincide
+                  if (selectedAltArts.length > 0) {
+                    matches =
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                  }
+                  return matches;
+                };
+
+                const getFilteredAlternates = () => {
+                  if (!card?.alternates) return [];
+                  return card.alternates.filter((alt) => {
+                    let matches = true;
+                    // Solo aplicar filtro de Sets para display
+                    if (selectedSets.length > 0) {
+                      matches =
+                        alt.sets?.some((s) =>
+                          selectedSets.includes(s.set.title)
+                        ) || false;
+                    }
+                    // Si hay filtro de altArts, solo mostrar alternativas que coinciden
+                    if (selectedAltArts.length > 0) {
+                      matches =
+                        matches &&
+                        selectedAltArts.includes(alt.alternateArt ?? "");
+                    }
+                    return matches;
+                  });
+                };
+
+                const filteredAlts = getFilteredAlternates();
+
+                if (!baseCardMatches() && filteredAlts.length === 0)
+                  return null;
+
                 const totalQuantityBase = proxies
                   ?.filter((card_alt) => card_alt.code === card.code)
                   .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
@@ -1275,14 +1321,15 @@ const ProxiesBuilder = ({
                       </div>
 
                       {/* Base Card */}
-                      <div
-                        onClick={(e) => handleCardClick(e, card, card)}
-                        className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
-                          totalQuantityBase >= 4
-                            ? "opacity-70 grayscale"
-                            : "hover:shadow-md"
-                        }`}
-                      >
+                      {baseCardMatches() && (
+                        <div
+                          onClick={(e) => handleCardClick(e, card, card)}
+                          className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
+                            totalQuantityBase >= 4
+                              ? "opacity-70 grayscale"
+                              : "hover:shadow-md"
+                          }`}
+                        >
                         <div className="flex justify-center items-center w-full relative">
                           <LazyImage
                             src={card?.src}
@@ -1320,9 +1367,10 @@ const ProxiesBuilder = ({
                           ))}
                         </div>
                       </div>
+                      )}
 
                       {/* Alternate Cards */}
-                      {card?.alternates?.map((alt) => {
+                      {filteredAlts.map((alt) => {
                         const alternateInProxies = proxies.find(
                           (proxyCard) => proxyCard.cardId === Number(alt.id)
                         );
@@ -1402,8 +1450,52 @@ const ProxiesBuilder = ({
 
           {viewSelected === "list" && (
             <div className="grid gap-3 grid-cols-3 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card, index) => (
+              {filteredCards?.slice(0, visibleCount).map((card, index) => {
+                // Función que determina si la carta base coincide con los filtros
+                const baseCardMatches = (): boolean => {
+                  if (!card) return false;
+                  let matches = true;
+                  if (selectedSets.length > 0) {
+                    matches =
+                      card.sets?.some((s) =>
+                        selectedSets.includes(s.set.title)
+                      ) || false;
+                  }
+                  if (selectedAltArts.length > 0) {
+                    matches =
+                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                  }
+                  return matches;
+                };
+
+                // Función que filtra las alternates según set y altArts
+                const getFilteredAlternates = () => {
+                  if (!card?.alternates) return [];
+                  return card.alternates.filter((alt) => {
+                    let matches = true;
+                    if (selectedSets.length > 0) {
+                      matches = alt.sets.some((s) =>
+                        selectedSets.includes(s.set.title)
+                      );
+                    }
+                    if (selectedAltArts.length > 0) {
+                      matches =
+                        matches &&
+                        selectedAltArts.includes(alt.alternateArt ?? "");
+                    }
+                    return matches;
+                  });
+                };
+
+                const filteredAlts = getFilteredAlternates();
+
+                // Si ni la carta base ni alguna alterna coinciden, no renderizamos nada
+                if (!baseCardMatches() && filteredAlts.length === 0)
+                  return null;
+
+                return (
                 <React.Fragment key={card.id}>
+                  {baseCardMatches() && (
                   <div
                     onClick={(e) => handleCardClick(e, card, card)}
                     className="w-full cursor-pointer transition-all duration-200 rounded-lg"
@@ -1452,8 +1544,9 @@ const ProxiesBuilder = ({
                       })()}
                     </div>
                   </div>
+                  )}
 
-                  {card?.alternates?.map((alt) => {
+                  {filteredAlts.map((alt) => {
                     const alternateInProxies = proxies.find(
                       (proxyCard) => proxyCard.cardId === Number(alt.id)
                     );
@@ -1504,14 +1597,83 @@ const ProxiesBuilder = ({
                     );
                   })}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {viewSelected === "grid" && (
             <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card, index) => (
+              {filteredCards?.slice(0, visibleCount).map((card, index) => {
+                // Función que determina si la carta base cumple con los filtros
+                const baseCardMatches = (card: any): boolean => {
+                  if (!card) return false;
+                  let match = true;
+
+                  if (
+                    [
+                      "Demo Version",
+                      "Not for Sale",
+                      "Pre-Errata",
+                      "Pre-Release",
+                    ].includes(card.alternateArt ?? "")
+                  ) {
+                    return false;
+                  }
+
+                  if (selectedSets.length > 0) {
+                    match =
+                      card.sets?.some((s: any) =>
+                        selectedSets.includes(s.set.title)
+                      ) ?? false;
+                  }
+                  if (selectedAltArts.length > 0) {
+                    match =
+                      match && selectedAltArts.includes(card?.alternateArt ?? "");
+                  }
+                  return match;
+                };
+
+                // Función que determina si una alterna cumple los filtros
+                const alternateMatches = (alt: any): boolean => {
+                  let match = true;
+
+                  if (
+                    [
+                      "Demo Version",
+                      "Not for Sale",
+                      "Pre-Errata",
+                      "Pre-Release",
+                    ].includes(alt.alternateArt ?? "")
+                  ) {
+                    return false;
+                  }
+
+                  if (selectedSets.length > 0) {
+                    match =
+                      alt.sets?.some((s: any) =>
+                        selectedSets.includes(s.set.title)
+                      ) ?? false;
+                  }
+                  if (selectedAltArts.length > 0) {
+                    match =
+                      match && selectedAltArts.includes(alt.alternateArt ?? "");
+                  }
+                  return match;
+                };
+
+                // Filtrar las alternates que cumplen los criterios
+                const filteredAlternates =
+                  card.alternates?.filter((alt) => alternateMatches(alt)) || [];
+
+                // Si ni la carta base ni ninguna alterna cumplen, no renderizamos nada para esta carta
+                if (!baseCardMatches(card) && filteredAlternates.length === 0)
+                  return null;
+
+                return (
                 <React.Fragment key={card.id}>
+                  {/* Render the base card only if it matches the filters */}
+                  {baseCardMatches(card) && (
                   <div
                     className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
                     onClick={(e) => handleCardClick(e, card, card)}
@@ -1555,8 +1717,9 @@ const ProxiesBuilder = ({
                       );
                     })()}
                   </div>
+                  )}
 
-                  {card?.alternates?.map((alt) => {
+                  {filteredAlternates.map((alt) => {
                     const alternateInProxies = proxies.find(
                       (proxyCard) => proxyCard.cardId === Number(alt.id)
                     );
@@ -1602,7 +1765,8 @@ const ProxiesBuilder = ({
                     );
                   })}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

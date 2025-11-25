@@ -24,6 +24,7 @@ export type CardRuling = {
 
 export type CardData = {
   src: string;
+  imageKey?: string | null;
   name: string;
   _id: string;
   types: { type: string }[];
@@ -64,6 +65,7 @@ export interface Card {
   counter: string | null; // nuevo campo para el counter
   colors: { color: string }[];
   src: string;
+  imageKey?: string | null;
   triggerCard?: string | null; // agregamos la propiedad triggerCard
   types?: { type: string }[]; // agregamos la propiedad types
   code: string; // agregamos la propiedad code

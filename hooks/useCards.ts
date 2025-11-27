@@ -134,6 +134,7 @@ const buildQueryString = (params: FetchCardsPageParams): string => {
 
   const entries: Array<[keyof CardsFilters, string]> = [
     ["sets", "sets"],
+    ["setCodes", "codes"],
     ["colors", "colors"],
     ["rarities", "rarities"],
     ["categories", "categories"],
@@ -206,6 +207,7 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
 
   const entries: Array<[keyof CardsFilters, string]> = [
     ["sets", "sets"],
+    ["setCodes", "codes"],
     ["colors", "colors"],
     ["rarities", "rarities"],
     ["categories", "categories"],

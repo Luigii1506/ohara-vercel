@@ -84,6 +84,11 @@ const ProxiesBuilder = ({
   const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
   const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
 
+  const normalizedSelectedSets = useMemo(
+    () => selectedSets.map((value) => value.toLowerCase()),
+    [selectedSets]
+  );
+
   const [isGrid, setIsGrid] = useState(false);
 
   const [isTouchable, setIsTouchable] = useState(true);
@@ -806,12 +811,23 @@ const ProxiesBuilder = ({
             selectedColors.includes(col.color.toLowerCase())
           );
 
+        const baseSetCode = card.setCode?.toLowerCase();
+        const matchesBaseSet = Boolean(
+          baseSetCode && normalizedSelectedSets.includes(baseSetCode)
+        );
+
+        const matchesAlternateSet =
+          card.alternates?.some((alt) => {
+            const altSetCode = alt.setCode?.toLowerCase();
+            return Boolean(
+              altSetCode && normalizedSelectedSets.includes(altSetCode)
+            );
+          }) ?? false;
+
         const matchesSets =
-          selectedSets?.length === 0 ||
-          card.sets.some((set) => selectedSets.includes(set.set.title)) ||
-          (card.alternates ?? []).some((alt) =>
-            alt.sets.some((set) => selectedSets.includes(set.set.title))
-          );
+          normalizedSelectedSets.length === 0 ||
+          matchesBaseSet ||
+          matchesAlternateSet;
 
         const matchesTypes =
           selectedTypes.length === 0 ||
@@ -906,7 +922,7 @@ const ProxiesBuilder = ({
     selectedTrigger,
     selectedEffects,
     selectedTypes,
-    selectedSets,
+    normalizedSelectedSets,
     selectedCosts,
     selectedPower,
     selectedAttributes,
@@ -1222,40 +1238,42 @@ const ProxiesBuilder = ({
                 // Función que verifica si la carta base cumple con los filtros de display
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
-                  let matches = true;
-                  // Solo aplicar filtro de Sets para display
-                  if (selectedSets.length > 0) {
-                    matches =
-                      card.sets?.some((s) =>
-                        selectedSets.includes(s.set.title)
-                      ) || false;
+
+                  if (normalizedSelectedSets.length > 0) {
+                    const baseSetCode = card.setCode?.toLowerCase();
+                    if (
+                      !baseSetCode ||
+                      !normalizedSelectedSets.includes(baseSetCode)
+                    ) {
+                      return false;
+                    }
                   }
-                  // Si hay filtro de altArts, solo mostrar la base si coincide
+
                   if (selectedAltArts.length > 0) {
-                    matches =
-                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                    return selectedAltArts.includes(card?.alternateArt ?? "");
                   }
-                  return matches;
+
+                  return true;
                 };
 
                 const getFilteredAlternates = () => {
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
-                    let matches = true;
-                    // Solo aplicar filtro de Sets para display
-                    if (selectedSets.length > 0) {
-                      matches =
-                        alt.sets?.some((s) =>
-                          selectedSets.includes(s.set.title)
-                        ) || false;
+                    if (normalizedSelectedSets.length > 0) {
+                      const altSetCode = alt.setCode?.toLowerCase();
+                      if (
+                        !altSetCode ||
+                        !normalizedSelectedSets.includes(altSetCode)
+                      ) {
+                        return false;
+                      }
                     }
-                    // Si hay filtro de altArts, solo mostrar alternativas que coinciden
+
                     if (selectedAltArts.length > 0) {
-                      matches =
-                        matches &&
-                        selectedAltArts.includes(alt.alternateArt ?? "");
+                      return selectedAltArts.includes(alt.alternateArt ?? "");
                     }
-                    return matches;
+
+                    return true;
                   });
                 };
 
@@ -1454,36 +1472,40 @@ const ProxiesBuilder = ({
                 // Función que determina si la carta base coincide con los filtros
                 const baseCardMatches = (): boolean => {
                   if (!card) return false;
-                  let matches = true;
-                  if (selectedSets.length > 0) {
-                    matches =
-                      card.sets?.some((s) =>
-                        selectedSets.includes(s.set.title)
-                      ) || false;
+
+                  if (normalizedSelectedSets.length > 0) {
+                    const baseSetCode = card.setCode?.toLowerCase();
+                    if (
+                      !baseSetCode ||
+                      !normalizedSelectedSets.includes(baseSetCode)
+                    ) {
+                      return false;
+                    }
                   }
+
                   if (selectedAltArts.length > 0) {
-                    matches =
-                      matches && selectedAltArts.includes(card?.alternateArt ?? "");
+                    return selectedAltArts.includes(card?.alternateArt ?? "");
                   }
-                  return matches;
+
+                  return true;
                 };
 
-                // Función que filtra las alternates según set y altArts
                 const getFilteredAlternates = () => {
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
-                    let matches = true;
-                    if (selectedSets.length > 0) {
-                      matches = alt.sets.some((s) =>
-                        selectedSets.includes(s.set.title)
-                      );
+                    if (normalizedSelectedSets.length > 0) {
+                      const altSetCode = alt.setCode?.toLowerCase();
+                      if (
+                        !altSetCode ||
+                        !normalizedSelectedSets.includes(altSetCode)
+                      ) {
+                        return false;
+                      }
                     }
                     if (selectedAltArts.length > 0) {
-                      matches =
-                        matches &&
-                        selectedAltArts.includes(alt.alternateArt ?? "");
+                      return selectedAltArts.includes(alt.alternateArt ?? "");
                     }
-                    return matches;
+                    return true;
                   });
                 };
 
@@ -1608,7 +1630,6 @@ const ProxiesBuilder = ({
                 // Función que determina si la carta base cumple con los filtros
                 const baseCardMatches = (card: any): boolean => {
                   if (!card) return false;
-                  let match = true;
 
                   if (
                     [
@@ -1621,23 +1642,22 @@ const ProxiesBuilder = ({
                     return false;
                   }
 
-                  if (selectedSets.length > 0) {
-                    match =
-                      card.sets?.some((s: any) =>
-                        selectedSets.includes(s.set.title)
-                      ) ?? false;
+                  if (normalizedSelectedSets.length > 0) {
+                    const baseSetCode = card.setCode?.toLowerCase();
+                    if (
+                      !baseSetCode ||
+                      !normalizedSelectedSets.includes(baseSetCode)
+                    ) {
+                      return false;
+                    }
                   }
                   if (selectedAltArts.length > 0) {
-                    match =
-                      match && selectedAltArts.includes(card?.alternateArt ?? "");
+                    return selectedAltArts.includes(card?.alternateArt ?? "");
                   }
-                  return match;
+                  return true;
                 };
 
-                // Función que determina si una alterna cumple los filtros
                 const alternateMatches = (alt: any): boolean => {
-                  let match = true;
-
                   if (
                     [
                       "Demo Version",
@@ -1649,17 +1669,19 @@ const ProxiesBuilder = ({
                     return false;
                   }
 
-                  if (selectedSets.length > 0) {
-                    match =
-                      alt.sets?.some((s: any) =>
-                        selectedSets.includes(s.set.title)
-                      ) ?? false;
+                  if (normalizedSelectedSets.length > 0) {
+                    const altSetCode = alt.setCode?.toLowerCase();
+                    if (
+                      !altSetCode ||
+                      !normalizedSelectedSets.includes(altSetCode)
+                    ) {
+                      return false;
+                    }
                   }
                   if (selectedAltArts.length > 0) {
-                    match =
-                      match && selectedAltArts.includes(alt.alternateArt ?? "");
+                    return selectedAltArts.includes(alt.alternateArt ?? "");
                   }
-                  return match;
+                  return true;
                 };
 
                 // Filtrar las alternates que cumplen los criterios

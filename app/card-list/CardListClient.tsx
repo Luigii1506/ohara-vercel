@@ -92,6 +92,7 @@ const matchesCardFilters = (
   const {
     search,
     sets,
+    setCodes,
     colors,
     rarities,
     categories,
@@ -137,19 +138,26 @@ const matchesCardFilters = (
 
   if (sets?.length) {
     const normalizedSets = sets.map((value) => value.toLowerCase());
-    const setCode = toLower(card.setCode);
+    const baseSetCode = toLower(card.setCode);
+    const matchesBase = Boolean(
+      baseSetCode && normalizedSets.includes(baseSetCode)
+    );
+    const matchesAlternate =
+      card.alternates?.some((alt) => {
+        const altSetCode = toLower(alt.setCode);
+        return Boolean(altSetCode && normalizedSets.includes(altSetCode));
+      }) ?? false;
 
-    const matchesByCode = normalizedSets.includes(setCode);
-    const matchesByTitle =
-      card.sets?.some((entry) =>
-        normalizedSets.includes(toLower(entry.set.title))
-      ) ?? false;
-    const matchesBySetCode =
-      card.sets?.some((entry) =>
-        normalizedSets.includes(toLower(entry.set.code))
-      ) ?? false;
+    if (!matchesBase && !matchesAlternate) {
+      return false;
+    }
+  }
 
-    if (!matchesByCode && !matchesByTitle && !matchesBySetCode) {
+  if (setCodes?.length) {
+    const matchesSelectedCode = setCodes.some((selectedCode) =>
+      matchesCardCode(card.code, selectedCode)
+    );
+    if (!matchesSelectedCode) {
       return false;
     }
   }
@@ -217,10 +225,12 @@ const matchesCardFilters = (
   if (altArts?.length) {
     // La carta debe coincidir si su alternateArt está en el filtro
     // O si alguna de sus alternativas tiene ese alternateArt
-    const baseMatches = card.alternateArt && altArts.includes(card.alternateArt);
-    const hasMatchingAlternate = card.alternates?.some(alt =>
-      alt.alternateArt && altArts.includes(alt.alternateArt)
-    ) ?? false;
+    const baseMatches =
+      card.alternateArt && altArts.includes(card.alternateArt);
+    const hasMatchingAlternate =
+      card.alternates?.some(
+        (alt) => alt.alternateArt && altArts.includes(alt.alternateArt)
+      ) ?? false;
 
     if (!baseMatches && !hasMatchingAlternate) {
       return false;
@@ -359,12 +369,10 @@ const CardListClient = ({
 
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
   const filters = useMemo<CardsFilters>(() => {
-    // Combinar selectedCodes (set codes como OP01) y selectedSets (set titles)
-    const allSets = [...selectedCodes, ...selectedSets];
-
     return {
       search: search.trim() || undefined,
-      sets: allSets.length > 0 ? allSets : undefined,
+      sets: selectedSets.length > 0 ? selectedSets : undefined,
+      setCodes: selectedCodes.length > 0 ? selectedCodes : undefined,
       colors: selectedColors.length > 0 ? selectedColors : undefined,
       rarities: selectedRarities.length > 0 ? selectedRarities : undefined,
       categories:

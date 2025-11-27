@@ -115,10 +115,8 @@ export const buildFiltersFromSearchParams = (
 };
 
 const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
-  const nonEmptySetCodeFilter: Prisma.StringFilter<"Card"> = { gt: "" };
   const where: Prisma.CardWhereInput = {
     baseCardId: null,
-    setCode: nonEmptySetCodeFilter,
     AND: [],
   };
 
@@ -136,7 +134,9 @@ const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   }
 
   if (filters.sets?.length) {
-    where.setCode = { in: filters.sets };
+    (where.AND as any[]).push({
+      setCode: { in: filters.sets },
+    });
   }
 
   if (filters.setCodes?.length) {
@@ -248,9 +248,6 @@ const buildInclude = (
   if (includeAlternates) {
     include.alternateCards = {
       orderBy: { order: "asc" },
-      where: {
-        setCode: { gt: "" },
-      },
       select: {
         id: true,
         src: true,

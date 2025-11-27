@@ -42,22 +42,40 @@ const StoreCard: React.FC<StoreCard> = ({
   setIsOpen,
   onClick, // Add the onClick parameter
 }) => {
+  const normalizedSelectedSets = React.useMemo(
+    () => selectedSets.map((value) => value.toLowerCase()),
+    [selectedSets]
+  );
+
   // Función que retorna el src según selectedSets y preferredRarities
   const getCard = (): CardWithCollectionData => {
     // Si se enviaron selectedSets
-    if (selectedSets.length > 0) {
+    if (normalizedSelectedSets.length > 0) {
       // Si la carta tiene algún set cuyo title esté en selectedSets, usar el src de la carta
-      const cardHasSelectedSet = card.sets?.some((s) =>
-        selectedSets.includes(s.set.title)
-      );
+      const baseSetCode = card.setCode?.toLowerCase();
+      const cardHasSelectedSet =
+        (baseSetCode && normalizedSelectedSets.includes(baseSetCode)) ||
+        card.sets?.some((s) =>
+          s.set.code
+            ? normalizedSelectedSets.includes(s.set.code.toLowerCase())
+            : false
+        );
       if (cardHasSelectedSet) {
         return card;
       }
       // Si no, buscar en las alternates aquella que tenga un set coincidente
       if (card.alternates && card.alternates.length > 0) {
-        const altWithSet = card.alternates.find((alt) =>
-          alt.sets.some((s) => selectedSets.includes(s.set.title))
-        );
+        const altWithSet = card.alternates.find((alt) => {
+          const altSetCode = alt.setCode?.toLowerCase();
+          if (altSetCode && normalizedSelectedSets.includes(altSetCode)) {
+            return true;
+          }
+          return alt.sets.some((s) =>
+            s.set.code
+              ? normalizedSelectedSets.includes(s.set.code.toLowerCase())
+              : false
+          );
+        });
         if (altWithSet) {
           return altWithSet;
         }

@@ -1,27 +1,25 @@
 interface SearchResultsProps {
   count: number;
-  totalWithAlternates?: number;
+  uniqueCount?: number;
   showResult?: boolean;
 }
 
 export default function SearchResults({
   count = 0,
-  totalWithAlternates,
+  uniqueCount,
   showResult = false,
 }: SearchResultsProps) {
-  const showAlternatesCount =
-    totalWithAlternates && totalWithAlternates > count;
+  const showUniqueCount =
+    typeof uniqueCount === "number" && uniqueCount > 0 && uniqueCount !== count;
 
   return (
     <div className=" flex justify-between items-center">
       {showResult && (
         <p className="!text-sm text-muted-foreground md:text-lg">
-          {showAlternatesCount && (
-            <span className="font-medium text-foreground">
-              {totalWithAlternates.toLocaleString()}
-            </span>
-          )}{" "}
-          <span>{count === 1 ? "result " : "results "} </span>
+          <span className="font-semibold text-foreground mr-1">
+            {count.toLocaleString()}
+          </span>
+          <span>{count === 1 ? "result" : "results"}</span>
         </p>
       )}
     </div>

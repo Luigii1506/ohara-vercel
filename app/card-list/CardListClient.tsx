@@ -647,12 +647,44 @@ const CardListClient = ({
   ]);
 
   // Calcular el total incluyendo alternativas
-  const totalCardsWithAlternates = useMemo(() => {
-    return filteredCards.reduce((total, card) => {
-      // Contar la carta base + sus alternativas
-      return total + 1 + (card.alternates?.length ?? 0);
-    }, 0);
-  }, [filteredCards]);
+  const { totalVisibleCards, uniqueVisibleCards } = useMemo(() => {
+    if (!filteredCards.length) {
+      return {
+        totalVisibleCards: 0,
+        uniqueVisibleCards: 0,
+      };
+    }
+
+    return filteredCards.reduce(
+      (acc, card) => {
+        const baseVisible = baseCardMatches(card, selectedSets, selectedAltArts);
+        const filteredAlternates = getFilteredAlternates(
+          card,
+          selectedSets,
+          selectedAltArts
+        );
+        const alternatesVisible = filteredAlternates.length;
+
+        if (baseVisible) {
+          acc.totalVisibleCards += 1;
+        }
+
+        if (alternatesVisible > 0) {
+          acc.totalVisibleCards += alternatesVisible;
+        }
+
+        if (baseVisible || alternatesVisible > 0) {
+          acc.uniqueVisibleCards += 1;
+        }
+
+        return acc;
+      },
+      {
+        totalVisibleCards: 0,
+        uniqueVisibleCards: 0,
+      }
+    );
+  }, [filteredCards, selectedSets, selectedAltArts]);
 
   // Actualizar URL cuando cambien los filtros
   useEffect(() => {
@@ -679,6 +711,9 @@ const CardListClient = ({
     selectedCounter,
     selectedTrigger,
     selectedSort,
+    selectedCodes,
+    selectedAltArts,
+    selectedRegion,
   ]);
 
   useEffect(() => {
@@ -905,8 +940,8 @@ const CardListClient = ({
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">
         <div className="flex items-center gap-3">
           <SearchResults
-            count={filteredCards?.length ?? 0}
-            totalWithAlternates={totalCardsWithAlternates}
+            count={totalVisibleCards}
+            uniqueCount={uniqueVisibleCards}
             showResult={isFullyLoaded || hasCompletedOnce}
           />
 

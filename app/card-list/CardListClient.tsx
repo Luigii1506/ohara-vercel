@@ -711,6 +711,9 @@ const CardListClient = ({
     selectedCounter,
     selectedTrigger,
     selectedSort,
+    selectedCodes,
+    selectedAltArts,
+    selectedRegion,
   ]);
 
   useEffect(() => {

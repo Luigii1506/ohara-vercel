@@ -62,98 +62,184 @@ export const standarDecks = [
 ];
 
 export const setOptions = [
-  { value: "Romance Dawn", label: "OP01 Romance Dawn" },
-  { value: "Paramount War", label: "OP02 Paramount War" },
-  { value: "Pillars of Strength", label: "OP03 Pillars of Strength" },
-  { value: "Kingdoms of Intrigue", label: "OP04 Kingdoms of Intrigue" },
-  { value: "Awakening of the New Era", label: "OP05 Awakening of the New Era" },
-  { value: "Wings of the Captain", label: "OP06 Wings of the Captain" },
-  { value: "500 Years in the Future", label: "OP07 500 Years in the Future" },
-  { value: "Two Legends", label: "OP08 Two Legends" },
   {
-    value: "Emperors in the New World",
+    value: "OP01",
+    label: "OP01 Romance Dawn",
+  },
+  {
+    value: "OP02",
+    label: "OP02 Paramount War",
+  },
+  {
+    value: "OP03",
+    label: "OP03 Pillars of Strength",
+  },
+  {
+    value: "OP04",
+    label: "OP04 Kingdoms of Intrigue",
+  },
+  {
+    value: "OP05",
+    label: "OP05 Awakening of the New Era",
+  },
+  {
+    value: "OP06",
+    label: "OP06 Wings of the Captain",
+  },
+  {
+    value: "OP07",
+    label: "OP07 500 Years in the Future",
+  },
+  {
+    value: "OP08",
+    label: "OP08 Two Legends",
+  },
+  {
+    value: "OP09",
     label: "OP09 Emperors in the New World",
   },
   {
-    value: "Royal Blood",
+    value: "OP10",
     label: "OP10 Royal Blood",
   },
   {
-    value: "A Fist of Divine Speed",
+    value: "OP11",
     label: "OP11 A Fist of Divine Speed",
   },
-  { value: "Legacy of the Master", label: "OP12 Legacy of the Master" },
-  { value: "Carrying on His Will", label: "OP13 Carrying on His Will" },
-  { value: "Memorial Collection", label: "EB01 Memorial Collection" },
-  { value: "Anime 25th Collection", label: "EB02 Anime 25th Collection" },
-  { value: "One Piece The Best", label: "PRB01 One Piece The Best" },
   {
-    value: "One Piece Card The Best Vol.2",
+    value: "OP12",
+    label: "OP12 Legacy of the Master",
+  },
+  {
+    value: "OP13",
+    label: "OP13 Carrying on His Will",
+  },
+  {
+    value: "EB01",
+    label: "EB01 Memorial Collection",
+  },
+  {
+    value: "EB02",
+    label: "EB02 Anime 25th Collection",
+  },
+  {
+    value: "PRB01",
+    label: "PRB01 One Piece The Best",
+  },
+  {
+    value: "PRB02",
     label: "PRB02 One Piece Card The Best Vol.2",
   },
-  { value: "Straw Hat Crew", label: "ST01 Straw Hat Crew" },
-  { value: "Worst Generation", label: "ST02 Worst Generation" },
   {
-    value: "The Seven Warlords of the Sea",
+    value: "ST01",
+    label: "ST01 Straw Hat Crew",
+  },
+  {
+    value: "ST02",
+    label: "ST02 Worst Generation",
+  },
+  {
+    value: "ST03",
     label: "ST03 The Seven Warlords of the Sea",
   },
-  { value: "Animal Kingdom Pirates", label: "ST04 Animal Kingdom Pirates" },
-  { value: "ONE PIECE FILM edition", label: "ST05 ONE PIECE FILM edition" },
-  { value: "Absolute Justice", label: "ST06 Absolute Justice" },
-  { value: "Big Mom Pirates", label: "ST07 Big Mom Pirates" },
-  { value: "Monkey D. Luffy", label: "ST08 Monkey D. Luffy" },
-  { value: "Yamato", label: "ST09 Yamato" },
   {
-    value: "Ultra Deck: The Three Captains",
+    value: "ST04",
+    label: "ST04 Animal Kingdom Pirates",
+  },
+  {
+    value: "ST05",
+    label: "ST05 ONE PIECE FILM edition",
+  },
+  {
+    value: "ST06",
+    label: "ST06 Absolute Justice",
+  },
+  {
+    value: "ST07",
+    label: "ST07 Big Mom Pirates",
+  },
+  {
+    value: "ST08",
+    label: "ST08 Monkey D. Luffy",
+  },
+  {
+    value: "ST09",
+    label: "ST09 Yamato",
+  },
+  {
+    value: "ST10",
     label: "ST10 Ultra Deck: The Three Captains",
   },
-  { value: "Uta", label: "ST11 Uta" },
-  { value: "Zoro & Sanji", label: "ST12 Zoro & Sanji" },
   {
-    value: "Ultra Deck: The Three Brothers",
+    value: "ST11",
+    label: "ST11 Uta",
+  },
+  {
+    value: "ST12",
+    label: "ST12 Zoro & Sanji",
+  },
+  {
+    value: "ST13",
     label: "ST13 Ultra Deck: The Three Brothers",
   },
-  { value: "3D2Y", label: "ST14 3D2Y" },
-  { value: "RED Edward.Newgate", label: "ST15 RED Edward.Newgate" },
-  { value: "GREEN Uta", label: "ST16 GREEN Uta" },
   {
-    value: "BLUE Donquixote Doflamingo",
+    value: "ST14",
+    label: "ST14 3D2Y",
+  },
+  {
+    value: "ST15",
+    label: "ST15 RED Edward.Newgate",
+  },
+  {
+    value: "ST16",
+    label: "ST16 GREEN Uta",
+  },
+  {
+    value: "ST17",
     label: "ST17 BLUE Donquixote Doflamingo",
   },
-  { value: "PURPLE Monkey.D.Luffy", label: "ST18 PURPLE Monkey.D.Luffy" },
-  { value: "BLACK Smoker", label: "ST19 BLACK Smoker" },
   {
-    value: "YELLOW Charlotte Katakuri",
+    value: "ST18",
+    label: "ST18 PURPLE Monkey.D.Luffy",
+  },
+  {
+    value: "ST19",
+    label: "ST19 BLACK Smoker",
+  },
+  {
+    value: "ST20",
     label: "ST20 YELLOW Charlotte Katakuri",
   },
   {
-    value: "EX Gear 5",
+    value: "ST21",
     label: "ST21 EX Gear 5",
   },
-  { value: "Ace & Newgate", label: "ST22 Ace & Newgate" },
   {
-    value: "RED Shanks",
+    value: "ST22",
+    label: "ST22 Ace & Newgate",
+  },
+  {
+    value: "ST23",
     label: "ST23 RED Shanks",
   },
   {
-    value: "GREEN Jewelry Bonney",
+    value: "ST24",
     label: "ST24 GREEN Jewelry Bonney",
   },
   {
-    value: "BLUE Buggy",
+    value: "ST25",
     label: "ST25 BLUE Buggy",
   },
   {
-    value: "PURPLE/BLACK Monkey.D.Luffy",
+    value: "ST26",
     label: "ST26 PURPLE/BLACK Monkey.D.Luffy",
   },
   {
-    value: "BLACK Marshall.D.Teach",
+    value: "ST27",
     label: "ST27 BLACK Marshall.D.Teach",
   },
-
   {
-    value: "GREEN/YELLOW Yamato",
+    value: "ST28",
     label: "ST28 GREEN/YELLOW Yamato",
   },
 ];

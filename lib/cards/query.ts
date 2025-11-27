@@ -95,12 +95,10 @@ const splitParam = (value: string | null | undefined) =>
 export const buildFiltersFromSearchParams = (
   params: URLSearchParams
 ): CardsFilters => {
-  const codes = splitParam(params.get("codes"));
-  const sets = splitParam(params.get("sets"));
-
   return {
     search: params.get("search") ?? undefined,
-    sets: codes.length ? codes : sets,
+    sets: splitParam(params.get("sets")),
+    setCodes: splitParam(params.get("codes")),
     colors: splitParam(params.get("colors")),
     rarities: splitParam(params.get("rarities")),
     categories: splitParam(params.get("categories")),
@@ -138,40 +136,15 @@ const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   }
 
   if (filters.sets?.length) {
-    // Los filtros pueden ser códigos de set (OP01, EB01) o nombres de set
-    // Intentamos detectar si son códigos (cortos, sin espacios) o nombres
-    const hasCodes = filters.sets.some(s => /^[A-Z]{2,3}\d+/.test(s));
-    const hasNames = filters.sets.some(s => s.includes(' ') || s.length > 10);
+    where.setCode = { in: filters.sets };
+  }
 
-    if (hasCodes && !hasNames) {
-      // Solo códigos
-      where.setCode = { in: filters.sets };
-    } else if (hasNames && !hasCodes) {
-      // Solo nombres
-      where.sets = {
-        some: {
-          set: {
-            title: { in: filters.sets }
-          }
-        }
-      };
-    } else {
-      // Mezcla de ambos
-      (where.AND as any[]).push({
-        OR: [
-          { setCode: { in: filters.sets } },
-          {
-            sets: {
-              some: {
-                set: {
-                  title: { in: filters.sets }
-                }
-              }
-            }
-          }
-        ]
-      });
-    }
+  if (filters.setCodes?.length) {
+    (where.AND as any[]).push({
+      OR: filters.setCodes.map((code) => ({
+        code: { contains: code, mode: "insensitive" },
+      })),
+    });
   }
 
   if (filters.colors?.length) {

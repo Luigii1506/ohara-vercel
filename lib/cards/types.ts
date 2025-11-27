@@ -3,6 +3,7 @@ import { CardWithCollectionData } from "@/types";
 export type CardsFilters = {
   search?: string;
   sets?: string[];
+  setCodes?: string[];
   colors?: string[];
   rarities?: string[];
   categories?: string[];

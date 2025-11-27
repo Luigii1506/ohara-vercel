@@ -30,35 +30,45 @@ export const matchesCardCode = (code: string, search: string): boolean => {
 
 export const baseCardMatches = (
   card: CardWithCollectionData | undefined,
-  selectedSets: string[],
-  selectedAltArts: string[]
+  selectedSets: string[] = [],
+  selectedAltArts: string[] = []
 ): boolean => {
   if (!card) return false;
-  let matches = true;
 
-  if (selectedSets.length > 0) {
-    matches = card.sets?.some((s) => selectedSets.includes(s.set.title)) || false;
+  if (selectedSets?.length) {
+    const normalizedSets = selectedSets.map((value) => value.toLowerCase());
+    const baseSetCode = card.setCode?.toLowerCase();
+    if (!baseSetCode || !normalizedSets.includes(baseSetCode)) {
+      return false;
+    }
   }
-  if (selectedAltArts.length > 0) {
-    matches = matches && selectedAltArts.includes(card?.alternateArt ?? "");
+
+  if (selectedAltArts?.length) {
+    return selectedAltArts.includes(card.alternateArt ?? "");
   }
-  return matches;
+
+  return true;
 };
 
 export const getFilteredAlternates = (
   card: CardWithCollectionData | undefined,
-  selectedSets: string[],
-  selectedAltArts: string[]
+  selectedSets: string[] = [],
+  selectedAltArts: string[] = []
 ): CardWithCollectionData[] => {
   if (!card?.alternates) return [];
   return card.alternates.filter((alt) => {
-    let matches = true;
-    if (selectedSets.length > 0) {
-      matches = alt.sets?.some((s) => selectedSets.includes(s.set.title)) || false;
+    if (selectedSets?.length) {
+      const normalizedSets = selectedSets.map((value) => value.toLowerCase());
+      const altSetCode = alt.setCode?.toLowerCase();
+      if (!altSetCode || !normalizedSets.includes(altSetCode)) {
+        return false;
+      }
     }
-    if (selectedAltArts.length > 0) {
-      matches = matches && selectedAltArts.includes(alt.alternateArt ?? "");
+
+    if (selectedAltArts?.length) {
+      return selectedAltArts.includes(alt.alternateArt ?? "");
     }
-    return matches;
+
+    return true;
   });
 };

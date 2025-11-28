@@ -1,7 +1,7 @@
 import CardListClient from "./CardListClient";
 import {
   buildFiltersFromSearchParams,
-  fetchCardsPageFromDb,
+  fetchAllCardsFromDb,
 } from "@/lib/cards/query";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import { mergeFiltersWithSetCode } from "@/lib/cards/types";
@@ -43,14 +43,22 @@ export default async function CardListPage({ searchParams }: PageProps) {
     setCode
   );
 
-  const initialData: CardsPage = await fetchCardsPageFromDb({
+  const allCards = await fetchAllCardsFromDb({
     filters: initialFilters,
-    limit: DEFAULT_LIMIT,
-    cursor: null,
     includeRelations: true,
     includeAlternates: true,
     includeCounts: true,
   });
+
+  const initialItems = allCards.slice(0, DEFAULT_LIMIT);
+  const initialData: CardsPage = {
+    items: initialItems,
+    nextCursor:
+      allCards.length > DEFAULT_LIMIT
+        ? initialItems[initialItems.length - 1]?.id ?? null
+        : null,
+    hasMore: allCards.length > DEFAULT_LIMIT,
+  };
 
   return (
     <CardListClient initialData={initialData} initialFilters={initialFilters} />

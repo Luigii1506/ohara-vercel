@@ -61,6 +61,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
 }) => {
   const [editingAlternate, setEditingAlternate] =
     React.useState<AlternateCard | null>(null);
+  const [localLoading, setLocalLoading] = React.useState(false);
 
   // 🎯 Ref para el botón guardar
   const saveButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -88,6 +89,12 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
     setLocalSets(sets);
     setLocalSetsDropdown(setsDropdown);
   }, [sets, setsDropdown]);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setLocalLoading(false);
+    }
+  }, [isOpen]);
 
   // 🚀 Enter key handler - Focus save button
   React.useEffect(() => {
@@ -166,6 +173,10 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
   const handleSave = async () => {
     if (!editingAlternate) return;
 
+    const setLoadingState = (value: boolean) => {
+      setLocalLoading(value);
+    };
+
     // Verificar si es una alterna temporal (nueva)
     const isTempAlternate =
       typeof editingAlternate.id === "string" &&
@@ -173,6 +184,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
 
     if (isTempAlternate) {
       // Es una nueva alterna, crear en BD
+      setLoadingState(true);
       try {
         // Preparar datos para crear en BD
         const newAlternateData = {
@@ -209,10 +221,17 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
       } catch (error) {
         console.error("Error al crear alterna en BD:", error);
         throw error; // Re-lanzar para que el componente padre maneje el error
+      } finally {
+        setLoadingState(false);
       }
     } else {
       // Es una alterna existente, solo actualizar
-      await onSave(editingAlternate);
+      try {
+        setLoadingState(true);
+        await onSave(editingAlternate);
+      } finally {
+        setLoadingState(false);
+      }
     }
   };
 
@@ -318,7 +337,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
                     value={editingAlternate.src || ""}
                     onChange={(e) => handleFieldChange("src", e.target.value)}
                     placeholder="https://..."
-                    disabled={loading}
+                    disabled={loading || localLoading}
                   />
                 </div>
 
@@ -330,7 +349,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
                     value={editingAlternate.alias || ""}
                     onChange={(e) => handleFieldChange("alias", e.target.value)}
                     placeholder="Nombre de la variación"
-                    disabled={loading}
+                    disabled={loading || localLoading}
                   />
                 </div>
               </div>
@@ -345,7 +364,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAddSetModal(true)}
-                  disabled={loading}
+                  disabled={loading || localLoading}
                   className="h-6 px-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                   title="Crear nuevo set"
                 >
@@ -367,37 +386,37 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
                 isSolid={true}
                 isSearchable={true}
                 isFullWidth={true}
-                isDisabled={loading}
+                isDisabled={loading || localLoading}
               />
             </div>
 
             {/* URL TCG */}
             <div>
               <Label htmlFor="tcgUrl">URL TCG</Label>
-              <Input
-                id="tcgUrl"
-                value={editingAlternate.tcgUrl || ""}
-                onChange={(e) => handleFieldChange("tcgUrl", e.target.value)}
-                placeholder="https://..."
-                disabled={loading}
-              />
-            </div>
+                <Input
+                  id="tcgUrl"
+                  value={editingAlternate.tcgUrl || ""}
+                  onChange={(e) => handleFieldChange("tcgUrl", e.target.value)}
+                  placeholder="https://..."
+                  disabled={loading || localLoading}
+                />
+              </div>
 
             {/* Tipo de Arte Alternativo */}
             <div>
               <Label>Tipo de Arte</Label>
-              <SingleSelect
-                options={altArtOptions}
-                selected={editingAlternate.alternateArt || ""}
-                setSelected={(value) =>
-                  handleFieldChange("alternateArt", value)
-                }
-                buttonLabel="Seleccionar tipo"
-                isSearchable={true}
-                isSolid={true}
-                isFullWidth={true}
-                isDisabled={loading}
-              />
+                <SingleSelect
+                  options={altArtOptions}
+                  selected={editingAlternate.alternateArt || ""}
+                  setSelected={(value) =>
+                    handleFieldChange("alternateArt", value)
+                  }
+                  buttonLabel="Seleccionar tipo"
+                  isSearchable={true}
+                  isSolid={true}
+                  isFullWidth={true}
+                  isDisabled={loading || localLoading}
+                />
             </div>
 
             {/* Región */}
@@ -411,7 +430,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
                 isSearchable={true}
                 isSolid={true}
                 isFullWidth={true}
-                isDisabled={loading}
+                isDisabled={loading || localLoading}
               />
             </div>
 
@@ -433,7 +452,7 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
             <Button
               variant="outline"
               onClick={handleModalClose}
-              disabled={loading}
+              disabled={loading || localLoading}
             >
               Cancelar
             </Button>
@@ -442,11 +461,12 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
               onClick={handleSave}
               disabled={
                 loading ||
+                localLoading ||
                 !editingAlternate ||
                 editingAlternate.sets.length === 0
               }
             >
-              {loading ? (
+              {loading || localLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Guardando...

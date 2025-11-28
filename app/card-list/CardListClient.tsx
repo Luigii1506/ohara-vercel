@@ -1138,21 +1138,21 @@ const CardListClient = ({
                                     >
                                       {highlightText(card?.code, search)}
                                     </span>
-                                    <span className="text-center text-[13px] line-clamp-1">
-                                      {highlightText(
-                                        card?.sets[0].set?.title,
-                                        search
-                                      )}
-                                    </span>
+                                  <span className="text-center text-[13px] line-clamp-1">
+                                    {highlightText(
+                                      card?.sets?.[0]?.set?.title ?? "",
+                                      search
+                                    )}
+                                  </span>
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>
-                                    {highlightText(
-                                      card?.sets[0].set?.title,
-                                      search
-                                    )}
-                                  </p>
+                                <p>
+                                  {highlightText(
+                                    card?.sets?.[0]?.set?.title ?? "",
+                                    search
+                                  )}
+                                </p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -1203,7 +1203,7 @@ const CardListClient = ({
                                       </span>
                                       <span className="text-center text-[13px] line-clamp-1">
                                         {highlightText(
-                                          alt?.sets[0].set?.title,
+                                          alt?.sets?.[0]?.set?.title ?? "",
                                           search
                                         )}
                                       </span>
@@ -1212,7 +1212,7 @@ const CardListClient = ({
                                   <TooltipContent>
                                     <p>
                                       {highlightText(
-                                        alt?.sets[0].set?.title,
+                                        alt?.sets?.[0]?.set?.title ?? "",
                                         search
                                       )}
                                     </p>

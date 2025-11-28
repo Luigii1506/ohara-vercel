@@ -6,7 +6,7 @@ import {
 import prisma from "@/lib/prisma";
 import type { Card } from "@prisma/client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -126,6 +126,8 @@ export async function POST(req: NextRequest) {
 
       // Se arma el objeto de datos para la nueva carta,
       // copiando toda la info de la carta encontrada y sobrescribiendo los campos indicados.
+      const baseCardId = existingCard.baseCardId ?? existingCard.id;
+
       const newCardData = {
         ...otherData,
         src, // campo sobrescrito
@@ -136,6 +138,7 @@ export async function POST(req: NextRequest) {
         tcgUrl,
         alias,
         order: order || "0", // Asegurar que siempre tenga un valor
+        baseCardId,
         types:
           existingCard.types.length > 0
             ? { create: existingCard.types.map((t: any) => ({ type: t.type })) }
@@ -221,10 +224,12 @@ export async function POST(req: NextRequest) {
 
     // En ambos casos, se usan los setIds enviados en el body para crear las relaciones en CardSet
     if (setIds && Array.isArray(setIds)) {
-      const setRelations = setIds.map((setId: number) => ({
-        cardId: newCard.id,
-        setId,
-      }));
+      const setRelations = setIds
+        .map((setId: number | string) => ({
+          cardId: newCard.id,
+          setId: Number(setId),
+        }))
+        .filter((relation) => !Number.isNaN(relation.setId));
 
       await prisma.cardSet.createMany({
         data: setRelations,

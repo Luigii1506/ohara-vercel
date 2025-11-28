@@ -51,12 +51,25 @@ export default async function CardListPage({ searchParams }: PageProps) {
   });
 
   const initialItems = allCards.slice(0, DEFAULT_LIMIT);
+  const nextCursor =
+    allCards.length > DEFAULT_LIMIT
+      ? (() => {
+          const lastItem = initialItems[initialItems.length - 1];
+          if (!lastItem?.id && lastItem?.isFirstEdition && lastItem?.code) {
+            return null;
+          }
+          const idValue = lastItem?.id;
+          if (typeof idValue === "number") return idValue;
+          if (typeof idValue === "string" && !Number.isNaN(Number(idValue))) {
+            return Number(idValue);
+          }
+          return null;
+        })()
+      : null;
+
   const initialData: CardsPage = {
     items: initialItems,
-    nextCursor:
-      allCards.length > DEFAULT_LIMIT
-        ? initialItems[initialItems.length - 1]?.id ?? null
-        : null,
+    nextCursor,
     hasMore: allCards.length > DEFAULT_LIMIT,
   };
 

@@ -4,6 +4,11 @@ export const matchesCardCode = (code: string, search: string): boolean => {
   const query = search.toLowerCase().trim();
   const fullCode = code.toLowerCase();
 
+  // Tratamiento especial: el filtro "P-000" representa todos los códigos promocionales
+  if (query === "p-000") {
+    return /^p-\d+$/i.test(code);
+  }
+
   if (query.includes("-")) {
     return fullCode.includes(query);
   }

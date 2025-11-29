@@ -12,8 +12,10 @@ export const setCodes = [
   "OP11",
   "OP12",
   "OP13",
+  "OP14",
   "EB01",
   "EB02",
+  "EB03",
   "PRB01",
   "PRB02",
 ];
@@ -115,12 +117,20 @@ export const setOptions = [
     label: "OP13 Carrying on His Will",
   },
   {
+    value: "OP14",
+    label: "OP14 The Azure Sea's Seven",
+  },
+  {
     value: "EB01",
     label: "EB01 Memorial Collection",
   },
   {
     value: "EB02",
     label: "EB02 Anime 25th Collection",
+  },
+  {
+    value: "EB03",
+    label: "EB03 One Piece Heroines Edition",
   },
   {
     value: "PRB01",
@@ -258,8 +268,10 @@ export const setCodesOptions = [
   { value: "OP11", label: "OP11" },
   { value: "OP12", label: "OP12" },
   { value: "OP13", label: "OP13" },
+  { value: "OP14", label: "OP14" },
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },
+  { value: "EB03", label: "EB03" },
   { value: "PRB01", label: "PRB01" },
   { value: "PRB02", label: "PRB02" },
   { value: "ST01", label: "ST01" },

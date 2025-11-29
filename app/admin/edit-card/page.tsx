@@ -316,12 +316,11 @@ const EditCard = () => {
     return parts.some((part) => part.toLowerCase().includes(query));
   }, []);
 
-  // Filtrado de cartas (igual que ProxiesBuilder)
+  // Filtrado de cartas con expansión de alternas cuando hay filtro de sets
   const filteredCards = useMemo(() => {
     if (!cards || cards.length === 0) return [];
 
-    return cards
-      .filter((card) => {
+    const baseFilteredCards = cards.filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
           card.name.toLowerCase().includes(searchLower) ||
@@ -426,6 +425,56 @@ const EditCard = () => {
         // Aplicar orden estándar de colección (OP → EB → ST → P → otros)
         return sortByCollectionOrder(a, b);
       });
+
+    // Si hay filtro de sets activo, expandir para mostrar las versiones específicas
+    if (selectedSets?.length > 0) {
+      const expandedCards: CardWithCollectionData[] = [];
+
+      baseFilteredCards.forEach((card) => {
+        // Verificar si la carta base coincide con algún set seleccionado
+        const baseMatches = selectedSets.includes(card.setCode);
+
+        // Verificar qué alternas coinciden con los sets seleccionados
+        const matchingAlternates = (card.alternates ?? []).filter((alt) =>
+          selectedSets.includes(alt.setCode)
+        );
+
+        // Si la carta base coincide, agregarla
+        if (baseMatches) {
+          expandedCards.push(card);
+        }
+
+        // Agregar las alternas que coinciden como cartas independientes
+        matchingAlternates.forEach((alt) => {
+          // Crear una versión de la carta usando los datos de la alterna
+          expandedCards.push({
+            ...card,
+            ...alt,
+            // Mantener campos importantes de la carta base
+            name: card.name,
+            colors: card.colors,
+            types: card.types,
+            effects: card.effects,
+            texts: card.texts,
+            // Sobreescribir con datos de la alterna
+            id: alt.id,
+            src: alt.src,
+            sets: alt.sets,
+            setCode: alt.setCode,
+            alias: alt.alias,
+            alternateArt: alt.alternateArt,
+            region: alt.region,
+            isPro: alt.isPro,
+            isFirstEdition: alt.isFirstEdition,
+          });
+        });
+      });
+
+      return expandedCards;
+    }
+
+    // Si no hay filtro de sets, devolver las cartas base normalmente
+    return baseFilteredCards;
   }, [
     cards,
     search,

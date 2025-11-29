@@ -11,7 +11,7 @@ import { CardWithCollectionData } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import MultiSelect from "@/components/MultiSelect";
-import { setCodesOptions } from "@/helpers/constants";
+import { setCodesOptions, setOptions } from "@/helpers/constants";
 import { Oswald } from "next/font/google";
 import { Plus, Edit, Trash2, RefreshCcw, Loader2, Eye } from "lucide-react";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
@@ -348,9 +348,9 @@ const EditCard = () => {
 
         const matchesSets =
           selectedSets?.length === 0 ||
-          card.sets.some((set) => selectedSets.includes(set.set.title)) ||
+          selectedSets.includes(card.setCode) ||
           (card.alternates ?? []).some((alt) =>
-            alt.sets.some((set) => selectedSets.includes(set.set.title))
+            selectedSets.includes(alt.setCode)
           );
 
         const matchesTypes =
@@ -1388,15 +1388,13 @@ const EditCard = () => {
                 {/* Filtros rápidos */}
                 <div className="flex flex-col gap-2">
                   <MultiSelect
-                    options={setCodesOptions.map((option) => ({
-                      value: option.value,
-                      label: option.label,
-                    }))}
+                    options={setOptions}
                     selected={selectedSets}
                     setSelected={setSelectedSets}
                     displaySelectedAs={(selected) =>
                       selected.length === 1
-                        ? selected[0]
+                        ? setOptions.find((s) => s.value === selected[0])
+                            ?.label || selected[0]
                         : `Sets (${selected.length})`
                     }
                     searchPlaceholder="Buscar sets..."

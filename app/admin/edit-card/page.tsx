@@ -61,7 +61,7 @@ const oswald = Oswald({
 interface AlternateCard {
   id: string;
   src: string;
-  sets: { set: { id: string; title: string } }[];
+  sets: { set: { id: string; title: string; code?: string | null } }[];
   alias: string;
   tcgUrl?: string;
   alternateArt?: string | null;
@@ -69,11 +69,14 @@ interface AlternateCard {
   isPro?: boolean;
   region?: string;
   isFirstEdition?: boolean;
+  code?: string;
+  setCode?: string;
 }
 
 interface Set {
   id: string;
   title: string;
+  code?: string | null;
 }
 
 const EditCard = () => {
@@ -600,6 +603,8 @@ const EditCard = () => {
           alternate.sets && alternate.sets.length > 0
             ? alternate.sets
             : selectedCard.sets || [],
+        // Mantener el setCode de la alterna si existe
+        setCode: alternate.setCode || "",
       };
 
       // 🚀 OPTIMISTIC UPDATE: Agregar la alterna clonada inmediatamente al estado
@@ -732,6 +737,7 @@ const EditCard = () => {
           isPro: updatedAlternate.isPro,
           region: updatedAlternate.region,
           setIds: updatedAlternate.sets?.map((s) => s.set.id) || [],
+          setCode: updatedAlternate.setCode || "",
         };
 
         const response = await fetch(`/api/admin/cards/${alternateId}`, {
@@ -1049,6 +1055,7 @@ const EditCard = () => {
       isPro: false,
       region: "",
       isFirstEdition: false, // CRÍTICO: Las alternas nunca son first edition
+      setCode: "", // Inicialmente vacío, se llenará cuando se seleccione un set
     };
 
     // Agregar a la lista local temporalmente

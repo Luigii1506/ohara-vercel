@@ -22,7 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 interface AlternateCard {
   id: string;
   src: string;
-  sets: { set: { id: string; title: string } }[];
+  sets: { set: { id: string; title: string; code?: string | null } }[];
   alias: string;
   tcgUrl?: string;
   alternateArt?: string | null;
@@ -31,11 +31,13 @@ interface AlternateCard {
   region?: string;
   isFirstEdition?: boolean;
   code?: string;
+  setCode?: string;
 }
 
 interface Set {
   id: string;
   title: string;
+  code?: string | null;
 }
 
 interface EditAlternateModalProps {
@@ -143,7 +145,21 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
       const setData = localSets.find((s) => s.id === setId);
       return setData ? { set: setData } : { set: { id: setId, title: setId } };
     });
-    handleFieldChange("sets", newSets);
+
+    // Actualizar setCode basado en el primer set seleccionado
+    let newSetCode = "";
+    if (setIds.length > 0) {
+      const firstSetData = localSets.find((s) => s.id === setIds[0]);
+      // Si el set tiene código, usarlo. Si no, dejar vacío
+      newSetCode = (firstSetData as any)?.code || "";
+    }
+
+    // Actualizar ambos campos: sets y setCode
+    setEditingAlternate({
+      ...editingAlternate,
+      sets: newSets,
+      setCode: newSetCode,
+    });
   };
 
   // Manejar cuando se crea un nuevo set

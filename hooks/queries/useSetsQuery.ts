@@ -5,6 +5,7 @@ import { useMemo } from "react";
 interface Set {
   id: string;
   title: string;
+  code?: string | null;
 }
 
 /**

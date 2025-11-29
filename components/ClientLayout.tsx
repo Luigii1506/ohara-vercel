@@ -14,10 +14,20 @@ export default function ClientLayout({
   const pathname = usePathname();
   // Verificar si la ruta actual es `/login`, cualquier ruta del seller o user-store
   const isLoginPage = pathname === "/login";
+  const isRegisterPage = pathname === "/register";
+  const isForgotPassword = pathname === "/forgot-password";
+  const isResetPassword = pathname === "/reset-password";
   const isSellerPage = pathname.startsWith("/seller");
   const isUserStorePage = pathname.startsWith("/user-store");
 
-  if (isLoginPage || isSellerPage || isUserStorePage) {
+  if (
+    isLoginPage ||
+    isRegisterPage ||
+    isForgotPassword ||
+    isResetPassword ||
+    isSellerPage ||
+    isUserStorePage
+  ) {
     return <>{children}</>; // Renderiza directamente los hijos si es login, seller o user-store
   }
 

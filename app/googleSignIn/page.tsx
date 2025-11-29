@@ -6,9 +6,15 @@ const SignInPage = () => {
   const { data: session, status } = useSession();
 
   useEffect(() => {
-    if (!(status === "loading") && !session) void signIn("google");
+    if (!(status === "loading") && !session) {
+      void signIn("google", {
+        callbackUrl: "/googleSignIn",
+      });
+    }
 
-    if (session) window.close();
+    if (session) {
+      window.close();
+    }
   }, [session, status]);
 
   return (

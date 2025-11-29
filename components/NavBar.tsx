@@ -345,14 +345,26 @@ const NavBar = () => {
               {/* Botones de autenticación desktop */}
               <div className="hidden md:flex gap-4">
                 {userId ? (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
-                    onClick={() => signOut({ callbackUrl: "/?from=logout" })}
-                  >
-                    <LogOutIcon size={18} />
-                    <span>Sign Out</span>
-                  </Button>
+                  <>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
+                    >
+                      <Link href="/account/settings" className="flex items-center gap-2">
+                        <UserIcon size={18} />
+                        <span>Mi cuenta</span>
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
+                      onClick={() => signOut({ callbackUrl: "/?from=logout" })}
+                    >
+                      <LogOutIcon size={18} />
+                      <span>Sign Out</span>
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     onClick={() => setIsOpen(true)}

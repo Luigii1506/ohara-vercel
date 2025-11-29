@@ -86,6 +86,16 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           <div className="grid gap-4">
             <Button
               variant="outline"
+              className="w-full bg-black text-white border border-gray-800 hover:bg-gray-900 flex items-center justify-center gap-2 py-5"
+              onClick={() => {
+                onClose();
+                router.push("/login");
+              }}
+            >
+              <span>Continue with email</span>
+            </Button>
+            <Button
+              variant="outline"
               className="w-full bg-white text-black border border-gray-300 hover:bg-gray-100 flex items-center justify-center gap-2 py-5"
               onClick={() => popupCenter("/googleSignIn", "Sample Sign In")}
             >

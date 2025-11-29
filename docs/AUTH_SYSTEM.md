@@ -143,3 +143,16 @@ const user = await prisma.user.findUnique({
 // Por esto:
 const user = await requireAuth();
 ```
+
+## 🔐 Recuperación de contraseña
+
+El sistema soporta restablecimiento de contraseñas sin exponer datos sensibles:
+
+- `POST /api/auth/forgot-password`: genera un token efímero y envía un correo con el enlace (`/reset-password?token=...`). Responde exitosamente aunque el correo no exista, para evitar enumeración.
+- `POST /api/auth/reset-password`: valida el token, actualiza la contraseña (bcrypt) y marca el token como usado. Invalidamos cualquier token pendiente del mismo usuario.
+- Componentes UI disponibles en `/forgot-password` y `/reset-password`.
+- Los usuarios que se autentican con Google pueden añadir una contraseña en `/account/settings` o registrarse de nuevo con el mismo correo: si la cuenta no tenía `password`, se activa sin perder datos.
+
+### Configuración de correo
+
+Define `RESEND_API_KEY` y `EMAIL_FROM` (p.ej. `Ohara TCG <no-reply@oharatcg.com>`) para habilitar el envío real. Si no hay API key, el sistema loguea el contenido en consola para facilitar el desarrollo.

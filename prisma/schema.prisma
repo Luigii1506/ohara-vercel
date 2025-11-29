@@ -184,6 +184,7 @@ model User {
   id                Int               @id @default(autoincrement())
   email             String            @unique
   name              String
+  password          String?
   createdAt         DateTime?         @default(now()) @map("createdAt")
   updatedAt         DateTime?         @updatedAt @map("updatedAt")
   role              String            @default("USER")
@@ -205,6 +206,7 @@ model User {
   sessions          Session[]
   shippingAddresses ShippingAddress[]
   lists             UserList[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Account {
@@ -566,6 +568,20 @@ model Review {
   @@index([productId])
   @@index([sellerProfileId])
   @@index([userId])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([token])
 }
 
 enum Role {

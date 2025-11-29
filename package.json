@@ -63,6 +63,7 @@
     "@tanstack/react-query-devtools": "^5.87.1",
     "@tanstack/react-query-persist-client": "^5.90.2",
     "@types/qrcode": "^1.5.5",
+    "bcryptjs": "^3.0.3",
     "chart.js": "^4.4.8",
     "cheerio": "^1.0.0-rc.12",
     "class-variance-authority": "^0.7.1",

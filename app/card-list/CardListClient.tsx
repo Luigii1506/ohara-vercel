@@ -138,14 +138,21 @@ const matchesCardFilters = (
 
   if (sets?.length) {
     const normalizedSets = sets.map((value) => value.toLowerCase());
-    const baseSetCode = toLower(card.setCode);
-    const matchesBase = Boolean(
-      baseSetCode && normalizedSets.includes(baseSetCode)
-    );
+
+    // Dividir setCode por comas y verificar si alguno coincide
+    const baseSetCodes = (card.setCode ?? "")
+      .split(",")
+      .map((code) => code.trim().toLowerCase())
+      .filter(Boolean);
+    const matchesBase = baseSetCodes.some((code) => normalizedSets.includes(code));
+
     const matchesAlternate =
       card.alternates?.some((alt) => {
-        const altSetCode = toLower(alt.setCode);
-        return Boolean(altSetCode && normalizedSets.includes(altSetCode));
+        const altSetCodes = (alt.setCode ?? "")
+          .split(",")
+          .map((code) => code.trim().toLowerCase())
+          .filter(Boolean);
+        return altSetCodes.some((code) => normalizedSets.includes(code));
       }) ?? false;
 
     if (!matchesBase && !matchesAlternate) {

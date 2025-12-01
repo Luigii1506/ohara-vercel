@@ -209,7 +209,7 @@ export default function AddToInventory() {
           : card.triggerCard !== null;
 
       const matchedCode =
-        selectedCodes?.length === 0 || selectedCodes.includes(card.setCode);
+        selectedCodes?.length === 0 || (card.setCode ?? "").split(",").some(code => selectedCodes.includes(code.trim()));
 
       return (
         matchesSearch &&

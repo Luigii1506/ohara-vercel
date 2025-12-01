@@ -299,17 +299,22 @@ const CompleteDeckBuilderLayout = ({
             selectedColors.includes(col.color.toLowerCase())
           );
 
-        const baseSetCode = card.setCode?.toLowerCase();
-        const matchesBaseSet = Boolean(
-          baseSetCode && normalizedSelectedSets.includes(baseSetCode)
+        // Dividir setCode por comas y verificar si alguno coincide
+        const baseSetCodes = (card.setCode ?? "")
+          .split(",")
+          .map((code) => code.trim().toLowerCase())
+          .filter(Boolean);
+        const matchesBaseSet = baseSetCodes.some((code) =>
+          normalizedSelectedSets.includes(code)
         );
 
         const matchesAlternateSet =
           card.alternates?.some((alt) => {
-            const altSetCode = alt.setCode?.toLowerCase();
-            return Boolean(
-              altSetCode && normalizedSelectedSets.includes(altSetCode)
-            );
+            const altSetCodes = (alt.setCode ?? "")
+              .split(",")
+              .map((code) => code.trim().toLowerCase())
+              .filter(Boolean);
+            return altSetCodes.some((code) => normalizedSelectedSets.includes(code));
           }) ?? false;
 
         const matchesSets =
@@ -368,7 +373,7 @@ const CompleteDeckBuilderLayout = ({
             : card.triggerCard !== null;
 
         const matchedCode =
-          selectedCodes?.length === 0 || selectedCodes.includes(card.setCode);
+          selectedCodes?.length === 0 || (card.setCode ?? "").split(",").some(code => selectedCodes.includes(code.trim()));
 
         return (
           matchesSearch &&
@@ -771,11 +776,11 @@ const CompleteDeckBuilderLayout = ({
                   if (!card) return false;
 
                   if (normalizedSelectedSets.length > 0) {
-                    const baseSetCode = card.setCode?.toLowerCase();
-                    if (
-                      !baseSetCode ||
-                      !normalizedSelectedSets.includes(baseSetCode)
-                    ) {
+                    const baseSetCodes = (card.setCode ?? "")
+                      .split(",")
+                      .map((code: string) => code.trim().toLowerCase())
+                      .filter(Boolean);
+                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
                       return false;
                     }
                   }
@@ -791,11 +796,11 @@ const CompleteDeckBuilderLayout = ({
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
                     if (normalizedSelectedSets.length > 0) {
-                      const altSetCode = alt.setCode?.toLowerCase();
-                      if (
-                        !altSetCode ||
-                        !normalizedSelectedSets.includes(altSetCode)
-                      ) {
+                      const altSetCodes = (alt.setCode ?? "")
+                        .split(",")
+                        .map((code) => code.trim().toLowerCase())
+                        .filter(Boolean);
+                      if (!altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
                         return false;
                       }
                     }
@@ -1031,10 +1036,12 @@ const CompleteDeckBuilderLayout = ({
                           if (normalizedSelectedSets.length === 0) {
                             return true;
                           }
-                          const altSetCode = alt.setCode?.toLowerCase();
-                          return Boolean(
-                            altSetCode &&
-                              normalizedSelectedSets.includes(altSetCode)
+                          const altSetCodes = (alt.setCode ?? "")
+                            .split(",")
+                            .map((code) => code.trim().toLowerCase())
+                            .filter(Boolean);
+                          return altSetCodes.some((code) =>
+                            normalizedSelectedSets.includes(code)
                           );
                         })
                         .map((alt) => {
@@ -1102,11 +1109,11 @@ const CompleteDeckBuilderLayout = ({
                   if (!card) return false;
 
                   if (normalizedSelectedSets.length > 0) {
-                    const baseSetCode = card.setCode?.toLowerCase();
-                    if (
-                      !baseSetCode ||
-                      !normalizedSelectedSets.includes(baseSetCode)
-                    ) {
+                    const baseSetCodes = (card.setCode ?? "")
+                      .split(",")
+                      .map((code: string) => code.trim().toLowerCase())
+                      .filter(Boolean);
+                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
                       return false;
                     }
                   }
@@ -1123,11 +1130,11 @@ const CompleteDeckBuilderLayout = ({
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
                     if (normalizedSelectedSets.length > 0) {
-                      const altSetCode = alt.setCode?.toLowerCase();
-                      if (
-                        !altSetCode ||
-                        !normalizedSelectedSets.includes(altSetCode)
-                      ) {
+                      const altSetCodes = (alt.setCode ?? "")
+                        .split(",")
+                        .map((code) => code.trim().toLowerCase())
+                        .filter(Boolean);
+                      if (!altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
                         return false;
                       }
                     }
@@ -1298,11 +1305,11 @@ const CompleteDeckBuilderLayout = ({
                   }
 
                   if (normalizedSelectedSets.length > 0) {
-                    const baseSetCode = card.setCode?.toLowerCase();
-                    if (
-                      !baseSetCode ||
-                      !normalizedSelectedSets.includes(baseSetCode)
-                    ) {
+                    const baseSetCodes = (card.setCode ?? "")
+                      .split(",")
+                      .map((code: string) => code.trim().toLowerCase())
+                      .filter(Boolean);
+                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
                       return false;
                     }
                   }
@@ -1326,11 +1333,11 @@ const CompleteDeckBuilderLayout = ({
                   }
 
                   if (normalizedSelectedSets.length > 0) {
-                    const altSetCode = alt.setCode?.toLowerCase();
-                    if (
-                      !altSetCode ||
-                      !normalizedSelectedSets.includes(altSetCode)
-                    ) {
+                    const altSetCodes = (alt.setCode ?? "")
+                      .split(",")
+                      .map((code: string) => code.trim().toLowerCase())
+                      .filter(Boolean);
+                    if (!altSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
                       return false;
                     }
                   }

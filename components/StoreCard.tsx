@@ -52,9 +52,12 @@ const StoreCard: React.FC<StoreCard> = ({
     // Si se enviaron selectedSets
     if (normalizedSelectedSets.length > 0) {
       // Si la carta tiene algún set cuyo title esté en selectedSets, usar el src de la carta
-      const baseSetCode = card.setCode?.toLowerCase();
+      const baseSetCodes = (card.setCode ?? "")
+        .split(",")
+        .map((code) => code.trim().toLowerCase())
+        .filter(Boolean);
       const cardHasSelectedSet =
-        (baseSetCode && normalizedSelectedSets.includes(baseSetCode)) ||
+        baseSetCodes.some((code) => normalizedSelectedSets.includes(code)) ||
         card.sets?.some((s) =>
           s.set.code
             ? normalizedSelectedSets.includes(s.set.code.toLowerCase())
@@ -66,8 +69,11 @@ const StoreCard: React.FC<StoreCard> = ({
       // Si no, buscar en las alternates aquella que tenga un set coincidente
       if (card.alternates && card.alternates.length > 0) {
         const altWithSet = card.alternates.find((alt) => {
-          const altSetCode = alt.setCode?.toLowerCase();
-          if (altSetCode && normalizedSelectedSets.includes(altSetCode)) {
+          const altSetCodes = (alt.setCode ?? "")
+            .split(",")
+            .map((code) => code.trim().toLowerCase())
+            .filter(Boolean);
+          if (altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
             return true;
           }
           return alt.sets.some((s) =>

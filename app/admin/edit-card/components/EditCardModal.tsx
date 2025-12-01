@@ -17,6 +17,7 @@ import MultiSelect from "@/components/MultiSelect";
 import { effectsOptions } from "@/helpers/constants";
 import { Plus, X, Save, Loader2 } from "lucide-react";
 import LazyImage from "@/components/LazyImage";
+import { useSetsQuery } from "@/hooks/queries/useSetsQuery";
 
 // Helper function para extraer valores de arrays que pueden tener diferentes estructuras
 const extractArrayValues = (arr: any[], field: string): string[] => {
@@ -66,6 +67,7 @@ interface EditCardFormData {
   cardText: string;
   effects: string[];
   conditions: string[];
+  setIds: string[];
 }
 
 const EditCardModal: React.FC<EditCardModalProps> = ({
@@ -76,6 +78,19 @@ const EditCardModal: React.FC<EditCardModalProps> = ({
   loading = false,
   isCloneMode = false,
 }) => {
+  // Obtener sets desde la base de datos
+  const { data: sets = [], isLoading: setsLoading } = useSetsQuery();
+
+  // Crear dropdown options para el MultiSelect
+  const setsDropdown = React.useMemo(
+    () =>
+      sets.map((set) => ({
+        value: set.id,
+        label: set.code ? `${set.code} - ${set.title}` : set.title,
+      })),
+    [sets]
+  );
+
   const [formData, setFormData] = React.useState<EditCardFormData>({
     name: "",
     code: "",
@@ -85,6 +100,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({
     cardText: "",
     effects: [],
     conditions: [],
+    setIds: [],
   });
 
   // Actualizar form data cuando cambia la carta
@@ -99,6 +115,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({
         cardText: extractTextValues(card.texts || []),
         effects: extractArrayValues(card.effects || [], "effect"),
         conditions: extractArrayValues(card.conditions || [], "condition"),
+        setIds: card.sets?.map((s) => s.set.id) || [],
       });
     }
   }, [card]);
@@ -141,22 +158,35 @@ const EditCardModal: React.FC<EditCardModalProps> = ({
   const handleSave = async () => {
     if (!card) return;
 
+    // Calcular setCode a partir de los setIds seleccionados
+    const setCodes: string[] = [];
+    formData.setIds.forEach((setId) => {
+      const setData = sets.find((s) => s.id === setId);
+      if (setData && setData.code) {
+        setCodes.push(setData.code);
+      }
+    });
+    const setCode = setCodes.length > 0 ? setCodes.join(",") : "";
+
     // Construir objeto de actualización según el modo
-    const updatedCard: Partial<CardWithCollectionData> = {
-      src: formData.src,
-      tcgUrl: formData.tcgUrl.trim() === "" ? "" : formData.tcgUrl,
-      triggerCard:
-        formData.triggerCard.trim() === "" ? "" : formData.triggerCard,
-      // 🔧 ADDED: Include missing fields with correct format
-      texts:
-        formData.cardText.trim() === ""
-          ? []
-          : [{ text: formData.cardText.trim() }],
-      effects: formData.effects.map((effect) => ({ effect })),
-      conditions: formData.conditions
-        .filter((cond) => cond.trim() !== "")
-        .map((condition) => ({ condition })),
-    };
+    const updatedCard: Partial<CardWithCollectionData> & { setIds?: string[] } =
+      {
+        src: formData.src,
+        tcgUrl: formData.tcgUrl.trim() === "" ? "" : formData.tcgUrl,
+        triggerCard:
+          formData.triggerCard.trim() === "" ? "" : formData.triggerCard,
+        // 🔧 ADDED: Include missing fields with correct format
+        texts:
+          formData.cardText.trim() === ""
+            ? []
+            : [{ text: formData.cardText.trim() }],
+        effects: formData.effects.map((effect) => ({ effect })),
+        conditions: formData.conditions
+          .filter((cond) => cond.trim() !== "")
+          .map((condition) => ({ condition })),
+        setIds: formData.setIds,
+        setCode: setCode,
+      };
 
     // En modo clonado, incluir nombre y código
     if (isCloneMode) {
@@ -495,6 +525,39 @@ const EditCardModal: React.FC<EditCardModalProps> = ({
                       isSearchable={true}
                       isFullWidth={true}
                       isDisabled={loading}
+                    />
+                  </div>
+                </div>
+
+                {/* Sets */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                    Sets de la Carta
+                  </h4>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Sets
+                    </Label>
+                    <MultiSelect
+                      options={setsDropdown}
+                      selected={formData.setIds || []}
+                      setSelected={(setIds) =>
+                        handleInputChange("setIds", setIds)
+                      }
+                      displaySelectedAs={(selected) =>
+                        !selected || selected.length === 0
+                          ? "Seleccionar sets"
+                          : selected.length === 1
+                          ? setsDropdown.find((s) => s.value === selected[0])
+                              ?.label || selected[0]
+                          : `${selected.length} sets seleccionados`
+                      }
+                      searchPlaceholder="Buscar sets..."
+                      isSolid={true}
+                      isSearchable={true}
+                      isFullWidth={true}
+                      isDisabled={loading || setsLoading}
                     />
                   </div>
                 </div>

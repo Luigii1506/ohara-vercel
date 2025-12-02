@@ -237,7 +237,8 @@ async function findMatchingSets(detectedTexts: string[]): Promise<number[]> {
   }
 
   // Elimina duplicados
-  return [...new Set(setIds)];
+  const uniqueSetIds = Array.from(new Set(setIds));
+  return uniqueSetIds;
 }
 
 /**

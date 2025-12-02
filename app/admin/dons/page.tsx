@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardList,
   Image as ImageIcon,
   Loader2,
   Pencil,
@@ -15,12 +16,12 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import MultiSelect from "@/components/MultiSelect";
+import { useSetsQuery } from "@/hooks/queries/useSetsQuery";
 
-type AdminSetOption = {
-  id: number;
-  title: string;
-  code?: string | null;
-};
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type DonRecord = {
   id: number;
@@ -43,59 +44,146 @@ type DonRecord = {
   }[];
 };
 
-type DonFormState = {
+type ImageMode = "external" | "r2-url" | "r2-file";
+
+type DonFormData = {
   name: string;
-  setId: number | null;
-  src: string;
-  imageKey: string;
+  setIds: string[];
+  imageSourceUrl: string;
+  filename: string;
+  finalImageUrl: string;
 };
 
 type StatusMessage = {
-  type: "success" | "error" | "warning" | null;
+  type: "success" | "error" | null;
   message: string;
 };
 
-const EMPTY_FORM: DonFormState = {
+const INITIAL_FORM: DonFormData = {
   name: "",
-  setId: null,
-  src: "",
-  imageKey: "",
+  setIds: [],
+  imageSourceUrl: "",
+  filename: "",
+  finalImageUrl: "",
 };
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
 
 const AdminDonsPage = () => {
   const router = useRouter();
   const { role, loading } = useUser();
 
-  const [sets, setSets] = useState<AdminSetOption[]>([]);
+  const { data: sets = [], isLoading: setsLoading } = useSetsQuery();
+
   const [dons, setDons] = useState<DonRecord[]>([]);
   const [isFetchingList, setIsFetchingList] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
-  const [form, setForm] = useState<DonFormState>(EMPTY_FORM);
+  const [formData, setFormData] = useState<DonFormData>(INITIAL_FORM);
+  const [imageMode, setImageMode] = useState<ImageMode>("r2-url");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formStatus, setFormStatus] = useState<StatusMessage>({
     type: null,
     message: "",
   });
-
-  const [imageSourceUrl, setImageSourceUrl] = useState("");
-  const [filenameInput, setFilenameInput] = useState("");
-
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const fetchSets = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/sets");
-      if (!res.ok) {
-        throw new Error("No se pudieron obtener los sets");
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  const handleInputChange = useCallback(
+    <K extends keyof DonFormData>(field: K, value: DonFormData[K]) => {
+      setFormData((previous) => {
+        const currentValue = previous[field];
+        const nextValue = value;
+
+        const isSameValue =
+          Array.isArray(currentValue) && Array.isArray(nextValue)
+            ? currentValue.length === nextValue.length &&
+              currentValue.every((entry, index) => entry === nextValue[index])
+            : currentValue === nextValue;
+
+        if (isSameValue) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          [field]: Array.isArray(nextValue)
+            ? ([...nextValue] as DonFormData[K])
+            : nextValue,
+        };
+      });
+      setFormStatus({ type: null, message: "" });
+    },
+    []
+  );
+
+  const setIdsLockRef = useRef(false);
+
+  const handleSetSelection = useCallback(
+    (setIds: string[]) => {
+      if (setIdsLockRef.current) {
+        return;
       }
-      const data = await res.json();
-      setSets(data ?? []);
-    } catch (error) {
-      console.error("Error fetching sets", error);
+      setIdsLockRef.current = true;
+      handleInputChange("setIds", setIds);
+      requestAnimationFrame(() => {
+        setIdsLockRef.current = false;
+      });
+    },
+    [handleInputChange]
+  );
+
+  const resetForm = useCallback(() => {
+    setFormData(INITIAL_FORM);
+    setEditingId(null);
+    setFormStatus({ type: null, message: "" });
+    setImageMode("r2-url");
+    setSelectedFile(null);
+  }, []);
+
+  const populateForm = useCallback((don: DonRecord) => {
+    setFormData({
+      name: don.name ?? "",
+      setIds: don.sets?.map((entry) => entry.set.id.toString()) ?? [],
+      imageSourceUrl: "",
+      filename: don.imageKey ?? "",
+      finalImageUrl: don.src ?? "",
+    });
+    setEditingId(don.id);
+    setFormStatus({ type: null, message: "" });
+    setImageMode(don.imageKey ? "r2-url" : "external");
+    setSelectedFile(null);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, []);
+
+  const setsDropdown = useMemo(
+    () =>
+      sets.map((set) => ({
+        value: set.id?.toString?.() ?? String(set.id),
+        label: set.code ? `${set.code} · ${set.title}` : set.title,
+      })),
+    [sets]
+  );
+
+  const selectedSetLabel = useMemo(() => {
+    if (formData.setIds.length === 0) return "Selecciona un set";
+    if (formData.setIds.length > 1) {
+      return `${formData.setIds.length} sets seleccionados`;
+    }
+    return (
+      setsDropdown.find((set) => set.value === formData.setIds[0])?.label ??
+      "Selecciona un set"
+    );
+  }, [formData.setIds, setsDropdown]);
 
   const fetchDons = useCallback(async () => {
     setIsFetchingList(true);
@@ -112,12 +200,24 @@ const AdminDonsPage = () => {
     } catch (error) {
       console.error("Error fetching Don!!", error);
       setListError(
-        error instanceof Error ? error.message : "No se pudieron cargar los Don!!"
+        error instanceof Error
+          ? error.message
+          : "No se pudieron cargar los Don!!"
       );
     } finally {
       setIsFetchingList(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (imageMode !== "r2-file") {
+      setSelectedFile(null);
+    }
+  }, [imageMode]);
+
+  // ---------------------------------------------------------------------------
+  // Effects
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!loading && role !== "ADMIN") {
@@ -127,68 +227,21 @@ const AdminDonsPage = () => {
 
   useEffect(() => {
     if (!loading && role === "ADMIN") {
-      fetchSets();
       fetchDons();
     }
-  }, [loading, role, fetchDons, fetchSets]);
+  }, [loading, role, fetchDons]);
 
-  const handleInputChange = (
-    field: keyof DonFormState,
-    value: string | number | null
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value as never,
-    }));
-  };
-
-  const handleSetChange = (value: string) => {
-    const setId = value ? Number(value) : null;
-    setForm((prev) => ({
-      ...prev,
-      setId,
-    }));
-  };
-
-  const resetForm = () => {
-    setForm(EMPTY_FORM);
-    setEditingId(null);
-    setFormStatus({ type: null, message: "" });
-    setFilenameInput("");
-    setImageSourceUrl("");
-  };
-
-  const populateForm = (don: DonRecord) => {
-    setForm({
-      name: don.name ?? "",
-      setId: don.sets?.[0]?.set?.id ?? null,
-      src: don.src ?? "",
-      imageKey: don.imageKey ?? "",
-    });
-    setFilenameInput(don.imageKey ?? "");
-    setImageSourceUrl("");
-    setEditingId(don.id);
-    setFormStatus({ type: null, message: "" });
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
+  // ---------------------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------------------
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!form.name || !form.setId) {
+    if (!formData.name || formData.setIds.length === 0) {
       setFormStatus({
         type: "error",
         message: "Nombre y Set son obligatorios",
-      });
-      return;
-    }
-
-    if (!imageSourceUrl || !filenameInput) {
-      setFormStatus({
-        type: "error",
-        message: "Debes proporcionar una URL de imagen y un nombre de archivo",
       });
       return;
     }
@@ -197,60 +250,110 @@ const AdminDonsPage = () => {
     setFormStatus({ type: null, message: "" });
 
     try {
-      // 1. Primero subir la imagen a R2
-      const uploadResponse = await fetch("/api/upload-image-r2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: imageSourceUrl,
-          filename: filenameInput,
-          overwrite: true, // Siempre sobrescribir en modo automático
-        }),
-      });
+      const currentEditingDon = editingId
+        ? dons.find((don) => don.id === editingId)
+        : null;
+      const isEditing = Boolean(editingId);
 
-      const uploadData = await uploadResponse.json();
+      let finalSrc = currentEditingDon?.src ?? "";
+      let finalImageKey = currentEditingDon?.imageKey ?? null;
 
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.error || "Error al subir la imagen");
+      const trimmedExternalUrl = formData.finalImageUrl.trim();
+      const trimmedSourceUrl = formData.imageSourceUrl.trim();
+      const trimmedFilename = formData.filename.trim();
+
+      if (imageMode === "external") {
+        if (trimmedExternalUrl) {
+          finalSrc = trimmedExternalUrl;
+          finalImageKey = null;
+        } else if (!isEditing) {
+          throw new Error("Debes proporcionar la URL final de la imagen");
+        }
+      } else if (imageMode === "r2-url") {
+        if (trimmedSourceUrl) {
+          if (!trimmedFilename) {
+            throw new Error("Debes proporcionar un nombre de archivo");
+          }
+          const uploadResponse = await fetch("/api/upload-image-r2", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageUrl: trimmedSourceUrl,
+              filename: trimmedFilename,
+              overwrite: true,
+            }),
+          });
+          const uploadData = await uploadResponse.json();
+          if (!uploadResponse.ok) {
+            throw new Error(uploadData.error || "Error al subir la imagen");
+          }
+          finalSrc = uploadData.r2Url;
+          finalImageKey = uploadData.filename;
+        } else if (!isEditing) {
+          throw new Error("Debes proporcionar una URL de origen para subir a R2");
+        }
+      } else if (imageMode === "r2-file") {
+        if (selectedFile) {
+          if (!trimmedFilename) {
+            throw new Error("Debes proporcionar un nombre de archivo");
+          }
+          const uploadForm = new FormData();
+          uploadForm.append("file", selectedFile);
+          uploadForm.append("filename", trimmedFilename);
+          uploadForm.append("overwrite", "true");
+
+          const uploadResponse = await fetch("/api/upload-image-r2-file", {
+            method: "POST",
+            body: uploadForm,
+          });
+          const uploadData = await uploadResponse.json();
+          if (!uploadResponse.ok) {
+            throw new Error(uploadData.error || "Error al subir la imagen");
+          }
+          finalSrc = uploadData.r2Url;
+          finalImageKey = uploadData.filename;
+        } else if (!isEditing) {
+          throw new Error("Debes seleccionar un archivo para subir a R2");
+        }
       }
 
-      // 2. Obtener el set seleccionado para generar código y setCode
-      const selectedSet = sets.find((s) => s.id === form.setId);
+      if (!finalSrc) {
+        throw new Error("Debes proporcionar una imagen válida");
+      }
+
+      const selectedSet = sets.find(
+        (set) => set.id.toString() === formData.setIds[0]
+      );
       if (!selectedSet) {
         throw new Error("Set no encontrado");
       }
 
       const setCode = selectedSet.code || "DON";
-      const code = `${setCode}-DON`;
-
-      // 3. Crear/actualizar el Don!! con la imagen subida
-      const payload: Record<string, unknown> = {
-        name: form.name,
+      const payload = {
+        name: formData.name,
         alias: null,
-        code: code,
-        setCode: setCode,
-        src: uploadData.r2Url,
-        imageKey: uploadData.filename,
+        code: `${setCode}-DON`,
+        setCode,
+        src: finalSrc,
+        imageKey: finalImageKey ?? null,
         tcgUrl: null,
         order: "0",
         region: "Global",
-        setIds: [form.setId],
+        setIds: formData.setIds,
       };
 
       const endpoint = editingId
         ? `/api/admin/dons/${editingId}`
-        : "/api/admin/dons";
+        : `/api/admin/dons`;
       const method = editingId ? "PATCH" : "POST";
 
-      const res = await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
+      const data = await response.json();
+      if (!response.ok) {
         throw new Error(data?.error || "No se pudo guardar el Don!!");
       }
 
@@ -264,7 +367,9 @@ const AdminDonsPage = () => {
       setFormStatus({
         type: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar el Don!!",
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar el Don!!",
       });
     } finally {
       setIsSaving(false);
@@ -296,12 +401,9 @@ const AdminDonsPage = () => {
     }
   };
 
-  const selectedSetName = useMemo(() => {
-    if (!form.setId) return "";
-    const selected = sets.find((set) => set.id === form.setId);
-    if (!selected) return "";
-    return selected.code ? `${selected.code} · ${selected.title}` : selected.title;
-  }, [form.setId, sets]);
+  // ---------------------------------------------------------------------------
+  // Render helpers
+  // ---------------------------------------------------------------------------
 
   if (!loading && role !== "ADMIN") {
     return (
@@ -312,24 +414,56 @@ const AdminDonsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-8 w-full">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <header className="rounded-xl bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin · Don!!</h1>
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold text-gray-900">
+                Admin · Don!!
+              </h1>
               <p className="text-gray-600">
-                Crea, actualiza y elimina Don!! manteniendo las imágenes en R2 sincronizadas.
+                Crea, actualiza y elimina Don!! manteniendo las imágenes en R2
+                sincronizadas.
               </p>
             </div>
             <button
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-              onClick={() => fetchDons()}
+              onClick={fetchDons}
               disabled={isFetchingList}
             >
-              <RefreshCw className={`h-4 w-4 ${isFetchingList ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${isFetchingList ? "animate-spin" : ""}`}
+              />
               Actualizar lista
             </button>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase text-gray-500">Total Don!!</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {dons.length}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase text-gray-500">
+                Sets disponibles
+              </p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {setsLoading ? "…" : sets.length}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-slate-50 p-4 flex items-center gap-3">
+              <ClipboardList className="h-8 w-8 text-indigo-500" />
+              <div>
+                <p className="text-xs uppercase text-gray-500">
+                  Estado formulario
+                </p>
+                <p className="text-sm text-gray-700">
+                  {editingId ? `Editando ID ${editingId}` : "Nuevo registro"}
+                </p>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -354,8 +488,10 @@ const AdminDonsPage = () => {
                 </label>
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={form.name}
-                  onChange={(event) => handleInputChange("name", event.target.value)}
+                  value={formData.name}
+                  onChange={(event) =>
+                    handleInputChange("name", event.target.value)
+                  }
                   placeholder="Nombre del Don!!"
                   required
                 />
@@ -364,59 +500,189 @@ const AdminDonsPage = () => {
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Set <span className="text-red-500">*</span>
                 </label>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={form.setId ?? ""}
-                  onChange={(event) => handleSetChange(event.target.value)}
-                  required
-                >
-                  <option value="">Selecciona un set</option>
-                  {sets.map((set) => (
-                    <option key={set.id} value={set.id}>
-                      {set.code ? `${set.code} · ${set.title}` : set.title}
-                    </option>
-                  ))}
-                </select>
-                {selectedSetName && (
-                  <p className="mt-1 text-xs text-gray-500">Seleccionado: {selectedSetName}</p>
+                <MultiSelect
+                  options={setsDropdown}
+                  selected={formData.setIds}
+                  setSelected={handleSetSelection}
+                  buttonLabel="Selecciona un set"
+                  searchPlaceholder="Buscar set..."
+                  isSearchable
+                  isSolid
+                  isFullWidth
+                  isDisabled={setsLoading}
+                  displaySelectedAs={() => selectedSetLabel}
+                />
+                {formData.setIds.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {selectedSetLabel}
+                  </p>
                 )}
               </div>
             </div>
 
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-lg border border-dashed border-gray-300 p-4 space-y-4">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
                 <Upload className="h-5 w-5 text-indigo-600" />
-                <p className="text-sm text-gray-600">
-                  La imagen se subirá automáticamente cuando crees el Don!!
-                </p>
+                Elige cómo quieres manejar la imagen de este Don!!
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700">
+                  Origen de la imagen
+                </p>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      className="text-indigo-600"
+                      value="external"
+                      checked={imageMode === "external"}
+                      onChange={() => setImageMode("external")}
+                    />
+                    Usar URL final (sin subir a R2)
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      className="text-indigo-600"
+                      value="r2-url"
+                      checked={imageMode === "r2-url"}
+                      onChange={() => setImageMode("r2-url")}
+                    />
+                    Subir a R2 desde una URL
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      className="text-indigo-600"
+                      value="r2-file"
+                      checked={imageMode === "r2-file"}
+                      onChange={() => setImageMode("r2-file")}
+                    />
+                    Subir un archivo a R2
+                  </label>
+                </div>
+              </div>
+
+              {imageMode === "external" && (
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    URL de imagen fuente <span className="text-red-500">*</span>
+                    URL final de la imagen {editingId ? "" : <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="url"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    value={imageSourceUrl}
-                    onChange={(event) => setImageSourceUrl(event.target.value)}
+                    value={formData.finalImageUrl}
+                    onChange={(event) =>
+                      handleInputChange("finalImageUrl", event.target.value)
+                    }
                     placeholder="https://..."
-                    required
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {editingId
+                      ? "Opcional en modo edición; déjalo vacío para conservar la imagen actual."
+                      : "Se guardará tal cual, sin subirla a R2."}
+                  </p>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Nombre de archivo (sin extensión) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    value={filenameInput}
-                    onChange={(event) => setFilenameInput(event.target.value.replace(/\.(jpg|jpeg|png|webp)$/i, ""))}
-                    placeholder="OP01-DON"
-                    required
-                  />
+              )}
+
+              {imageMode === "r2-url" && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      URL de origen para subir a R2 {editingId ? "" : <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type="url"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={formData.imageSourceUrl}
+                      onChange={(event) =>
+                        handleInputChange("imageSourceUrl", event.target.value)
+                      }
+                      placeholder="https://..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      {editingId
+                        ? "Opcional en modo edición; ingresa una URL solo si quieres reemplazar la imagen."
+                        : "Descargaremos la imagen desde esa URL y la subiremos a R2."}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Nombre de archivo (sin extensión){" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={formData.filename}
+                      onChange={(event) =>
+                        handleInputChange(
+                          "filename",
+                          event.target.value.replace(
+                            /\.(jpg|jpeg|png|webp)$/i,
+                            ""
+                          )
+                        )
+                      }
+                      placeholder="OP01-DON"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Se usará para generar todas las variantes en R2.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {imageMode === "r2-file" && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Archivo local {editingId ? "" : <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      onChange={(event) =>
+                        setSelectedFile(event.target.files?.[0] ?? null)
+                      }
+                    />
+                    {selectedFile && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Archivo seleccionado: {selectedFile.name}
+                      </p>
+                    )}
+                    {editingId && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Opcional en modo edición; déjalo vacío para conservar la imagen actual.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Nombre de archivo (sin extensión){" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={formData.filename}
+                      onChange={(event) =>
+                        handleInputChange(
+                          "filename",
+                          event.target.value.replace(
+                            /\.(jpg|jpeg|png|webp)$/i,
+                            ""
+                          )
+                        )
+                      }
+                      placeholder="OP01-DON"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Se usará como base para las variantes en R2.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {formStatus.type && (
@@ -452,8 +718,8 @@ const AdminDonsPage = () => {
                 {isSaving
                   ? "Subiendo imagen y guardando..."
                   : editingId
-                    ? "Actualizar Don!!"
-                    : "Crear Don!!"}
+                  ? "Actualizar Don!!"
+                  : "Crear Don!!"}
               </button>
               <button
                 type="button"
@@ -470,14 +736,14 @@ const AdminDonsPage = () => {
         <section className="rounded-xl bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Listado de Don!!</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Listado de Don!!
+              </h2>
               <p className="text-sm text-gray-500">
                 Filtra desde la parte superior o administra cada registro.
               </p>
             </div>
-            <span className="text-sm text-gray-500">
-              Total: {dons.length}
-            </span>
+            <span className="text-sm text-gray-500">Total: {dons.length}</span>
           </div>
           {listError && (
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -512,14 +778,20 @@ const AdminDonsPage = () => {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {isFetchingList && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-sm text-gray-500">
+                    <td
+                      colSpan={6}
+                      className="px-3 py-6 text-center text-sm text-gray-500"
+                    >
                       <Loader2 className="mx-auto h-5 w-5 animate-spin text-gray-400" />
                     </td>
                   </tr>
                 )}
                 {!isFetchingList && dons.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-sm text-gray-500">
+                    <td
+                      colSpan={6}
+                      className="px-3 py-6 text-center text-sm text-gray-500"
+                    >
                       No hay Don!! registrados todavía.
                     </td>
                   </tr>
@@ -541,14 +813,18 @@ const AdminDonsPage = () => {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="font-medium text-gray-900">{don.name}</div>
+                        <div className="font-medium text-gray-900">
+                          {don.name}
+                        </div>
                         <div className="text-sm text-gray-500">
                           {don.alias || "Sin alias"}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-700">
                         <div>{don.code}</div>
-                        <div className="text-xs text-gray-500">{don.imageKey || "Sin imageKey"}</div>
+                        <div className="text-xs text-gray-500">
+                          {don.imageKey || "Sin imageKey"}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-700">
                         <div>{don.setCode}</div>

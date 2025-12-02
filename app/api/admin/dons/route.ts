@@ -19,6 +19,15 @@ export async function GET(req: NextRequest) {
     const search = sanitizeOptionalString(searchParams.get("search"));
     const cursorParam = searchParams.get("cursor");
     const limitParam = Number(searchParams.get("limit"));
+    const baseCardParam = searchParams.get("baseCardId");
+    const baseCardId = baseCardParam ? Number(baseCardParam) : null;
+
+    if (baseCardParam && (!Number.isInteger(baseCardId) || baseCardId! <= 0)) {
+      return NextResponse.json(
+        { error: "baseCardId must be a positive integer" },
+        { status: 400 }
+      );
+    }
 
     const limit = Number.isFinite(limitParam)
       ? Math.min(Math.max(limitParam, 1), MAX_LIMIT)
@@ -29,6 +38,16 @@ export async function GET(req: NextRequest) {
     const where: Prisma.CardWhereInput = {
       category: DON_CATEGORY,
     };
+
+    if (baseCardId && Number.isInteger(baseCardId) && baseCardId > 0) {
+      where.baseCardId = baseCardId;
+      const dons = await prisma.card.findMany({
+        where,
+        orderBy: [{ order: "asc" }, { updatedAt: "desc" }],
+        include: includeDonRelations,
+      });
+      return NextResponse.json(dons, { status: 200 });
+    }
 
     if (search) {
       where.OR = [
@@ -93,8 +112,34 @@ export async function POST(req: NextRequest) {
     const order = sanitizeOptionalString(body.order) ?? "0";
     const region = sanitizeOptionalString(body.region);
     const isFirstEdition =
-      typeof body.isFirstEdition === "boolean" ? body.isFirstEdition : true;
+      typeof body.isFirstEdition === "boolean" ? body.isFirstEdition : false;
     const setIds = parseSetIds(body.setIds);
+    const baseCardIdValue =
+      typeof body.baseCardId === "number"
+        ? body.baseCardId
+        : body.baseCardId
+        ? Number(body.baseCardId)
+        : null;
+
+    if (baseCardIdValue && (!Number.isInteger(baseCardIdValue) || baseCardIdValue <= 0)) {
+      return NextResponse.json(
+        { error: "baseCardId must be a positive integer" },
+        { status: 400 }
+      );
+    }
+
+    if (baseCardIdValue) {
+      const baseCardExists = await prisma.card.findUnique({
+        where: { id: baseCardIdValue },
+        select: { id: true },
+      });
+      if (!baseCardExists) {
+        return NextResponse.json(
+          { error: "Base card not found" },
+          { status: 400 }
+        );
+      }
+    }
 
     const newCard = await prisma.card.create({
       data: {
@@ -110,6 +155,7 @@ export async function POST(req: NextRequest) {
         category: DON_CATEGORY,
         isFirstEdition,
         isPro: Boolean(body.isPro),
+        ...(baseCardIdValue ? { baseCardId: baseCardIdValue } : {}),
       },
     });
 

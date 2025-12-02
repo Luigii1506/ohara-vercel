@@ -185,6 +185,16 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               searchPlaceholder="Search set..."
               isSearchable={isDesktop}
             />
+            <MultiSelect
+              options={altArtOptions}
+              selected={selectedAltArts}
+              setSelected={setSelectedAltArts}
+              displaySelectedAs={(selected) =>
+                selected.length === 1 ? selected[0] : "Alt Arts"
+              }
+              searchPlaceholder="Search alt art..."
+              isSearchable={isDesktop}
+            />
 
             <MultiSelect
               options={categoryOptions}
@@ -265,16 +275,6 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 selected.length === 1 ? selected[0] : "Rarity"
               }
               searchPlaceholder="Search rarity..."
-            />
-
-            <MultiSelect
-              options={altArtOptions}
-              selected={selectedAltArts}
-              setSelected={setSelectedAltArts}
-              displaySelectedAs={(selected) =>
-                selected.length === 1 ? selected[0] : "Alt Arts"
-              }
-              searchPlaceholder="Search alt art..."
             />
 
             <MultiSelect

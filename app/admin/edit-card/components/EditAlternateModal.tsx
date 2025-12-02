@@ -146,13 +146,17 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
       return setData ? { set: setData } : { set: { id: setId, title: setId } };
     });
 
-    // Actualizar setCode basado en el primer set seleccionado
-    let newSetCode = "";
-    if (setIds.length > 0) {
-      const firstSetData = localSets.find((s) => s.id === setIds[0]);
-      // Si el set tiene código, usarlo. Si no, dejar vacío
-      newSetCode = (firstSetData as any)?.code || "";
-    }
+    // Actualizar setCode con TODOS los códigos de los sets seleccionados, separados por comas
+    const setCodes: string[] = [];
+    setIds.forEach((setId) => {
+      const setData = localSets.find((s) => s.id === setId);
+      if (setData && (setData as any)?.code) {
+        setCodes.push((setData as any).code);
+      }
+    });
+
+    // Unir todos los códigos con comas, o dejar vacío si no hay códigos
+    const newSetCode = setCodes.length > 0 ? setCodes.join(",") : "";
 
     // Actualizar ambos campos: sets y setCode
     setEditingAlternate({

@@ -306,13 +306,23 @@ model UserListBackcard {
 }
 
 model Event {
-  id        Int        @id @default(autoincrement())
-  name      String
-  eventDate DateTime   @map("event_date")
-  location  String
-  createdAt DateTime?  @default(now())
-  updatedAt DateTime?  @updatedAt
-  sets      EventSet[]
+  id              Int           @id @default(autoincrement())
+  slug            String        @unique // Identificador generado (ej: "na-store-tournament-vol-5")
+  title           String        @map("name")
+  description     String?       @db.Text
+  content         String?       @db.Text
+  originalContent String?       @db.Text
+  region          EventRegion   @default(GLOBAL)
+  status          EventStatus   @default(UPCOMING)
+  eventType       EventType     @default(OTHER)
+  startDate       DateTime?     @map("event_date")
+  endDate         DateTime?
+  location        String?
+  sourceUrl       String?
+  imageUrl        String?
+  createdAt       DateTime?     @default(now())
+  updatedAt       DateTime?     @updatedAt
+  sets            EventSet[]
 }
 
 model Set {
@@ -332,8 +342,8 @@ model Set {
 model EventSet {
   eventId Int
   setId   Int
-  event   Event @relation(fields: [eventId], references: [id])
-  set     Set   @relation(fields: [setId], references: [id])
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  set     Set   @relation(fields: [setId], references: [id], onDelete: Cascade)
 
   @@id([eventId, setId])
   @@index([setId])
@@ -582,4 +592,27 @@ enum OrderStatus {
   CANCELED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum EventRegion {
+  GLOBAL
+  NA
+  EU
+  LA
+  ASIA
+  JP
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+}
+
+enum EventType {
+  STORE_TOURNAMENT
+  CHAMPIONSHIP
+  RELEASE_EVENT
+  ONLINE
+  OTHER
 }

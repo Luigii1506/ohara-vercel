@@ -42,8 +42,12 @@ export const baseCardMatches = (
 
   if (selectedSets?.length) {
     const normalizedSets = selectedSets.map((value) => value.toLowerCase());
-    const baseSetCode = card.setCode?.toLowerCase();
-    if (!baseSetCode || !normalizedSets.includes(baseSetCode)) {
+    // Dividir setCode por comas y verificar si alguno coincide
+    const baseSetCodes = (card.setCode ?? "")
+      .split(",")
+      .map((code) => code.trim().toLowerCase())
+      .filter(Boolean);
+    if (!baseSetCodes.some((code) => normalizedSets.includes(code))) {
       return false;
     }
   }
@@ -64,8 +68,12 @@ export const getFilteredAlternates = (
   return card.alternates.filter((alt) => {
     if (selectedSets?.length) {
       const normalizedSets = selectedSets.map((value) => value.toLowerCase());
-      const altSetCode = alt.setCode?.toLowerCase();
-      if (!altSetCode || !normalizedSets.includes(altSetCode)) {
+      // Dividir setCode por comas y verificar si alguno coincide
+      const altSetCodes = (alt.setCode ?? "")
+        .split(",")
+        .map((code) => code.trim().toLowerCase())
+        .filter(Boolean);
+      if (!altSetCodes.some((code) => normalizedSets.includes(code))) {
         return false;
       }
     }

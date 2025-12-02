@@ -347,9 +347,9 @@ const EditCard = () => {
 
         const matchesSets =
           selectedSets?.length === 0 ||
-          selectedSets.includes(card.setCode) ||
+          (card.setCode ?? "").split(",").some(code => selectedSets.includes(code.trim())) ||
           (card.alternates ?? []).some((alt) =>
-            selectedSets.includes(alt.setCode)
+            (alt.setCode ?? "").split(",").some(code => selectedSets.includes(code.trim()))
           );
 
         const matchesTypes =
@@ -402,7 +402,7 @@ const EditCard = () => {
             : card.triggerCard !== null;
 
         const matchedCode =
-          selectedCodes?.length === 0 || selectedCodes.includes(card.setCode);
+          selectedCodes?.length === 0 || (card.setCode ?? "").split(",").some(code => selectedCodes.includes(code.trim()));
 
         return (
           matchesSearch &&
@@ -432,11 +432,11 @@ const EditCard = () => {
 
       baseFilteredCards.forEach((card) => {
         // Verificar si la carta base coincide con algún set seleccionado
-        const baseMatches = selectedSets.includes(card.setCode);
+        const baseMatches = (card.setCode ?? "").split(",").some(code => selectedSets.includes(code.trim()));
 
         // Verificar qué alternas coinciden con los sets seleccionados
         const matchingAlternates = (card.alternates ?? []).filter((alt) =>
-          selectedSets.includes(alt.setCode)
+          (alt.setCode ?? "").split(",").some(code => selectedSets.includes(code.trim()))
         );
 
         // Si la carta base coincide, agregarla

@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, Image as ImageIcon, Check, X, Loader2, AlertTriangle } from "lucide-react";
+import {
+  Upload,
+  Image as ImageIcon,
+  Check,
+  X,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
 
 export default function AdminUploadImagePage() {
   const [imageUrl, setImageUrl] = useState("");
@@ -95,7 +102,7 @@ export default function AdminUploadImagePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 w-full">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="flex items-center gap-3 mb-6">
@@ -106,8 +113,9 @@ export default function AdminUploadImagePage() {
           </div>
 
           <p className="text-gray-600 mb-8">
-            Upload an image from any URL and save it to Cloudflare R2 with a custom filename.
-            The system will automatically generate 7 optimized sizes.
+            Upload an image from any URL and save it to Cloudflare R2 with a
+            custom filename. The system will automatically generate 7 optimized
+            sizes.
           </p>
 
           <form onSubmit={handleUpload} className="space-y-6">
@@ -155,14 +163,28 @@ export default function AdminUploadImagePage() {
                 required
               />
               <p className="mt-1 text-sm text-gray-500">
-                Example: <code className="bg-gray-100 px-2 py-0.5 rounded">OP01-001</code> will create <code className="bg-gray-100 px-2 py-0.5 rounded">OP01-001.webp</code>, <code className="bg-gray-100 px-2 py-0.5 rounded">OP01-001-thumb.webp</code>, etc.
+                Example:{" "}
+                <code className="bg-gray-100 px-2 py-0.5 rounded">
+                  OP01-001
+                </code>{" "}
+                will create{" "}
+                <code className="bg-gray-100 px-2 py-0.5 rounded">
+                  OP01-001.webp
+                </code>
+                ,{" "}
+                <code className="bg-gray-100 px-2 py-0.5 rounded">
+                  OP01-001-thumb.webp
+                </code>
+                , etc.
               </p>
             </div>
 
             {/* Preview */}
             {previewUrl && (
               <div className="border border-gray-200 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Preview:
+                </p>
                 <div className="flex justify-center bg-gray-100 rounded-lg p-4">
                   <img
                     src={previewUrl}
@@ -233,7 +255,8 @@ export default function AdminUploadImagePage() {
                       {uploadStatus.r2Url}
                     </code>
                     <p className="text-xs text-green-600 mt-2">
-                      Variants created: tiny, xs, thumb, small, medium, large, original
+                      Variants created: tiny, xs, thumb, small, medium, large,
+                      original
                     </p>
                   </div>
                 )}
@@ -251,12 +274,14 @@ export default function AdminUploadImagePage() {
                   <li>Paste the URL of the image you want to upload</li>
                   <li>Enter a custom filename (without extension)</li>
                   <li>Click "Upload to R2"</li>
-                  <li>The system will download, optimize, and create 7 sizes</li>
+                  <li>
+                    The system will download, optimize, and create 7 sizes
+                  </li>
                   <li>All variants will be uploaded to Cloudflare R2</li>
                 </ol>
                 <p className="mt-3 text-xs text-blue-700">
-                  <strong>Tip:</strong> Use descriptive filenames like "OP01-001" or "OP01-001_alt"
-                  to match your card codes.
+                  <strong>Tip:</strong> Use descriptive filenames like
+                  "OP01-001" or "OP01-001_alt" to match your card codes.
                 </p>
               </div>
             </div>
@@ -275,10 +300,15 @@ export default function AdminUploadImagePage() {
                   Image Already Exists
                 </h3>
                 <p className="text-sm text-gray-700">
-                  The image <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-sm">{existingFilename}</code> already exists in R2 storage.
+                  The image{" "}
+                  <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-sm">
+                    {existingFilename}
+                  </code>{" "}
+                  already exists in R2 storage.
                 </p>
                 <p className="text-sm text-gray-700 mt-2">
-                  Do you want to overwrite it with the new image? This action cannot be undone.
+                  Do you want to overwrite it with the new image? This action
+                  cannot be undone.
                 </p>
               </div>
             </div>

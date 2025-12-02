@@ -20,6 +20,7 @@ import {
   FileText,
   Calendar,
   Upload,
+  Images,
   Menu,
   X,
   Home,
@@ -118,12 +119,12 @@ const NavBar = () => {
       icon: Edit,
       description: "Modify existing cards",
     },
-    {
-      href: "/admin/add-card",
-      label: "Add Card",
-      icon: Plus,
-      description: "Create new card entries",
-    },
+    // {
+    //   href: "/admin/add-card",
+    //   label: "Add Card",
+    //   icon: Plus,
+    //   description: "Create new card entries",
+    // },
     {
       href: "/admin/add-set",
       label: "Add Set",
@@ -136,12 +137,12 @@ const NavBar = () => {
       icon: FileText,
       description: "Add card rulings",
     },
-    {
-      href: "/admin/add-event",
-      label: "Add Event",
-      icon: Calendar,
-      description: "Create new events",
-    },
+    // {
+    //   href: "/admin/add-event",
+    //   label: "Add Event",
+    //   icon: Calendar,
+    //   description: "Create new events",
+    // },
     {
       href: "/admin/upload-sets",
       label: "Upload Sets",
@@ -159,6 +160,18 @@ const NavBar = () => {
       label: "Gestionar decks venta",
       icon: Layers,
       description: "Edita y publica tus decks de tienda",
+    },
+    {
+      href: "/admin/dons",
+      label: "Admin Don!!",
+      icon: Shield,
+      description: "Gestiona Don base y alternos",
+    },
+    {
+      href: "/admin/upload-image-r2",
+      label: "Upload Image R2",
+      icon: Images,
+      description: "Sube imágenes directamente a R2",
     },
   ];
 
@@ -310,13 +323,17 @@ const NavBar = () => {
                                           : "text-gray-500 group-hover:text-gray-400"
                                       }`}
                                     />
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">
-                                        {item.label}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {item.description}
-                                      </p>
+                                    <div className="flex-1 flex-col">
+                                      <div>
+                                        <p className="font-medium text-sm">
+                                          {item.label}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {item.description}
+                                        </p>
+                                      </div>
                                     </div>
                                     {isActive && (
                                       <div className="w-1.5 h-1.5 bg-red-400 rounded-full mt-2"></div>

@@ -6,8 +6,68 @@ import {
   parseSetIds,
   sanitizeOptionalString,
 } from "../utils";
+import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export const dynamic = "force-dynamic";
+
+// -----------------------------------------------------------------------------
+// Cloudflare R2 helpers
+// -----------------------------------------------------------------------------
+
+const hasR2Config = Boolean(
+  process.env.CLOUDFLARE_ACCOUNT_ID &&
+    process.env.R2_ACCESS_KEY_ID &&
+    process.env.R2_SECRET_ACCESS_KEY
+);
+
+const r2Client = hasR2Config
+  ? new S3Client({
+      region: "auto",
+      endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      },
+    })
+  : null;
+
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "ohara";
+const R2_IMAGE_SUFFIXES = [
+  "",
+  "-tiny",
+  "-xs",
+  "-thumb",
+  "-small",
+  "-medium",
+  "-large",
+];
+
+const sanitizeImageKey = (key?: string | null) => {
+  if (!key) return null;
+  return key.replace(/\.(jpg|jpeg|png|webp)$/i, "");
+};
+
+const deleteDonImagesFromR2 = async (imageKey?: string | null) => {
+  if (!r2Client) return; // Missing configuration, nothing to do
+  const cleanKey = sanitizeImageKey(imageKey);
+  if (!cleanKey) return;
+
+  const deletePromises = R2_IMAGE_SUFFIXES.map(async (suffix) => {
+    const key = `cards/${cleanKey}${suffix}.webp`;
+    try {
+      await r2Client.send(
+        new DeleteObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: key,
+        })
+      );
+    } catch (error) {
+      console.error(`Error deleting R2 object ${key}`, error);
+    }
+  });
+
+  await Promise.all(deletePromises);
+};
 
 const validateIdParam = (value: string) => {
   const id = Number(value);
@@ -66,7 +126,39 @@ export async function PATCH(
     }
 
     if (Object.prototype.hasOwnProperty.call(body, "imageKey")) {
-      updateData.imageKey = body.imageKey ?? null;
+      const incomingKey = body.imageKey ?? null;
+      if (existing.imageKey && existing.imageKey !== incomingKey) {
+        await deleteDonImagesFromR2(existing.imageKey || existing.code);
+      }
+      updateData.imageKey = incomingKey;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "baseCardId")) {
+      const incomingBaseCardId =
+        body.baseCardId === null || body.baseCardId === ""
+          ? null
+          : Number(body.baseCardId);
+
+      if (incomingBaseCardId !== null) {
+        if (!Number.isInteger(incomingBaseCardId) || incomingBaseCardId <= 0) {
+          return NextResponse.json(
+            { error: "baseCardId must be a positive integer or null" },
+            { status: 400 }
+          );
+        }
+        const baseCardExists = await prisma.card.findUnique({
+          where: { id: incomingBaseCardId },
+          select: { id: true },
+        });
+        if (!baseCardExists) {
+          return NextResponse.json(
+            { error: "Base card not found" },
+            { status: 400 }
+          );
+        }
+      }
+
+      updateData.baseCardId = incomingBaseCardId;
     }
 
     if (Object.prototype.hasOwnProperty.call(body, "alias")) {
@@ -134,6 +226,7 @@ export async function DELETE(
   }
 
   try {
+    await deleteDonImagesFromR2(existing.imageKey || existing.code);
     await prisma.card.delete({ where: { id } });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

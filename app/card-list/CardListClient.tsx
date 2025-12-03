@@ -20,6 +20,7 @@ import {
 import { CardListPageSkeleton } from "@/components/skeletons";
 import SearchFilters from "@/components/home/SearchFilters";
 import CardModal from "@/components/CardModal";
+import DonModal from "@/components/DonModal";
 import FiltersSidebar from "@/components/FiltersSidebar";
 
 // Componentes críticos - carga inmediata
@@ -64,6 +65,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
+import { DON_CATEGORY } from "@/helpers/constants";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -144,7 +146,9 @@ const matchesCardFilters = (
       .split(",")
       .map((code) => code.trim().toLowerCase())
       .filter(Boolean);
-    const matchesBase = baseSetCodes.some((code) => normalizedSets.includes(code));
+    const matchesBase = baseSetCodes.some((code) =>
+      normalizedSets.includes(code)
+    );
 
     const matchesAlternate =
       card.alternates?.some((alt) => {
@@ -291,6 +295,11 @@ const CardListClient = ({
 
   const [selectedCard, setSelectedCard] = useState<CardWithCollectionData>();
   const [baseCard, setBaseCard] = useState<CardWithCollectionData>();
+  const activeBaseCard = baseCard ?? selectedCard;
+  const isDonModal = activeBaseCard?.category === DON_CATEGORY;
+  const modalKey = `${isDonModal ? "don" : "card"}-${
+    activeBaseCard?.id ?? "modal"
+  }`;
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -664,7 +673,11 @@ const CardListClient = ({
 
     return filteredCards.reduce(
       (acc, card) => {
-        const baseVisible = baseCardMatches(card, selectedSets, selectedAltArts);
+        const baseVisible = baseCardMatches(
+          card,
+          selectedSets,
+          selectedAltArts
+        );
         const filteredAlternates = getFilteredAlternates(
           card,
           selectedSets,
@@ -1094,6 +1107,7 @@ const CardListClient = ({
                     selectedSets,
                     selectedAltArts
                   );
+
                   const isBaseMatch = baseCardMatches(
                     card,
                     selectedSets,
@@ -1143,23 +1157,25 @@ const CardListClient = ({
                                     <span
                                       className={`${oswald.className} text-[13px] font-bold mt-2`}
                                     >
-                                      {highlightText(card?.code, search)}
+                                      {card.code
+                                        ? highlightText(card?.code, search)
+                                        : highlightText(card?.name, search)}
                                     </span>
-                                  <span className="text-center text-[13px] line-clamp-1">
+                                    <span className="text-center text-[13px] line-clamp-1">
+                                      {highlightText(
+                                        card?.sets?.[0]?.set?.title ?? "",
+                                        search
+                                      )}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
                                     {highlightText(
                                       card?.sets?.[0]?.set?.title ?? "",
                                       search
                                     )}
-                                  </span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>
-                                  {highlightText(
-                                    card?.sets?.[0]?.set?.title ?? "",
-                                    search
-                                  )}
-                                </p>
+                                  </p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -1206,7 +1222,11 @@ const CardListClient = ({
                                       <span
                                         className={`${oswald.className} text-[13px] font-bold mt-2`}
                                       >
-                                        {highlightText(alt?.code, search)}
+                                        {card.code
+                                          ? highlightText(card?.code, search)
+                                          : alt.alias
+                                          ? highlightText(alt?.alias, search)
+                                          : highlightText(alt?.name, search)}
                                       </span>
                                       <span className="text-center text-[13px] line-clamp-1">
                                         {highlightText(
@@ -1310,7 +1330,9 @@ const CardListClient = ({
                                 <p
                                   className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
                                 >
-                                  {highlightText(card?.code, search)}
+                                  {card.category === "DON"
+                                    ? card.sets?.[0]?.set?.title
+                                    : highlightText(card?.code, search)}
                                 </p>
                                 <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
                                   <Badge
@@ -1320,6 +1342,8 @@ const CardListClient = ({
                                     <span className="text-center w-full font-black leading-[16px] mb-[2px]">
                                       {card?.rarity
                                         ? rarityFormatter(card.rarity)
+                                        : card.category === "DON"
+                                        ? "DON!!"
                                         : ""}
                                     </span>
                                   </Badge>
@@ -1442,7 +1466,9 @@ const CardListClient = ({
                                 </div>
                                 <div>
                                   <div className="text-center font-bold mt-2">
-                                    {alt?.alternateArt}
+                                    {card.category === "DON"
+                                      ? alt?.alias
+                                      : alt?.alternateArt}
                                   </div>
                                   {alt?.sets?.map((set) => (
                                     <p
@@ -1570,19 +1596,34 @@ const CardListClient = ({
                 leaveTo=""
               >
                 <DialogPanel className="w-full space-y-4 bg-white shadow-xl border transform transition-all rounded-lg">
-                  <CardModal
-                    key={baseCard?.id} // Forzar re-render cuando cambia la carta principal
-                    selectedCard={selectedCard}
-                    setIsOpen={setIsOpen}
-                    alternatesCards={alternatesCards}
-                    setSelectedCard={setSelectedCard}
-                    baseCard={baseCard as CardWithCollectionData}
-                    isCardFetching={false}
-                    setShowLargeImage={setShowLargeImage}
-                    showLargeImage={showLargeImage}
-                    onNavigatePrevious={handleNavigatePrevious}
-                    onNavigateNext={handleNavigateNext}
-                  />
+                  {activeBaseCard ? (
+                    isDonModal ? (
+                      <DonModal
+                        key={modalKey}
+                        selectedCard={selectedCard}
+                        setIsOpen={setIsOpen}
+                        alternatesCards={alternatesCards}
+                        setSelectedCard={setSelectedCard}
+                        baseCard={activeBaseCard}
+                        onNavigatePrevious={handleNavigatePrevious}
+                        onNavigateNext={handleNavigateNext}
+                      />
+                    ) : (
+                      <CardModal
+                        key={modalKey}
+                        selectedCard={selectedCard}
+                        setIsOpen={setIsOpen}
+                        alternatesCards={alternatesCards}
+                        setSelectedCard={setSelectedCard}
+                        baseCard={activeBaseCard}
+                        isCardFetching={false}
+                        setShowLargeImage={setShowLargeImage}
+                        showLargeImage={showLargeImage}
+                        onNavigatePrevious={handleNavigatePrevious}
+                        onNavigateNext={handleNavigateNext}
+                      />
+                    )
+                  ) : null}
                 </DialogPanel>
               </TransitionChild>
             </div>

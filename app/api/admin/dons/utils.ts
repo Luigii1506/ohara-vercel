@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
+import { DON_CATEGORY } from "@/helpers/constants";
 
-export const DON_CATEGORY = "DON";
+export { DON_CATEGORY };
 
 export const includeDonRelations = {
   sets: {

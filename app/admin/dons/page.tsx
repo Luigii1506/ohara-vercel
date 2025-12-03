@@ -332,7 +332,7 @@ const AdminDonsPage = () => {
       const payload = {
         name: formData.name,
         alias: null,
-        code: `${setCode}-DON`,
+        code: "",
         setCode,
         src: finalSrc,
         imageKey: finalImageKey ?? null,
@@ -340,6 +340,7 @@ const AdminDonsPage = () => {
         order: "0",
         region: "Global",
         setIds: formData.setIds,
+        isFirstEdition: true,
       };
 
       const endpoint = editingId

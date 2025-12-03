@@ -98,11 +98,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, code, setCode, src, imageKey } = body;
+    const { name, setCode, src, imageKey } = body;
+    const code = typeof body.code === "string" ? body.code : "";
 
-    if (!name || !code || !setCode || !src) {
+    if (!name || !setCode || !src) {
       return NextResponse.json(
-        { error: "name, code, setCode and src are required" },
+        { error: "name, setCode and src are required" },
         { status: 400 }
       );
     }
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
     const order = sanitizeOptionalString(body.order) ?? "0";
     const region = sanitizeOptionalString(body.region);
     const isFirstEdition =
-      typeof body.isFirstEdition === "boolean" ? body.isFirstEdition : false;
+      typeof body.isFirstEdition === "boolean" ? body.isFirstEdition : true;
     const setIds = parseSetIds(body.setIds);
     const baseCardIdValue =
       typeof body.baseCardId === "number"

@@ -23,6 +23,8 @@ interface DonModalProps {
   alternatesCards?: CardWithCollectionData[];
   setSelectedCard: (card: CardWithCollectionData) => void;
   setIsOpen: (isOpen: boolean) => void;
+  onNavigatePrevious?: () => void;
+  onNavigateNext?: () => void;
 }
 
 const DonModal: React.FC<DonModalProps> = ({
@@ -31,6 +33,8 @@ const DonModal: React.FC<DonModalProps> = ({
   alternatesCards = [],
   setSelectedCard,
   setIsOpen,
+  onNavigatePrevious,
+  onNavigateNext,
 }) => {
   const activeCard = selectedCard ?? baseCard;
   const variants = React.useMemo(() => {

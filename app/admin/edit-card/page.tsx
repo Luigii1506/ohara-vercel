@@ -71,6 +71,7 @@ interface AlternateCard {
   isFirstEdition?: boolean;
   code?: string;
   setCode?: string;
+  baseCardId?: number | null;
 }
 
 interface Set {
@@ -592,6 +593,10 @@ const EditCard = () => {
   // Handlers para cartas
   const handleSelectCard = useCallback((card: CardWithCollectionData) => {
     setSelectedCard(card);
+    const baseCardNumericId = Number(card.id);
+    const resolvedBaseCardId = Number.isNaN(baseCardNumericId)
+      ? null
+      : baseCardNumericId;
 
     // Procesar alternas y asegurar orden consistente
     if (card.alternates && card.alternates.length > 0) {
@@ -599,6 +604,7 @@ const EditCard = () => {
         .map((alt) => ({
           ...alt,
           id: alt.id?.toString() || "",
+          baseCardId: resolvedBaseCardId,
         }))
         .sort((a, b) => {
           const orderA = parseInt((a as any).order || "0") || 0;
@@ -631,6 +637,10 @@ const EditCard = () => {
   const handleCloneAlternate = useCallback(
     (alternate: AlternateCard) => {
       if (!selectedCard) return;
+      const baseCardNumericId = Number(selectedCard.id);
+      const resolvedBaseCardId = Number.isNaN(baseCardNumericId)
+        ? null
+        : baseCardNumericId;
 
       // Crear copia temporal de la alterna específica con datos modificados para clonado
       const tempId = `temp-${Date.now()}-clone`;
@@ -654,6 +664,7 @@ const EditCard = () => {
             : selectedCard.sets || [],
         // Mantener el setCode de la alterna si existe
         setCode: alternate.setCode || "",
+        baseCardId: resolvedBaseCardId,
       };
 
       // 🚀 OPTIMISTIC UPDATE: Agregar la alterna clonada inmediatamente al estado
@@ -1089,6 +1100,10 @@ const EditCard = () => {
 
     // Calcular el siguiente orden basándose en la última alterna existente
     const nextOrder = getNextOrder();
+    const baseCardNumericId = Number(selectedCard.id);
+    const resolvedBaseCardId = Number.isNaN(baseCardNumericId)
+      ? null
+      : baseCardNumericId;
 
     // Crear alterna temporal localmente (sin guardar en BD)
     const tempId = `temp-${Date.now()}`;
@@ -1105,6 +1120,7 @@ const EditCard = () => {
       region: "",
       isFirstEdition: false, // CRÍTICO: Las alternas nunca son first edition
       setCode: "", // Inicialmente vacío, se llenará cuando se seleccione un set
+      baseCardId: resolvedBaseCardId,
     };
 
     // Agregar a la lista local temporalmente

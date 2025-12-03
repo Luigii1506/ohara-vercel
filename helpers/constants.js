@@ -20,6 +20,8 @@ export const setCodes = [
   "PRB02",
 ];
 
+export const DON_CATEGORY = "DON";
+
 export const allRegions = [
   { value: "Chinese exclusive", label: "Chinese exclusive" },
   { value: "English exclusive", label: "English exclusive" },

@@ -73,7 +73,9 @@ const StoreCard: React.FC<StoreCard> = ({
             .split(",")
             .map((code) => code.trim().toLowerCase())
             .filter(Boolean);
-          if (altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
+          if (
+            altSetCodes.some((code) => normalizedSelectedSets.includes(code))
+          ) {
             return true;
           }
           return alt.sets.some((s) =>
@@ -158,7 +160,9 @@ const StoreCard: React.FC<StoreCard> = ({
                 <p
                   className={`${oswald.className} text-md text-black leading-[16px] mb-2 lg:mb-4 font-[400]`}
                 >
-                  {highlightText(card?.code, searchTerm)}
+                  {card.category === "DON"
+                    ? card.sets[0].set.title
+                    : highlightText(card?.code, searchTerm)}
                 </p>
                 <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1 lg:mb-2">
                   <Badge
@@ -166,7 +170,11 @@ const StoreCard: React.FC<StoreCard> = ({
                     className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
                   >
                     <span className="text-center w-full font-black leading-[16px] mb-[2px]">
-                      {card?.rarity ? rarityFormatter(card.rarity) : ""}
+                      {card?.rarity
+                        ? rarityFormatter(card.rarity)
+                        : card?.category === "DON"
+                        ? "DON!!"
+                        : ""}
                     </span>
                   </Badge>
                 </div>
@@ -200,7 +208,7 @@ const StoreCard: React.FC<StoreCard> = ({
               </div>
             </div>
           </div>
-          {viewSelected === "text" && (
+          {viewSelected === "text" && card.category !== "DON" && (
             <CardDetails card={card} searchTerm={searchTerm} />
           )}
         </CardContent>

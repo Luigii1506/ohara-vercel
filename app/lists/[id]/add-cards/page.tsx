@@ -62,6 +62,7 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import CardModal from "@/components/CardModal";
+import DonModal from "@/components/DonModal";
 import { useAllCards } from "@/hooks/useCards";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCardStore } from "@/store/cardStore";
@@ -78,6 +79,7 @@ import { Option } from "@/components/MultiSelect";
 import ClearFiltersButton from "@/components/ClearFiltersButton";
 import FAB from "@/components/Fab";
 import StoreCard from "@/components/StoreCard";
+import { DON_CATEGORY } from "@/helpers/constants";
 import {
   Tooltip,
   TooltipContent,
@@ -436,6 +438,18 @@ const AddCardsPage = () => {
   const [isCardFetching, setIsCardFetching] = useState(false);
   const [baseCard, setBaseCard] = useState<CardWithCollectionData>();
   const [isOpen, setIsOpen] = useState(false);
+  const simpleModalBaseCard = selectedCard ?? null;
+  const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
+  const primaryModalBaseCard =
+    baseCard ?? simpleModalBaseCard ?? undefined;
+  const isPrimaryModalDon =
+    primaryModalBaseCard?.category === DON_CATEGORY;
+  const primaryModalKey = `${isPrimaryModalDon ? "don" : "card"}-${
+    primaryModalBaseCard?.id ?? "modal"
+  }`;
+  const handleSelectedCardChange = (card: CardWithCollectionData) => {
+    setSelectedCard(card);
+  };
 
   // Refs for card-list functionality
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -3011,13 +3025,23 @@ const AddCardsPage = () => {
 
       {/* Card Modal */}
       {showCardModal && selectedCard && (
-        <CardModal
-          selectedCard={selectedCard}
-          setIsOpen={setShowCardModal}
-          alternatesCards={alternatesCards}
-          setSelectedCard={setSelectedCard}
-          baseCard={selectedCard}
-        />
+        isSimpleModalDon ? (
+          <DonModal
+            selectedCard={selectedCard}
+            setIsOpen={setShowCardModal}
+            alternatesCards={alternatesCards}
+            setSelectedCard={handleSelectedCardChange}
+            baseCard={selectedCard}
+          />
+        ) : (
+          <CardModal
+            selectedCard={selectedCard}
+            setIsOpen={setShowCardModal}
+            alternatesCards={alternatesCards}
+            setSelectedCard={handleSelectedCardChange}
+            baseCard={selectedCard}
+          />
+        )
       )}
 
       {/* Mobile Card Selection Modal */}
@@ -3750,16 +3774,30 @@ const AddCardsPage = () => {
               <DialogPanel
                 className={`w-full max-w-4xl space-y-4 bg-white shadow-xl border transform transition-all rounded-lg`}
               >
-                <CardModal
-                  selectedCard={selectedCard || undefined}
-                  setIsOpen={setIsOpen}
-                  alternatesCards={alternatesCards}
-                  setSelectedCard={setSelectedCard}
-                  baseCard={baseCard as CardWithCollectionData}
-                  isCardFetching={isCardFetching}
-                  setShowLargeImage={setShowLargeImage}
-                  showLargeImage={showLargeImage}
-                />
+                {primaryModalBaseCard ? (
+                  isPrimaryModalDon ? (
+                    <DonModal
+                      key={primaryModalKey}
+                      selectedCard={selectedCard ?? undefined}
+                      setIsOpen={setIsOpen}
+                      alternatesCards={alternatesCards}
+                      setSelectedCard={handleSelectedCardChange}
+                      baseCard={primaryModalBaseCard}
+                    />
+                  ) : (
+                    <CardModal
+                      key={primaryModalKey}
+                      selectedCard={selectedCard ?? undefined}
+                      setIsOpen={setIsOpen}
+                      alternatesCards={alternatesCards}
+                      setSelectedCard={handleSelectedCardChange}
+                      baseCard={primaryModalBaseCard}
+                      isCardFetching={isCardFetching}
+                      setShowLargeImage={setShowLargeImage}
+                      showLargeImage={showLargeImage}
+                    />
+                  )
+                ) : null}
               </DialogPanel>
             </TransitionChild>
           </div>

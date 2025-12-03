@@ -32,6 +32,7 @@ interface AlternateCard {
   isFirstEdition?: boolean;
   code?: string;
   setCode?: string;
+  baseCardId?: number | null;
 }
 
 interface Set {
@@ -206,11 +207,22 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
       // Es una nueva alterna, crear en BD
       setLoadingState(true);
       try {
+        const baseCardNumericId =
+          typeof editingAlternate.baseCardId === "number"
+            ? editingAlternate.baseCardId
+            : editingAlternate.baseCardId
+            ? Number(editingAlternate.baseCardId)
+            : null;
+        const resolvedBaseCardId =
+          baseCardNumericId && !Number.isNaN(baseCardNumericId)
+            ? baseCardNumericId
+            : null;
         // Preparar datos para crear en BD
         const newAlternateData = {
           ...editingAlternate,
           setIds: editingAlternate.sets?.map((s) => s.set.id) || [],
           isFirstEdition: false, // CRÍTICO: Asegurar que las alternas nunca sean first edition
+          baseCardId: resolvedBaseCardId ?? undefined,
         };
 
         // Llamar a la API para crear

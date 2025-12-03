@@ -90,25 +90,64 @@ export async function POST(req: NextRequest) {
       isPro,
       region,
       order,
+      baseCardId: rawBaseCardId,
     } = body;
 
-    // Buscamos si existe una carta con el mismo code y que sea isFirstEdition true
-    const existingCard = await prisma.card.findFirst({
-      where: {
-        code,
-        isFirstEdition: true,
-      },
-      include: {
-        types: true,
-        colors: true,
-        effects: true,
-        conditions: true,
-        texts: true,
-      },
-    });
+    let providedBaseCardId: number | null = null;
+    if (
+      rawBaseCardId !== undefined &&
+      rawBaseCardId !== null &&
+      rawBaseCardId !== ""
+    ) {
+      const parsedBaseCardId = Number(rawBaseCardId);
+      if (!Number.isInteger(parsedBaseCardId) || parsedBaseCardId <= 0) {
+        return NextResponse.json(
+          { error: "baseCardId must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      providedBaseCardId = parsedBaseCardId;
+    }
+
+    const templateInclude = {
+      types: true,
+      colors: true,
+      effects: true,
+      conditions: true,
+      texts: true,
+    };
+
+    let templateCard: (Card & {
+      types: { type: string }[];
+      colors: { color: string }[];
+      effects: { effect: string }[];
+      conditions: { condition: string }[];
+      texts: { text: string }[];
+    }) | null = null;
+
+    if (providedBaseCardId) {
+      templateCard = await prisma.card.findUnique({
+        where: { id: providedBaseCardId },
+        include: templateInclude,
+      });
+      if (!templateCard) {
+        return NextResponse.json(
+          { error: "Base card not found" },
+          { status: 400 }
+        );
+      }
+    } else if (code) {
+      templateCard = await prisma.card.findFirst({
+        where: {
+          code,
+          isFirstEdition: true,
+        },
+        include: templateInclude,
+      });
+    }
 
     let newCard: Card;
-    if (existingCard) {
+    if (templateCard) {
       // Copiamos la información de la carta existente, excepto los campos que queremos sobrescribir
       // Desestructuramos para eliminar id y los campos a sobrescribir
       const {
@@ -122,11 +161,12 @@ export async function POST(req: NextRequest) {
         tcgUrl: ______,
         // El resto de los campos de la carta encontrada se agrupa en "otherData"
         ...otherData
-      } = existingCard;
+      } = templateCard;
 
       // Se arma el objeto de datos para la nueva carta,
       // copiando toda la info de la carta encontrada y sobrescribiendo los campos indicados.
-      const baseCardId = existingCard.baseCardId ?? existingCard.id;
+      const baseCardId =
+        providedBaseCardId ?? templateCard.baseCardId ?? templateCard.id;
 
       const newCardData = {
         ...otherData,
@@ -140,36 +180,36 @@ export async function POST(req: NextRequest) {
         order: order || "0", // Asegurar que siempre tenga un valor
         baseCardId,
         types:
-          existingCard.types.length > 0
-            ? { create: existingCard.types.map((t: any) => ({ type: t.type })) }
+          templateCard.types.length > 0
+            ? { create: templateCard.types.map((t: any) => ({ type: t.type })) }
             : undefined,
         colors:
-          existingCard.colors.length > 0
+          templateCard.colors.length > 0
             ? {
-                create: existingCard.colors.map((c: any) => ({
+                create: templateCard.colors.map((c: any) => ({
                   color: c.color,
                 })),
               }
             : undefined,
         effects:
-          existingCard.effects.length > 0
+          templateCard.effects.length > 0
             ? {
-                create: existingCard.effects.map((e: any) => ({
+                create: templateCard.effects.map((e: any) => ({
                   effect: e.effect,
                 })),
               }
             : undefined,
         conditions:
-          existingCard.conditions.length > 0
+          templateCard.conditions.length > 0
             ? {
-                create: existingCard.conditions.map((c: any) => ({
+                create: templateCard.conditions.map((c: any) => ({
                   condition: c.condition,
                 })),
               }
             : undefined,
         texts:
-          existingCard.texts.length > 0
-            ? { create: existingCard.texts.map((t: any) => ({ text: t.text })) }
+          templateCard.texts.length > 0
+            ? { create: templateCard.texts.map((t: any) => ({ text: t.text })) }
             : undefined,
         isPro,
         region,
@@ -218,6 +258,7 @@ export async function POST(req: NextRequest) {
           isPro,
           region,
           order: order || "0", // Asegurar que siempre tenga un valor
+          baseCardId: providedBaseCardId ?? null,
         },
       });
     }

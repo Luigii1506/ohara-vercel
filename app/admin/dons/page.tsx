@@ -329,10 +329,13 @@ const AdminDonsPage = () => {
       }
 
       const setCode = selectedSet.code || "DON";
+      const inferDonCode = selectedSet.code
+        ? `${selectedSet.code}-DON`
+        : "DON-001";
       const payload = {
         name: formData.name,
         alias: null,
-        code: "",
+        code: inferDonCode,
         setCode,
         src: finalSrc,
         imageKey: finalImageKey ?? null,

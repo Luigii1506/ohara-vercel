@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Upload,
   Image as ImageIcon,
@@ -22,14 +22,39 @@ export default function AdminUploadImagePage() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [existingFilename, setExistingFilename] = useState("");
+  const [uploadMode, setUploadMode] = useState<"url" | "file">("url");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const previewSource = useMemo(() => {
+    if (uploadMode === "file" && selectedFile) {
+      return URL.createObjectURL(selectedFile);
+    }
+    return previewUrl;
+  }, [uploadMode, selectedFile, previewUrl]);
 
   const handleUpload = async (e: React.FormEvent, forceOverwrite = false) => {
     e.preventDefault();
 
-    if (!imageUrl || !customFilename) {
+    if (!customFilename) {
       setUploadStatus({
         type: "error",
-        message: "Please provide both image URL and filename",
+        message: "Please provide a filename",
+      });
+      return;
+    }
+
+    if (uploadMode === "url" && !imageUrl) {
+      setUploadStatus({
+        type: "error",
+        message: "Please provide an image URL",
+      });
+      return;
+    }
+
+    if (uploadMode === "file" && !selectedFile) {
+      setUploadStatus({
+        type: "error",
+        message: "Please select a file to upload",
       });
       return;
     }
@@ -38,17 +63,30 @@ export default function AdminUploadImagePage() {
     setUploadStatus({ type: null, message: "" });
 
     try {
-      const response = await fetch("/api/upload-image-r2", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageUrl,
-          filename: customFilename,
-          overwrite: forceOverwrite,
-        }),
-      });
+      let response: Response;
+      if (uploadMode === "file") {
+        const uploadForm = new FormData();
+        uploadForm.append("file", selectedFile as File);
+        uploadForm.append("filename", customFilename);
+        uploadForm.append("overwrite", String(forceOverwrite));
+
+        response = await fetch("/api/upload-image-r2-file", {
+          method: "POST",
+          body: uploadForm,
+        });
+      } else {
+        response = await fetch("/api/upload-image-r2", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            imageUrl,
+            filename: customFilename,
+            overwrite: forceOverwrite,
+          }),
+        });
+      }
 
       const data = await response.json();
 
@@ -74,6 +112,7 @@ export default function AdminUploadImagePage() {
       setImageUrl("");
       setCustomFilename("");
       setPreviewUrl("");
+      setSelectedFile(null);
       setShowOverwriteConfirm(false);
     } catch (error) {
       setUploadStatus({
@@ -96,8 +135,11 @@ export default function AdminUploadImagePage() {
   };
 
   const handlePreview = () => {
-    if (imageUrl) {
+    if (uploadMode === "url" && imageUrl) {
       setPreviewUrl(imageUrl);
+    }
+    if (uploadMode === "file" && selectedFile) {
+      setPreviewUrl("");
     }
   };
 
@@ -119,31 +161,84 @@ export default function AdminUploadImagePage() {
           </p>
 
           <form onSubmit={handleUpload} className="space-y-6">
-            {/* Image URL Input */}
-            <div>
-              <label
-                htmlFor="imageUrl"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Image URL
+            {/* Upload Mode */}
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="radio"
+                  name="uploadMode"
+                  value="url"
+                  checked={uploadMode === "url"}
+                  onChange={() => setUploadMode("url")}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                From URL
               </label>
-              <input
-                type="url"
-                id="imageUrl"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <button
-                type="button"
-                onClick={handlePreview}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-700"
-              >
-                Preview Image
-              </button>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="radio"
+                  name="uploadMode"
+                  value="file"
+                  checked={uploadMode === "file"}
+                  onChange={() => setUploadMode("file")}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                From file
+              </label>
             </div>
+
+            {/* Image URL Input */}
+            {uploadMode === "url" ? (
+              <div>
+                <label
+                  htmlFor="imageUrl"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Image URL
+                </label>
+                <input
+                  type="url"
+                  id="imageUrl"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required={uploadMode === "url"}
+                />
+                <button
+                  type="button"
+                  onClick={handlePreview}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Preview Image
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="imageFile"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Select image file
+                </label>
+                <input
+                  type="file"
+                  id="imageFile"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setSelectedFile(file);
+                  }}
+                  className="w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required={uploadMode === "file"}
+                />
+                {selectedFile && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    {selectedFile.name} ({Math.round(selectedFile.size / 1024)} KB)
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Custom Filename Input */}
             <div>
@@ -180,14 +275,14 @@ export default function AdminUploadImagePage() {
             </div>
 
             {/* Preview */}
-            {previewUrl && (
+            {previewSource && (
               <div className="border border-gray-200 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">
                   Preview:
                 </p>
                 <div className="flex justify-center bg-gray-100 rounded-lg p-4">
                   <img
-                    src={previewUrl}
+                    src={previewSource}
                     alt="Preview"
                     className="max-w-full max-h-96 object-contain"
                     onError={() => {

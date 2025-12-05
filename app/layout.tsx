@@ -51,7 +51,6 @@ export const metadata: Metadata = {
       { url: "/icons/apple-touch-icon-180x180.png", sizes: "180x180", type: "image/png" },
     ],
   },
-  viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -61,6 +60,12 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

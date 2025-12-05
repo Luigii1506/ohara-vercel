@@ -91,6 +91,17 @@ const AdminDonsPage = () => {
     message: "",
   });
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const parseUploadResponse = useCallback(
+    async (response: Response): Promise<any> => {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        return response.json();
+      }
+      const text = await response.text();
+      return { error: text || "Upload failed" };
+    },
+    []
+  );
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -876,14 +887,3 @@ const AdminDonsPage = () => {
 };
 
 export default AdminDonsPage;
-  const parseUploadResponse = useCallback(
-    async (response: Response): Promise<any> => {
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        return response.json();
-      }
-      const text = await response.text();
-      return { error: text || "Upload failed" };
-    },
-    []
-  );

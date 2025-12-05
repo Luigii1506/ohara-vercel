@@ -283,7 +283,7 @@ const AdminDonsPage = () => {
               overwrite: true,
             }),
           });
-          const uploadData = await uploadResponse.json();
+          const uploadData = await parseUploadResponse(uploadResponse);
           if (!uploadResponse.ok) {
             throw new Error(uploadData.error || "Error al subir la imagen");
           }
@@ -306,7 +306,7 @@ const AdminDonsPage = () => {
             method: "POST",
             body: uploadForm,
           });
-          const uploadData = await uploadResponse.json();
+          const uploadData = await parseUploadResponse(uploadResponse);
           if (!uploadResponse.ok) {
             throw new Error(uploadData.error || "Error al subir la imagen");
           }
@@ -876,3 +876,14 @@ const AdminDonsPage = () => {
 };
 
 export default AdminDonsPage;
+  const parseUploadResponse = useCallback(
+    async (response: Response): Promise<any> => {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        return response.json();
+      }
+      const text = await response.text();
+      return { error: text || "Upload failed" };
+    },
+    []
+  );

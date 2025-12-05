@@ -97,16 +97,24 @@ const UploadSets = () => {
           body: JSON.stringify({
             imageUrl,
             filename: baseFilename,
-            overwrite: true,
+            overwrite: false,
           }),
         });
         const data = await parseUploadResponse(response);
-        if (!response.ok) {
+        const alreadyExists = Boolean(data?.exists);
+        if (!response.ok && !alreadyExists) {
           throw new Error(data?.error || "Failed to upload image to R2");
         }
+        const resolvedUrl =
+          data?.r2Url || data?.existingUrl || data?.url || null;
+        const resolvedFilename =
+          data?.filename || data?.existingFilename || baseFilename;
+        if (alreadyExists && !resolvedUrl) {
+          throw new Error("Image already exists but url was not provided");
+        }
         return {
-          r2Url: data.r2Url as string,
-          filename: data.filename as string,
+          r2Url: resolvedUrl ?? "",
+          filename: resolvedFilename,
         };
       } catch (error) {
         console.error("Error uploading to R2:", error);

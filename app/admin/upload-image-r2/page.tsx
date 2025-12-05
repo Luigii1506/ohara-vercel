@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Upload,
   Image as ImageIcon,
@@ -24,6 +24,15 @@ export default function AdminUploadImagePage() {
   const [existingFilename, setExistingFilename] = useState("");
   const [uploadMode, setUploadMode] = useState<"url" | "file">("url");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const parseUploadResponse = useCallback(async (response: Response) => {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+    const text = await response.text();
+    return { error: text || "Upload failed" };
+  }, []);
 
   const previewSource = useMemo(() => {
     if (uploadMode === "file" && selectedFile) {
@@ -88,7 +97,7 @@ export default function AdminUploadImagePage() {
         });
       }
 
-      const data = await response.json();
+      const data = await parseUploadResponse(response);
 
       // Check if file already exists
       if (data.exists && !forceOverwrite) {

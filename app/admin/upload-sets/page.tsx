@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useState, useEffect } from "react";
+import React, { FormEvent, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { scrapeAmazonProduct } from "@/lib/scraper";
@@ -52,6 +52,53 @@ const UploadSets = () => {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
+  const parseUploadResponse = useCallback(async (response: Response) => {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+    const text = await response.text();
+    return { error: text || "Upload failed" };
+  }, []);
+
+  const sanitizeFilename = (value: string) => {
+    if (!value) return `CARD-${Date.now()}`;
+    return value
+      .toUpperCase()
+      .replace(/[^A-Z0-9-_]/g, "-")
+      .replace(/-+/g, "-");
+  };
+
+  const uploadImageToR2 = useCallback(
+    async (imageUrl: string, baseFilename: string) => {
+      if (!imageUrl) return null;
+      try {
+        const response = await fetch("/api/upload-image-r2", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            imageUrl,
+            filename: baseFilename,
+            overwrite: true,
+          }),
+        });
+        const data = await parseUploadResponse(response);
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to upload image to R2");
+        }
+        return {
+          r2Url: data.r2Url as string,
+          filename: data.filename as string,
+        };
+      } catch (error) {
+        console.error("Error uploading to R2:", error);
+        return null;
+      }
+    },
+    [parseUploadResponse]
+  );
 
   // Check admin permissions
   useEffect(() => {
@@ -128,13 +175,17 @@ const UploadSets = () => {
 
   const createCard = async (card: CardData): Promise<boolean> => {
     try {
+      const baseFilename = sanitizeFilename(
+        card.code || (card.setCode ? `${card.setCode}-${card._id}` : card._id)
+      );
+      const uploadResult = await uploadImageToR2(card.src, baseFilename);
       const res = await fetch("/api/admin/cards", {
         method: "POST",
         headers: {
           "Content-type": "application/json",
         },
         body: JSON.stringify({
-          src: card.src,
+          src: uploadResult?.r2Url || card.src,
           name: card.name,
           types: card.types.map((type) => type.type),
           colors: card.colors.map((color) => color.color),

@@ -61,8 +61,24 @@ const UploadSets = () => {
     return { error: text || "Upload failed" };
   }, []);
 
-  const sanitizeFilename = (value: string) => {
-    if (!value) return `CARD-${Date.now()}`;
+  const extractFilenameFromUrl = (url: string): string | null => {
+    if (!url) return null;
+    try {
+      const pathname = new URL(url).pathname;
+      const raw = pathname.split("/").pop();
+      if (!raw) return null;
+      return raw.replace(/\.[^.]+$/, "");
+    } catch {
+      const segments = url.split("/");
+      const raw = segments.pop();
+      if (!raw) return null;
+      return raw.replace(/\.[^.]+$/, "");
+    }
+  };
+
+  const sanitizeFilename = (value: string | null | undefined) => {
+    const fallback = `CARD-${Date.now()}`;
+    if (!value || !value.trim()) return fallback;
     return value
       .toUpperCase()
       .replace(/[^A-Z0-9-_]/g, "-")
@@ -175,9 +191,11 @@ const UploadSets = () => {
 
   const createCard = async (card: CardData): Promise<boolean> => {
     try {
-      const baseFilename = sanitizeFilename(
-        card.code || (card.setCode ? `${card.setCode}-${card._id}` : card._id)
-      );
+      const derivedFilename =
+        extractFilenameFromUrl(card.src) ||
+        card.code ||
+        (card.setCode ? `${card.setCode}-${card._id}` : card._id);
+      const baseFilename = sanitizeFilename(derivedFilename);
       const uploadResult = await uploadImageToR2(card.src, baseFilename);
       const res = await fetch("/api/admin/cards", {
         method: "POST",

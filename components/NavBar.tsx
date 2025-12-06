@@ -186,7 +186,7 @@ const NavBar = () => {
   const desktopMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
-    { href: "/shop", label: "Shop", icon: ShoppingBag },
+    //{ href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
@@ -212,7 +212,7 @@ const NavBar = () => {
   const mobileMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
-    { href: "/shop", label: "Shop", icon: ShoppingBag },
+    //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 
   if (userId) {
@@ -296,7 +296,7 @@ const NavBar = () => {
                 </Link>
 
                 {/* Menú Desktop */}
-                <nav className="hidden md:flex items-center gap-4 text-sm whitespace-nowrap overflow-x-auto scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent">
+                <nav className="hidden md:flex flex-wrap lg:flex-nowrap items-center gap-4 text-sm">
                   <span className="text-gray-600 flex-shrink-0">|</span>
                   {desktopMenuItems.map((item) => (
                     <Link

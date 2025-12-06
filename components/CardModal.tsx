@@ -12,6 +12,7 @@ import CardRulings from "./CardRulings";
 import Link from "next/link";
 
 import { useCartStore, CartItem } from "@/store/cartStore";
+import TcgplayerLogo from "@/components/icons/TcgplayerLogo";
 
 interface CardModalProps {
   selectedCard: CardWithCollectionData | undefined;
@@ -169,7 +170,15 @@ const CardModal: React.FC<CardModalProps> = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [indexSelected, baseCard, alternatesCards, baseSelected, onNavigatePrevious, onNavigateNext, setIsOpen]);
+  }, [
+    indexSelected,
+    baseCard,
+    alternatesCards,
+    baseSelected,
+    onNavigatePrevious,
+    onNavigateNext,
+    setIsOpen,
+  ]);
 
   useEffect(() => {
     if (!showLargeImage) {
@@ -250,8 +259,8 @@ const CardModal: React.FC<CardModalProps> = ({
                       <div className="text-center text-[16px] leading-[22px] px-2 line-clamp-1 font-[500]">
                         {selectedCard?.sets[0].set?.title}
                       </div>
-                      <div className="text-center text-[14px] leading-[18px] font-[400]">
-                        {selectedCard?.alias?.replace(/^\d+\s*/, "")}
+                      <div className="text-center text-[14px] leading-[18px] font-[400] min-h-[18px]">
+                        {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}
                       </div>
                     </div>
 
@@ -270,12 +279,13 @@ const CardModal: React.FC<CardModalProps> = ({
                             )}`
                       }
                       target="_blank"
-                      className="underline text-blue-500 font-bold text-[13px]"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
                       }}
                     >
-                      View on tcg player.com
+                      <TcgplayerLogo className="h-5 w-12 text-white" />
+                      <span>View on TCGplayer</span>
                     </Link>
                   </div>
                 </div>
@@ -302,8 +312,8 @@ const CardModal: React.FC<CardModalProps> = ({
                   <div className="text-center text-[15px] leading-[17px]">
                     {selectedCard?.sets[0].set?.title}
                   </div>
-                  <div className="text-center text-[13px] leading-[15px]">
-                    {selectedCard?.alias?.replace(/^\d+\s*/, "")}
+                  <div className="text-center text-[13px] leading-[15px] min-h-[15px]">
+                    {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}
                   </div>
 
                   <Link
@@ -321,12 +331,13 @@ const CardModal: React.FC<CardModalProps> = ({
                           )}`
                     }
                     target="_blank"
-                    className="underline text-blue-500 font-bold text-[13px]"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
                   >
-                    View on tcg player.com
+                    <TcgplayerLogo className="h-5 w-12 text-white" />
+                    <span className="text-xs">View on TCGplayer</span>
                   </Link>
                 </div>
               </div>
@@ -343,7 +354,11 @@ const CardModal: React.FC<CardModalProps> = ({
                     className="py-2.5 px-3 text-xs md:text-sm font-semibold rounded-md transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900 data-[state=inactive]:hover:bg-gray-100/50 relative data-[state=active]:border data-[state=active]:border-blue-200"
                   >
                     <span className="flex items-center gap-1.5 justify-center">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                       </svg>
                       <span className="hidden sm:inline">Variants</span>
@@ -357,8 +372,18 @@ const CardModal: React.FC<CardModalProps> = ({
                     className="py-2.5 px-3 text-xs md:text-sm font-semibold rounded-md transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900 data-[state=inactive]:hover:bg-gray-100/50 relative data-[state=active]:border data-[state=active]:border-blue-200"
                   >
                     <span className="flex items-center gap-1.5 justify-center">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
                       </svg>
                       <span className="hidden sm:inline">Details</span>
                     </span>
@@ -368,8 +393,18 @@ const CardModal: React.FC<CardModalProps> = ({
                     className="py-2.5 px-3 text-xs md:text-sm font-semibold rounded-md transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900 data-[state=inactive]:hover:bg-gray-100/50 relative data-[state=active]:border data-[state=active]:border-blue-200"
                   >
                     <span className="flex items-center gap-1.5 justify-center">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"
+                        />
                       </svg>
                       <span className="hidden sm:inline">Rulings</span>
                       <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
@@ -378,12 +413,17 @@ const CardModal: React.FC<CardModalProps> = ({
                     </span>
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="variants" className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]">
+                <TabsContent
+                  value="variants"
+                  className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]"
+                >
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 auto-rows-min">
                     {/* Base Card */}
                     <div
                       className={`cursor-pointer border-2 rounded-lg p-2 transition-all hover:shadow-lg ${
-                        baseSelected ? "border-blue-500 shadow-md" : "border-gray-200"
+                        baseSelected
+                          ? "border-blue-500 shadow-md"
+                          : "border-gray-200"
                       }`}
                       onClick={() => {
                         setBaseSelected(true);
@@ -433,7 +473,10 @@ const CardModal: React.FC<CardModalProps> = ({
                     ))}
                   </div>
                 </TabsContent>
-                <TabsContent value="text" className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]">
+                <TabsContent
+                  value="text"
+                  className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]"
+                >
                   <div className="">
                     <CardDetails
                       card={baseCard}
@@ -443,7 +486,10 @@ const CardModal: React.FC<CardModalProps> = ({
                     />
                   </div>
                 </TabsContent>
-                <TabsContent value="rulings" className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]">
+                <TabsContent
+                  value="rulings"
+                  className="overflow-y-auto p-2 max-h-[calc(96vh-280px)]"
+                >
                   <CardRulings
                     card={baseCard}
                     searchTerm=""

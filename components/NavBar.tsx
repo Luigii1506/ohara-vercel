@@ -29,6 +29,13 @@ import {
   FolderOpen,
   ShoppingBag,
 } from "lucide-react";
+import {
+  siInstagram,
+  siTiktok,
+  siFacebook,
+  siDiscord,
+  siYoutube,
+} from "simple-icons/icons";
 import LoginModal from "./LoginModal";
 
 const NavBar = () => {
@@ -221,14 +228,55 @@ const NavBar = () => {
     });
   }
 
+  const renderSocialIcon = (path: string, label: string) => (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      role="img"
+      viewBox="0 0 24 24"
+      className="h-5 w-5 text-white fill-current"
+    >
+      <title>{label}</title>
+      <path d={path} />
+    </svg>
+  );
+
+  const socialLinks = [
+    {
+      href: "https://www.instagram.com/ohara.tcg",
+      label: "Instagram",
+      iconPath: siInstagram.path,
+    },
+    {
+      href: "https://www.tiktok.com/@ohara.tcg",
+      label: "TikTok",
+      iconPath: siTiktok.path,
+    },
+    {
+      href: "https://www.facebook.com/ohara.tcg.shop",
+      label: "Facebook",
+      iconPath: siFacebook.path,
+    },
+    {
+      href: "https://discord.com/invite/BJYGaAuadB",
+      label: "Discord",
+      iconPath: siDiscord.path,
+    },
+    {
+      href: "https://www.youtube.com/@oharatcg_op",
+      label: "YouTube",
+      iconPath: siYoutube.path,
+    },
+  ];
+
   return (
     <>
-      <header className="flex w-full justify-between items-center h-[60px] px-4 md:px-6 shadow-md relative text-[#FAF9F3] bg-black z-50">
+      <header className="flex w-full flex-wrap items-center gap-3 px-4 md:px-6 py-3 shadow-md relative text-[#FAF9F3] bg-black z-50">
         {!loading && (
-          <>
+          <div className="flex items-center gap-4 w-full">
             {/* Logo y menú desktop */}
-            <div className="flex items-center gap-6 justify-between w-full">
-              <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 justify-between flex-1 min-w-0">
+              <div className="flex items-center gap-4 min-w-0">
                 {/* Logo */}
                 <Link
                   href="/"
@@ -248,8 +296,8 @@ const NavBar = () => {
                 </Link>
 
                 {/* Menú Desktop */}
-                <nav className="hidden md:flex items-center gap-6">
-                  <span className="text-gray-600">|</span>
+                <nav className="hidden md:flex items-center gap-4 text-sm whitespace-nowrap overflow-x-auto scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent">
+                  <span className="text-gray-600 flex-shrink-0">|</span>
                   {desktopMenuItems.map((item) => (
                     <Link
                       key={item.href}
@@ -269,7 +317,7 @@ const NavBar = () => {
                   {/* Admin Dropdown Menu Desktop */}
                   {role === "ADMIN" && (
                     <>
-                      <span className="text-gray-600">|</span>
+                      <span className="text-gray-600 flex-shrink-0">|</span>
                       <div className="relative" ref={adminMenuRef}>
                         <button
                           onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
@@ -359,8 +407,22 @@ const NavBar = () => {
                 </nav>
               </div>
 
-              {/* Botones de autenticación desktop */}
-              <div className="hidden md:flex gap-4">
+              {/* Redes sociales + botones de autenticación desktop */}
+              <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+                <div className="flex items-center gap-2 pr-2">
+                  {socialLinks.map(({ href, label, iconPath }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors"
+                      aria-label={label}
+                    >
+                      {renderSocialIcon(iconPath, label)}
+                    </Link>
+                  ))}
+                </div>
                 {userId ? (
                   <Button
                     variant="outline"
@@ -384,7 +446,7 @@ const NavBar = () => {
 
               {/* Botón de menú móvil */}
               <button
-                className="mobile-menu-button md:hidden p-2 rounded-md hover:bg-white/10 transition-colors relative z-50"
+                className="mobile-menu-button md:hidden p-2 rounded-md hover:bg-white/10 transition-colors relative z-50 ml-auto"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -398,7 +460,7 @@ const NavBar = () => {
                 )}
               </button>
             </div>
-          </>
+          </div>
         )}
 
         <LoginModal
@@ -423,13 +485,13 @@ const NavBar = () => {
       {!loading && (
         <div
           ref={mobileMenuRef}
-          className={`fixed top-[60px] right-0 bottom-0 w-[280px] bg-gray-900 border-l border-gray-800 shadow-2xl z-50 md:hidden transform transition-transform duration-300 ease-out ${
+          className={`fixed top-[60px] right-0 bottom-0 w-[300px] bg-gray-900 border-l border-gray-800 shadow-2xl z-50 md:hidden transform transition-transform duration-300 ease-out ${
             isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         >
           <div className="flex flex-col h-full">
             {/* Enlaces principales */}
-            <nav className="flex-1 p-4">
+            <nav className="flex-1 overflow-y-auto p-4 space-y-6">
               <div className="space-y-1">
                 {mobileMenuItems.map((item) => {
                   const Icon = item.icon;
@@ -464,7 +526,7 @@ const NavBar = () => {
 
               {/* Sección Admin en móvil */}
               {role === "ADMIN" && (
-                <div className="mt-6 pt-6 border-t border-gray-800">
+                <div className="pt-6 border-t border-gray-800">
                   <p className="text-xs text-gray-400 font-medium px-4 mb-3">
                     ADMIN TOOLS
                   </p>
@@ -503,6 +565,27 @@ const NavBar = () => {
                   </div>
                 </div>
               )}
+
+              {/* Redes sociales mobile */}
+              <div className="mt-8">
+                <p className="text-xs text-gray-400 font-medium px-1 mb-3">
+                  FOLLOW US
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {socialLinks.map(({ href, label, iconPath }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 min-w-[48px] flex items-center justify-center p-3 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
+                    >
+                      {renderSocialIcon(iconPath, label)}
+                      <span className="sr-only">{label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
             </nav>
 
             {/* Botón de autenticación móvil */}

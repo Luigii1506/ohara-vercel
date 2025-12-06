@@ -12,7 +12,7 @@ import CardRulings from "./CardRulings";
 import Link from "next/link";
 
 import { useCartStore, CartItem } from "@/store/cartStore";
-import TcgplayerLogo from "@/components/icons/TcgplayerLogo";
+import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
 interface CardModalProps {
   selectedCard: CardWithCollectionData | undefined;

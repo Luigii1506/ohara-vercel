@@ -35,6 +35,9 @@ model Card {
   order            String          @default("0")
   isPro            Boolean         @default(false)
   region           String?
+  tcgplayerProductId Int?
+  tcgplayerGroupId   Int?
+  tcgplayerSkuId     Int?
   baseCardId       Int?            // NULL si es carta base, ID de la base si es alternativa
   baseCard         Card?           @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
   colors           CardColor[]
@@ -54,6 +57,7 @@ model Card {
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
+  @@index([tcgplayerProductId])
 }
 
 model Deck {

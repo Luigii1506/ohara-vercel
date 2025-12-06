@@ -12,6 +12,7 @@ import CardRulings from "./CardRulings";
 import Link from "next/link";
 
 import { useCartStore, CartItem } from "@/store/cartStore";
+import { useTcgplayerPrice } from "@/hooks/useTcgplayerPrice";
 
 interface CardModalProps {
   selectedCard: CardWithCollectionData | undefined;
@@ -48,6 +49,18 @@ const CardModal: React.FC<CardModalProps> = ({
   );
 
   const addItem = useCartStore((state) => state.addItem);
+  const { data: tcgPrice, isLoading: tcgPriceLoading } = useTcgplayerPrice(
+    baseCard?.tcgplayerProductId
+  );
+  const resolvedPrice =
+    tcgPrice?.marketPrice ??
+    tcgPrice?.midPrice ??
+    tcgPrice?.lowPrice ??
+    tcgPrice?.directLowPrice;
+  const formatPrice = (price?: number) => {
+    if (typeof price !== "number") return null;
+    return `$${price.toFixed(2)}`;
+  };
 
   // Función de ejemplo para agregar un item
   const handleAddItem = () => {
@@ -219,6 +232,13 @@ const CardModal: React.FC<CardModalProps> = ({
               <h1 className="text-md md:text-3xl font-bold text-center">
                 {baseCard?.name}
               </h1>
+              {baseCard?.tcgplayerProductId ? (
+                <p className="text-xs md:text-sm text-emerald-200 mt-1">
+                  {tcgPriceLoading
+                    ? "Actualizando precio..."
+                    : formatPrice(resolvedPrice) ?? "Precio no disponible"}
+                </p>
+              ) : null}
             </div>
             <button onClick={() => setIsOpen(false)} aria-label="Close">
               <X className="h-[30px] w-[30px] md:h-[60px] md:w-[60px] text-white cursor-pointer" />

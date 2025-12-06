@@ -51,6 +51,9 @@ export type CardData = {
   id: string;
   alias: string;
   tcgUrl?: string;
+  tcgplayerProductId?: number | null;
+  tcgplayerGroupId?: number | null;
+  tcgplayerSkuId?: number | null;
   rulings?: CardRuling[]; // <-- Aquí agregamos los rulings
 };
 
@@ -113,6 +116,9 @@ export interface CardWithCollectionData extends CardData {
   region?: string;
   alternates: CardWithCollectionData[];
   updatedAt: Date;
+  tcgplayerProductId?: number | null;
+  tcgplayerGroupId?: number | null;
+  tcgplayerSkuId?: number | null;
 }
 
 export interface CardWithQuantity extends CardData {

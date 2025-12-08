@@ -35,6 +35,7 @@ model Event {
   region          EventRegion   @default(GLOBAL)
   status          EventStatus   @default(UPCOMING)
   eventType       EventType     @default(OTHER)
+  category        EventCategory?
   startDate       DateTime?
   endDate         DateTime?
   location        String?
@@ -58,6 +59,10 @@ enum EventStatus {
 
 enum EventType {
   STORE_TOURNAMENT, CHAMPIONSHIP, RELEASE_EVENT, ONLINE, OTHER
+}
+
+enum EventCategory {
+  BEGINNER, ROOKIES, INTERMEDIATE, COMPETITIVE
 }
 ```
 
@@ -115,6 +120,15 @@ Configuraciones de schedule:
 
 ## 🔍 Cómo Funciona el Scraper
 
+### Fuentes de datos
+
+El scraper puede leer múltiples listados del sitio oficial. Actualmente usamos:
+
+- `https://en.onepiece-cardgame.com/events/list.php` → Eventos futuros/en curso (por región)
+- `https://en.onepiece-cardgame.com/events/list_end.php` → Historial de eventos ya concluidos
+
+La función `scrapeEvents()` recibe un arreglo de fuentes (`sources`) para combinar varias URLs en una sola corrida y evita duplicados automáticamente. Así podemos ejecutar un script puntual para poblar eventos pasados mientras el cron job de producción sigue enfocado sólo en los listados actuales.
+
 ### Detección de Sets
 
 El scraper busca keywords en el contenido del evento:
@@ -170,12 +184,27 @@ Ejemplo:
     {
       "slug": "na-store-tournament-vol-5-abc123",
       "title": "NA Store Tournament Vol. 5",
-      "sets": ["Set ID: 42", "Set ID: 43"]
+      "sets": ["Set ID: 42", "Set ID: 43"],
+      "region": "NA",
+      "status": "UPCOMING",
+      "eventType": "STORE_TOURNAMENT",
+      "category": "INTERMEDIATE",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-03-31T00:00:00.000Z",
+      "rawDateText": "January 1 – March 31, 2026",
+      "location": "Search for a local store on TCG+!",
+      "sourceUrl": "https://en.onepiece-cardgame.com/events/2026/store_tournament_vol1/",
+      "missingSets": [
+        "Event Pack Vol.6 x1",
+        "Limited Promotion Sleeve Four Emperors (10 pcs)"
+      ]
     }
   ],
   "errors": []
 }
 ```
+
+El arreglo `missingSets` lista textos detectados que no pudieron asociarse con un `Set` existente en la base; úsalo para crear los sets faltantes antes de volver a ejecutar el scraper sin `dry-run`.
 
 ## 🛠️ Desarrollo y Testing
 
@@ -197,16 +226,36 @@ test();
 
 Ejecuta:
 ```bash
-npx ts-node scripts/test-event-scraper.ts
+# Fuente por defecto (eventos futuros)
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts
+
+# Agregar también el listado de eventos pasados
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts --past
+
+# Sólo eventos pasados (omite los actuales)
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts --past --no-current
+
+# Revisar resultados sin escribir en la base de datos
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts --past --dry-run
+
+# Fuentes personalizadas (urls completas separadas por espacio)
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts https://en.onepiece-cardgame.com/events/list.php https://en.onepiece-cardgame.com/events/list_end.php
 ```
+
+El flag `--dry-run` te permite revisar en consola qué eventos se detectarían y qué sets se asociarían sin crear/upsertar registros en la base. Una vez que estés conforme con los resultados, ejecuta el mismo comando sin `--dry-run` para persistirlos.
 
 ### Limitar Eventos Procesados
 
-El scraper por defecto procesa **máximo 10 eventos** para evitar sobrecarga.
+El scraper por defecto procesa **máximo 25 eventos** en total y **25 eventos por fuente**.
 
-Modifica en `eventScraper.ts`:
+Puedes ajustar estos valores desde `scrapeEvents()`:
+
 ```typescript
-const urlsToProcess = eventUrls.slice(0, 10); // Cambia el límite aquí
+await scrapeEvents({
+  maxEvents: 5,          // límite global
+  perSourceLimit: 5,     // límite por cada URL de listado
+  delayMs: 1500,         // pausa entre requests (ms)
+});
 ```
 
 ### Logs
@@ -233,7 +282,7 @@ El scraper genera logs detallados:
 
 - **Autenticación**: El endpoint requiere `Authorization: Bearer CRON_SECRET`
 - **Rate Limiting**: 1 segundo de pausa entre requests al sitio oficial
-- **Límite de eventos**: Máximo 10 eventos por ejecución
+- **Límite de eventos**: Máximo 25 eventos por ejecución
 - **Timeout**: 15 segundos por request HTTP
 
 ## 📝 Queries Útiles

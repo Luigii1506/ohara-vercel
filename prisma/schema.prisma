@@ -315,6 +315,7 @@ model Event {
   region          EventRegion   @default(GLOBAL)
   status          EventStatus   @default(UPCOMING)
   eventType       EventType     @default(OTHER)
+  category        EventCategory?
   startDate       DateTime?     @map("event_date")
   endDate         DateTime?
   location        String?
@@ -615,4 +616,11 @@ enum EventType {
   RELEASE_EVENT
   ONLINE
   OTHER
+}
+
+enum EventCategory {
+  BEGINNER
+  ROOKIES
+  INTERMEDIATE
+  COMPETITIVE
 }

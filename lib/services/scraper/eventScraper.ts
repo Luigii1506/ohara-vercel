@@ -895,6 +895,18 @@ function detectSetsAndCards(
           return;
         }
 
+        const containsDon = /don!!/i.test(rawText);
+        if (containsDon && !/pack/i.test(rawText)) {
+          const donTitle = canonicalizeSetDisplay(rawText) || "DON!! Card";
+          cardCandidates.push({
+            code: "DON!!",
+            title: donTitle,
+            image: imageData.images[0] || null,
+          });
+          pushed = true;
+          return;
+        }
+
         const titleText = cleanSetCandidate(rawText);
         if (!titleText || !shouldConsiderSetText(titleText)) {
           return;

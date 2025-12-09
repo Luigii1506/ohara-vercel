@@ -1,7 +1,10 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { prisma } from "../../prisma";
-import { setCodes as rawSetCodes, standarDecks as rawStandardDecks } from "../../../helpers/constants";
+import {
+  setCodes as rawSetCodes,
+  standarDecks as rawStandardDecks,
+} from "../../../helpers/constants";
 import {
   EventRegion,
   EventStatus,
@@ -16,6 +19,7 @@ export interface EventListSource {
   label?: string;
   type?: EventListSourceType;
   limit?: number;
+  region?: EventRegion;
 }
 
 export interface ScrapedEvent {
@@ -153,12 +157,14 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
       url: CURRENT_EVENTS_URL,
       label: "global-current",
       type: "current",
+      region: EventRegion.NA,
     },
     past: {
       url: PAST_EVENTS_URL,
       label: "global-past",
       type: "past",
       limit: 20,
+      region: EventRegion.NA,
     },
   },
   fr: {
@@ -166,12 +172,14 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
       url: FRENCH_CURRENT_EVENTS_URL,
       label: "fr-current",
       type: "current",
+      region: EventRegion.EU,
     },
     past: {
       url: FRENCH_PAST_EVENTS_URL,
       label: "fr-past",
       type: "past",
       limit: 20,
+      region: EventRegion.EU,
     },
   },
   jp: {
@@ -179,12 +187,14 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
       url: JAPANESE_CURRENT_EVENTS_URL,
       label: "jp-current",
       type: "current",
+      region: EventRegion.JP,
     },
     past: {
       url: JAPANESE_PAST_EVENTS_URL,
       label: "jp-past",
       type: "past",
       limit: 20,
+      region: EventRegion.JP,
     },
   },
   asia: {
@@ -192,6 +202,7 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
       url: "https://asia-en.onepiece-cardgame.com/events/",
       label: "asia-current",
       type: "current",
+      region: EventRegion.ASIA,
     },
     notes: "Asia region site does not expose a dedicated past-events list.",
   },
@@ -200,6 +211,7 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
       url: "https://www.onepiece-cardgame.cn/activity",
       label: "cn-activity",
       type: "current",
+      region: EventRegion.ASIA,
     },
     requiresDynamicRendering: true,
     notes:
@@ -208,6 +220,36 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
 };
 
 export const LANGUAGE_EVENT_SOURCES = EVENT_LANGUAGE_SOURCE_MAP;
+
+const DOMAIN_REGION_OVERRIDES = new Map<string, EventRegion>();
+
+function registerDomainRegion(source?: EventListSource) {
+  if (!source?.region) return;
+  try {
+    const host = new URL(source.url).hostname.toLowerCase();
+    if (!DOMAIN_REGION_OVERRIDES.has(host)) {
+      DOMAIN_REGION_OVERRIDES.set(host, source.region);
+    }
+  } catch {
+    // ignore invalid URLs
+  }
+}
+
+Object.values(LANGUAGE_EVENT_SOURCES).forEach((config) => {
+  registerDomainRegion(config.current);
+  registerDomainRegion(config.past);
+});
+
+function getRegionOverrideForUrl(
+  eventUrl: string
+): EventRegion | undefined {
+  try {
+    const host = new URL(eventUrl).hostname.toLowerCase();
+    return DOMAIN_REGION_OVERRIDES.get(host);
+  } catch {
+    return undefined;
+  }
+}
 
 export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] = [
   EVENT_LANGUAGE_SOURCE_MAP.en.current!,
@@ -318,18 +360,6 @@ const SET_NOISE_PREFIXES = [
   "distribution",
   "kit",
 ];
-
-const HEADING_SPAN_NOISE_PATTERNS: RegExp[] = [
-  /cards?\s+per\s+pack/i,
-  /total\s+of/i,
-  /legal\s+date/i,
-  /tickets?/i,
-  /^\*/,
-  /please\s+note/i,
-];
-
-const HEADING_SPAN_KEEP_PATTERN =
-  /(vol(?:ume)?|season|ver(?:sion)?|set|series|round|pack|phase|edition|top player|winner|judge|participation|event|finalist|trophy)/i;
 
 // Mapeo de regiones
 const REGION_MAP: Record<string, EventRegion> = {
@@ -475,7 +505,10 @@ function normalizeString(value: string | null | undefined): string {
 function stripVersionSuffix(value: string): string {
   if (!value) return "";
   let result = value;
-  result = result.replace(/(season|ver|version|vol|volume|series|round)(\d{1,3})$/i, "");
+  result = result.replace(
+    /(season|ver|version|vol|volume|series|round)(\d{1,3})$/i,
+    ""
+  );
   result = result.replace(/(pack|set)(\d{1,3})$/i, "$1");
   result = result.replace(/(season|ver|version|vol|volume|series|round)$/i, "");
   result = result.replace(/([a-z])(\d{1,2})$/i, "$1");
@@ -487,7 +520,10 @@ function isKnownSetCodeKeyword(value: string): boolean {
   return NORMALIZED_SET_CODES.includes(normalized);
 }
 
-function hasSufficientOverlap(shorterLength: number, longerLength: number): boolean {
+function hasSufficientOverlap(
+  shorterLength: number,
+  longerLength: number
+): boolean {
   if (shorterLength < MIN_MATCH_ABSOLUTE_LENGTH) return false;
   if (longerLength === 0) return false;
   return shorterLength / longerLength >= MIN_MATCH_RATIO;
@@ -611,41 +647,11 @@ function shouldConsiderSetText(text: string): boolean {
   return SET_PRIMARY_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
-function shouldPreserveHeadingSpanText(text: string | null | undefined): boolean {
-  if (!text) return false;
-  const normalized = canonicalizeSetDisplay(text).trim();
-  if (!normalized) return false;
-  if (HEADING_SPAN_NOISE_PATTERNS.some((pattern) => pattern.test(normalized))) {
-    return false;
-  }
-  if (/^\d+(st|nd|rd|th)?$/i.test(normalized)) {
-    return true;
-  }
-  if (/^[ivxlcdm]+$/i.test(normalized)) {
-    return true;
-  }
-  return HEADING_SPAN_KEEP_PATTERN.test(normalized);
-}
-
-function extractHeadingText(
-  $heading: cheerio.Cheerio<any>,
-  rootApi: cheerio.CheerioAPI
-): string {
-  const headingHtml = rootApi.html($heading.clone()) || "";
-  if (!headingHtml) {
-    return $heading.text().trim();
-  }
-  const $local = cheerio.load(headingHtml);
-  $local("span").each((_, span) => {
-    const $span = $local(span);
-    const spanText = $span.text();
-    if (shouldPreserveHeadingSpanText(spanText)) {
-      $span.replaceWith(` ${spanText} `);
-    } else {
-      $span.remove();
-    }
-  });
-  return $local.root().text().replace(/\s+/g, " ").trim();
+function extractHeadingText($heading: cheerio.Cheerio<any>): string {
+  const headingClone = $heading.clone();
+  headingClone.find("span, ul, li, p").remove();
+  headingClone.find("br").replaceWith(" ");
+  return headingClone.text().replace(/\s+/g, " ").trim();
 }
 
 function cleanSetCandidate(value: string | null | undefined): string | null {
@@ -711,7 +717,10 @@ function canonicalizeSetDisplay(value: string): string {
   result = result.replace(/\s*-\s*/g, "-");
   result = result.replace(/\s*\(\s*/g, " (");
   result = result.replace(/\s*\)/g, ")");
-  result = result.replace(/\(\s*([^)]+?)\s*\)/g, (_, inner) => `(${inner.replace(/\s+/g, " ").trim()})`);
+  result = result.replace(
+    /\(\s*([^)]+?)\s*\)/g,
+    (_, inner) => `(${inner.replace(/\s+/g, " ").trim()})`
+  );
   result = result.replace(/\)\(/g, ") (");
   result = result.replace(/(\d+)\s*pcs/gi, "$1 pcs");
   if ((result.match(/\(/g)?.length || 0) > (result.match(/\)/g)?.length || 0)) {
@@ -724,7 +733,10 @@ function canonicalizeSetDisplay(value: string): string {
 }
 
 function removeCountParentheses(value: string): string {
-  return value.replace(/\(\s*\d+\s*pcs?\s*\)/gi, "").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/\(\s*\d+\s*pcs?\s*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function removeTrailingParenPack(value: string): string {
@@ -740,7 +752,9 @@ function removeTrailingPackArtifacts(value: string): string {
   return result;
 }
 
-function extractCardCode(text: string | undefined): { code: string; match: string } | null {
+function extractCardCode(
+  text: string | undefined
+): { code: string; match: string } | null {
   if (!text) return null;
   for (const setCode of CARD_CODE_PREFIXES) {
     const escaped = setCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
@@ -758,15 +772,24 @@ function extractCardCode(text: string | undefined): { code: string; match: strin
   return null;
 }
 
-function extractCardTitle(rawText: string, codeMatch: string, fallback?: string): string {
-  const cleaned = rawText.replace(codeMatch, "").replace(/[\s:–-]+$/, "").trim();
+function extractCardTitle(
+  rawText: string,
+  codeMatch: string,
+  fallback?: string
+): string {
+  const cleaned = rawText
+    .replace(codeMatch, "")
+    .replace(/[\s:–-]+$/, "")
+    .trim();
   if (cleaned.length > 0) {
     return cleaned;
   }
   return fallback?.trim() || "";
 }
 
-function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSetCandidate[] {
+function dedupeMissingCandidates(
+  candidates: DetectedSetCandidate[]
+): DetectedSetCandidate[] {
   const map = new Map<string, DetectedSetCandidate>();
   const registerKeys = (candidate: DetectedSetCandidate, keys: string[]) => {
     keys.forEach((key) => {
@@ -783,9 +806,12 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
   for (const candidate of candidates) {
     const canonicalTitle = canonicalizeSetDisplay(candidate.title);
     const canonicalKey = canonicalTitle.toLowerCase();
-    const countNormalized = removeCountParentheses(canonicalTitle).toLowerCase();
-    const parenPackNormalized = removeTrailingParenPack(canonicalTitle).toLowerCase();
-    const packArtifactNormalized = removeTrailingPackArtifacts(canonicalTitle).toLowerCase();
+    const countNormalized =
+      removeCountParentheses(canonicalTitle).toLowerCase();
+    const parenPackNormalized =
+      removeTrailingParenPack(canonicalTitle).toLowerCase();
+    const packArtifactNormalized =
+      removeTrailingPackArtifacts(canonicalTitle).toLowerCase();
     const keys = [
       canonicalKey,
       countNormalized,
@@ -814,7 +840,8 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
     const normalizedCandidate: DetectedSetCandidate = {
       title: canonicalTitle,
       images: Array.from(new Set(candidate.images)),
-      versionSignature: candidate.versionSignature ?? extractVersionSignature(canonicalTitle),
+      versionSignature:
+        candidate.versionSignature ?? extractVersionSignature(canonicalTitle),
     };
 
     registerKeys(normalizedCandidate, keys);
@@ -824,10 +851,14 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
   return mergedCandidates;
 }
 
-function dedupeCardCandidates(candidates: DetectedCardCandidate[]): DetectedCardCandidate[] {
+function dedupeCardCandidates(
+  candidates: DetectedCardCandidate[]
+): DetectedCardCandidate[] {
   const map = new Map<string, DetectedCardCandidate>();
   for (const candidate of candidates) {
-    const canonicalTitle = canonicalizeSetDisplay(candidate.title || "").toLowerCase();
+    const canonicalTitle = canonicalizeSetDisplay(
+      candidate.title || ""
+    ).toLowerCase();
     const key = `${candidate.code.toUpperCase()}|${canonicalTitle}`;
 
     if (map.has(key)) {
@@ -849,7 +880,10 @@ function dedupeCardCandidates(candidates: DetectedCardCandidate[]): DetectedCard
   return Array.from(map.values());
 }
 
-function resolveImageUrl(src: string | undefined, baseUrl: string): string | null {
+function resolveImageUrl(
+  src: string | undefined,
+  baseUrl: string
+): string | null {
   if (!src) return null;
   try {
     return new URL(src, baseUrl).toString();
@@ -867,16 +901,14 @@ function collectImagesAroundHeading(
   let firstAlt: string | undefined;
   const siblingRange = $heading.nextUntil("h5, h6");
 
-  const scopedImages = siblingRange
-    .find("img")
-    .add(siblingRange.filter("img"));
+  const scopedImages = siblingRange.find("img").add(siblingRange.filter("img"));
 
   let imageElements = scopedImages;
 
   if (imageElements.length === 0) {
-    const nextPackCol = $heading.nextAll(
-      ".eventPackCol, .cardPackCol, .includecardBox"
-    ).first();
+    const nextPackCol = $heading
+      .nextAll(".eventPackCol, .cardPackCol, .includecardBox")
+      .first();
 
     if (nextPackCol.length > 0) {
       imageElements = nextPackCol.find("img");
@@ -889,10 +921,17 @@ function collectImagesAroundHeading(
 
   imageElements.each((__, img) => {
     const attribs = (img as any)?.attribs || {};
-    const resolved = resolveImageUrl(attribs.src as string | undefined, baseUrl);
+    const resolved = resolveImageUrl(
+      attribs.src as string | undefined,
+      baseUrl
+    );
     if (resolved) {
       imagesSet.add(resolved);
-      if (!firstAlt && typeof attribs.alt === "string" && attribs.alt.trim().length) {
+      if (
+        !firstAlt &&
+        typeof attribs.alt === "string" &&
+        attribs.alt.trim().length
+      ) {
         firstAlt = attribs.alt.trim();
       }
     }
@@ -923,7 +962,7 @@ function detectSetsAndCards(
     if (headings.length === 0) return;
 
     const extractTitle = ($heading: cheerio.Cheerio<any>) => {
-      const rawHeading = extractHeadingText($heading, $);
+      const rawHeading = extractHeadingText($heading);
       const titleText = cleanSetCandidate(rawHeading);
       if (!titleText || !shouldConsiderSetText(titleText)) {
         return null;
@@ -937,7 +976,9 @@ function detectSetsAndCards(
 
     const headingNodes = headings.toArray() as any[];
     const h6Nodes = headingNodes.filter((node) => {
-      const tag = ($(node).prop("tagName") as string | undefined)?.toLowerCase();
+      const tag = (
+        $(node).prop("tagName") as string | undefined
+      )?.toLowerCase();
       return tag === "h6";
     });
 
@@ -945,15 +986,23 @@ function detectSetsAndCards(
       let pushed = false;
       nodes.forEach((node) => {
         const $heading = $(node);
-        const rawText = extractHeadingText($heading, $);
+        const rawText = extractHeadingText($heading);
 
         const codeInfo =
           extractCardCode(rawText) || extractCardCode($section.attr("id"));
 
-        const imageData = collectImagesAroundHeading($heading, $section, baseUrl);
+        const imageData = collectImagesAroundHeading(
+          $heading,
+          $section,
+          baseUrl
+        );
 
         if (codeInfo) {
-          let cardTitle = extractCardTitle(rawText, codeInfo.match, imageData.firstAlt);
+          let cardTitle = extractCardTitle(
+            rawText,
+            codeInfo.match,
+            imageData.firstAlt
+          );
           if (!cardTitle && imageData.firstAlt) {
             cardTitle = imageData.firstAlt;
           }
@@ -984,7 +1033,10 @@ function detectSetsAndCards(
         }
 
         const lowerTitle = titleText.toLowerCase();
-        if (lowerTitle.includes("uncut sheet") && !/\[[^\]]+\]/.test(titleText)) {
+        if (
+          lowerTitle.includes("uncut sheet") &&
+          !/\[[^\]]+\]/.test(titleText)
+        ) {
           return;
         }
 
@@ -1016,7 +1068,10 @@ function detectSetsAndCards(
  */
 async function findMatchingSets(
   detectedTexts: DetectedSetCandidate[]
-): Promise<{ matches: MatchedSet[]; unmatchedCandidates: DetectedSetCandidate[] }> {
+): Promise<{
+  matches: MatchedSet[];
+  unmatchedCandidates: DetectedSetCandidate[];
+}> {
   const setsCache = await loadSetsCache();
   const matchedMap = new Map<number, MatchedSet>();
   const unmatchedCandidates: DetectedSetCandidate[] = [];
@@ -1174,7 +1229,8 @@ function cleanPageTitle(title: string): string {
 }
 
 async function scrapeEventDetail(
-  eventUrl: string
+  eventUrl: string,
+  regionOverride?: EventRegion
 ): Promise<ScrapedEvent | null> {
   try {
     console.log(`\n🔍 Scraping event: ${eventUrl}`);
@@ -1216,7 +1272,7 @@ async function scrapeEventDetail(
     const fullText = `${title} ${description || ""} ${categoryText || ""} ${
       dateText || ""
     } ${content}`;
-    const region = detectRegion(fullText);
+    const region = regionOverride ?? detectRegion(fullText);
     const eventType = detectEventType(fullText);
     const { startDate, endDate } = parseDates(dateText || fullText);
     const category = detectEventCategory(categoryText);
@@ -1421,7 +1477,8 @@ export async function scrapeEvents(
 
     // 2. Procesa cada evento con límite global
     for (const eventUrl of eventUrls) {
-      const scrapedEvent = await scrapeEventDetail(eventUrl);
+      const regionOverride = getRegionOverrideForUrl(eventUrl);
+      const scrapedEvent = await scrapeEventDetail(eventUrl, regionOverride);
 
       if (!scrapedEvent) {
         result.errors.push(`Failed to scrape: ${eventUrl}`);
@@ -1437,9 +1494,8 @@ export async function scrapeEvents(
         );
 
         // 3. Busca sets coincidentes
-        const { matches: matchedSets, unmatchedCandidates } = await findMatchingSets(
-          scrapedEvent.detectedSets
-        );
+        const { matches: matchedSets, unmatchedCandidates } =
+          await findMatchingSets(scrapedEvent.detectedSets);
 
         const dedupedMissingSets = dedupeMissingCandidates(unmatchedCandidates);
         const dedupedCards = dedupeCardCandidates(scrapedEvent.detectedCards);
@@ -1576,7 +1632,10 @@ interface VersionEntry {
   isKeyword: boolean;
 }
 
-function getDigitBounds(match: RegExpExecArray, digits: string): {
+function getDigitBounds(
+  match: RegExpExecArray,
+  digits: string
+): {
   start: number;
   end: number;
 } {
@@ -1588,7 +1647,10 @@ function getDigitBounds(match: RegExpExecArray, digits: string): {
   return { start, end: start + digits.length };
 }
 
-function shouldSkipHyphenatedRange(canonical: string, endIndex: number): boolean {
+function shouldSkipHyphenatedRange(
+  canonical: string,
+  endIndex: number
+): boolean {
   let idx = endIndex;
   while (idx < canonical.length && canonical[idx] === " ") {
     idx++;
@@ -1619,7 +1681,13 @@ function extractVersionNumbers(text: string): string[] {
   while ((match = standardPattern.exec(canonical))) {
     const digits = match[2];
     const bounds = getDigitBounds(match, digits);
-    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+    addEntry(
+      digits,
+      bounds.start,
+      bounds.end,
+      match.index ?? bounds.start,
+      true
+    );
   }
 
   const placePattern = /(1st|2nd|3rd|4th|5th)\s+place/gi;
@@ -1636,14 +1704,26 @@ function extractVersionNumbers(text: string): string[] {
   while ((match = trophyPattern.exec(canonical))) {
     const digits = match[1];
     const bounds = getDigitBounds(match, digits);
-    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+    addEntry(
+      digits,
+      bounds.start,
+      bounds.end,
+      match.index ?? bounds.start,
+      true
+    );
   }
 
   const packNumberPattern = /pack(?:\s+|\-)?(\d{1,2})(?!\d)/gi;
   while ((match = packNumberPattern.exec(canonical))) {
     const digits = match[1];
     const bounds = getDigitBounds(match, digits);
-    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+    addEntry(
+      digits,
+      bounds.start,
+      bounds.end,
+      match.index ?? bounds.start,
+      true
+    );
   }
 
   const trailingPattern =
@@ -1696,7 +1776,9 @@ function extractVersionNumbers(text: string): string[] {
   return normalizedValues;
 }
 
-function extractVersionSignature(text: string | null | undefined): string | null {
+function extractVersionSignature(
+  text: string | null | undefined
+): string | null {
   if (!text) return null;
   const numbers = extractVersionNumbers(text);
   if (numbers.length === 0) return null;

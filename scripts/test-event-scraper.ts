@@ -67,22 +67,44 @@ async function main() {
     const sources: EventListSource[] = [];
 
     if (includeCurrent) {
-      languages.forEach(lang => {
-        const config = LANGUAGE_EVENT_SOURCES[lang];
-        if (config) {
-          sources.push(config.current);
-        }
-      });
-    }
+    languages.forEach(lang => {
+      const config = LANGUAGE_EVENT_SOURCES[lang];
+      if (!config) return;
 
-    if (includePast) {
-      languages.forEach(lang => {
-        const config = LANGUAGE_EVENT_SOURCES[lang];
-        if (config) {
-          sources.push(config.past);
-        }
-      });
-    }
+      if (config.requiresDynamicRendering) {
+        console.warn(
+          `\n⚠️  Language "${lang}" requires dynamic rendering. Results may be incomplete without a headless browser.`
+        );
+      }
+
+      if (config.current) {
+        sources.push(config.current);
+      } else {
+        console.warn(
+          `\n⚠️  Language "${lang}" does not define a current events source.`
+        );
+      }
+
+      if (config.notes) {
+        console.warn(`   → ${config.notes}`);
+      }
+    });
+  }
+
+  if (includePast) {
+    languages.forEach(lang => {
+      const config = LANGUAGE_EVENT_SOURCES[lang];
+      if (!config) return;
+
+      if (config.past) {
+        sources.push(config.past);
+      } else {
+        console.warn(
+          `\n⚠️  Language "${lang}" does not have a dedicated past-events feed.`
+        );
+      }
+    });
+  }
 
     customUrls.forEach((url, index) => {
       sources.push({ url, label: `custom-${index + 1}` });

@@ -42,6 +42,7 @@ interface CachedSet {
   title: string;
   code: string | null;
   normalizedTitle: string;
+  versionSignature: string | null;
 }
 
 interface ScrapeResult {
@@ -74,7 +75,7 @@ interface ScrapeResult {
     cards: Array<{
       code: string;
       title: string;
-      images: string[];
+      image: string | null;
     }>;
   }>;
 }
@@ -88,12 +89,13 @@ interface MatchedSet {
 interface DetectedSetCandidate {
   title: string;
   images: string[];
+  versionSignature: string | null;
 }
 
 interface DetectedCardCandidate {
   code: string;
   title: string;
-  images: string[];
+  image: string | null;
 }
 
 export interface ScrapeEventsOptions {
@@ -150,8 +152,13 @@ const DEFAULT_REQUEST_DELAY_MS = 1000;
 let cachedSetsPromise: Promise<CachedSet[]> | null = null;
 const SET_CODES: string[] = (rawSetCodes as string[]) || [];
 const STANDARD_DECK_CODES: string[] = (rawStandardDecks as string[]) || [];
+const PROMO_CODE_PREFIXES: string[] = ["P"];
 const NORMALIZED_SET_CODES = SET_CODES.map((code) => code.toLowerCase());
-const CARD_CODE_PREFIXES = [...SET_CODES, ...STANDARD_DECK_CODES];
+const CARD_CODE_PREFIXES = [
+  ...SET_CODES,
+  ...STANDARD_DECK_CODES,
+  ...PROMO_CODE_PREFIXES,
+];
 const MIN_MATCH_ABSOLUTE_LENGTH = 3;
 const MIN_MATCH_RATIO = 0.6;
 
@@ -240,6 +247,18 @@ const SET_NOISE_PREFIXES = [
   "distribution",
   "kit",
 ];
+
+const HEADING_SPAN_NOISE_PATTERNS: RegExp[] = [
+  /cards?\s+per\s+pack/i,
+  /total\s+of/i,
+  /legal\s+date/i,
+  /tickets?/i,
+  /^\*/,
+  /please\s+note/i,
+];
+
+const HEADING_SPAN_KEEP_PATTERN =
+  /(vol(?:ume)?|season|ver(?:sion)?|set|series|round|pack|phase|edition|top player|winner|judge|participation|event|finalist|trophy)/i;
 
 // Mapeo de regiones
 const REGION_MAP: Record<string, EventRegion> = {
@@ -382,6 +401,16 @@ function normalizeString(value: string | null | undefined): string {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function stripVersionSuffix(value: string): string {
+  if (!value) return "";
+  let result = value;
+  result = result.replace(/(season|ver|version|vol|volume|series|round)(\d{1,3})$/i, "");
+  result = result.replace(/(pack|set)(\d{1,3})$/i, "$1");
+  result = result.replace(/(season|ver|version|vol|volume|series|round)$/i, "");
+  result = result.replace(/([a-z])(\d{1,2})$/i, "$1");
+  return result;
+}
+
 function isKnownSetCodeKeyword(value: string): boolean {
   const normalized = value.replace(/[^a-z0-9]/gi, "").toLowerCase();
   return NORMALIZED_SET_CODES.includes(normalized);
@@ -409,6 +438,7 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           title: set.title,
           code: set.code,
           normalizedTitle: normalizeString(set.title),
+          versionSignature: extractVersionSignature(set.title),
         }))
       );
   }
@@ -508,6 +538,43 @@ function shouldConsiderSetText(text: string): boolean {
     return false;
   }
   return SET_PRIMARY_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function shouldPreserveHeadingSpanText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const normalized = canonicalizeSetDisplay(text).trim();
+  if (!normalized) return false;
+  if (HEADING_SPAN_NOISE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+  if (/^\d+(st|nd|rd|th)?$/i.test(normalized)) {
+    return true;
+  }
+  if (/^[ivxlcdm]+$/i.test(normalized)) {
+    return true;
+  }
+  return HEADING_SPAN_KEEP_PATTERN.test(normalized);
+}
+
+function extractHeadingText(
+  $heading: cheerio.Cheerio<any>,
+  rootApi: cheerio.CheerioAPI
+): string {
+  const headingHtml = rootApi.html($heading.clone()) || "";
+  if (!headingHtml) {
+    return $heading.text().trim();
+  }
+  const $local = cheerio.load(headingHtml);
+  $local("span").each((_, span) => {
+    const $span = $local(span);
+    const spanText = $span.text();
+    if (shouldPreserveHeadingSpanText(spanText)) {
+      $span.replaceWith(` ${spanText} `);
+    } else {
+      $span.remove();
+    }
+  });
+  return $local.root().text().replace(/\s+/g, " ").trim();
 }
 
 function cleanSetCandidate(value: string | null | undefined): string | null {
@@ -666,6 +733,9 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
       candidate.images.forEach((image) => images.add(image));
       existing.images = Array.from(images);
       existing.title = existing.title || canonicalTitle;
+      if (!existing.versionSignature && candidate.versionSignature) {
+        existing.versionSignature = candidate.versionSignature;
+      }
       registerKeys(existing, keys);
       continue;
     }
@@ -673,6 +743,7 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
     const normalizedCandidate: DetectedSetCandidate = {
       title: canonicalTitle,
       images: Array.from(new Set(candidate.images)),
+      versionSignature: candidate.versionSignature ?? extractVersionSignature(canonicalTitle),
     };
 
     registerKeys(normalizedCandidate, keys);
@@ -685,12 +756,14 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
 function dedupeCardCandidates(candidates: DetectedCardCandidate[]): DetectedCardCandidate[] {
   const map = new Map<string, DetectedCardCandidate>();
   for (const candidate of candidates) {
-    const key = candidate.code.toUpperCase();
+    const canonicalTitle = canonicalizeSetDisplay(candidate.title || "").toLowerCase();
+    const key = `${candidate.code.toUpperCase()}|${canonicalTitle}`;
+
     if (map.has(key)) {
       const existing = map.get(key)!;
-      const images = new Set(existing.images);
-      candidate.images.forEach((img) => images.add(img));
-      existing.images = Array.from(images);
+      if (!existing.image && candidate.image) {
+        existing.image = candidate.image;
+      }
       if (!existing.title && candidate.title) {
         existing.title = candidate.title;
       }
@@ -698,7 +771,7 @@ function dedupeCardCandidates(candidates: DetectedCardCandidate[]): DetectedCard
       map.set(key, {
         code: candidate.code.toUpperCase(),
         title: candidate.title,
-        images: Array.from(new Set(candidate.images)),
+        image: candidate.image || null,
       });
     }
   }
@@ -779,9 +852,8 @@ function detectSetsAndCards(
     if (headings.length === 0) return;
 
     const extractTitle = ($heading: cheerio.Cheerio<any>) => {
-      const headingClone = $heading.clone();
-      headingClone.find("span").remove();
-      const titleText = cleanSetCandidate(headingClone.text());
+      const rawHeading = extractHeadingText($heading, $);
+      const titleText = cleanSetCandidate(rawHeading);
       if (!titleText || !shouldConsiderSetText(titleText)) {
         return null;
       }
@@ -802,9 +874,7 @@ function detectSetsAndCards(
       let pushed = false;
       nodes.forEach((node) => {
         const $heading = $(node);
-        const headingClone = $heading.clone();
-        headingClone.find("span").remove();
-        const rawText = headingClone.text().trim();
+        const rawText = extractHeadingText($heading, $);
 
         const codeInfo =
           extractCardCode(rawText) || extractCardCode($section.attr("id"));
@@ -819,7 +889,7 @@ function detectSetsAndCards(
           cardCandidates.push({
             code: codeInfo.code,
             title: cardTitle || codeInfo.code,
-            images: imageData.images,
+            image: imageData.images[0] || null,
           });
           pushed = true;
           return;
@@ -838,6 +908,7 @@ function detectSetsAndCards(
         setCandidates.push({
           title: titleText,
           images: imageData.images,
+          versionSignature: extractVersionSignature(titleText),
         });
         pushed = true;
       });
@@ -870,6 +941,9 @@ async function findMatchingSets(
   for (const candidate of detectedTexts) {
     const text = candidate.title;
     const normalizedDetected = normalizeString(text);
+    const baseNormalizedDetected = stripVersionSuffix(normalizedDetected);
+    const candidateVersionSignature =
+      candidate.versionSignature ?? extractVersionSignature(candidate.title);
     if (!normalizedDetected || normalizedDetected.length < 4) {
       continue;
     }
@@ -878,18 +952,49 @@ async function findMatchingSets(
 
     const matches = setsCache.filter((set) => {
       if (!set.normalizedTitle) return false;
-      if (set.normalizedTitle === normalizedDetected) {
+      const baseNormalizedSet = stripVersionSuffix(set.normalizedTitle);
+      if (
+        set.normalizedTitle === normalizedDetected &&
+        versionSignaturesCompatible(
+          candidateVersionSignature,
+          set.versionSignature
+        )
+      ) {
         return true;
       }
 
-      if (set.normalizedTitle.includes(normalizedDetected)) {
+      if (
+        baseNormalizedSet &&
+        baseNormalizedDetected &&
+        baseNormalizedSet === baseNormalizedDetected &&
+        versionSignaturesCompatible(
+          candidateVersionSignature,
+          set.versionSignature
+        )
+      ) {
+        return true;
+      }
+
+      if (
+        set.normalizedTitle.includes(normalizedDetected) &&
+        versionSignaturesCompatible(
+          candidateVersionSignature,
+          set.versionSignature
+        )
+      ) {
         return hasSufficientOverlap(
           normalizedDetected.length,
           set.normalizedTitle.length
         );
       }
 
-      if (normalizedDetected.includes(set.normalizedTitle)) {
+      if (
+        normalizedDetected.includes(set.normalizedTitle) &&
+        versionSignaturesCompatible(
+          candidateVersionSignature,
+          set.versionSignature
+        )
+      ) {
         return hasSufficientOverlap(
           set.normalizedTitle.length,
           normalizedDetected.length
@@ -930,7 +1035,11 @@ async function findMatchingSets(
         const setsByKeyword = setsCache.filter((set) => {
           if (
             set.normalizedTitle &&
-            set.normalizedTitle.includes(normalizedKeyword)
+            set.normalizedTitle.includes(normalizedKeyword) &&
+            versionSignaturesCompatible(
+              candidateVersionSignature,
+              set.versionSignature
+            )
           ) {
             return true;
           }
@@ -1376,4 +1485,149 @@ export async function scrapeEvents(
   }
 
   return result;
+}
+interface VersionEntry {
+  value: string;
+  position: number;
+  keywordPosition: number;
+  isKeyword: boolean;
+}
+
+function getDigitBounds(match: RegExpExecArray, digits: string): {
+  start: number;
+  end: number;
+} {
+  const matchIndex = match.index ?? 0;
+  const full = match[0];
+  const offset = full.lastIndexOf(digits);
+  const relativeOffset = offset >= 0 ? offset : full.length - digits.length;
+  const start = matchIndex + relativeOffset;
+  return { start, end: start + digits.length };
+}
+
+function shouldSkipHyphenatedRange(canonical: string, endIndex: number): boolean {
+  let idx = endIndex;
+  while (idx < canonical.length && canonical[idx] === " ") {
+    idx++;
+  }
+  return canonical[idx] === "-" && /\d/.test(canonical[idx + 1] || "");
+}
+
+function extractVersionNumbers(text: string): string[] {
+  const canonical = canonicalizeSetDisplay(text).toLowerCase();
+  const entries: VersionEntry[] = [];
+
+  const addEntry = (
+    value: string,
+    start: number,
+    end: number,
+    keywordPosition: number,
+    isKeyword: boolean
+  ) => {
+    if (!value) return;
+    if (start < 0 || end <= start) return;
+    if (shouldSkipHyphenatedRange(canonical, end)) return;
+    entries.push({ value, position: start, keywordPosition, isKeyword });
+  };
+
+  const standardPattern =
+    /(vol(?:ume)?|season|ver(?:sion)?|set|series|round|pack)[\s.\-]*(\d{1,3})/gi;
+  let match: RegExpExecArray | null;
+  while ((match = standardPattern.exec(canonical))) {
+    const digits = match[2];
+    const bounds = getDigitBounds(match, digits);
+    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+  }
+
+  const placePattern = /(1st|2nd|3rd|4th|5th)\s+place/gi;
+  while ((match = placePattern.exec(canonical))) {
+    const raw = match[1];
+    const num = raw.replace(/(st|nd|rd|th)/i, "");
+    if (!num) continue;
+    const start = match.index ?? 0;
+    const end = start + num.length;
+    addEntry(num, start, end, match.index ?? start, true);
+  }
+
+  const trophyPattern = /(?:trophy|rank)\s*(\d{1,2})/gi;
+  while ((match = trophyPattern.exec(canonical))) {
+    const digits = match[1];
+    const bounds = getDigitBounds(match, digits);
+    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+  }
+
+  const packNumberPattern = /pack(?:\s+|\-)?(\d{1,2})(?!\d)/gi;
+  while ((match = packNumberPattern.exec(canonical))) {
+    const digits = match[1];
+    const bounds = getDigitBounds(match, digits);
+    addEntry(digits, bounds.start, bounds.end, match.index ?? bounds.start, true);
+  }
+
+  const trailingPattern =
+    /(vol|season|ver|version|set|series|round|place|pack)[\s.\-]*(\d{1,3})\s*$/i;
+  const trailingMatch = trailingPattern.exec(canonical);
+  if (trailingMatch) {
+    const digits = trailingMatch[2];
+    const bounds = getDigitBounds(trailingMatch as RegExpExecArray, digits);
+    addEntry(
+      digits,
+      bounds.start,
+      bounds.end,
+      trailingMatch.index ?? bounds.start,
+      true
+    );
+  }
+
+  const barePattern = /(\d{1,3})\s*$/;
+  const bareMatch = barePattern.exec(canonical);
+  if (bareMatch) {
+    const digits = bareMatch[1];
+    const start = bareMatch.index ?? canonical.length - digits.length;
+    const end = start + digits.length;
+    addEntry(digits, start, end, start, false);
+  }
+
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const keywordEntries = entries.filter((entry) => entry.isKeyword);
+  let relevantEntries: VersionEntry[];
+  if (keywordEntries.length > 0) {
+    const maxKeywordPos = Math.max(
+      ...keywordEntries.map((entry) => entry.keywordPosition)
+    );
+    relevantEntries = keywordEntries.filter(
+      (entry) => entry.keywordPosition >= maxKeywordPos
+    );
+  } else {
+    relevantEntries = entries;
+  }
+
+  const normalizedValues = Array.from(
+    new Set(
+      relevantEntries.map((entry) => entry.value.replace(/^0+/, "") || "0")
+    )
+  );
+
+  return normalizedValues;
+}
+
+function extractVersionSignature(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const numbers = extractVersionNumbers(text);
+  if (numbers.length === 0) return null;
+  return numbers
+    .map((num) => num.replace(/^0+/, "") || "0")
+    .sort((a, b) => parseInt(a) - parseInt(b))
+    .join("-");
+}
+
+function versionSignaturesCompatible(
+  candidateSignature: string | null,
+  setSignature: string | null
+): boolean {
+  if (!candidateSignature && !setSignature) return true;
+  if (!candidateSignature || !setSignature) return false;
+  return candidateSignature === setSignature;
 }

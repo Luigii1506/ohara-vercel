@@ -1,9 +1,15 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import { prisma } from '../../prisma';
-import { EventRegion, EventStatus, EventType, EventCategory } from '@prisma/client';
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { prisma } from "../../prisma";
+import { setCodes as rawSetCodes } from "../../../helpers/constants";
+import {
+  EventRegion,
+  EventStatus,
+  EventType,
+  EventCategory,
+} from "@prisma/client";
 
-type EventListSourceType = 'current' | 'past';
+type EventListSourceType = "current" | "past";
 
 export interface EventListSource {
   url: string;
@@ -45,7 +51,11 @@ interface ScrapeResult {
   events: Array<{
     slug: string;
     title: string;
-    sets: string[];
+    sets: Array<{
+      id: number;
+      title: string;
+      match: string;
+    }>;
     dryRun?: boolean;
     region: EventRegion;
     status: EventStatus;
@@ -60,6 +70,12 @@ interface ScrapeResult {
   }>;
 }
 
+interface MatchedSet {
+  id: number;
+  title: string;
+  matchedText: string;
+}
+
 export interface ScrapeEventsOptions {
   sources?: EventListSource[];
   maxEvents?: number;
@@ -70,40 +86,40 @@ export interface ScrapeEventsOptions {
 
 // Palabras clave para detectar sets conocidos
 const SET_KEYWORDS = [
-  'Tournament Pack',
-  'Promotion Pack',
-  'Booster Pack',
-  'Standard Battle Pack',
-  'Premium Card Collection',
-  'Starter Deck',
-  'Event Pack',
-  'Winner Pack',
-  'Judge Pack',
-  'Participation Pack',
-  'Celebration Pack',
-  'Card Set',
-  'Sleeve',
-  'OP-',
-  'ST-',
-  'PRB-',
-  'P-',
+  "Tournament Pack",
+  "Promotion Pack",
+  "Booster Pack",
+  "Standard Battle Pack",
+  "Premium Card Collection",
+  "Starter Deck",
+  "Event Pack",
+  "Winner Pack",
+  "Judge Pack",
+  "Participation Pack",
+  "Celebration Pack",
+  "Card Set",
+  "Sleeve",
+  "OP-",
+  "ST-",
+  "PRB-",
+  "P-",
 ];
 
-const CURRENT_EVENTS_URL = 'https://en.onepiece-cardgame.com/events/list.php';
-const PAST_EVENTS_URL = 'https://en.onepiece-cardgame.com/events/list_end.php';
+const CURRENT_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list.php";
+const PAST_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list_end.php";
 
 export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] = [
   {
     url: CURRENT_EVENTS_URL,
-    label: 'global-current',
-    type: 'current',
+    label: "global-current",
+    type: "current",
   },
 ];
 
 export const PAST_EVENT_LIST_SOURCE: EventListSource = {
   url: PAST_EVENTS_URL,
-  label: 'global-past',
-  type: 'past',
+  label: "global-past",
+  type: "past",
   limit: 20,
 };
 
@@ -112,100 +128,140 @@ const DEFAULT_PER_SOURCE_LIMIT = 25;
 const DEFAULT_REQUEST_DELAY_MS = 1000;
 
 let cachedSetsPromise: Promise<CachedSet[]> | null = null;
+const SET_CODES: string[] = (rawSetCodes as string[]) || [];
+const NORMALIZED_SET_CODES = SET_CODES.map((code) => code.toLowerCase());
+const MIN_MATCH_ABSOLUTE_LENGTH = 3;
+const MIN_MATCH_RATIO = 0.6;
 
 const PRIZE_SECTION_KEYWORDS = [
-  'prize',
-  'prizes',
-  'participation',
-  'winner',
-  'distribution',
-  'reward',
-  'kit',
+  "prize",
+  "prizes",
+  "participation",
+  "winner",
+  "distribution",
+  "reward",
+  "kit",
 ];
 
 const SET_TEXT_HINTS = [
-  'pack',
-  'deck',
-  'sleeve',
-  'card set',
-  'collection',
-  'promotion',
-  'celebration',
-  'winner',
-  'judge',
-  'participation',
-  'event',
-  'trophy',
-  'top player',
-  'finalist',
-  'set',
+  "pack",
+  "deck",
+  "sleeve",
+  "card set",
+  "collection",
+  "promotion",
+  "celebration",
+  "winner",
+  "judge",
+  "participation",
+  "event",
+  "trophy",
+  "top player",
+  "finalist",
+  "set",
+  "playmat",
+  "uncut sheet",
 ];
 
 const SET_INDICATOR_KEYWORDS = [
-  'pack',
-  'event',
-  'judge',
-  'top player',
-  'finalist',
-  'trophy',
-  'set',
-  'sleeve',
-  'promotion',
+  "pack",
+  "event",
+  "judge",
+  "top player",
+  "finalist",
+  "trophy",
+  "set",
+  "sleeve",
+  "promotion",
+  "playmat",
+  "uncut sheet",
 ];
 
-const ALL_SET_HINTS = Array.from(new Set([...SET_TEXT_HINTS, ...SET_INDICATOR_KEYWORDS]));
+const ALL_SET_HINTS = Array.from(
+  new Set([...SET_TEXT_HINTS, ...SET_INDICATOR_KEYWORDS])
+);
 
-const SET_PRIMARY_KEYWORDS = ['pack', 'set', 'deck', 'sleeve', 'collection', 'promotion', 'trophy'];
+const SET_PRIMARY_KEYWORDS = [
+  "pack",
+  "set",
+  "deck",
+  "sleeve",
+  "collection",
+  "promotion",
+  "trophy",
+  "playmat",
+  "uncut sheet",
+];
+
+const SET_BANNED_KEYWORDS = ["booster pack"];
 
 const SET_TEXT_STOP_PHRASES = [
-  'featured card list',
-  'this set will',
-  'while supplies last',
-  'kit contents change',
-  'please note',
-  'details',
-  'includes',
-  'card per pack',
+  "featured card list",
+  "this set will",
+  "while supplies last",
+  "kit contents change",
+  "please note",
+  "details",
+  "includes",
+  "card per pack",
+];
+
+const SET_NOISE_PREFIXES = [
+  "participation",
+  "winner",
+  "judge",
+  "compensation",
+  "event",
+  "celebration",
+  "prize",
+  "reward",
+  "distribution",
+  "kit",
 ];
 
 const SET_TEXT_SELECTORS = [
-  '.extraSmallTit',
-  '.includecardTit',
-  '.eventPackCol h5',
-  '.eventPackCol h6',
-  '.eventPackCol .smallTit',
-  '.eventPackCol .commonNoticeList li',
-  '.eventPackCol .cardPopupWrap li',
-  '.commonNoticeList li',
-  '.commonNoticeList li a',
-  '.cardPopupWrap li',
-  '.cardPopupWrap li a',
-  '.prizeList li',
-  '.rewardList li',
+  ".extraSmallTit",
+  ".includecardTit",
+  "h5",
+  "h6",
+  ".eventPackCol h5",
+  ".eventPackCol h6",
+  ".eventPackCol .smallTit",
+  ".eventPackCol .commonNoticeList li",
+  ".eventPackCol .cardPopupWrap li",
+  ".commonNoticeList li",
+  ".commonNoticeList li a",
+  ".cardPopupWrap li",
+  ".cardPopupWrap li a",
+  ".prizeList li",
+  ".rewardList li",
+  "h5.smallTit",
+  "h6.smallTit",
+  'li a[href^="#"]',
 ];
 
 // Mapeo de regiones
 const REGION_MAP: Record<string, EventRegion> = {
-  'north america': EventRegion.NA,
-  'na': EventRegion.NA,
-  'usa': EventRegion.NA,
-  'united states': EventRegion.NA,
-  'europe': EventRegion.EU,
-  'eu': EventRegion.EU,
-  'latin america': EventRegion.LA,
-  'la': EventRegion.LA,
-  'latam': EventRegion.LA,
-  'asia': EventRegion.ASIA,
-  'japan': EventRegion.JP,
-  'jp': EventRegion.JP,
+  "north america": EventRegion.NA,
+  na: EventRegion.NA,
+  usa: EventRegion.NA,
+  "united states": EventRegion.NA,
+  europe: EventRegion.EU,
+  eu: EventRegion.EU,
+  "latin america": EventRegion.LA,
+  la: EventRegion.LA,
+  latam: EventRegion.LA,
+  asia: EventRegion.ASIA,
+  japan: EventRegion.JP,
+  jp: EventRegion.JP,
 };
 
 // Mapeo de tipos de eventos
 const EVENT_TYPE_MAP: Record<string, EventType> = {
-  'store tournament': EventType.STORE_TOURNAMENT,
-  'championship': EventType.CHAMPIONSHIP,
-  'release event': EventType.RELEASE_EVENT,
-  'online': EventType.ONLINE,
+  "store tournament": EventType.STORE_TOURNAMENT,
+  championship: EventType.CHAMPIONSHIP,
+  "release event": EventType.RELEASE_EVENT,
+  online: EventType.ONLINE,
 };
 
 const EVENT_CATEGORY_MAP: Record<string, EventCategory> = {
@@ -221,15 +277,19 @@ const EVENT_CATEGORY_MAP: Record<string, EventCategory> = {
 /**
  * Genera un slug único basado en el título y región
  */
-function generateSlug(title: string, region: EventRegion, sourceUrl: string): string {
-  const urlSlug = sourceUrl.split('/').pop()?.replace('.php', '') || '';
+function generateSlug(
+  title: string,
+  region: EventRegion,
+  sourceUrl: string
+): string {
+  const urlSlug = sourceUrl.split("/").pop()?.replace(".php", "") || "";
   const titleSlug = title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
     .substring(0, 50);
 
-  return `${region.toLowerCase()}-${titleSlug}-${urlSlug}`.replace(/--+/g, '-');
+  return `${region.toLowerCase()}-${titleSlug}-${urlSlug}`.replace(/--+/g, "-");
 }
 
 /**
@@ -276,7 +336,10 @@ function detectEventCategory(text: string | null): EventCategory | null {
 /**
  * Detecta el estado del evento basado en fechas
  */
-function detectEventStatus(startDate: Date | null, endDate: Date | null): EventStatus {
+function detectEventStatus(
+  startDate: Date | null,
+  endDate: Date | null
+): EventStatus {
   const now = new Date();
 
   if (!startDate) return EventStatus.UPCOMING;
@@ -292,14 +355,41 @@ function detectEventStatus(startDate: Date | null, endDate: Date | null): EventS
   return EventStatus.UPCOMING;
 }
 
+function applySetSemanticReplacements(value: string): string {
+  let result = value.toLowerCase().replace(/[–—−]/g, "-");
+
+  result = result.replace(/season\s*(\d+)/g, "vol$1");
+  result = result.replace(/vol\.\s*(\d+)/g, "vol$1");
+
+  result = result.replace(/(\d{2})-(\d{2})/g, (_, start) => {
+    const startNum = parseInt(start, 10);
+    if (Number.isNaN(startNum)) return start;
+    const year = startNum >= 70 ? 1900 + startNum : 2000 + startNum;
+    return year.toString();
+  });
+
+  return result;
+}
+
 function normalizeString(value: string | null | undefined): string {
-  if (!value) return '';
-  return value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[–—−]/g, '-')
-    .replace(/[^a-z0-9]+/g, '');
+  if (!value) return "";
+  const semanticNormalized = applySetSemanticReplacements(value);
+  return semanticNormalized
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[–—−]/g, "-")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isKnownSetCodeKeyword(value: string): boolean {
+  const normalized = value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return NORMALIZED_SET_CODES.includes(normalized);
+}
+
+function hasSufficientOverlap(shorterLength: number, longerLength: number): boolean {
+  if (shorterLength < MIN_MATCH_ABSOLUTE_LENGTH) return false;
+  if (longerLength === 0) return false;
+  return shorterLength / longerLength >= MIN_MATCH_RATIO;
 }
 
 async function loadSetsCache(): Promise<CachedSet[]> {
@@ -312,14 +402,14 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           code: true,
         },
       })
-      .then(sets =>
-      sets.map(set => ({
-        id: set.id,
-        title: set.title,
-        code: set.code,
-        normalizedTitle: normalizeString(set.title),
-      }))
-    );
+      .then((sets) =>
+        sets.map((set) => ({
+          id: set.id,
+          title: set.title,
+          code: set.code,
+          normalizedTitle: normalizeString(set.title),
+        }))
+      );
   }
 
   return cachedSetsPromise;
@@ -328,7 +418,10 @@ async function loadSetsCache(): Promise<CachedSet[]> {
 /**
  * Parsea fechas del texto del evento
  */
-function parseDates(text: string): { startDate: Date | null; endDate: Date | null } {
+function parseDates(text: string): {
+  startDate: Date | null;
+  endDate: Date | null;
+} {
   // Busca patrones de fecha comunes
   const datePatterns = [
     /(\d{1,2})\/(\d{1,2})\/(\d{4})/g, // MM/DD/YYYY
@@ -353,14 +446,19 @@ function parseDates(text: string): { startDate: Date | null; endDate: Date | nul
   return { startDate, endDate };
 }
 
-function extractLabeledText($: cheerio.CheerioAPI, label: string): string | null {
+function extractLabeledText(
+  $: cheerio.CheerioAPI,
+  label: string
+): string | null {
   const normalizedLabel = label.toLowerCase();
-  const heading = $('h2, h3, h4, h5, h6')
-    .filter((_, element) => $(element).text().trim().toLowerCase() === normalizedLabel)
+  const heading = $("h2, h3, h4, h5, h6")
+    .filter(
+      (_, element) => $(element).text().trim().toLowerCase() === normalizedLabel
+    )
     .first();
 
   if (heading.length > 0) {
-    const text = heading.nextAll('p').first().text().trim();
+    const text = heading.nextAll("p").first().text().trim();
     if (text) {
       return text;
     }
@@ -371,16 +469,19 @@ function extractLabeledText($: cheerio.CheerioAPI, label: string): string | null
 
 function cleanPeriodText(text: string | null): string | null {
   if (!text) return null;
-  return text.replace(/^\s*period[:\s]*/i, '').replace(/\s+/g, ' ').trim();
+  return text
+    .replace(/^\s*period[:\s]*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function extractPeriodText($: cheerio.CheerioAPI): string | null {
-  const inlinePeriod = $('.eventDate').first().text().trim();
+  const inlinePeriod = $(".eventDate").first().text().trim();
   if (inlinePeriod) {
     return cleanPeriodText(inlinePeriod);
   }
 
-  const labeledPeriod = extractLabeledText($, 'Period');
+  const labeledPeriod = extractLabeledText($, "Period");
   if (labeledPeriod) {
     return cleanPeriodText(labeledPeriod);
   }
@@ -389,95 +490,207 @@ function extractPeriodText($: cheerio.CheerioAPI): string | null {
 }
 
 function extractLocationText($: cheerio.CheerioAPI): string | null {
-  const inlineLocation = $('.eventPlace, .location, .venue').first().text().trim();
+  const inlineLocation = $(".eventPlace, .location, .venue")
+    .first()
+    .text()
+    .trim();
   if (inlineLocation) {
     return inlineLocation;
   }
 
-  return extractLabeledText($, 'Location');
-}
-
-/**
- * Detecta sets en el texto del evento
- */
-function extractPrizeRelatedTexts($: cheerio.CheerioAPI): string[] {
-  const texts: string[] = [];
-
-  const pushText = (value: string | null | undefined) => {
-    const cleaned = cleanSetCandidate(value);
-    if (cleaned && shouldConsiderSetText(cleaned)) {
-      texts.push(cleaned);
-    }
-  };
-
-  SET_TEXT_SELECTORS.forEach(selector => {
-    $(selector).each((_, element) => {
-      const text = $(element).text();
-      if (text && ALL_SET_HINTS.some(hint => text.toLowerCase().includes(hint))) {
-        pushText(text);
-      }
-    });
-  });
-
-  return texts;
+  return extractLabeledText($, "Location");
 }
 
 function shouldConsiderSetText(text: string): boolean {
   const lower = text.toLowerCase();
-  return SET_PRIMARY_KEYWORDS.some(keyword => lower.includes(keyword));
+  if (SET_BANNED_KEYWORDS.some((keyword) => lower.includes(keyword))) {
+    return false;
+  }
+  return SET_PRIMARY_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
 function cleanSetCandidate(value: string | null | undefined): string | null {
   if (!value) return null;
-  let result = value.replace(/[•·・]/g, ' ');
-  result = result.replace(/\s+/g, ' ');
-  result = result.replace(/^[−–—\s·•・]+/, '');
-  result = result.replace(/\b(x|×)\s*\d+\b/gi, '');
-  result = result.replace(/\(.*?\)/g, '');
+  let result = value.replace(/[•·・]/g, " ");
+  result = result.replace(/\s+/g, " ");
+  result = result.replace(/^[−–—\s·•・]+/, "");
+  result = result.replace(/\b(x|×)\s*\d+\b/gi, "");
+  result = result.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  result = result.replace(/(trophy)\s+card.*$/i, "$1");
 
   for (const phrase of SET_TEXT_STOP_PHRASES) {
-    const regex = new RegExp(`${phrase}.*$`, 'i');
-    result = result.replace(regex, '');
+    const regex = new RegExp(`${phrase}.*$`, "i");
+    result = result.replace(regex, "");
   }
 
-  result = result.replace(/\s+/g, ' ').trim();
+  result = result.replace(/\s+/g, " ").trim();
+
+  const tokens = result.split(" ").filter(Boolean);
+  if (tokens.length > 1) {
+    while (tokens.length > 1) {
+      const first = tokens[0];
+      const second = tokens[1];
+      const firstLower = first.toLowerCase();
+      const secondLower = second.toLowerCase();
+      const secondIsPrimary = SET_PRIMARY_KEYWORDS.some((keyword) =>
+        secondLower.includes(keyword)
+      );
+
+      if (firstLower === secondLower) {
+        tokens.shift();
+        continue;
+      }
+
+      if (SET_NOISE_PREFIXES.includes(firstLower) && !secondIsPrimary) {
+        tokens.shift();
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  result = canonicalizeSetDisplay(tokens.join(" "));
+
+  if (result.startsWith("*")) {
+    return null;
+  }
 
   if (!result || result.length < 4) {
     return null;
   }
 
+  return result.trim();
+}
+
+function canonicalizeSetDisplay(value: string): string {
+  let result = value.normalize("NFKC");
+
+  result = result.replace(/[\u2010-\u2015\u2212\uFF0D]/g, "-");
+  result = result.replace(/\u30FC/g, "-");
+  result = result.replace(/\uFF70/g, "-");
+  result = result.replace(/\s*-\s*/g, "-");
+  result = result.replace(/\s*\(\s*/g, " (");
+  result = result.replace(/\s*\)/g, ")");
+  result = result.replace(/\(\s*([^)]+?)\s*\)/g, (_, inner) => `(${inner.replace(/\s+/g, " ").trim()})`);
+  result = result.replace(/\)\(/g, ") (");
+  result = result.replace(/(\d+)\s*pcs/gi, "$1 pcs");
+  if ((result.match(/\(/g)?.length || 0) > (result.match(/\)/g)?.length || 0)) {
+    result = result.replace(/\([^)]*$/, "");
+  }
+  result = result.replace(/\(\s*\d+\s*\)$/g, "");
+  result = result.replace(/\s+/g, " ").trim();
+
   return result;
 }
 
-function detectSets($: cheerio.CheerioAPI, text: string): string[] {
-  const detectedSets: string[] = [];
-  const lowerText = text.toLowerCase();
+function removeCountParentheses(value: string): string {
+  return value.replace(/\(\s*\d+\s*pcs?\s*\)/gi, "").replace(/\s+/g, " ").trim();
+}
 
-  for (const keyword of SET_KEYWORDS) {
-    const lowerKeyword = keyword.toLowerCase();
-    let searchIndex = 0;
+function removeTrailingParenPack(value: string): string {
+  if (/\)\s+pack$/i.test(value)) {
+    return value.replace(/\)\s+pack$/i, ")").trim();
+  }
+  return value;
+}
 
-    while (true) {
-      const index = lowerText.indexOf(lowerKeyword, searchIndex);
-      if (index === -1) break;
+function removeTrailingPackArtifacts(value: string): string {
+  let result = value.replace(/-?pack$/i, "").trim();
+  result = result.replace(/-$/, "").trim();
+  return result;
+}
 
-      const start = Math.max(0, index - 40);
-      const end = Math.min(text.length, index + 160);
-      const context = cleanSetCandidate(text.substring(start, end));
+function dedupeSetTexts(texts: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
 
-      if (context && shouldConsiderSetText(context)) {
-        detectedSets.push(context);
-      }
+  for (const text of texts) {
+    const canonical = canonicalizeSetDisplay(text);
+    const canonicalKey = canonical.toLowerCase();
+    const countNormalized = removeCountParentheses(canonical).toLowerCase();
+    const parenPackNormalized = removeTrailingParenPack(canonical).toLowerCase();
+    const packArtifactNormalized = removeTrailingPackArtifacts(canonical).toLowerCase();
 
-      searchIndex = index + lowerKeyword.length;
+    if (
+      seen.has(canonicalKey) ||
+      seen.has(countNormalized) ||
+      seen.has(parenPackNormalized) ||
+      seen.has(packArtifactNormalized)
+    ) {
+      continue;
     }
+
+    seen.add(canonicalKey);
+    seen.add(countNormalized);
+    seen.add(parenPackNormalized);
+    seen.add(packArtifactNormalized);
+    deduped.push(canonical);
   }
 
-  detectedSets.push(...extractPrizeRelatedTexts($));
+  return deduped;
+}
 
-  const uniqueSets = Array.from(new Set(detectedSets));
+function detectSets($: cheerio.CheerioAPI): string[] {
+  const detectedSets: string[] = [];
 
-  return uniqueSets;
+  SET_TEXT_SELECTORS.forEach((selector) => {
+    $(selector).each((_, element) => {
+      let text = "";
+      let sourceTag =
+        ((($(element).prop("tagName") as string | undefined) || "").toLowerCase());
+
+      if ($(element).is("li")) {
+        const directLink = $(element).children("a").first();
+        if (directLink.length) {
+          const linkClone = directLink.clone();
+          linkClone.find("span").remove();
+          text = linkClone.text();
+          sourceTag = "a";
+        } else {
+          const clone = $(element).clone();
+          clone.find("span").remove();
+          clone.find("ul, ol").remove();
+          text = clone.text();
+        }
+      } else {
+        const clone = $(element).clone();
+        clone.find("span").remove();
+        clone.find("ul, ol").remove();
+        text = clone.text();
+      }
+
+      const cleaned = cleanSetCandidate(text);
+      if (cleaned && shouldConsiderSetText(cleaned)) {
+        const lowerCleaned = cleaned.toLowerCase();
+        const requiresSpecificTag =
+          lowerCleaned.includes("playmat") ||
+          lowerCleaned.includes("uncut sheet");
+
+        if (
+          requiresSpecificTag &&
+          !(
+            sourceTag === "a" ||
+            sourceTag === "h5" ||
+            sourceTag === "h6"
+          )
+        ) {
+          return;
+        }
+
+        if (
+          lowerCleaned.includes("uncut sheet") &&
+          !/\[[^\]]+\]/.test(cleaned)
+        ) {
+          return;
+        }
+
+        detectedSets.push(cleaned);
+      }
+    });
+  });
+
+  return Array.from(new Set(detectedSets));
 }
 
 /**
@@ -485,9 +698,9 @@ function detectSets($: cheerio.CheerioAPI, text: string): string[] {
  */
 async function findMatchingSets(
   detectedTexts: string[]
-): Promise<{ matchedIds: number[]; unmatchedTexts: string[] }> {
+): Promise<{ matches: MatchedSet[]; unmatchedTexts: string[] }> {
   const setsCache = await loadSetsCache();
-  const matchedIds = new Set<number>();
+  const matchedMap = new Map<number, MatchedSet>();
   const unmatchedTexts: string[] = [];
 
   for (const text of detectedTexts) {
@@ -498,31 +711,62 @@ async function findMatchingSets(
 
     let matched = false;
 
-    const matches = setsCache.filter(set => {
-      if (set.normalizedTitle && set.normalizedTitle.includes(normalizedDetected)) {
+    const matches = setsCache.filter((set) => {
+      if (!set.normalizedTitle) return false;
+      if (set.normalizedTitle === normalizedDetected) {
         return true;
       }
 
-      if (set.normalizedTitle && normalizedDetected.includes(set.normalizedTitle)) {
-        return true;
+      if (set.normalizedTitle.includes(normalizedDetected)) {
+        return hasSufficientOverlap(
+          normalizedDetected.length,
+          set.normalizedTitle.length
+        );
+      }
+
+      if (normalizedDetected.includes(set.normalizedTitle)) {
+        return hasSufficientOverlap(
+          set.normalizedTitle.length,
+          normalizedDetected.length
+        );
       }
 
       return false;
     });
 
     if (matches.length > 0) {
-      console.log(`✓ Normalized match "${text}" -> ${matches.map(m => m.title).join(', ')}`);
-      matches.forEach(match => matchedIds.add(match.id));
+      console.log(
+        `✓ Normalized match "${text}" -> ${matches
+          .map((m) => m.title)
+          .join(", ")}`
+      );
+      matches.forEach((match) => {
+        if (!matchedMap.has(match.id)) {
+          matchedMap.set(match.id, {
+            id: match.id,
+            title: match.title,
+            matchedText: text,
+          });
+        }
+      });
       matched = true;
     }
 
-    const keywordMatches = text.match(/\b(OP-?\d+|ST-?\d+|Tournament Pack Vol\.\s*\d+|Promotion Pack \d+)\b/gi);
+    const keywordMatches = text.match(
+      /\b(OP-?\d+|ST-?\d+|Tournament Pack Vol\.\s*\d+|Promotion Pack \d+)\b/gi
+    );
 
     if (keywordMatches) {
       for (const keyword of keywordMatches) {
+        if (isKnownSetCodeKeyword(keyword)) {
+          continue;
+        }
         const normalizedKeyword = normalizeString(keyword);
-        const setsByKeyword = setsCache.filter(set => {
-          if (set.normalizedTitle && set.normalizedTitle.includes(normalizedKeyword)) {
+        const setsByKeyword = setsCache.filter((set) => {
+          if (
+            set.normalizedTitle &&
+            set.normalizedTitle.includes(normalizedKeyword)
+          ) {
             return true;
           }
 
@@ -530,8 +774,20 @@ async function findMatchingSets(
         });
 
         if (setsByKeyword.length > 0) {
-          console.log(`✓ Keyword match "${keyword}" -> ${setsByKeyword.map(s => s.title).join(', ')}`);
-          setsByKeyword.forEach(match => matchedIds.add(match.id));
+          console.log(
+            `✓ Keyword match "${keyword}" -> ${setsByKeyword
+              .map((s) => s.title)
+              .join(", ")}`
+          );
+          setsByKeyword.forEach((match) => {
+            if (!matchedMap.has(match.id)) {
+              matchedMap.set(match.id, {
+                id: match.id,
+                title: match.title,
+                matchedText: keyword,
+              });
+            }
+          });
           matched = true;
         }
       }
@@ -543,7 +799,7 @@ async function findMatchingSets(
   }
 
   return {
-    matchedIds: Array.from(matchedIds),
+    matches: Array.from(matchedMap.values()),
     unmatchedTexts,
   };
 }
@@ -552,16 +808,24 @@ async function findMatchingSets(
  * Scrapea un evento individual
  */
 function cleanPageTitle(title: string): string {
-  return title.replace(/\s*[–−-]\s*EVENTS｜ONE PIECE CARD GAME - Official Web Site\s*$/i, '').trim();
+  return title
+    .replace(
+      /\s*[–−-]\s*EVENTS｜ONE PIECE CARD GAME - Official Web Site\s*$/i,
+      ""
+    )
+    .trim();
 }
 
-async function scrapeEventDetail(eventUrl: string): Promise<ScrapedEvent | null> {
+async function scrapeEventDetail(
+  eventUrl: string
+): Promise<ScrapedEvent | null> {
   try {
     console.log(`\n🔍 Scraping event: ${eventUrl}`);
 
     const response = await axios.get(eventUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
       timeout: 15000,
     });
@@ -569,27 +833,32 @@ async function scrapeEventDetail(eventUrl: string): Promise<ScrapedEvent | null>
     const $ = cheerio.load(response.data);
 
     // Extrae información básica
-    const structuredTitle = $('.eventTit').first().text().trim();
-    const fallbackTitle = $('h1').first().text().trim() || $('title').text().trim();
+    const structuredTitle = $(".eventTit").first().text().trim();
+    const fallbackTitle =
+      $("h1").first().text().trim() || $("title").text().trim();
     const title = cleanPageTitle(structuredTitle || fallbackTitle);
-    const description = $('meta[name="description"]').attr('content') || null;
+    const description = $('meta[name="description"]').attr("content") || null;
     const categoryText =
-      $('.pageTitCategory').first().text().trim() ||
-      $('.eventCategory').first().text().trim() ||
+      $(".pageTitCategory").first().text().trim() ||
+      $(".eventCategory").first().text().trim() ||
       null;
 
     // Extrae el contenido completo
-    const contentElement = $('.event-content, .content, main, article').first();
-    const content = contentElement.text().trim() || $('body').text().trim();
+    const contentElement = $(".event-content, .content, main, article").first();
+    const content = contentElement.text().trim() || $("body").text().trim();
     const originalContent = contentElement.html() || null;
     const dateText = extractPeriodText($);
 
     // Extrae imagen
-    const imageUrl = $('meta[property="og:image"]').attr('content') ||
-                     $('img').first().attr('src') || null;
+    const imageUrl =
+      $('meta[property="og:image"]').attr("content") ||
+      $("img").first().attr("src") ||
+      null;
 
     // Detecta región, tipo y fechas
-    const fullText = `${title} ${description || ''} ${categoryText || ''} ${dateText || ''} ${content}`;
+    const fullText = `${title} ${description || ""} ${categoryText || ""} ${
+      dateText || ""
+    } ${content}`;
     const region = detectRegion(fullText);
     const eventType = detectEventType(fullText);
     const { startDate, endDate } = parseDates(dateText || fullText);
@@ -600,7 +869,7 @@ async function scrapeEventDetail(eventUrl: string): Promise<ScrapedEvent | null>
     const location = extractLocationText($);
 
     // Detecta sets mencionados
-    const detectedSets = detectSets($, content);
+    const detectedSets = detectSets($);
 
     console.log(`  Title: ${title}`);
     console.log(`  Region: ${region}`);
@@ -647,13 +916,13 @@ function isValidEventDetailUrl(url: string): boolean {
     const parsed = new URL(url);
     const pathname = parsed.pathname.toLowerCase();
 
-    if (!pathname.startsWith('/events/')) return false;
+    if (!pathname.startsWith("/events/")) return false;
 
-    const segments = pathname.split('/').filter(Boolean);
+    const segments = pathname.split("/").filter(Boolean);
     if (segments.length <= 1) return false; // descarta /events/ o /events
 
     const basename = segments[segments.length - 1];
-    if (basename.startsWith('list')) return false;
+    if (basename.startsWith("list")) return false;
 
     return true;
   } catch {
@@ -663,14 +932,19 @@ function isValidEventDetailUrl(url: string): boolean {
 
 async function scrapeEventsList(
   baseUrl = CURRENT_EVENTS_URL,
-  targetRegions: EventRegion[] = [EventRegion.NA, EventRegion.EU, EventRegion.LA]
+  targetRegions: EventRegion[] = [
+    EventRegion.NA,
+    EventRegion.EU,
+    EventRegion.LA,
+  ]
 ): Promise<string[]> {
   try {
     console.log(`\n📋 Fetching events list from: ${baseUrl}`);
 
     const response = await axios.get(baseUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
       timeout: 15000,
     });
@@ -680,9 +954,9 @@ async function scrapeEventsList(
 
     // Busca enlaces a eventos usando la grilla oficial
     $('.eventDetail a[href], a[href*="event"]').each((_, element) => {
-      const href = $(element).attr('href');
+      const href = $(element).attr("href");
       if (href) {
-        const fullUrl = href.startsWith('http')
+        const fullUrl = href.startsWith("http")
           ? href
           : new URL(href, baseUrl).toString();
 
@@ -701,7 +975,7 @@ async function scrapeEventsList(
 
     return eventUrls;
   } catch (error) {
-    console.error('❌ Error fetching events list:', error);
+    console.error("❌ Error fetching events list:", error);
     return [];
   }
 }
@@ -719,7 +993,9 @@ async function collectEventUrlsFromSources(
 
     const urls = await scrapeEventsList(source.url);
     if (urls.length === 0) {
-      console.warn(`⚠️  No events returned for source: ${source.label || source.url}`);
+      console.warn(
+        `⚠️  No events returned for source: ${source.label || source.url}`
+      );
       continue;
     }
 
@@ -727,8 +1003,8 @@ async function collectEventUrlsFromSources(
     const limitedUrls = limit > 0 ? urls.slice(0, limit) : urls;
 
     console.log(
-      `  Source ${source.label || source.url} (${source.type || 'current'}): ` +
-      `${limitedUrls.length} URLs considered`
+      `  Source ${source.label || source.url} (${source.type || "current"}): ` +
+        `${limitedUrls.length} URLs considered`
     );
 
     for (const eventUrl of limitedUrls) {
@@ -745,7 +1021,9 @@ async function collectEventUrlsFromSources(
 /**
  * Función principal de scraping
  */
-export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<ScrapeResult> {
+export async function scrapeEvents(
+  options: ScrapeEventsOptions = {}
+): Promise<ScrapeResult> {
   const result: ScrapeResult = {
     success: true,
     eventsProcessed: 0,
@@ -763,14 +1041,18 @@ export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<S
   } = options;
 
   try {
-    console.log('🚀 Starting event scraper...\n');
+    console.log("🚀 Starting event scraper...\n");
 
     // 1. Obtiene lista de eventos desde las fuentes configuradas
-    const eventUrls = await collectEventUrlsFromSources(sources, perSourceLimit, maxEvents);
+    const eventUrls = await collectEventUrlsFromSources(
+      sources,
+      perSourceLimit,
+      maxEvents
+    );
 
     if (eventUrls.length === 0) {
       result.success = false;
-      result.errors.push('No events found to scrape');
+      result.errors.push("No events found to scrape");
       return result;
     }
 
@@ -787,23 +1069,31 @@ export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<S
 
       try {
         // Genera slug único
-        const slug = generateSlug(scrapedEvent.title, scrapedEvent.region, scrapedEvent.sourceUrl);
+        const slug = generateSlug(
+          scrapedEvent.title,
+          scrapedEvent.region,
+          scrapedEvent.sourceUrl
+        );
 
         // 3. Busca sets coincidentes
-        const { matchedIds: matchedSetIds, unmatchedTexts } = await findMatchingSets(
+        const { matches: matchedSets, unmatchedTexts } = await findMatchingSets(
           scrapedEvent.detectedSets
         );
 
-        if (unmatchedTexts.length > 0) {
+        const dedupedMissingSets = dedupeSetTexts(unmatchedTexts);
+
+        if (dedupedMissingSets.length > 0) {
           console.warn(
-            `⚠️  ${unmatchedTexts.length} detected set references without match for ${slug}:`,
-            unmatchedTexts
+            `⚠️  ${dedupedMissingSets.length} detected set references without match for ${slug}:`,
+            dedupedMissingSets
           );
         }
 
         // 4. Crea o actualiza el evento
         if (dryRun) {
-          console.log(`📝 Dry run: ${slug} would link ${matchedSetIds.length} sets`);
+          console.log(
+            `📝 Dry run: ${slug} would link ${matchedSets.length} sets`
+          );
         } else {
           const event = await prisma.event.upsert({
             where: { slug },
@@ -841,17 +1131,17 @@ export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<S
           });
 
           // 5. Vincula sets
-          for (const setId of matchedSetIds) {
+          for (const matchedSet of matchedSets) {
             await prisma.eventSet.upsert({
               where: {
                 eventId_setId: {
                   eventId: event.id,
-                  setId: setId,
+                  setId: matchedSet.id,
                 },
               },
               create: {
                 eventId: event.id,
-                setId: setId,
+                setId: matchedSet.id,
               },
               update: {},
             });
@@ -859,36 +1149,47 @@ export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<S
             result.setsLinked++;
           }
 
-          console.log(`✅ Saved event: ${slug} (${matchedSetIds.length} sets linked)`);
+          console.log(
+            `✅ Saved event: ${slug} (${matchedSets.length} sets linked)`
+          );
         }
 
         result.eventsProcessed++;
         result.events.push({
           slug,
           title: scrapedEvent.title,
-          sets: matchedSetIds.map(id => `Set ID: ${id}`),
+          sets: matchedSets.map((matchedSet) => ({
+            id: matchedSet.id,
+            title: matchedSet.title,
+            match: matchedSet.matchedText,
+          })),
           dryRun: dryRun || undefined,
           region: scrapedEvent.region,
           status: scrapedEvent.status,
           eventType: scrapedEvent.eventType,
           category: scrapedEvent.category,
-          startDate: scrapedEvent.startDate ? scrapedEvent.startDate.toISOString() : null,
-          endDate: scrapedEvent.endDate ? scrapedEvent.endDate.toISOString() : null,
+          startDate: scrapedEvent.startDate
+            ? scrapedEvent.startDate.toISOString()
+            : null,
+          endDate: scrapedEvent.endDate
+            ? scrapedEvent.endDate.toISOString()
+            : null,
           rawDateText: scrapedEvent.rawDateText,
           location: scrapedEvent.location,
           sourceUrl: scrapedEvent.sourceUrl,
-          missingSets: unmatchedTexts,
+          missingSets: dedupedMissingSets,
         });
-
       } catch (dbError) {
         const error = dbError as Error;
-        result.errors.push(`Database error for ${scrapedEvent.title}: ${error.message}`);
-        console.error('❌ Database error:', error);
+        result.errors.push(
+          `Database error for ${scrapedEvent.title}: ${error.message}`
+        );
+        console.error("❌ Database error:", error);
       }
 
       // Pequeña pausa entre requests para no sobrecargar el servidor
       if (delayMs > 0) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
 
@@ -896,12 +1197,11 @@ export async function scrapeEvents(options: ScrapeEventsOptions = {}): Promise<S
     console.log(`   Events processed: ${result.eventsProcessed}`);
     console.log(`   Sets linked: ${result.setsLinked}`);
     console.log(`   Errors: ${result.errors.length}`);
-
   } catch (error) {
     const err = error as Error;
     result.success = false;
     result.errors.push(`Fatal error: ${err.message}`);
-    console.error('❌ Fatal error:', error);
+    console.error("❌ Fatal error:", error);
   }
 
   return result;

@@ -33,7 +33,7 @@ export interface ScrapedEvent {
   location: string | null;
   sourceUrl: string;
   imageUrl: string | null;
-  detectedSets: string[];
+  detectedSets: DetectedSetCandidate[];
 }
 
 interface CachedSet {
@@ -66,7 +66,10 @@ interface ScrapeResult {
     rawDateText: string | null;
     location: string | null;
     sourceUrl: string;
-    missingSets: string[];
+    missingSets: Array<{
+      title: string;
+      images: string[];
+    }>;
   }>;
 }
 
@@ -74,6 +77,11 @@ interface MatchedSet {
   id: number;
   title: string;
   matchedText: string;
+}
+
+interface DetectedSetCandidate {
+  title: string;
+  images: string[];
 }
 
 export interface ScrapeEventsOptions {
@@ -217,27 +225,6 @@ const SET_NOISE_PREFIXES = [
   "reward",
   "distribution",
   "kit",
-];
-
-const SET_TEXT_SELECTORS = [
-  ".extraSmallTit",
-  ".includecardTit",
-  "h5",
-  "h6",
-  ".eventPackCol h5",
-  ".eventPackCol h6",
-  ".eventPackCol .smallTit",
-  ".eventPackCol .commonNoticeList li",
-  ".eventPackCol .cardPopupWrap li",
-  ".commonNoticeList li",
-  ".commonNoticeList li a",
-  ".cardPopupWrap li",
-  ".cardPopupWrap li a",
-  ".prizeList li",
-  ".rewardList li",
-  "h5.smallTit",
-  "h6.smallTit",
-  'li a[href^="#"]',
 ];
 
 // Mapeo de regiones
@@ -601,109 +588,182 @@ function removeTrailingPackArtifacts(value: string): string {
   return result;
 }
 
-function dedupeSetTexts(texts: string[]): string[] {
-  const seen = new Set<string>();
-  const deduped: string[] = [];
+function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSetCandidate[] {
+  const map = new Map<string, DetectedSetCandidate>();
+  const registerKeys = (candidate: DetectedSetCandidate, keys: string[]) => {
+    keys.forEach((key) => {
+      if (!map.has(key)) {
+        map.set(key, candidate);
+      } else if (map.get(key) !== candidate) {
+        map.set(key, candidate);
+      }
+    });
+  };
 
-  for (const text of texts) {
-    const canonical = canonicalizeSetDisplay(text);
-    const canonicalKey = canonical.toLowerCase();
-    const countNormalized = removeCountParentheses(canonical).toLowerCase();
-    const parenPackNormalized = removeTrailingParenPack(canonical).toLowerCase();
-    const packArtifactNormalized = removeTrailingPackArtifacts(canonical).toLowerCase();
+  const mergedCandidates: DetectedSetCandidate[] = [];
 
-    if (
-      seen.has(canonicalKey) ||
-      seen.has(countNormalized) ||
-      seen.has(parenPackNormalized) ||
-      seen.has(packArtifactNormalized)
-    ) {
+  for (const candidate of candidates) {
+    const canonicalTitle = canonicalizeSetDisplay(candidate.title);
+    const canonicalKey = canonicalTitle.toLowerCase();
+    const countNormalized = removeCountParentheses(canonicalTitle).toLowerCase();
+    const parenPackNormalized = removeTrailingParenPack(canonicalTitle).toLowerCase();
+    const packArtifactNormalized = removeTrailingPackArtifacts(canonicalTitle).toLowerCase();
+    const keys = [
+      canonicalKey,
+      countNormalized,
+      parenPackNormalized,
+      packArtifactNormalized,
+    ];
+
+    const existing =
+      map.get(canonicalKey) ||
+      map.get(countNormalized) ||
+      map.get(parenPackNormalized) ||
+      map.get(packArtifactNormalized);
+
+    if (existing) {
+      const images = new Set(existing.images);
+      candidate.images.forEach((image) => images.add(image));
+      existing.images = Array.from(images);
+      existing.title = existing.title || canonicalTitle;
+      registerKeys(existing, keys);
       continue;
     }
 
-    seen.add(canonicalKey);
-    seen.add(countNormalized);
-    seen.add(parenPackNormalized);
-    seen.add(packArtifactNormalized);
-    deduped.push(canonical);
+    const normalizedCandidate: DetectedSetCandidate = {
+      title: canonicalTitle,
+      images: Array.from(new Set(candidate.images)),
+    };
+
+    registerKeys(normalizedCandidate, keys);
+    mergedCandidates.push(normalizedCandidate);
   }
 
-  return deduped;
+  return mergedCandidates;
 }
 
-function detectSets($: cheerio.CheerioAPI): string[] {
-  const detectedSets: string[] = [];
+function resolveImageUrl(src: string | undefined, baseUrl: string): string | null {
+  if (!src) return null;
+  try {
+    return new URL(src, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
 
-  SET_TEXT_SELECTORS.forEach((selector) => {
-    $(selector).each((_, element) => {
-      let text = "";
-      let sourceTag =
-        ((($(element).prop("tagName") as string | undefined) || "").toLowerCase());
+function collectImagesAroundHeading(
+  $heading: cheerio.Cheerio<any>,
+  $scope: cheerio.Cheerio<any>,
+  baseUrl: string
+): string[] {
+  const imagesSet = new Set<string>();
+  const siblingRange = $heading.nextUntil("h5, h6");
 
-      if ($(element).is("li")) {
-        const directLink = $(element).children("a").first();
-        if (directLink.length) {
-          const linkClone = directLink.clone();
-          linkClone.find("span").remove();
-          text = linkClone.text();
-          sourceTag = "a";
-        } else {
-          const clone = $(element).clone();
-          clone.find("span").remove();
-          clone.find("ul, ol").remove();
-          text = clone.text();
-        }
-      } else {
-        const clone = $(element).clone();
-        clone.find("span").remove();
-        clone.find("ul, ol").remove();
-        text = clone.text();
-      }
+  const scopedImages = siblingRange
+    .find("img")
+    .add(siblingRange.filter("img"));
 
-      const cleaned = cleanSetCandidate(text);
-      if (cleaned && shouldConsiderSetText(cleaned)) {
-        const lowerCleaned = cleaned.toLowerCase();
-        const requiresSpecificTag =
-          lowerCleaned.includes("playmat") ||
-          lowerCleaned.includes("uncut sheet");
+  let imageElements = scopedImages;
 
-        if (
-          requiresSpecificTag &&
-          !(
-            sourceTag === "a" ||
-            sourceTag === "h5" ||
-            sourceTag === "h6"
-          )
-        ) {
-          return;
-        }
+  if (imageElements.length === 0) {
+    const nextPackCol = $heading.nextAll(
+      ".eventPackCol, .cardPackCol, .includecardBox"
+    ).first();
 
-        if (
-          lowerCleaned.includes("uncut sheet") &&
-          !/\[[^\]]+\]/.test(cleaned)
-        ) {
-          return;
-        }
+    if (nextPackCol.length > 0) {
+      imageElements = nextPackCol.find("img");
+    }
+  }
 
-        detectedSets.push(cleaned);
-      }
-    });
+  if (imageElements.length === 0) {
+    imageElements = $scope.find("img").first();
+  }
+
+  imageElements.each((__, img) => {
+    const src = (img as any)?.attribs?.src as string | undefined;
+    const resolved = resolveImageUrl(src, baseUrl);
+    if (resolved) {
+      imagesSet.add(resolved);
+    }
   });
 
-  return Array.from(new Set(detectedSets));
+  return Array.from(imagesSet);
+}
+
+function detectSets($: cheerio.CheerioAPI, baseUrl: string): DetectedSetCandidate[] {
+  const candidates: DetectedSetCandidate[] = [];
+
+  $("section").each((_, section) => {
+    const classAttr = ($(section).attr("class") || "").toLowerCase();
+    if (!classAttr.includes("contentsmcol") && !classAttr.includes("contentslcol")) {
+      return;
+    }
+
+    const $section = $(section);
+    const headings = $section.find("h5, h6");
+    if (headings.length === 0) return;
+
+    const extractTitle = ($heading: cheerio.Cheerio<any>) => {
+      const headingClone = $heading.clone();
+      headingClone.find("span").remove();
+      const titleText = cleanSetCandidate(headingClone.text());
+      if (!titleText || !shouldConsiderSetText(titleText)) {
+        return null;
+      }
+      const lowerTitle = titleText.toLowerCase();
+      if (lowerTitle.includes("uncut sheet") && !/\[[^\]]+\]/.test(titleText)) {
+        return null;
+      }
+      return titleText;
+    };
+
+    const headingNodes = headings.toArray() as any[];
+    const h6Nodes = headingNodes.filter((node) => {
+      const tag = ($(node).prop("tagName") as string | undefined)?.toLowerCase();
+      return tag === "h6";
+    });
+
+    const pushCandidatesFromNodes = (nodes: any[]) => {
+      let pushed = false;
+      nodes.forEach((node) => {
+        const $heading = $(node);
+        const titleText = extractTitle($heading);
+        if (!titleText) return;
+
+        candidates.push({
+          title: titleText,
+          images: collectImagesAroundHeading($heading, $section, baseUrl),
+        });
+        pushed = true;
+      });
+      return pushed;
+    };
+
+    if (h6Nodes.length > 0) {
+      const pushed = pushCandidatesFromNodes(h6Nodes);
+      if (!pushed) {
+        pushCandidatesFromNodes(headingNodes);
+      }
+    } else {
+      pushCandidatesFromNodes(headingNodes);
+    }
+  });
+
+  return candidates;
 }
 
 /**
  * Busca sets en la base de datos que coincidan con el texto detectado
  */
 async function findMatchingSets(
-  detectedTexts: string[]
-): Promise<{ matches: MatchedSet[]; unmatchedTexts: string[] }> {
+  detectedTexts: DetectedSetCandidate[]
+): Promise<{ matches: MatchedSet[]; unmatchedCandidates: DetectedSetCandidate[] }> {
   const setsCache = await loadSetsCache();
   const matchedMap = new Map<number, MatchedSet>();
-  const unmatchedTexts: string[] = [];
+  const unmatchedCandidates: DetectedSetCandidate[] = [];
 
-  for (const text of detectedTexts) {
+  for (const candidate of detectedTexts) {
+    const text = candidate.title;
     const normalizedDetected = normalizeString(text);
     if (!normalizedDetected || normalizedDetected.length < 4) {
       continue;
@@ -794,13 +854,13 @@ async function findMatchingSets(
     }
 
     if (!matched) {
-      unmatchedTexts.push(text);
+      unmatchedCandidates.push(candidate);
     }
   }
 
   return {
     matches: Array.from(matchedMap.values()),
-    unmatchedTexts,
+    unmatchedCandidates,
   };
 }
 
@@ -869,7 +929,7 @@ async function scrapeEventDetail(
     const location = extractLocationText($);
 
     // Detecta sets mencionados
-    const detectedSets = detectSets($);
+    const detectedSets = detectSets($, eventUrl);
 
     console.log(`  Title: ${title}`);
     console.log(`  Region: ${region}`);
@@ -1076,16 +1136,16 @@ export async function scrapeEvents(
         );
 
         // 3. Busca sets coincidentes
-        const { matches: matchedSets, unmatchedTexts } = await findMatchingSets(
+        const { matches: matchedSets, unmatchedCandidates } = await findMatchingSets(
           scrapedEvent.detectedSets
         );
 
-        const dedupedMissingSets = dedupeSetTexts(unmatchedTexts);
+        const dedupedMissingSets = dedupeMissingCandidates(unmatchedCandidates);
 
         if (dedupedMissingSets.length > 0) {
           console.warn(
             `⚠️  ${dedupedMissingSets.length} detected set references without match for ${slug}:`,
-            dedupedMissingSets
+            dedupedMissingSets.map((candidate) => candidate.title)
           );
         }
 

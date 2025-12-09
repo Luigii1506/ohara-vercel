@@ -7,10 +7,9 @@
 
 import {
   scrapeEvents,
-  DEFAULT_EVENT_LIST_SOURCES,
-  PAST_EVENT_LIST_SOURCE,
   ScrapeEventsOptions,
   EventListSource,
+  LANGUAGE_EVENT_SOURCES,
 } from '../lib/services/scraper/eventScraper';
 
 async function main() {
@@ -22,25 +21,73 @@ async function main() {
   const includePast = args.includes('--past');
   const dryRun = args.includes('--dry-run');
   const customUrls = args.filter(arg => arg.startsWith('http'));
-  const hasCustomSources = includePast || customUrls.length > 0 || !includeCurrent;
 
-  const sources: EventListSource[] = [];
+  const langFlag =
+    args.find(arg => arg.startsWith('--lang=')) ||
+    args.find(arg => arg.startsWith('--locale='));
 
-  if (includeCurrent) {
-    sources.push(...DEFAULT_EVENT_LIST_SOURCES);
+  let languages = ['en'];
+  if (langFlag) {
+    const [, value = ''] = langFlag.split('=');
+    const parsed = value
+      .split(',')
+      .map(lang => lang.trim().toLowerCase())
+      .filter(Boolean);
+    if (parsed.length > 0) {
+      languages = parsed;
+    }
   }
 
-  if (includePast) {
-    sources.push(PAST_EVENT_LIST_SOURCE);
+  const invalidLanguages = languages.filter(
+    lang => !LANGUAGE_EVENT_SOURCES[lang]
+  );
+  if (invalidLanguages.length > 0) {
+    console.error(
+      '\n❌ Invalid language codes:',
+      invalidLanguages.join(', ')
+    );
+    console.error(
+      `   Supported languages: ${Object.keys(LANGUAGE_EVENT_SOURCES).join(', ')}`
+    );
+    process.exit(1);
   }
 
-  customUrls.forEach((url, index) => {
-    sources.push({ url, label: `custom-${index + 1}` });
-  });
+  const usingCustomLanguages =
+    languages.length !== 1 || languages[0] !== 'en';
+
+  const hasCustomSources =
+    includePast ||
+    customUrls.length > 0 ||
+    !includeCurrent ||
+    usingCustomLanguages;
 
   const scrapeOptions: ScrapeEventsOptions = {};
 
   if (hasCustomSources) {
+    const sources: EventListSource[] = [];
+
+    if (includeCurrent) {
+      languages.forEach(lang => {
+        const config = LANGUAGE_EVENT_SOURCES[lang];
+        if (config) {
+          sources.push(config.current);
+        }
+      });
+    }
+
+    if (includePast) {
+      languages.forEach(lang => {
+        const config = LANGUAGE_EVENT_SOURCES[lang];
+        if (config) {
+          sources.push(config.past);
+        }
+      });
+    }
+
+    customUrls.forEach((url, index) => {
+      sources.push({ url, label: `custom-${index + 1}` });
+    });
+
     if (sources.length === 0) {
       console.error('\n❌ No event sources selected.');
       console.error('   Use --no-current only when providing --past or explicit URLs.');

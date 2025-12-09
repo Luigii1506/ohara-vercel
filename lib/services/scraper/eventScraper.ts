@@ -130,20 +130,91 @@ const SET_KEYWORDS = [
 const CURRENT_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list.php";
 const PAST_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list_end.php";
 
-export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] = [
-  {
-    url: CURRENT_EVENTS_URL,
-    label: "global-current",
-    type: "current",
+const FRENCH_CURRENT_EVENTS_URL =
+  "https://fr.onepiece-cardgame.com/events/list.php";
+const FRENCH_PAST_EVENTS_URL =
+  "https://fr.onepiece-cardgame.com/events/list_end.php";
+
+const JAPANESE_CURRENT_EVENTS_URL =
+  "https://www.onepiece-cardgame.com/events/list.php";
+const JAPANESE_PAST_EVENTS_URL =
+  "https://www.onepiece-cardgame.com/events/list_end.php";
+
+export interface LanguageEventSourceConfig {
+  current?: EventListSource;
+  past?: EventListSource;
+  notes?: string;
+  requiresDynamicRendering?: boolean;
+}
+
+const EVENT_LANGUAGE_SOURCE_MAP: Record<string, LanguageEventSourceConfig> = {
+  en: {
+    current: {
+      url: CURRENT_EVENTS_URL,
+      label: "global-current",
+      type: "current",
+    },
+    past: {
+      url: PAST_EVENTS_URL,
+      label: "global-past",
+      type: "past",
+      limit: 20,
+    },
   },
+  fr: {
+    current: {
+      url: FRENCH_CURRENT_EVENTS_URL,
+      label: "fr-current",
+      type: "current",
+    },
+    past: {
+      url: FRENCH_PAST_EVENTS_URL,
+      label: "fr-past",
+      type: "past",
+      limit: 20,
+    },
+  },
+  jp: {
+    current: {
+      url: JAPANESE_CURRENT_EVENTS_URL,
+      label: "jp-current",
+      type: "current",
+    },
+    past: {
+      url: JAPANESE_PAST_EVENTS_URL,
+      label: "jp-past",
+      type: "past",
+      limit: 20,
+    },
+  },
+  asia: {
+    current: {
+      url: "https://asia-en.onepiece-cardgame.com/events/",
+      label: "asia-current",
+      type: "current",
+    },
+    notes: "Asia region site does not expose a dedicated past-events list.",
+  },
+  cn: {
+    current: {
+      url: "https://www.onepiece-cardgame.cn/activity",
+      label: "cn-activity",
+      type: "current",
+    },
+    requiresDynamicRendering: true,
+    notes:
+      "Simplified Chinese site renders content via JavaScript. Static scraping may not capture events without headless browser support.",
+  },
+};
+
+export const LANGUAGE_EVENT_SOURCES = EVENT_LANGUAGE_SOURCE_MAP;
+
+export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] = [
+  EVENT_LANGUAGE_SOURCE_MAP.en.current!,
 ];
 
-export const PAST_EVENT_LIST_SOURCE: EventListSource = {
-  url: PAST_EVENTS_URL,
-  label: "global-past",
-  type: "past",
-  limit: 20,
-};
+export const PAST_EVENT_LIST_SOURCE: EventListSource =
+  EVENT_LANGUAGE_SOURCE_MAP.en.past!;
 
 const DEFAULT_MAX_EVENTS = 25;
 const DEFAULT_PER_SOURCE_LIMIT = 25;

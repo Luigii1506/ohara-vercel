@@ -1,7 +1,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { prisma } from "../../prisma";
-import { setCodes as rawSetCodes } from "../../../helpers/constants";
+import { setCodes as rawSetCodes, standarDecks as rawStandardDecks } from "../../../helpers/constants";
 import {
   EventRegion,
   EventStatus,
@@ -34,6 +34,7 @@ export interface ScrapedEvent {
   sourceUrl: string;
   imageUrl: string | null;
   detectedSets: DetectedSetCandidate[];
+  detectedCards: DetectedCardCandidate[];
 }
 
 interface CachedSet {
@@ -70,6 +71,11 @@ interface ScrapeResult {
       title: string;
       images: string[];
     }>;
+    cards: Array<{
+      code: string;
+      title: string;
+      images: string[];
+    }>;
   }>;
 }
 
@@ -80,6 +86,12 @@ interface MatchedSet {
 }
 
 interface DetectedSetCandidate {
+  title: string;
+  images: string[];
+}
+
+interface DetectedCardCandidate {
+  code: string;
   title: string;
   images: string[];
 }
@@ -137,7 +149,9 @@ const DEFAULT_REQUEST_DELAY_MS = 1000;
 
 let cachedSetsPromise: Promise<CachedSet[]> | null = null;
 const SET_CODES: string[] = (rawSetCodes as string[]) || [];
+const STANDARD_DECK_CODES: string[] = (rawStandardDecks as string[]) || [];
 const NORMALIZED_SET_CODES = SET_CODES.map((code) => code.toLowerCase());
+const CARD_CODE_PREFIXES = [...SET_CODES, ...STANDARD_DECK_CODES];
 const MIN_MATCH_ABSOLUTE_LENGTH = 3;
 const MIN_MATCH_RATIO = 0.6;
 
@@ -588,6 +602,32 @@ function removeTrailingPackArtifacts(value: string): string {
   return result;
 }
 
+function extractCardCode(text: string | undefined): { code: string; match: string } | null {
+  if (!text) return null;
+  for (const setCode of CARD_CODE_PREFIXES) {
+    const escaped = setCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    const regex = new RegExp(`\\b(${escaped})[-–—]?(\\d{2,3})\\b`, "i");
+    const match = text.match(regex);
+    if (match) {
+      const prefix = match[1].toUpperCase();
+      const number = match[2].padStart(2, "0");
+      return {
+        code: `${prefix}-${number}`,
+        match: match[0],
+      };
+    }
+  }
+  return null;
+}
+
+function extractCardTitle(rawText: string, codeMatch: string, fallback?: string): string {
+  const cleaned = rawText.replace(codeMatch, "").replace(/[\s:–-]+$/, "").trim();
+  if (cleaned.length > 0) {
+    return cleaned;
+  }
+  return fallback?.trim() || "";
+}
+
 function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSetCandidate[] {
   const map = new Map<string, DetectedSetCandidate>();
   const registerKeys = (candidate: DetectedSetCandidate, keys: string[]) => {
@@ -642,6 +682,29 @@ function dedupeMissingCandidates(candidates: DetectedSetCandidate[]): DetectedSe
   return mergedCandidates;
 }
 
+function dedupeCardCandidates(candidates: DetectedCardCandidate[]): DetectedCardCandidate[] {
+  const map = new Map<string, DetectedCardCandidate>();
+  for (const candidate of candidates) {
+    const key = candidate.code.toUpperCase();
+    if (map.has(key)) {
+      const existing = map.get(key)!;
+      const images = new Set(existing.images);
+      candidate.images.forEach((img) => images.add(img));
+      existing.images = Array.from(images);
+      if (!existing.title && candidate.title) {
+        existing.title = candidate.title;
+      }
+    } else {
+      map.set(key, {
+        code: candidate.code.toUpperCase(),
+        title: candidate.title,
+        images: Array.from(new Set(candidate.images)),
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
 function resolveImageUrl(src: string | undefined, baseUrl: string): string | null {
   if (!src) return null;
   try {
@@ -655,8 +718,9 @@ function collectImagesAroundHeading(
   $heading: cheerio.Cheerio<any>,
   $scope: cheerio.Cheerio<any>,
   baseUrl: string
-): string[] {
+): { images: string[]; firstAlt?: string } {
   const imagesSet = new Set<string>();
+  let firstAlt: string | undefined;
   const siblingRange = $heading.nextUntil("h5, h6");
 
   const scopedImages = siblingRange
@@ -680,22 +744,33 @@ function collectImagesAroundHeading(
   }
 
   imageElements.each((__, img) => {
-    const src = (img as any)?.attribs?.src as string | undefined;
-    const resolved = resolveImageUrl(src, baseUrl);
+    const attribs = (img as any)?.attribs || {};
+    const resolved = resolveImageUrl(attribs.src as string | undefined, baseUrl);
     if (resolved) {
       imagesSet.add(resolved);
+      if (!firstAlt && typeof attribs.alt === "string" && attribs.alt.trim().length) {
+        firstAlt = attribs.alt.trim();
+      }
     }
   });
 
-  return Array.from(imagesSet);
+  return { images: Array.from(imagesSet), firstAlt };
 }
 
-function detectSets($: cheerio.CheerioAPI, baseUrl: string): DetectedSetCandidate[] {
-  const candidates: DetectedSetCandidate[] = [];
+function detectSetsAndCards(
+  $: cheerio.CheerioAPI,
+  baseUrl: string
+): { sets: DetectedSetCandidate[]; cards: DetectedCardCandidate[] } {
+  const setCandidates: DetectedSetCandidate[] = [];
+  const cardCandidates: DetectedCardCandidate[] = [];
 
   $("section").each((_, section) => {
     const classAttr = ($(section).attr("class") || "").toLowerCase();
-    if (!classAttr.includes("contentsmcol") && !classAttr.includes("contentslcol")) {
+    if (
+      !classAttr.includes("contentsmcol") &&
+      !classAttr.includes("contentslcol") &&
+      !classAttr.includes("mtl")
+    ) {
       return;
     }
 
@@ -727,12 +802,42 @@ function detectSets($: cheerio.CheerioAPI, baseUrl: string): DetectedSetCandidat
       let pushed = false;
       nodes.forEach((node) => {
         const $heading = $(node);
-        const titleText = extractTitle($heading);
-        if (!titleText) return;
+        const headingClone = $heading.clone();
+        headingClone.find("span").remove();
+        const rawText = headingClone.text().trim();
 
-        candidates.push({
+        const codeInfo =
+          extractCardCode(rawText) || extractCardCode($section.attr("id"));
+
+        const imageData = collectImagesAroundHeading($heading, $section, baseUrl);
+
+        if (codeInfo) {
+          let cardTitle = extractCardTitle(rawText, codeInfo.match, imageData.firstAlt);
+          if (!cardTitle && imageData.firstAlt) {
+            cardTitle = imageData.firstAlt;
+          }
+          cardCandidates.push({
+            code: codeInfo.code,
+            title: cardTitle || codeInfo.code,
+            images: imageData.images,
+          });
+          pushed = true;
+          return;
+        }
+
+        const titleText = cleanSetCandidate(rawText);
+        if (!titleText || !shouldConsiderSetText(titleText)) {
+          return;
+        }
+
+        const lowerTitle = titleText.toLowerCase();
+        if (lowerTitle.includes("uncut sheet") && !/\[[^\]]+\]/.test(titleText)) {
+          return;
+        }
+
+        setCandidates.push({
           title: titleText,
-          images: collectImagesAroundHeading($heading, $section, baseUrl),
+          images: imageData.images,
         });
         pushed = true;
       });
@@ -749,7 +854,7 @@ function detectSets($: cheerio.CheerioAPI, baseUrl: string): DetectedSetCandidat
     }
   });
 
-  return candidates;
+  return { sets: setCandidates, cards: cardCandidates };
 }
 
 /**
@@ -928,8 +1033,11 @@ async function scrapeEventDetail(
     // Extrae ubicación
     const location = extractLocationText($);
 
-    // Detecta sets mencionados
-    const detectedSets = detectSets($, eventUrl);
+    // Detecta sets y cartas mencionados
+    const { sets: detectedSets, cards: detectedCards } = detectSetsAndCards(
+      $,
+      eventUrl
+    );
 
     console.log(`  Title: ${title}`);
     console.log(`  Region: ${region}`);
@@ -961,6 +1069,7 @@ async function scrapeEventDetail(
       sourceUrl: eventUrl,
       imageUrl,
       detectedSets,
+      detectedCards,
     };
   } catch (error) {
     console.error(`❌ Error scraping ${eventUrl}:`, error);
@@ -1141,6 +1250,7 @@ export async function scrapeEvents(
         );
 
         const dedupedMissingSets = dedupeMissingCandidates(unmatchedCandidates);
+        const dedupedCards = dedupeCardCandidates(scrapedEvent.detectedCards);
 
         if (dedupedMissingSets.length > 0) {
           console.warn(
@@ -1238,6 +1348,7 @@ export async function scrapeEvents(
           location: scrapedEvent.location,
           sourceUrl: scrapedEvent.sourceUrl,
           missingSets: dedupedMissingSets,
+          cards: dedupedCards,
         });
       } catch (dbError) {
         const error = dbError as Error;

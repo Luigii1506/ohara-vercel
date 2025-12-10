@@ -329,6 +329,7 @@ model Event {
   updatedAt       DateTime?     @updatedAt
   sets            EventSet[]
   cards           EventCard[]
+  missingSets     EventMissingSet[]
 }
 
 model Set {
@@ -363,6 +364,20 @@ model EventCard {
 
   @@id([eventId, cardId])
   @@index([cardId])
+}
+
+model EventMissingSet {
+  id                Int      @id @default(autoincrement())
+  eventId           Int
+  title             String
+  translatedTitle   String?
+  imagesJson        Json?
+  versionSignature  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
 }
 
 model CardSet {

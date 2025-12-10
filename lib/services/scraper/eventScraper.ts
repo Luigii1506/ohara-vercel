@@ -1638,19 +1638,30 @@ async function scrapeEventDetail(
     const dateText = extractPeriodText($);
 
     // Extrae imagen
-    const thumbnailSrc = $(
-      ".eventThumnail img, .eventThumbnail img"
-    )
-      .first()
-      .attr("src");
-    const eventThumbnail =
-      listThumbnail ||
-      resolveImageUrl(thumbnailSrc, eventUrl) ||
+    const heroSrc =
+      $(".mvImgCol img").first().attr("src") ||
+      $(".heroImg img").first().attr("src") ||
       null;
+    const listThumbSrc =
+      $(".eventThumnail img, .eventThumbnail img").first().attr("src") || null;
+    const resolvedHero = resolveImageUrl(heroSrc || undefined, eventUrl);
+    const resolvedListThumb = resolveImageUrl(
+      listThumbSrc || undefined,
+      eventUrl
+    );
+    const eventThumbnail = listThumbnail || resolvedListThumb || null;
+
+    const ogImage = $('meta[property="og:image"]').attr("content") || null;
+    const resolvedOg = resolveImageUrl(ogImage || undefined, eventUrl);
+    const resolvedFallback = resolveImageUrl(
+      $("img").first().attr("src") || undefined,
+      eventUrl
+    );
     const imageUrl =
-      $('meta[property="og:image"]').attr("content") ||
+      (resolvedOg && !/\/ogp\./i.test(resolvedOg) && resolvedOg) ||
+      resolvedHero ||
       eventThumbnail ||
-      $("img").first().attr("src") ||
+      resolvedFallback ||
       null;
 
     // Detecta región, tipo y fechas

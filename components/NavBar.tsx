@@ -18,7 +18,6 @@ import {
   Edit,
   Plus,
   FileText,
-  Calendar,
   Upload,
   Images,
   Menu,
@@ -28,6 +27,8 @@ import {
   Copy,
   FolderOpen,
   ShoppingBag,
+  AlertTriangle,
+  Calendar,
 } from "lucide-react";
 import {
   siInstagram,
@@ -179,6 +180,18 @@ const NavBar = () => {
       label: "Upload Image R2",
       icon: Images,
       description: "Sube imágenes directamente a R2",
+    },
+    {
+      href: "/admin/events",
+      label: "Events",
+      icon: Calendar,
+      description: "Aprueba y edita eventos detectados",
+    },
+    {
+      href: "/admin/missing-sets",
+      label: "Missing Sets",
+      icon: AlertTriangle,
+      description: "Revisa y aprueba sets detectados",
     },
   ];
 

@@ -100,6 +100,7 @@ interface ScrapeResult {
   events: Array<{
     slug: string;
     title: string;
+    isApproved?: boolean;
     sets: Array<{
       id: number;
       title: string;
@@ -1211,6 +1212,51 @@ function dedupeCardCandidates(
   return Array.from(map.values());
 }
 
+async function syncEventMissingSetsInDb(
+  eventId: number,
+  candidates: DetectedSetCandidate[]
+) {
+  const titles = candidates.map((candidate) => candidate.title);
+
+  if (titles.length === 0) {
+    await prisma.eventMissingSet.deleteMany({
+      where: { eventId, isApproved: false },
+    });
+    return;
+  }
+
+  await prisma.eventMissingSet.deleteMany({
+    where: {
+      eventId,
+      isApproved: false,
+      title: { notIn: titles },
+    },
+  });
+
+  for (const candidate of candidates) {
+    await prisma.eventMissingSet.upsert({
+      where: {
+        eventId_title: {
+          eventId,
+          title: candidate.title,
+        },
+      },
+      create: {
+        eventId,
+        title: candidate.title,
+        translatedTitle: candidate.translatedTitle,
+        versionSignature: candidate.versionSignature,
+        imagesJson: candidate.images,
+      },
+      update: {
+        translatedTitle: candidate.translatedTitle ?? undefined,
+        versionSignature: candidate.versionSignature ?? undefined,
+        imagesJson: candidate.images,
+      },
+    });
+  }
+}
+
 function resolveImageUrl(
   src: string | undefined,
   baseUrl: string
@@ -1941,6 +1987,8 @@ export async function scrapeEvents(
         }
 
         // 4. Crea o actualiza el evento
+        let persistedEventId: number | null = null;
+        let persistedEventIsApproved: boolean | null = null;
         if (dryRun) {
           console.log(
             `📝 Dry run: ${slug} would link ${matchedSets.length} sets`
@@ -1954,30 +2002,37 @@ export async function scrapeEvents(
               description: scrapedEvent.description,
               content: scrapedEvent.content,
               originalContent: scrapedEvent.originalContent,
+              locale: scrapedEvent.locale,
               region: scrapedEvent.region,
               status: scrapedEvent.status,
               eventType: scrapedEvent.eventType,
               category: scrapedEvent.category,
               startDate: scrapedEvent.startDate,
               endDate: scrapedEvent.endDate,
+              rawDateText: scrapedEvent.rawDateText,
               location: scrapedEvent.location,
               sourceUrl: scrapedEvent.sourceUrl,
               imageUrl: scrapedEvent.imageUrl,
+              eventThumbnail: scrapedEvent.eventThumbnail,
+              isApproved: false,
             },
             update: {
               title: scrapedEvent.title,
               description: scrapedEvent.description,
               content: scrapedEvent.content,
               originalContent: scrapedEvent.originalContent,
+              locale: scrapedEvent.locale,
               region: scrapedEvent.region,
               status: scrapedEvent.status,
               eventType: scrapedEvent.eventType,
               category: scrapedEvent.category,
               startDate: scrapedEvent.startDate,
               endDate: scrapedEvent.endDate,
+              rawDateText: scrapedEvent.rawDateText,
               location: scrapedEvent.location,
               sourceUrl: scrapedEvent.sourceUrl,
               imageUrl: scrapedEvent.imageUrl,
+              eventThumbnail: scrapedEvent.eventThumbnail,
             },
           });
 
@@ -2003,13 +2058,22 @@ export async function scrapeEvents(
           console.log(
             `✅ Saved event: ${slug} (${matchedSets.length} sets linked)`
           );
+          persistedEventId = event.id;
+          persistedEventIsApproved = event.isApproved;
         }
 
         result.eventsProcessed++;
+        if (!dryRun && persistedEventId) {
+          await syncEventMissingSetsInDb(
+            persistedEventId,
+            dedupedMissingSets
+          );
+        }
         result.events.push({
           slug,
           title: scrapedEvent.title,
           locale: scrapedEvent.locale,
+          isApproved: persistedEventIsApproved ?? false,
           sets: matchedSets.map((matchedSet) => ({
             id: matchedSet.id,
             title: matchedSet.title,

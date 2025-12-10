@@ -11,8 +11,28 @@ import {
   EventListSource,
   LANGUAGE_EVENT_SOURCES,
   RenderMode,
-} from '../lib/services/scraper/eventScraper';
-import type { TranslationConfig } from '../lib/services/scraper/translation';
+} from "../lib/services/scraper/eventScraper";
+import type { TranslationConfig } from "../lib/services/scraper/translation";
+
+function readNumericFlag(
+  args: string[],
+  flag: string
+): number | undefined {
+  const withEquals = args.find((arg) => arg.startsWith(`${flag}=`));
+  if (withEquals) {
+    const [, value] = withEquals.split("=");
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  const index = args.indexOf(flag);
+  if (index >= 0 && args[index + 1]) {
+    const maybeValue = Number(args[index + 1]);
+    return Number.isFinite(maybeValue) ? maybeValue : undefined;
+  }
+
+  return undefined;
+}
 
 async function main() {
   console.log('🧪 Testing Event Scraper...\n');
@@ -189,6 +209,34 @@ async function main() {
     if (!process.env.GOOGLE_GENAI_API_KEY) {
       console.warn(
         '   ⚠️  GOOGLE_GENAI_API_KEY is not set. Translation will be disabled.'
+      );
+    }
+  }
+
+  const maxEventsValue = readNumericFlag(args, "--max-events");
+  if (typeof maxEventsValue === "number") {
+    if (maxEventsValue > 0) {
+      scrapeOptions.maxEvents = Math.floor(maxEventsValue);
+      console.log(
+        `\n🎯 Limiting total events to ${scrapeOptions.maxEvents}`
+      );
+    } else {
+      console.warn(
+        `⚠️  Ignoring --max-events value "${maxEventsValue}" (must be > 0)`
+      );
+    }
+  }
+
+  const perSourceValue = readNumericFlag(args, "--per-source-limit");
+  if (typeof perSourceValue === "number") {
+    if (perSourceValue > 0) {
+      scrapeOptions.perSourceLimit = Math.floor(perSourceValue);
+      console.log(
+        `   Per-source limit set to ${scrapeOptions.perSourceLimit}`
+      );
+    } else {
+      console.warn(
+        `⚠️  Ignoring --per-source-limit value "${perSourceValue}" (must be > 0)`
       );
     }
   }

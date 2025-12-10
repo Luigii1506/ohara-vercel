@@ -345,6 +345,24 @@ model Set {
   version     String?
   cards       CardSet[]
   events      EventSet[]
+  attachments SetAttachment[]
+}
+
+model SetAttachment {
+  id          Int               @id @default(autoincrement())
+  setId       Int
+  type        SetAttachmentType
+  title       String
+  description String?
+  imageUrl    String?
+  releaseDate DateTime?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  set         Set               @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([setId, type])
 }
 
 model EventSet {
@@ -458,6 +476,21 @@ model Product {
   reviews           Review[]
 
   @@index([sellerId])
+}
+
+model CatalogProduct {
+  id          Int                 @id @default(autoincrement())
+  uuid        String              @unique @default(uuid())
+  name        String
+  description String?             @db.Text
+  imageUrl    String?
+  releaseDate DateTime?
+  productType CatalogProductType
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([productType])
 }
 
 model Cart {
@@ -610,6 +643,18 @@ model Review {
   @@index([productId])
   @@index([sellerProfileId])
   @@index([userId])
+}
+
+enum SetAttachmentType {
+  UNCUT_SHEET
+  PLAYMAT
+  SLEEVE
+}
+
+enum CatalogProductType {
+  BOOSTER
+  DECK
+  OTHER
 }
 
 enum Role {

@@ -51,6 +51,7 @@ model Card {
   GameLogCard      GameLogCard[]
   userListCards    UserListCard[]
   alternateCards   Card[]          @relation("CardAlternates") // Las alternativas de esta carta base
+  eventCards       EventCard[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -312,18 +313,22 @@ model Event {
   description     String?       @db.Text
   content         String?       @db.Text
   originalContent String?       @db.Text
+  locale          String?       @default("en")
   region          EventRegion   @default(GLOBAL)
   status          EventStatus   @default(UPCOMING)
   eventType       EventType     @default(OTHER)
   category        EventCategory?
   startDate       DateTime?     @map("event_date")
   endDate         DateTime?
+  rawDateText     String?
   location        String?
   sourceUrl       String?
   imageUrl        String?
+  eventThumbnail  String?
   createdAt       DateTime?     @default(now())
   updatedAt       DateTime?     @updatedAt
   sets            EventSet[]
+  cards           EventCard[]
 }
 
 model Set {
@@ -348,6 +353,16 @@ model EventSet {
 
   @@id([eventId, setId])
   @@index([setId])
+}
+
+model EventCard {
+  eventId Int
+  cardId  Int
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  card    Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, cardId])
+  @@index([cardId])
 }
 
 model CardSet {

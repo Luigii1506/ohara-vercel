@@ -98,6 +98,34 @@ curl -X POST http://localhost:3000/api/cron/scrape-events \
 # scripts/test-scraper.ts
 ```
 
+#### Script CLI (`scripts/test-event-scraper.ts`)
+
+Para iterar sin exponer la API puedes usar:
+
+```bash
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts --dry-run
+```
+
+Flags útiles:
+
+- `--lang=en,fr,jp` selecciona uno o varios idiomas soportados en `LANGUAGE_EVENT_SOURCES`.
+- `--past` agrega los listados históricos (`list_end.php`).
+- `--render` activa Playwright para hosts que requieren contenido dinámico (`--render=force` lo aplica a todas las páginas).
+- `--translate` activa el pipeline de traducciones con Gemini (`GOOGLE_GENAI_API_KEY` debe existir).
+- `--translate-cache=/ruta/archivo.json` cambia la ubicación del cache (por defecto `.cache/event-scraper-translations.json`).
+- `--translate-reset` borra el cache antes de comenzar la corrida.
+
+Ejemplo multilenguaje con traducciones y render dinámico:
+
+```bash
+npx ts-node -P tsconfig.scripts.json scripts/test-event-scraper.ts \
+  --dry-run \
+  --lang=en,fr,jp \
+  --past \
+  --render \
+  --translate
+```
+
 ### 4. Configurar Cron Job en Vercel
 
 Agrega a `vercel.json`:
@@ -128,6 +156,14 @@ El scraper puede leer múltiples listados del sitio oficial. Actualmente usamos:
 - `https://en.onepiece-cardgame.com/events/list_end.php` → Historial de eventos ya concluidos
 
 La función `scrapeEvents()` recibe un arreglo de fuentes (`sources`) para combinar varias URLs en una sola corrida y evita duplicados automáticamente. Así podemos ejecutar un script puntual para poblar eventos pasados mientras el cron job de producción sigue enfocado sólo en los listados actuales.
+
+### 🌐 Multi-idioma, traducciones y contenido dinámico
+
+- `LANGUAGE_EVENT_SOURCES` define las URLs base para `en`, `fr`, `jp`, `asia` y `cn`. Cada fuente incluye su `locale`, `region` y si requiere render dinámico.
+- Los hosts que sirven HTML vía JavaScript (por ejemplo `www.onepiece-cardgame.cn`) necesitan Playwright. Habilítalo con `--render` o `renderMode: 'auto'` en `scrapeEvents`.
+- El scraper registra la región y el idioma del host para que cada evento conserve la metadata correcta al guardarse.
+- Las traducciones opcionales usan `@google/genai` (SDK oficial). Actívalas con `--translate` y define `GOOGLE_GENAI_API_KEY` en tu `.env`. Los resultados se cachean en `.cache/event-scraper-translations.json` para evitar cargos innecesarios.
+- El CLI reporta estadísticas de traducción (cache hits, API calls, errores) para auditar el comportamiento.
 
 ### Detección de Sets
 

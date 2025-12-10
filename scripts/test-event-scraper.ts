@@ -10,7 +10,9 @@ import {
   ScrapeEventsOptions,
   EventListSource,
   LANGUAGE_EVENT_SOURCES,
+  RenderMode,
 } from '../lib/services/scraper/eventScraper';
+import type { TranslationConfig } from '../lib/services/scraper/translation';
 
 async function main() {
   console.log('🧪 Testing Event Scraper...\n');
@@ -21,6 +23,44 @@ async function main() {
   const includePast = args.includes('--past');
   const dryRun = args.includes('--dry-run');
   const customUrls = args.filter(arg => arg.startsWith('http'));
+
+  const renderArg = args.find(arg => arg.startsWith('--render'));
+  let renderMode: RenderMode = 'static';
+  if (renderArg) {
+    const [, provided = 'auto'] = renderArg.split('=');
+    const normalized = provided.toLowerCase();
+    if (['force', 'always'].includes(normalized)) {
+      renderMode = 'force';
+    } else if (['off', 'static', 'none'].includes(normalized)) {
+      renderMode = 'static';
+    } else {
+      renderMode = 'auto';
+    }
+  }
+
+  const translateEnabled =
+    args.includes('--translate') || args.includes('--translations');
+  const translateCacheArg = args.find(arg =>
+    arg.startsWith('--translate-cache=')
+  );
+  const translateModelArg = args.find(arg =>
+    arg.startsWith('--translate-model=')
+  );
+  const translateReset =
+    args.includes('--translate-reset') ||
+    args.includes('--translate-cache-reset');
+
+  let translationConfig: TranslationConfig | undefined;
+  if (translateEnabled) {
+    const cachePath = translateCacheArg?.split('=')[1]?.trim();
+    const model = translateModelArg?.split('=')[1]?.trim();
+    translationConfig = {
+      enabled: true,
+      cachePath: cachePath || undefined,
+      resetCache: translateReset,
+      model: model || undefined,
+    };
+  }
 
   const langFlag =
     args.find(arg => arg.startsWith('--lang=')) ||
@@ -124,6 +164,35 @@ async function main() {
     });
   }
 
+  scrapeOptions.renderMode = renderMode;
+
+  if (translationConfig) {
+    scrapeOptions.translation = translationConfig;
+  }
+
+  if (renderMode !== 'static') {
+    const renderLabel =
+      renderMode === 'force'
+        ? 'forced for all requests'
+        : 'auto (only flagged hosts)';
+    console.log(`\n🖥️  Headless rendering enabled: ${renderLabel}`);
+  }
+
+  if (translationConfig) {
+    console.log('\n🌐 Translation pipeline enabled.');
+    if (translationConfig.cachePath) {
+      console.log(`   Cache: ${translationConfig.cachePath}`);
+    }
+    if (translationConfig.resetCache) {
+      console.log('   Cache reset requested.');
+    }
+    if (!process.env.GOOGLE_GENAI_API_KEY) {
+      console.warn(
+        '   ⚠️  GOOGLE_GENAI_API_KEY is not set. Translation will be disabled.'
+      );
+    }
+  }
+
   if (dryRun) {
     console.log('\n🧪 Dry run enabled: no data will be written to the database.');
     scrapeOptions.dryRun = true;
@@ -138,6 +207,25 @@ async function main() {
 
     console.log('\n' + '='.repeat(60));
     console.log('✅ Test completed successfully!');
+
+    if (result.translation) {
+      const stats = result.translation;
+      console.log('\n🗣️  Translation stats:');
+      console.log(
+        `   Enabled: ${stats.enabled ? 'yes' : 'no'}${
+          stats.disabledReason ? ` (${stats.disabledReason})` : ''
+        }`
+      );
+      if (stats.cachePath) {
+        console.log(`   Cache: ${stats.cachePath}`);
+      }
+      console.log(
+        `   Cache entries: ${stats.cacheEntries} | hits: ${stats.cacheHits} | misses: ${stats.cacheMisses}`
+      );
+      console.log(
+        `   API calls: ${stats.apiCalls} | skipped: ${stats.skipped} | errors: ${stats.errors}`
+      );
+    }
 
     if (result.errors.length > 0) {
       console.log('\n⚠️  Warnings:');

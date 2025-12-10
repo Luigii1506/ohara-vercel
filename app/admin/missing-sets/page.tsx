@@ -14,6 +14,7 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  ArrowLeft,
 } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -45,6 +46,7 @@ const AdminMissingSetsPage = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [approvingSet, setApprovingSet] = useState<MissingSet | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     translatedTitle: "",
@@ -88,8 +90,7 @@ const AdminMissingSetsPage = () => {
         item.title.toLowerCase().includes(term) ||
         (item.translatedTitle &&
           item.translatedTitle.toLowerCase().includes(term)) ||
-        (item.event?.title &&
-          item.event.title.toLowerCase().includes(term))
+        (item.event?.title && item.event.title.toLowerCase().includes(term))
       );
     });
   }, [missingSets, search]);
@@ -144,6 +145,14 @@ const AdminMissingSetsPage = () => {
     }
   };
 
+  const openApprovalView = (missingSet: MissingSet) => {
+    setApprovingSet(missingSet);
+  };
+
+  const closeApprovalView = () => {
+    setApprovingSet(null);
+  };
+
   const toggleApproval = async (missingSet: MissingSet) => {
     try {
       const response = await fetch(`/api/admin/missing-sets/${missingSet.id}`, {
@@ -193,6 +202,250 @@ const AdminMissingSetsPage = () => {
     }
   };
 
+  // Si estamos en la vista de aprobación, mostrar solo esa vista
+  if (approvingSet) {
+    return (
+      <div className="min-h-screen bg-background w-full">
+        <div className="container mx-auto px-4 py-6 max-w-6xl">
+          {/* Header con botón de regreso */}
+          <div className="mb-6">
+            <Button
+              variant="ghost"
+              onClick={closeApprovalView}
+              className="mb-4"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver a la lista
+            </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">Aprobar Missing Set</h1>
+                <p className="text-muted-foreground">
+                  Revisa toda la información antes de aprobar el set
+                </p>
+              </div>
+              <Badge
+                variant={approvingSet.isApproved ? "default" : "secondary"}
+                className="text-lg px-4 py-2"
+              >
+                {approvingSet.isApproved ? "Aprobado" : "Pendiente"}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Información del Set */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Columna principal - Información del set */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Card de información básica */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Información del Set</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                      Título Original
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {approvingSet.title}
+                    </p>
+                  </div>
+
+                  {approvingSet.translatedTitle && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        Título Traducido
+                      </p>
+                      <p className="text-lg">{approvingSet.translatedTitle}</p>
+                    </div>
+                  )}
+
+                  {approvingSet.versionSignature && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        Versión
+                      </p>
+                      <Badge variant="outline" className="text-base">
+                        {approvingSet.versionSignature}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {approvingSet.event && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        Evento Asociado
+                      </p>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-lg font-medium">
+                          {approvingSet.event.title}
+                        </p>
+                        {approvingSet.event.region && (
+                          <Badge variant="secondary" className="w-fit">
+                            {approvingSet.event.region}
+                          </Badge>
+                        )}
+                        {approvingSet.event.sourceUrl && (
+                          <a
+                            href={approvingSet.event.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline w-fit"
+                          >
+                            Ver evento original →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t">
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                      <div>
+                        <span className="font-medium">Detectado:</span>{" "}
+                        {new Date(approvingSet.createdAt).toLocaleDateString(
+                          "es-MX",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </div>
+                      <div>
+                        <span className="font-medium">Actualizado:</span>{" "}
+                        {new Date(approvingSet.updatedAt).toLocaleDateString(
+                          "es-MX",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card de imágenes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    Imágenes del Set ({approvingSet.images.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {approvingSet.images.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      No se detectaron imágenes para este set.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {approvingSet.images.map((image, index) => (
+                        <div
+                          key={index}
+                          className="group relative aspect-[3/4] rounded-lg overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow"
+                        >
+                          <a
+                            href={image}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full h-full"
+                          >
+                            <img
+                              src={image}
+                              alt={`${approvingSet.title} - Imagen ${
+                                index + 1
+                              }`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                              <Eye className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Columna lateral - Acciones */}
+            <div className="lg:col-span-1">
+              <Card className="sticky top-6">
+                <CardHeader>
+                  <CardTitle>Acciones</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    variant={approvingSet.isApproved ? "secondary" : "default"}
+                    onClick={() => {
+                      toggleApproval(approvingSet);
+                      setApprovingSet({
+                        ...approvingSet,
+                        isApproved: !approvingSet.isApproved,
+                      });
+                    }}
+                  >
+                    {approvingSet.isApproved ? (
+                      <>
+                        <EyeOff className="mr-2 h-5 w-5" />
+                        Marcar como Pendiente
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-2 h-5 w-5" />
+                        Aprobar Set
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    variant="outline"
+                    onClick={() => startEditing(approvingSet)}
+                  >
+                    <Edit3 className="mr-2 h-5 w-5" />
+                    Editar Información
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    variant="destructive"
+                    onClick={() => {
+                      deleteMissingSet(approvingSet);
+                      closeApprovalView();
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-5 w-5" />
+                    Eliminar Set
+                  </Button>
+
+                  <div className="pt-4 border-t">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Aquí podrás realizar más acciones próximamente
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -226,17 +479,17 @@ const AdminMissingSetsPage = () => {
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <Input
-            placeholder="Buscar por título o evento..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full md:w-1/2"
-          />
-          <Button variant="outline" onClick={fetchMissingSets}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refrescar
-          </Button>
-        </div>
+        <Input
+          placeholder="Buscar por título o evento..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full md:w-1/2"
+        />
+        <Button variant="outline" onClick={fetchMissingSets}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refrescar
+        </Button>
+      </div>
 
       {loading ? (
         <Card>
@@ -253,17 +506,16 @@ const AdminMissingSetsPage = () => {
       ) : (
         <div className="grid gap-4">
           {filteredSets.map((missingSet) => (
-            <Card
-              key={missingSet.id}
-              className="border border-muted shadow-sm"
-            >
+            <Card key={missingSet.id} className="border border-muted shadow-sm">
               <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-xl">
                       {missingSet.title}
                     </CardTitle>
-                    <Badge variant={missingSet.isApproved ? "default" : "secondary"}>
+                    <Badge
+                      variant={missingSet.isApproved ? "default" : "secondary"}
+                    >
                       {missingSet.isApproved ? "Aprobado" : "Pendiente"}
                     </Badge>
                     {missingSet.versionSignature && (
@@ -317,11 +569,11 @@ const AdminMissingSetsPage = () => {
                   <Button
                     variant={missingSet.isApproved ? "secondary" : "default"}
                     size="sm"
-                    onClick={() => toggleApproval(missingSet)}
+                    onClick={() => openApprovalView(missingSet)}
                   >
                     {missingSet.isApproved ? (
                       <>
-                        <EyeOff className="mr-2 h-4 w-4" /> Ocultar
+                        <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                       </>
                     ) : (
                       <>

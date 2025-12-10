@@ -233,6 +233,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "tcgplayer-cdn.tcgplayer.com",
       },
+      {
+        protocol: "https",
+        hostname: "ohara-image-worker.luis-encinas1506.workers.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "oharatcg-21eab.kxcdn.com",
+      },
     ],
     formats: ["image/webp", "image/avif"],
     deviceSizes: [640, 750, 828, 1080, 1200],

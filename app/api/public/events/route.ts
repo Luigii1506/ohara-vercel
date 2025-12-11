@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (eventType && eventType.trim().length > 0) {
+      where.eventType = eventType.trim();
     }
 
     const events = await prisma.event.findMany({

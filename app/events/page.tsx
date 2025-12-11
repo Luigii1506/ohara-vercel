@@ -23,6 +23,7 @@ import {
   Image as ImageIcon,
   ArrowRight,
   Filter,
+  Users,
 } from "lucide-react";
 
 interface PublicEvent {
@@ -51,7 +52,7 @@ const EventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchEvents();
@@ -90,21 +91,29 @@ const EventsPage = () => {
       filtered = filtered.filter((event) => event.region === regionFilter);
     }
 
-    // Filtro de tipo
-    if (typeFilter !== "all") {
-      filtered = filtered.filter((event) => event.eventType === typeFilter);
+    // Filtro de categoría
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(
+        (event) => event.category?.toLowerCase() === categoryFilter
+      );
     }
 
     return filtered;
-  }, [events, searchTerm, regionFilter, typeFilter]);
+  }, [events, searchTerm, regionFilter, categoryFilter]);
 
   // Extraer regiones y tipos únicos para los filtros
   const uniqueRegions = useMemo(() => {
     return Array.from(new Set(events.map((e) => e.region))).sort();
   }, [events]);
 
-  const uniqueTypes = useMemo(() => {
-    return Array.from(new Set(events.map((e) => e.eventType))).sort();
+  const uniqueCategories = useMemo(() => {
+    return Array.from(
+      new Set(
+        events
+          .map((e) => e.category?.trim().toLowerCase())
+          .filter((category): category is string => Boolean(category))
+      )
+    ).sort();
   }, [events]);
 
   return (
@@ -160,16 +169,18 @@ const EventsPage = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-[180px]">
                   <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Type" />
+                  <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {uniqueTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {uniqueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category.replace(/\b\w/g, (char) =>
+                        char.toUpperCase()
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -186,14 +197,14 @@ const EventsPage = () => {
               </span>{" "}
               {filteredEvents.length === 1 ? "event" : "events"}
             </p>
-            {(searchTerm || regionFilter !== "all" || typeFilter !== "all") && (
+            {(searchTerm || regionFilter !== "all" || categoryFilter !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setSearchTerm("");
                   setRegionFilter("all");
-                  setTypeFilter("all");
+                  setCategoryFilter("all");
                 }}
               >
                 Clear filters
@@ -204,15 +215,28 @@ const EventsPage = () => {
 
         {/* Events Grid */}
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {[...Array(10)].map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="aspect-[4/3] animate-pulse bg-muted" />
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-                    <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                    <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <Card key={i} className="overflow-hidden border-border/50">
+                <div className="aspect-[16/10] animate-pulse bg-gradient-to-br from-muted to-muted/50" />
+                <CardContent className="p-5">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                    </div>
+                    <div className="border-t border-border/50" />
+                    <div className="space-y-2.5">
+                      <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+                    </div>
+                    <div className="border-t border-border/50 pt-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="h-16 animate-pulse rounded-lg bg-muted/30" />
+                        <div className="h-16 animate-pulse rounded-lg bg-muted/30" />
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -229,115 +253,109 @@ const EventsPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredEvents.map((event) => {
               const thumbnail = event.eventThumbnail ?? event.imageUrl;
 
               return (
                 <Link key={event.id} href={`/events/${event.slug}`}>
-                  <Card className="group h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                    {/* Image */}
-                    <div className="relative aspect-[4/3] overflow-hidden bg-muted flex items-center justify-center">
+                  <Card className="group h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-border/50">
+                    {/* Image Container */}
+                    <div className="relative aspect-[16/10] overflow-hidden bg-muted/30">
                       {thumbnail ? (
                         <Image
                           src={thumbnail}
                           alt={event.title}
                           fill
-                          className="object-contain transition-transform duration-300 group-hover:scale-105"
+                          className="object-contain transition-all duration-500 group-hover:scale-110"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                          <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
                         </div>
                       )}
+
+                      {/* Overlay gradient for better badge visibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
                       {/* Status badge */}
-                      <div className="absolute right-2 top-2 z-10">
+                      <div className="absolute right-3 top-3 z-10">
                         <Badge
                           variant={
                             event.status === "UPCOMING"
                               ? "default"
                               : "secondary"
                           }
-                          className="text-[10px] shadow-sm"
+                          className="text-xs font-semibold shadow-lg border"
                         >
                           {event.status}
+                        </Badge>
+                      </div>
+
+                      {/* Type badge */}
+                      <div className="absolute left-3 top-3 z-10">
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-semibold shadow-lg border bg-background/80 backdrop-blur-sm"
+                        >
+                          {event.category}
                         </Badge>
                       </div>
                     </div>
 
                     {/* Content */}
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        {/* Title & Type */}
+                    <CardContent className="p-5">
+                      <div className="space-y-4">
+                        {/* Title */}
                         <div>
-                          <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-primary">
+                          <h3 className="text-base font-bold leading-snug line-clamp-2 mb-2 transition-colors group-hover:text-primary">
                             {event.title}
                           </h3>
-                          <div className="flex flex-wrap gap-1">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              {event.eventType}
-                            </Badge>
-                            {event.category && (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] px-1.5 py-0"
-                              >
-                                {event.category}
-                              </Badge>
-                            )}
-                          </div>
                         </div>
 
-                        {/* Meta info */}
-                        <div className="space-y-1.5 text-[11px] text-muted-foreground">
+                        {/* Divider */}
+                        <div className="border-t border-border/50" />
+
+                        {/* Meta Information */}
+                        <div className="space-y-2.5 text-sm">
                           {event.startDate && (
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-3 w-3 flex-shrink-0" />
-                              <span className="line-clamp-1">
+                            <div className="flex items-start gap-2.5">
+                              <Calendar className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-1 text-foreground/80 font-medium">
                                 {new Date(event.startDate).toLocaleDateString(
                                   "en-US",
                                   {
                                     year: "numeric",
-                                    month: "short",
+                                    month: "long",
                                     day: "numeric",
                                   }
                                 )}
                               </span>
                             </div>
                           )}
+
                           {event.location && (
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="h-3 w-3 flex-shrink-0" />
-                              <span className="line-clamp-1">
+                            <div className="flex items-start gap-2.5">
+                              <MapPin className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-2 text-foreground/80">
                                 {event.location}
                               </span>
                             </div>
                           )}
-                          <div className="flex items-center gap-1.5">
-                            <Globe className="h-3 w-3 flex-shrink-0" />
-                            <span className="line-clamp-1">{event.region}</span>
+
+                          <div className="flex items-start gap-2.5">
+                            <Globe className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
+                            <span className="line-clamp-1 text-foreground/80">
+                              {event.region}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Stats */}
-                        <div className="flex items-center gap-3 border-t pt-2.5 text-[11px]">
-                          <div className="flex items-center gap-1">
-                            <Layers className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-semibold">
-                              {event._count.sets}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <ImageIcon className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-semibold">
-                              {event._count.cards}
-                            </span>
-                          </div>
-                          <div className="ml-auto">
-                            <ArrowRight className="h-3 w-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                        {/* CTA */}
+                        <div className="flex items-center justify-end pt-2">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary group-hover:gap-2 transition-all">
+                            <span>View Details</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
                           </div>
                         </div>
                       </div>

@@ -35,6 +35,8 @@ export interface EventListSource {
 interface EventListEntry {
   url: string;
   thumbnail?: string | null;
+  eventTxt?: string | null;
+  rawDateText?: string | null;
 }
 
 export interface ScrapedEvent {
@@ -42,6 +44,7 @@ export interface ScrapedEvent {
   description: string | null;
   content: string | null;
   originalContent: string | null;
+  eventTxt: string | null;
   region: EventRegion;
   locale: string;
   status: EventStatus;
@@ -151,6 +154,8 @@ interface ScrapeEventDetailOptions {
   render: RenderOptions;
   translator?: HeadingTranslationService | null;
   listThumbnail?: string | null;
+  listEventTxt?: string | null;
+  listRawDateText?: string | null;
 }
 
 interface ScrapeResult {
@@ -180,6 +185,7 @@ interface ScrapeResult {
     sourceUrl: string;
     eventThumbnail?: string | null;
     imageUrl?: string | null;
+    eventTxt?: string | null;
     missingSets: Array<{
       title: string;
       translatedTitle?: string;
@@ -1071,9 +1077,14 @@ function cleanPeriodText(text: string | null): string | null {
 }
 
 function extractPeriodText($: cheerio.CheerioAPI): string | null {
-  const inlinePeriod = $(".eventDate").first().text().trim();
-  if (inlinePeriod) {
-    return cleanPeriodText(inlinePeriod);
+  const inlinePeriodNode = $(".eventDate").first();
+  if (inlinePeriodNode.length) {
+    const cloned = inlinePeriodNode.clone();
+    cloned.find("span").remove();
+    const inlinePeriod = cloned.text().trim();
+    if (inlinePeriod) {
+      return cleanPeriodText(inlinePeriod);
+    }
   }
 
   const labeledPeriod = extractLabeledText($, "Period");
@@ -2002,7 +2013,15 @@ async function scrapeEventDetail(
   eventUrl: string,
   options: ScrapeEventDetailOptions
 ): Promise<ScrapedEvent | null> {
-  const { regionOverride, locale, render, translator, listThumbnail } =
+  const {
+    regionOverride,
+    locale,
+    render,
+    translator,
+    listThumbnail,
+    listEventTxt,
+    listRawDateText,
+  } =
     options;
   try {
     console.log(`\n🔍 Scraping event: ${eventUrl}`);
@@ -2041,6 +2060,10 @@ async function scrapeEventDetail(
       $(".eventCategory").first().text().trim() ||
       null;
 
+    const detailEventTxt =
+      $(".eventTxt .js_eventTxt").first().text().trim() || null;
+    const eventTxt = detailEventTxt || listEventTxt || null;
+
     // Extrae imagen
     const heroSrc =
       $(".mvImgCol img").first().attr("src") ||
@@ -2076,7 +2099,9 @@ async function scrapeEventDetail(
     const content =
       sanitizedContentElement.text().trim() || $("body").text().trim();
     const originalContent = sanitizedContentElement.html() || null;
-    const dateText = extractPeriodText($);
+    const extractedDateText = extractPeriodText($);
+    const dateText =
+      extractedDateText || cleanPeriodText(listRawDateText ?? null);
 
     // Detecta región, tipo y fechas
     const fullText = `${title} ${description || ""} ${categoryText || ""} ${
@@ -2130,6 +2155,7 @@ async function scrapeEventDetail(
       eventThumbnail,
       imageUrl,
       detectedSets,
+      eventTxt,
       detectedCards,
     };
   } catch (error) {
@@ -2194,11 +2220,27 @@ async function scrapeEventsList(
           return;
         }
 
+        const $element = $(element);
+        const thumbnail = extractListThumbnail($, $element, baseUrl);
+        const entryRoot = $element.closest(".eventDetail");
+        const listEventTxt =
+          entryRoot.find(".eventTxt .js_eventTxt").first().text().trim() ||
+          null;
+        const listRawDateText = (() => {
+          const dateNode = entryRoot.find(".eventDate").first();
+          if (!dateNode.length) return null;
+          const clone = dateNode.clone();
+          clone.find("span").remove();
+          const text = clone.text().trim();
+          return cleanPeriodText(text);
+        })();
+
         seen.add(fullUrl);
-        const thumbnail = extractListThumbnail($, $(element), baseUrl);
         eventEntries.push({
           url: fullUrl,
           thumbnail,
+          eventTxt: listEventTxt,
+          rawDateText: listRawDateText,
         });
       }
     });
@@ -2247,9 +2289,15 @@ async function collectEventUrlsFromSources(
         if (!existing.thumbnail && entry.thumbnail) {
           existing.thumbnail = entry.thumbnail;
         }
+        if (!existing.eventTxt && entry.eventTxt) {
+          existing.eventTxt = entry.eventTxt;
+        }
+        if (!existing.rawDateText && entry.rawDateText) {
+          existing.rawDateText = entry.rawDateText;
+        }
         continue;
       }
-      seen.set(entry.url, entry);
+      seen.set(entry.url, { ...entry });
       collected.push(entry);
     }
   }
@@ -2325,6 +2373,8 @@ export async function scrapeEvents(
         render,
         translator,
         listThumbnail: entry.thumbnail ?? null,
+        listEventTxt: entry.eventTxt ?? null,
+        listRawDateText: entry.rawDateText ?? null,
       });
 
       if (!scrapedEvent) {
@@ -2382,6 +2432,7 @@ export async function scrapeEvents(
               sourceUrl: scrapedEvent.sourceUrl,
               imageUrl: scrapedEvent.imageUrl,
               eventThumbnail: scrapedEvent.eventThumbnail,
+              eventTxt: scrapedEvent.eventTxt,
               isApproved: false,
             },
             update: {
@@ -2401,6 +2452,7 @@ export async function scrapeEvents(
               sourceUrl: scrapedEvent.sourceUrl,
               imageUrl: scrapedEvent.imageUrl,
               eventThumbnail: scrapedEvent.eventThumbnail,
+              eventTxt: scrapedEvent.eventTxt,
             },
           });
 
@@ -2449,6 +2501,7 @@ export async function scrapeEvents(
           sourceUrl: scrapedEvent.sourceUrl,
           eventThumbnail: scrapedEvent.eventThumbnail,
           imageUrl: scrapedEvent.imageUrl,
+          eventTxt: scrapedEvent.eventTxt,
           missingSets: dedupedMissingSets,
           cards: dedupedCards,
         });

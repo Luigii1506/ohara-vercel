@@ -40,6 +40,7 @@ interface AdminEvent {
   location?: string | null;
   sourceUrl?: string | null;
   imageUrl?: string | null;
+  eventTxt?: string | null;
   eventThumbnail?: string | null;
   isApproved: boolean;
   createdAt: string;

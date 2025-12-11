@@ -143,6 +143,7 @@ interface EventDetail {
   sourceUrl?: string | null;
   imageUrl?: string | null;
   eventThumbnail?: string | null;
+  eventTxt?: string | null;
   sets: Array<{
     id: number;
     setId: number;

@@ -4,7 +4,7 @@ import {
   fetchCardsPageFromDb,
 } from "@/lib/cards/query";
 import prisma from "@/lib/prisma";
-import type { Card } from "@prisma/client";
+import type { Card, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       setCode,
       code,
       setIds,
+      imageKey,
       // Estos campos se usan en el caso de no encontrar una carta previa.
       name,
       cost,
@@ -159,6 +160,8 @@ export async function POST(req: NextRequest) {
         setCode: ____,
         alias: _____,
         tcgUrl: ______,
+        imageKey: ________,
+        baseCardId: _________,
         // El resto de los campos de la carta encontrada se agrupa en "otherData"
         ...otherData
       } = templateCard;
@@ -167,10 +170,18 @@ export async function POST(req: NextRequest) {
       // copiando toda la info de la carta encontrada y sobrescribiendo los campos indicados.
       const baseCardId =
         providedBaseCardId ?? templateCard.baseCardId ?? templateCard.id;
+      const baseCardRelation = baseCardId
+        ? {
+            baseCard: {
+              connect: { id: baseCardId },
+            },
+          }
+        : {};
 
-      const newCardData = {
+      const newCardData: Prisma.CardCreateInput = {
         ...otherData,
         src, // campo sobrescrito
+        imageKey: imageKey ?? null,
         illustrator, // campo sobrescrito
         alternateArt, // campo sobrescrito
         setCode, // campo sobrescrito
@@ -178,7 +189,7 @@ export async function POST(req: NextRequest) {
         tcgUrl,
         alias,
         order: order || "0", // Asegurar que siempre tenga un valor
-        baseCardId,
+        ...baseCardRelation,
         types:
           templateCard.types.length > 0
             ? { create: templateCard.types.map((t: any) => ({ type: t.type })) }
@@ -220,46 +231,54 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Si no se encontró una carta existente, se crea la carta usando todos los datos enviados
+      const newCardData: Prisma.CardCreateInput = {
+        src,
+        name,
+        cost,
+        power,
+        attribute,
+        counter,
+        category,
+        life,
+        rarity,
+        illustrator,
+        alternateArt,
+        status,
+        triggerCard,
+        code,
+        setCode,
+        tcgUrl,
+        isFirstEdition,
+        alias,
+        imageKey: imageKey ?? null,
+        conditions: conditions
+          ? { create: conditions.map((condition: string) => ({ condition })) }
+          : undefined,
+        types: types
+          ? { create: types.map((type: string) => ({ type })) }
+          : undefined,
+        colors: colors
+          ? { create: colors.map((color: string) => ({ color })) }
+          : undefined,
+        effects: effects
+          ? { create: effects.map((effect: string) => ({ effect })) }
+          : undefined,
+        texts: texts
+          ? { create: texts.map((text: string) => ({ text })) }
+          : undefined,
+        isPro,
+        region,
+        order: order || "0", // Asegurar que siempre tenga un valor
+      };
+
+      if (providedBaseCardId) {
+        newCardData.baseCard = {
+          connect: { id: providedBaseCardId },
+        };
+      }
+
       newCard = await prisma.card.create({
-        data: {
-          src,
-          name,
-          cost,
-          power,
-          attribute,
-          counter,
-          category,
-          life,
-          rarity,
-          illustrator,
-          alternateArt,
-          status,
-          triggerCard,
-          code,
-          setCode,
-          tcgUrl,
-          isFirstEdition,
-          alias,
-          conditions: conditions
-            ? { create: conditions.map((condition: string) => ({ condition })) }
-            : undefined,
-          types: types
-            ? { create: types.map((type: string) => ({ type })) }
-            : undefined,
-          colors: colors
-            ? { create: colors.map((color: string) => ({ color })) }
-            : undefined,
-          effects: effects
-            ? { create: effects.map((effect: string) => ({ effect })) }
-            : undefined,
-          texts: texts
-            ? { create: texts.map((text: string) => ({ text })) }
-            : undefined,
-          isPro,
-          region,
-          order: order || "0", // Asegurar que siempre tenga un valor
-          baseCardId: providedBaseCardId ?? null,
-        },
+        data: newCardData,
       });
     }
 

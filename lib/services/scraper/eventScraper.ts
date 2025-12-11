@@ -828,22 +828,146 @@ async function loadSetsCache(): Promise<CachedSet[]> {
 /**
  * Parsea fechas del texto del evento
  */
-function parseDates(text: string): {
+function parseDates(text: string | null | undefined): {
   startDate: Date | null;
   endDate: Date | null;
 } {
-  // Busca patrones de fecha comunes
+  if (!text) return { startDate: null, endDate: null };
+
+  const normalized = text
+    .replace(/[\u2013\u2014–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return { startDate: null, endDate: null };
+
+  const monthNames = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+
+  const monthMap = monthNames.reduce<Record<string, number>>((acc, month, idx) => {
+    acc[month] = idx;
+    return acc;
+  }, {});
+
+  const monthRegex = monthNames.join("|");
+  const ordinalRegex = /(?:st|nd|rd|th)/i;
+  const parseDay = (value: string | undefined, fallback = 1) =>
+    value ? parseInt(value.replace(ordinalRegex, ""), 10) : fallback;
+  const getLastDay = (year: number, monthIndex: number) =>
+    new Date(year, monthIndex + 1, 0).getDate();
+  const createDate = (
+    year: number | null,
+    monthIndex: number | undefined,
+    day: number | null
+  ) => {
+    if (year == null || monthIndex == null || day == null) return null;
+    return new Date(year, monthIndex, day);
+  };
+
+  const lower = normalized.toLowerCase();
+
+  // Case: "January 1 - March 31, 2026"
+  const rangeSingleYear = new RegExp(
+    `(${monthRegex})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*-\\s*(${monthRegex})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s*(\\d{4})`,
+    "i"
+  );
+  const singleYearMatch = lower.match(rangeSingleYear);
+  if (singleYearMatch) {
+    const [, startMonth, startDay, endMonth, endDay, yearStr] = singleYearMatch;
+    const year = parseInt(yearStr, 10);
+    const startDate = createDate(year, monthMap[startMonth], parseDay(startDay));
+    const endDate = createDate(year, monthMap[endMonth], parseDay(endDay));
+    return { startDate, endDate };
+  }
+
+  // Case: "January 2025 - March 2025" (month/year range)
+  const monthYearRange = new RegExp(
+    `(${monthRegex})\\s+(\\d{4})\\s*-\\s*(${monthRegex})\\s+(\\d{4})`,
+    "i"
+  );
+  const monthYearMatch = lower.match(monthYearRange);
+  if (monthYearMatch) {
+    const [, startMonth, startYearStr, endMonth, endYearStr] = monthYearMatch;
+    const startYear = parseInt(startYearStr, 10);
+    const endYear = parseInt(endYearStr, 10);
+    const startDate = createDate(startYear, monthMap[startMonth], 1);
+    const endMonthIndex = monthMap[endMonth];
+    const endDate = createDate(
+      endYear,
+      endMonthIndex,
+      getLastDay(endYear, endMonthIndex)
+    );
+    return { startDate, endDate };
+  }
+
+  // Case: "January 1, 2026 - March 31, 2027"
+  const fullRangePattern = new RegExp(
+    `(${monthRegex})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\s*-\\s*(${monthRegex})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})`,
+    "i"
+  );
+  const fullRangeMatch = lower.match(fullRangePattern);
+  if (fullRangeMatch) {
+    const [,
+      startMonth,
+      startDay,
+      startYearStr,
+      endMonth,
+      endDay,
+      endYearStr,
+    ] = fullRangeMatch;
+    const startYear = parseInt(startYearStr, 10);
+    const endYear = parseInt(endYearStr, 10);
+    const startDate = createDate(
+      startYear,
+      monthMap[startMonth],
+      parseDay(startDay)
+    );
+    const endDate = createDate(
+      endYear,
+      monthMap[endMonth],
+      parseDay(endDay)
+    );
+    return { startDate, endDate };
+  }
+
+  // Case: "January 2025 onwards" or "January 1, 2025 onwards"
+  const onwardsPattern = new RegExp(
+    `(${monthRegex})(?:\\s+(\\d{1,2})(?:st|nd|rd|th)?)?,?\\s+(\\d{4})\\s+(onwards|and beyond|~|to be continued)`,
+    "i"
+  );
+  const onwardsMatch = lower.match(onwardsPattern);
+  if (onwardsMatch) {
+    const [, monthName, dayValue, yearValue] = onwardsMatch;
+    const year = parseInt(yearValue, 10);
+    const monthIndex = monthMap[monthName];
+    const startDate = createDate(year, monthIndex, parseDay(dayValue));
+    return { startDate, endDate: null };
+  }
+
+  // Fallback regexes used previously
   const datePatterns = [
     /(\d{1,2})\/(\d{1,2})\/(\d{4})/g, // MM/DD/YYYY
     /(\d{4})-(\d{2})-(\d{2})/g, // YYYY-MM-DD
-    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})/gi,
+    new RegExp(`(${monthRegex})\s+(\d{1,2}),?\s+(\d{4})`, "gi"),
   ];
 
   let startDate: Date | null = null;
   let endDate: Date | null = null;
 
   for (const pattern of datePatterns) {
-    const matches = text.match(pattern);
+    const matches = normalized.match(pattern);
     if (matches && matches.length > 0) {
       startDate = new Date(matches[0]);
       if (matches.length > 1) {
@@ -1220,7 +1344,13 @@ async function syncEventMissingSetsInDb(
 
   if (titles.length === 0) {
     await prisma.eventMissingSet.deleteMany({
-      where: { eventId, isApproved: false },
+      where: { eventId },
+    });
+    await prisma.missingSet.deleteMany({
+      where: {
+        isApproved: false,
+        events: { none: {} },
+      },
     });
     return;
   }
@@ -1228,21 +1358,16 @@ async function syncEventMissingSetsInDb(
   await prisma.eventMissingSet.deleteMany({
     where: {
       eventId,
-      isApproved: false,
-      title: { notIn: titles },
+      missingSet: {
+        title: { notIn: titles },
+      },
     },
   });
 
   for (const candidate of candidates) {
-    await prisma.eventMissingSet.upsert({
-      where: {
-        eventId_title: {
-          eventId,
-          title: candidate.title,
-        },
-      },
+    const missingSet = await prisma.missingSet.upsert({
+      where: { title: candidate.title },
       create: {
-        eventId,
         title: candidate.title,
         translatedTitle: candidate.translatedTitle,
         versionSignature: candidate.versionSignature,
@@ -1251,10 +1376,173 @@ async function syncEventMissingSetsInDb(
       update: {
         translatedTitle: candidate.translatedTitle ?? undefined,
         versionSignature: candidate.versionSignature ?? undefined,
-        imagesJson: candidate.images,
+        imagesJson: candidate.images ?? undefined,
       },
     });
+
+    if (missingSet.isApproved) {
+      await prisma.eventMissingSet.deleteMany({
+        where: {
+          eventId,
+          missingSetId: missingSet.id,
+        },
+      });
+      continue;
+    }
+
+    await prisma.eventMissingSet.upsert({
+      where: {
+        eventId_missingSetId: {
+          eventId,
+          missingSetId: missingSet.id,
+        },
+      },
+      create: {
+        eventId,
+        missingSetId: missingSet.id,
+      },
+      update: {},
+    });
   }
+
+  await prisma.missingSet.deleteMany({
+    where: {
+      isApproved: false,
+      events: { none: {} },
+    },
+  });
+}
+
+async function syncEventMissingCardsInDb(
+  eventId: number,
+  candidates: DetectedCardCandidate[]
+) {
+  const codeTitlePairs = candidates.map(
+    (candidate) => `${candidate.code}|${candidate.title}`
+  );
+
+  if (codeTitlePairs.length === 0) {
+    await prisma.eventMissingCard.deleteMany({
+      where: { eventId },
+    });
+    await prisma.missingCard.deleteMany({
+      where: {
+        isApproved: false,
+        events: { none: {} },
+      },
+    });
+    return;
+  }
+
+  // Delete EventMissingCard entries for cards no longer detected
+  await prisma.eventMissingCard.deleteMany({
+    where: {
+      eventId,
+      missingCard: {
+        OR: [
+          {
+            code: {
+              notIn: candidates.map((c) => c.code),
+            },
+          },
+          {
+            title: {
+              notIn: candidates.map((c) => c.title),
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  for (const candidate of candidates) {
+    const missingCard = await prisma.missingCard.upsert({
+      where: {
+        code_title: {
+          code: candidate.code,
+          title: candidate.title,
+        },
+      },
+      create: {
+        code: candidate.code,
+        title: candidate.title,
+        imageUrl: candidate.image || "",
+      },
+      update: {
+        imageUrl: candidate.image || undefined,
+      },
+    });
+
+    if (missingCard.isApproved) {
+      await prisma.eventMissingCard.deleteMany({
+        where: {
+          eventId,
+          missingCardId: missingCard.id,
+        },
+      });
+      continue;
+    }
+
+    await prisma.eventMissingCard.upsert({
+      where: {
+        eventId_missingCardId: {
+          eventId,
+          missingCardId: missingCard.id,
+        },
+      },
+      create: {
+        eventId,
+        missingCardId: missingCard.id,
+      },
+      update: {},
+    });
+  }
+
+  await prisma.missingCard.deleteMany({
+    where: {
+      isApproved: false,
+      events: { none: {} },
+    },
+  });
+}
+
+async function syncEventSetsInDb(
+  eventId: number,
+  matchedSets: MatchedSet[]
+): Promise<number> {
+  const matchedIds = matchedSets.map((set) => set.id);
+
+  if (matchedIds.length === 0) {
+    await prisma.eventSet.deleteMany({ where: { eventId } });
+    return 0;
+  }
+
+  await prisma.eventSet.deleteMany({
+    where: {
+      eventId,
+      setId: {
+        notIn: matchedIds,
+      },
+    },
+  });
+
+  for (const matchedSet of matchedSets) {
+    await prisma.eventSet.upsert({
+      where: {
+        eventId_setId: {
+          eventId,
+          setId: matchedSet.id,
+        },
+      },
+      create: {
+        eventId,
+        setId: matchedSet.id,
+      },
+      update: {},
+    });
+  }
+
+  return matchedSets.length;
 }
 
 function resolveImageUrl(
@@ -2037,23 +2325,8 @@ export async function scrapeEvents(
           });
 
           // 5. Vincula sets
-          for (const matchedSet of matchedSets) {
-            await prisma.eventSet.upsert({
-              where: {
-                eventId_setId: {
-                  eventId: event.id,
-                  setId: matchedSet.id,
-                },
-              },
-              create: {
-                eventId: event.id,
-                setId: matchedSet.id,
-              },
-              update: {},
-            });
-
-            result.setsLinked++;
-          }
+          const linkedCount = await syncEventSetsInDb(event.id, matchedSets);
+          result.setsLinked += linkedCount;
 
           console.log(
             `✅ Saved event: ${slug} (${matchedSets.length} sets linked)`
@@ -2068,6 +2341,7 @@ export async function scrapeEvents(
             persistedEventId,
             dedupedMissingSets
           );
+          await syncEventMissingCardsInDb(persistedEventId, dedupedCards);
         }
         result.events.push({
           slug,

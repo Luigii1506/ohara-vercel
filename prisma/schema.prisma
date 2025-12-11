@@ -331,6 +331,7 @@ model Event {
   sets            EventSet[]
   cards           EventCard[]
   missingSets     EventMissingSet[]
+  missingCards    EventMissingCard[]
 }
 
 model Set {
@@ -385,20 +386,58 @@ model EventCard {
   @@index([cardId])
 }
 
+model MissingSet {
+  id               Int      @id @default(autoincrement())
+  title            String   @unique
+  translatedTitle  String?
+  imagesJson       Json?
+  versionSignature String?
+  isApproved       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  events           EventMissingSet[]
+}
+
 model EventMissingSet {
-  id                Int      @id @default(autoincrement())
-  eventId           Int
-  title             String
-  translatedTitle   String?
-  imagesJson        Json?
-  versionSignature  String?
-  isApproved        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id            Int        @id @default(autoincrement())
+  eventId       Int
+  missingSetId  Int
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingSet    MissingSet @relation(fields: [missingSetId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
-  @@unique([eventId, title])
+  @@index([missingSetId])
+  @@unique([eventId, missingSetId])
+}
+
+model MissingCard {
+  id          Int                 @id @default(autoincrement())
+  code        String
+  title       String
+  imageUrl    String
+  isApproved  Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  events      EventMissingCard[]
+
+  @@unique([code, title])
+  @@index([code])
+}
+
+model EventMissingCard {
+  id             Int          @id @default(autoincrement())
+  eventId        Int
+  missingCardId  Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingCard    MissingCard  @relation(fields: [missingCardId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([missingCardId])
+  @@unique([eventId, missingCardId])
 }
 
 model CardSet {

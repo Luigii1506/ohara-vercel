@@ -12,21 +12,15 @@ const eventSelect = {
   locale: true,
 };
 
-function serializeMissingSet(entry: any) {
-  const images =
-    Array.isArray(entry.imagesJson) && entry.imagesJson.length > 0
-      ? entry.imagesJson
-      : [];
-
+function serializeMissingCard(entry: any) {
   return {
     id: entry.id,
+    code: entry.code,
     title: entry.title,
-    translatedTitle: entry.translatedTitle,
-    versionSignature: entry.versionSignature,
+    imageUrl: entry.imageUrl,
     isApproved: entry.isApproved,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
-    images,
     events:
       entry.events?.map((link: any) => ({
         linkId: link.id,
@@ -48,7 +42,7 @@ export async function GET(req: NextRequest) {
       where.isApproved = false;
     }
 
-    const missingSets = await prisma.missingSet.findMany({
+    const missingCards = await prisma.missingCard.findMany({
       where,
       include: {
         events: {
@@ -65,13 +59,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(missingSets.map(serializeMissingSet), {
+    return NextResponse.json(missingCards.map(serializeMissingCard), {
       status: 200,
     });
   } catch (error) {
-    console.error("Error fetching missing sets:", error);
+    console.error("Error fetching missing cards:", error);
     return NextResponse.json(
-      { error: "Failed to fetch missing sets" },
+      { error: "Failed to fetch missing cards" },
       { status: 500 }
     );
   }
@@ -80,52 +74,51 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      eventId,
-      title,
-      translatedTitle,
-      versionSignature,
-      images = [],
-    } = body;
+    const { eventId, code, title, imageUrl } = body;
 
-    if (!eventId || !title) {
+    if (!eventId || !code || !title) {
       return NextResponse.json(
-        { error: "eventId and title are required" },
+        { error: "eventId, code, and title are required" },
         { status: 400 }
       );
     }
 
-    const missingSetRecord = await prisma.missingSet.upsert({
-      where: { title },
+    // Usar code + title como identificador único
+    const missingCardRecord = await prisma.missingCard.upsert({
+      where: {
+        code_title: {
+          code,
+          title,
+        },
+      },
       create: {
+        code,
         title,
-        translatedTitle,
-        versionSignature,
-        imagesJson: Array.isArray(images) ? images : [],
+        imageUrl: imageUrl || "",
       },
       update: {
-        translatedTitle: translatedTitle ?? undefined,
-        versionSignature: versionSignature ?? undefined,
-        imagesJson: Array.isArray(images) ? images : undefined,
+        imageUrl: imageUrl || undefined,
       },
     });
 
-    await prisma.eventMissingSet.upsert({
+    // Crear relación EventMissingCard si no existe
+    await prisma.eventMissingCard.upsert({
       where: {
-        eventId_missingSetId: {
+        eventId_missingCardId: {
           eventId: Number(eventId),
-          missingSetId: missingSetRecord.id,
+          missingCardId: missingCardRecord.id,
         },
       },
       create: {
         eventId: Number(eventId),
-        missingSetId: missingSetRecord.id,
+        missingCardId: missingCardRecord.id,
       },
       update: {},
     });
 
-    const populated = await prisma.missingSet.findUnique({
-      where: { id: missingSetRecord.id },
+    // Obtener el registro completo con relaciones
+    const populated = await prisma.missingCard.findUnique({
+      where: { id: missingCardRecord.id },
       include: {
         events: {
           include: {
@@ -138,13 +131,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(serializeMissingSet(populated), {
+    return NextResponse.json(serializeMissingCard(populated), {
       status: 201,
     });
   } catch (error) {
-    console.error("Error creating missing set:", error);
+    console.error("Error creating missing card:", error);
     return NextResponse.json(
-      { error: "Failed to create missing set" },
+      { error: "Failed to create missing card" },
       { status: 500 }
     );
   }

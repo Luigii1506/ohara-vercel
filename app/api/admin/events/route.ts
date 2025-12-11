@@ -3,6 +3,27 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const serializeEventMissingSet = (entry: any) => {
+  const images =
+    Array.isArray(entry.missingSet?.imagesJson) &&
+    entry.missingSet.imagesJson.length > 0
+      ? entry.missingSet.imagesJson
+      : [];
+
+  return {
+    id: entry.id,
+    eventId: entry.eventId,
+    missingSetId: entry.missingSetId,
+    title: entry.missingSet?.title ?? "",
+    translatedTitle: entry.missingSet?.translatedTitle,
+    versionSignature: entry.missingSet?.versionSignature,
+    isApproved: entry.missingSet?.isApproved ?? false,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    images,
+  };
+};
+
 export async function GET(req: NextRequest) {
   try {
     const approved = req.nextUrl.searchParams.get("approved");
@@ -29,8 +50,11 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         missingSets: {
-          where: { isApproved: false },
+          where: { missingSet: { isApproved: false } },
           orderBy: { createdAt: "desc" },
+          include: {
+            missingSet: true,
+          },
         },
         _count: {
           select: {
@@ -45,7 +69,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(events, { status: 200 });
+    const serialized = events.map((event) => ({
+      ...event,
+      missingSets: event.missingSets.map(serializeEventMissingSet),
+    }));
+
+    return NextResponse.json(serialized, { status: 200 });
   } catch (error) {
     console.error("Error fetching events:", error);
     return NextResponse.json(

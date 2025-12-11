@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Link as LinkIcon,
+  Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
@@ -104,8 +105,6 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
   const [setsLoading, setSetsLoading] = useState(false);
 
   const [selectedSetOption, setSelectedSetOption] = useState<string>("");
-  const [selectedMissingSetOption, setSelectedMissingSetOption] =
-    useState<string>("");
 
   const [form, setForm] = useState({
     title: "",
@@ -142,9 +141,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
         status: eventData.status || "UPCOMING",
         eventType: eventData.eventType || "OTHER",
         category: eventData.category || "",
-        startDate: eventData.startDate
-          ? eventData.startDate.slice(0, 16)
-          : "",
+        startDate: eventData.startDate ? eventData.startDate.slice(0, 16) : "",
         endDate: eventData.endDate ? eventData.endDate.slice(0, 16) : "",
         rawDateText: eventData.rawDateText || "",
         location: eventData.location || "",
@@ -264,22 +261,15 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
   const handleLinkSet = async () => {
     if (!eventData || !selectedSetOption) return;
     try {
-      const payload: any = { setId: Number(selectedSetOption) };
-      if (selectedMissingSetOption) {
-        payload.missingSetId = Number(selectedMissingSetOption);
-      }
-      const response = await fetch(
-        `/api/admin/events/${eventData.id}/sets`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const payload = { setId: Number(selectedSetOption) };
+      const response = await fetch(`/api/admin/events/${eventData.id}/sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       if (!response.ok) throw new Error("Failed to link set");
       showSuccessToast("Set vinculado");
       setSelectedSetOption("");
-      setSelectedMissingSetOption("");
       await fetchEventDetails();
     } catch (error) {
       console.error(error);
@@ -310,14 +300,11 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
     const targetId = cardId ?? undefined;
     if (!targetId) return;
     try {
-      const response = await fetch(
-        `/api/admin/events/${eventData.id}/cards`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cardId: targetId }),
-        }
-      );
+      const response = await fetch(`/api/admin/events/${eventData.id}/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: targetId }),
+      });
       if (!response.ok) throw new Error("Failed to link card");
       showSuccessToast("Carta vinculada");
       await fetchEventDetails();
@@ -346,11 +333,22 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
   };
 
   const setOptions = useMemo<SingleSelectOption[]>(() => {
-    return availableSets.map((set) => ({
-      value: String(set.id),
-      label: `${set.title}${set.code ? ` (${set.code})` : ""}`,
-    }));
-  }, [availableSets]);
+    const linkedSetIds = new Set(
+      eventData?.sets.map((entry) => entry.set.id) ?? []
+    );
+
+    return availableSets
+      .filter((set) => !linkedSetIds.has(set.id))
+      .map((set) => ({
+        value: String(set.id),
+        label: `${set.title}${set.code ? ` (${set.code})` : ""}`,
+      }));
+  }, [availableSets, eventData?.sets]);
+
+  const resolveSetLabel = (value: string) => {
+    if (!value) return "";
+    return setOptions.find((option) => option.value === value)?.label ?? value;
+  };
 
   if (loading || !eventData) {
     return (
@@ -406,18 +404,14 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <Label>Título</Label>
                 <Input
                   value={form.title}
-                  onChange={(e) =>
-                    handleFormChange("title", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("title", e.target.value)}
                 />
               </div>
               <div>
                 <Label>Locale</Label>
                 <Input
                   value={form.locale}
-                  onChange={(e) =>
-                    handleFormChange("locale", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("locale", e.target.value)}
                 />
               </div>
               <div>
@@ -425,9 +419,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <select
                   className="w-full rounded-md border bg-transparent px-3 py-2"
                   value={form.region}
-                  onChange={(e) =>
-                    handleFormChange("region", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("region", e.target.value)}
                 >
                   {EVENT_REGION_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -441,9 +433,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <select
                   className="w-full rounded-md border bg-transparent px-3 py-2"
                   value={form.status}
-                  onChange={(e) =>
-                    handleFormChange("status", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("status", e.target.value)}
                 >
                   {EVENT_STATUS_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -473,9 +463,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <select
                   className="w-full rounded-md border bg-transparent px-3 py-2"
                   value={form.category}
-                  onChange={(e) =>
-                    handleFormChange("category", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("category", e.target.value)}
                 >
                   <option value="">Sin categoría</option>
                   {EVENT_CATEGORY_OPTIONS.map((option) => (
@@ -500,9 +488,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <Input
                   type="datetime-local"
                   value={form.endDate}
-                  onChange={(e) =>
-                    handleFormChange("endDate", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("endDate", e.target.value)}
                 />
               </div>
             </div>
@@ -519,18 +505,14 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
               <Label>Ubicación</Label>
               <Input
                 value={form.location}
-                onChange={(e) =>
-                  handleFormChange("location", e.target.value)
-                }
+                onChange={(e) => handleFormChange("location", e.target.value)}
               />
             </div>
             <div>
               <Label>URL fuente</Label>
               <Input
                 value={form.sourceUrl}
-                onChange={(e) =>
-                  handleFormChange("sourceUrl", e.target.value)
-                }
+                onChange={(e) => handleFormChange("sourceUrl", e.target.value)}
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -538,9 +520,7 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 <Label>Imagen principal</Label>
                 <Input
                   value={form.imageUrl}
-                  onChange={(e) =>
-                    handleFormChange("imageUrl", e.target.value)
-                  }
+                  onChange={(e) => handleFormChange("imageUrl", e.target.value)}
                 />
               </div>
               <div>
@@ -563,157 +543,6 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 rows={4}
               />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Sets vinculados</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-              <div className="space-y-1">
-                <Label>Set existente</Label>
-                <SingleSelect
-                  options={setOptions}
-                  selected={selectedSetOption || null}
-                  setSelected={(value) => setSelectedSetOption(value)}
-                  buttonLabel={
-                    setsLoading ? "Cargando sets..." : "Selecciona un set"
-                  }
-                  isSearchable
-                  isSolid
-                  isFullWidth
-                  isDisabled={setsLoading || setOptions.length === 0}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Missing set (opcional)</Label>
-                <SingleSelect
-                  options={[
-                    { value: "none", label: "Sin selección" },
-                    ...(eventData.missingSets || [])
-                      .filter((ms) => !ms.isApproved)
-                      .map((ms) => ({
-                        value: String(ms.id),
-                        label: ms.title,
-                      })),
-                  ]}
-                  selected={
-                    selectedMissingSetOption
-                      ? selectedMissingSetOption
-                      : "none"
-                  }
-                  setSelected={(value) =>
-                    setSelectedMissingSetOption(
-                      value === "none" ? "" : value
-                    )
-                  }
-                  buttonLabel="Missing set"
-                  isSearchable
-                  isSolid
-                  isFullWidth
-                />
-              </div>
-              <Button
-                className="w-full"
-                onClick={handleLinkSet}
-                disabled={!selectedSetOption}
-              >
-                Vincular set
-              </Button>
-            </div>
-
-            {eventData.sets.length > 0 ? (
-              <div className="space-y-2">
-                {eventData.sets.map((entry) => (
-                  <div
-                    key={entry.set.id}
-                    className="flex items-center justify-between rounded-md border p-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold">{entry.set.title}</p>
-                      <p className="text-muted-foreground">
-                        ID: {entry.set.id}{" "}
-                        {entry.set.code ? `• ${entry.set.code}` : ""}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleRemoveSet(entry.set.id)}
-                    >
-                      Remover
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No hay sets vinculados.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Cartas vinculadas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <EventCardPicker
-              onCardSelected={(cardId) => handleLinkCard(cardId)}
-            />
-
-            {eventData.cards.length > 0 ? (
-              <div className="space-y-2">
-                {eventData.cards.map((entry) => (
-                  <div
-                    key={entry.card.id}
-                    className="flex items-center justify-between rounded-md border p-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold">{entry.card.name}</p>
-                      <p className="text-muted-foreground">
-                        ID: {entry.card.id} • {entry.card.code}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleRemoveCard(entry.card.id)}
-                    >
-                      Remover
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No hay cartas vinculadas.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Missing sets del evento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {eventData.missingSets.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {eventData.missingSets.map((missing) => (
-                  <Badge key={missing.id} variant="secondary">
-                    {missing.title}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No hay missing sets registrados.
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -778,6 +607,162 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
                 </span>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Sets vinculados</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold">Agregar set existente</Label>
+                <Badge variant="secondary" className="text-xs">
+                  {setOptions.length} disponibles
+                </Badge>
+              </div>
+              <SingleSelect
+                options={setOptions}
+                selected={selectedSetOption || null}
+                setSelected={(value) => setSelectedSetOption(value)}
+                buttonLabel={
+                  setsLoading ? "Cargando sets..." : "Selecciona un set"
+                }
+                displaySelectedAs={(value) =>
+                  resolveSetLabel(value) ||
+                  (setsLoading ? "Cargando sets..." : "Selecciona un set")
+                }
+                isSearchable
+                isSolid
+                isFullWidth
+                isDisabled={setsLoading || setOptions.length === 0}
+              />
+              <Button
+                className="w-full"
+                onClick={handleLinkSet}
+                disabled={!selectedSetOption}
+              >
+                Vincular set
+              </Button>
+            </div>
+
+            {eventData.sets.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {eventData.sets.map((entry) => (
+                  <div
+                    key={entry.set.id}
+                    className="rounded-xl border bg-background p-4 shadow-sm"
+                  >
+                    <div className="space-y-2">
+                      <p className="text-lg font-semibold leading-tight">
+                        {entry.set.title}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                          ID #{entry.set.id}
+                        </span>
+                        {entry.set.code && (
+                          <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                            Código {entry.set.code}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-4 inline-flex items-center gap-2 justify-start text-sm text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveSet(entry.set.id)}
+                    >
+                      <Trash2 className="h-4 w-4" /> Remover set
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No hay sets vinculados.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Cartas vinculadas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <EventCardPicker
+              onCardSelected={(cardId) => handleLinkCard(cardId)}
+            />
+
+            {eventData.cards.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {eventData.cards.map((entry) => (
+                  <div
+                    key={entry.card.id}
+                    className="rounded-xl border bg-background p-4 shadow-sm"
+                  >
+                    <div className="space-y-2">
+                      <p className="text-lg font-semibold leading-tight">
+                        {entry.card.name}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                          ID #{entry.card.id}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                          Código {entry.card.code}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-4 inline-flex items-center gap-2 justify-start text-sm text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveCard(entry.card.id)}
+                    >
+                      <Trash2 className="h-4 w-4" /> Remover carta
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Missing sets del evento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventData.missingSets.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {eventData.missingSets.map((missing) => (
+                  <div
+                    key={missing.id}
+                    className="rounded-xl border bg-background p-4 shadow-sm"
+                  >
+                    <p className="text-lg font-semibold leading-tight">
+                      {missing.title}
+                    </p>
+                    {missing.translatedTitle && (
+                      <p className="text-sm text-muted-foreground">
+                        {missing.translatedTitle}
+                      </p>
+                    )}
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      ID #{missing.id}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No hay missing sets registrados.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

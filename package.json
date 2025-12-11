@@ -31,7 +31,8 @@
     "migrate:op01-json": "ts-node scripts/migrate-op01-from-json.ts",
     "migrate:op12-json": "ts-node scripts/migrate-op01-from-json.ts op12.json",
     "migrate:op13-json": "ts-node scripts/migrate-op01-from-json.ts op13.json",
-    "sync:sequences": "node scripts/sync-sequences.js"
+    "sync:sequences": "node scripts/sync-sequences.js",
+    "reset:events": "ts-node scripts/reset-events.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",

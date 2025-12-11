@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   RefreshCw,
@@ -15,7 +16,6 @@ import {
   Eye,
   EyeOff,
   Link as LinkIcon,
-  Image as ImageIcon,
 } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -177,150 +177,156 @@ const AdminEventsPage = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredEvents.map((event) => (
-            <Card key={event.id} className="border border-muted shadow-sm">
-              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-xl">{event.title}</CardTitle>
-                    <Badge
-                      variant={event.isApproved ? "default" : "secondary"}
-                    >
-                      {event.isApproved ? "Aprobado" : "Pendiente"}
-                    </Badge>
-                    <Badge variant="outline">{event.status}</Badge>
-                    <Badge variant="outline">{event.eventType}</Badge>
-                    {event.category && (
-                      <Badge variant="outline">{event.category}</Badge>
-                    )}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Globe className="h-4 w-4" /> {event.region}
-                    </span>
-                    {event.locale && (
-                      <span>Locale: {event.locale.toUpperCase()}</span>
-                    )}
-                    {event.startDate && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(event.startDate).toLocaleDateString()}
-                      </span>
-                    )}
-                    {event.location && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {event.location}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {event.sourceUrl && (
-                    <Button variant="ghost" size="sm" asChild>
-                      <a
-                        href={event.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <LinkIcon className="mr-2 h-4 w-4" />
-                        Ver evento
-                      </a>
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/admin/events/${event.id}`}>
-                      <Edit3 className="mr-2 h-4 w-4" />
-                      Editar
-                    </Link>
-                  </Button>
-                  <Button
-                    variant={event.isApproved ? "secondary" : "default"}
-                    size="sm"
-                    onClick={() => toggleApproval(event)}
-                  >
-                    {event.isApproved ? (
-                      <>
-                        <EyeOff className="mr-2 h-4 w-4" />
-                        Ocultar
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Aprobar
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Información</p>
-                    <p className="text-sm text-muted-foreground">
-                      Slug: <span className="font-mono">{event.slug}</span>
-                    </p>
-                    {event.rawDateText && (
-                      <p className="text-sm text-muted-foreground">
-                        Texto original: {event.rawDateText}
-                      </p>
-                    )}
-                    <p className="text-sm text-muted-foreground">
-                      Sets vinculados: {event._count.sets} • Cartas:{" "}
-                      {event._count.cards}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Medios</p>
-                    {(event.imageUrl || event.eventThumbnail) ? (
-                      <div className="flex gap-2">
-                        {event.imageUrl && (
-                          <a
-                            href={event.imageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-primary underline"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                            Imagen principal
-                          </a>
-                        )}
-                        {event.eventThumbnail && (
-                          <a
-                            href={event.eventThumbnail}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-primary underline"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                            Thumbnail
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Sin imágenes registradas.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {event.missingSets.length > 0 && (
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Missing sets pendientes
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {event.missingSets.map((missing) => (
-                        <Badge key={missing.id} variant="secondary">
-                          {missing.title}
-                        </Badge>
-                      ))}
+          {filteredEvents.map((event) => {
+            const thumbnail = event.eventThumbnail ?? event.imageUrl ?? null;
+
+            return (
+              <Card key={event.id} className="overflow-hidden border border-muted shadow-sm">
+                <div className="flex flex-col gap-4 p-4 md:flex-row">
+                  <div className="flex-shrink-0 md:w-56">
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
+                      {thumbnail ? (
+                        <Image
+                          src={thumbnail}
+                          alt={`Miniatura del evento ${event.title}`}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                          Sin imagen
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex-1 space-y-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="text-xl">{event.title}</CardTitle>
+                          <Badge variant={event.isApproved ? "default" : "secondary"}>
+                            {event.isApproved ? "Aprobado" : "Pendiente"}
+                          </Badge>
+                          <Badge variant="outline">{event.status}</Badge>
+                          <Badge variant="outline">{event.eventType}</Badge>
+                          {event.category && (
+                            <Badge variant="outline">{event.category}</Badge>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Globe className="h-4 w-4" /> {event.region}
+                          </span>
+                          {event.locale && (
+                            <span>Locale: {event.locale.toUpperCase()}</span>
+                          )}
+                          {event.startDate && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              {new Date(event.startDate).toLocaleDateString()}
+                            </span>
+                          )}
+                          {event.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-4 w-4" />
+                              {event.location}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {event.sourceUrl && (
+                          <Button variant="ghost" size="sm" asChild>
+                            <a
+                              href={event.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <LinkIcon className="mr-2 h-4 w-4" />
+                              Ver evento
+                            </a>
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/admin/events/${event.id}`}>
+                            <Edit3 className="mr-2 h-4 w-4" />
+                            Editar
+                          </Link>
+                        </Button>
+                        <Button
+                          variant={event.isApproved ? "secondary" : "default"}
+                          size="sm"
+                          onClick={() => toggleApproval(event)}
+                        >
+                          {event.isApproved ? (
+                            <>
+                              <EyeOff className="mr-2 h-4 w-4" />
+                              Ocultar
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Aprobar
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold">Información</p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-3 text-center">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Slug
+                          </p>
+                          <p className="mt-1 font-mono text-sm text-foreground break-all">
+                            {event.slug}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-3 text-center">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Sets vinculados
+                          </p>
+                          <p className="text-2xl font-semibold leading-tight text-foreground">
+                            {event._count.sets}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-3 text-center">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Cartas relacionadas
+                          </p>
+                          <p className="text-2xl font-semibold leading-tight text-foreground">
+                            {event._count.cards}
+                          </p>
+                        </div>
+                      </div>
+                      {event.rawDateText && (
+                        <p className="text-sm text-muted-foreground">
+                          Texto original: {event.rawDateText}
+                        </p>
+                      )}
+                    </div>
+
+                    {event.missingSets.length > 0 && (
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Missing sets pendientes
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {event.missingSets.map((missing) => (
+                            <Badge key={missing.id} variant="secondary">
+                              {missing.title}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

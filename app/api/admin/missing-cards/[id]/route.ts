@@ -14,21 +14,15 @@ const eventSelect = {
   locale: true,
 };
 
-function serializeMissingSet(entry: any) {
-  const images =
-    Array.isArray(entry.imagesJson) && entry.imagesJson.length > 0
-      ? entry.imagesJson
-      : [];
-
+function serializeMissingCard(entry: any) {
   return {
     id: entry.id,
+    code: entry.code,
     title: entry.title,
-    translatedTitle: entry.translatedTitle,
-    versionSignature: entry.versionSignature,
+    imageUrl: entry.imageUrl,
     isApproved: entry.isApproved,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
-    images,
     events:
       entry.events?.map((link: any) => ({
         linkId: link.id,
@@ -47,12 +41,12 @@ export async function GET(
     const id = Number(params.id);
     if (Number.isNaN(id)) {
       return NextResponse.json(
-        { error: "Invalid missing set id" },
+        { error: "Invalid missing card id" },
         { status: 400 }
       );
     }
 
-    const missingSet = await prisma.missingSet.findUnique({
+    const missingCard = await prisma.missingCard.findUnique({
       where: { id },
       include: {
         events: {
@@ -66,20 +60,20 @@ export async function GET(
       },
     });
 
-    if (!missingSet) {
+    if (!missingCard) {
       return NextResponse.json(
-        { error: "Missing set not found" },
+        { error: "Missing card not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(serializeMissingSet(missingSet), {
+    return NextResponse.json(serializeMissingCard(missingCard), {
       status: 200,
     });
   } catch (error) {
-    console.error("Error fetching missing set:", error);
+    console.error("Error fetching missing card:", error);
     return NextResponse.json(
-      { error: "Failed to fetch missing set" },
+      { error: "Failed to fetch missing card" },
       { status: 500 }
     );
   }
@@ -93,32 +87,23 @@ export async function PATCH(
     const id = Number(params.id);
     if (Number.isNaN(id)) {
       return NextResponse.json(
-        { error: "Invalid missing set id" },
+        { error: "Invalid missing card id" },
         { status: 400 }
       );
     }
 
     const body = await req.json();
-    const {
-      title,
-      translatedTitle,
-      versionSignature,
-      images,
-      isApproved,
-    } = body;
+    const { code, title, imageUrl, isApproved } = body;
 
     const data: any = {};
+    if (typeof code === "string" && code.trim().length > 0) {
+      data.code = code.trim();
+    }
     if (typeof title === "string" && title.trim().length > 0) {
       data.title = title.trim();
     }
-    if (typeof translatedTitle === "string") {
-      data.translatedTitle = translatedTitle.trim();
-    }
-    if (typeof versionSignature === "string" || versionSignature === null) {
-      data.versionSignature = versionSignature;
-    }
-    if (Array.isArray(images)) {
-      data.imagesJson = images;
+    if (typeof imageUrl === "string") {
+      data.imageUrl = imageUrl.trim();
     }
     if (typeof isApproved === "boolean") {
       data.isApproved = isApproved;
@@ -131,12 +116,12 @@ export async function PATCH(
       );
     }
 
-    await prisma.missingSet.update({
+    await prisma.missingCard.update({
       where: { id },
       data,
     });
 
-    const updated = await prisma.missingSet.findUnique({
+    const updated = await prisma.missingCard.findUnique({
       where: { id },
       include: {
         events: {
@@ -150,13 +135,13 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(serializeMissingSet(updated), {
+    return NextResponse.json(serializeMissingCard(updated), {
       status: 200,
     });
   } catch (error) {
-    console.error("Error updating missing set:", error);
+    console.error("Error updating missing card:", error);
     return NextResponse.json(
-      { error: "Failed to update missing set" },
+      { error: "Failed to update missing card" },
       { status: 500 }
     );
   }
@@ -170,20 +155,20 @@ export async function DELETE(
     const id = Number(params.id);
     if (Number.isNaN(id)) {
       return NextResponse.json(
-        { error: "Invalid missing set id" },
+        { error: "Invalid missing card id" },
         { status: 400 }
       );
     }
 
-    await prisma.missingSet.delete({
+    await prisma.missingCard.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error("Error deleting missing set:", error);
+    console.error("Error deleting missing card:", error);
     return NextResponse.json(
-      { error: "Failed to delete missing set" },
+      { error: "Failed to delete missing card" },
       { status: 500 }
     );
   }

@@ -241,6 +241,22 @@ const nextConfig = {
         protocol: "https",
         hostname: "oharatcg-21eab.kxcdn.com",
       },
+      {
+        protocol: "https",
+        hostname: "www.cherrycollectables.com.au",
+      },
+      {
+        protocol: "https",
+        hostname: "images.oharatcg.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.r2.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "*.workers.dev",
+      },
     ],
     formats: ["image/webp", "image/avif"],
     deviceSizes: [640, 750, 828, 1080, 1200],

@@ -12,47 +12,42 @@ export async function GET(
     const code = params.code?.toUpperCase();
     if (!code) {
       return NextResponse.json(
-        { error: "Set code is required" },
+        { error: "Card code is required" },
         { status: 400 }
       );
     }
 
+    // Buscar todas las cartas con ese código (incluyendo alternas)
     const cards = await prisma.card.findMany({
       where: {
-        baseCardId: null,
-        setCode: {
-          contains: code,
+        code: {
+          equals: code,
           mode: "insensitive",
         },
       },
-      orderBy: {
-        code: "asc",
-      },
+      orderBy: [
+        { isFirstEdition: "desc" }, // First editions primero
+        { id: "asc" },
+      ],
       include: {
         sets: {
           include: {
             set: true,
           },
         },
-        alternateCards: {
-          include: {
-            sets: {
-              include: {
-                set: true,
-              },
-            },
-          },
-        },
+        types: true,
+        colors: true,
+        effects: true,
+        conditions: true,
+        texts: true,
       },
     });
 
-    const mapped = cards.map((card) =>
-      mapCard(card, true, false)
-    );
+    const mapped = cards.map((card) => mapCard(card, true, false));
 
     return NextResponse.json(mapped, { status: 200 });
   } catch (error) {
-    console.error("Error fetching cards by set code:", error);
+    console.error("Error fetching cards by code:", error);
     return NextResponse.json(
       { error: "Failed to fetch cards" },
       { status: 500 }

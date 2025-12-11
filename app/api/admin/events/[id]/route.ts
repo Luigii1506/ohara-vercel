@@ -3,6 +3,27 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const serializeEventMissingSet = (entry: any) => {
+  const images =
+    Array.isArray(entry.missingSet?.imagesJson) &&
+    entry.missingSet.imagesJson.length > 0
+      ? entry.missingSet.imagesJson
+      : [];
+
+  return {
+    id: entry.id,
+    eventId: entry.eventId,
+    missingSetId: entry.missingSetId,
+    title: entry.missingSet?.title ?? "",
+    translatedTitle: entry.missingSet?.translatedTitle,
+    versionSignature: entry.missingSet?.versionSignature,
+    isApproved: entry.missingSet?.isApproved ?? false,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    images,
+  };
+};
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -30,8 +51,11 @@ export async function GET(
           },
         },
         missingSets: {
-          where: { isApproved: false },
+          where: { missingSet: { isApproved: false } },
           orderBy: { createdAt: "desc" },
+          include: {
+            missingSet: true,
+          },
         },
       },
     });
@@ -40,7 +64,12 @@ export async function GET(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    return NextResponse.json(event, { status: 200 });
+    const serializedEvent = {
+      ...event,
+      missingSets: event.missingSets.map(serializeEventMissingSet),
+    };
+
+    return NextResponse.json(serializedEvent, { status: 200 });
   } catch (error) {
     console.error("Error fetching event:", error);
     return NextResponse.json(
@@ -136,13 +165,21 @@ export async function PATCH(
         sets: true,
         cards: true,
         missingSets: {
-          where: { isApproved: false },
+          where: { missingSet: { isApproved: false } },
           orderBy: { createdAt: "desc" },
+          include: {
+            missingSet: true,
+          },
         },
       },
     });
 
-    return NextResponse.json(updated, { status: 200 });
+    const serializedEvent = {
+      ...updated,
+      missingSets: updated.missingSets.map(serializeEventMissingSet),
+    };
+
+    return NextResponse.json(serializedEvent, { status: 200 });
   } catch (error) {
     console.error("Error updating event:", error);
     return NextResponse.json(

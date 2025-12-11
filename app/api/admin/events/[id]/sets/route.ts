@@ -55,10 +55,24 @@ export async function POST(
     });
 
     if (missingSetId) {
-      await prisma.eventMissingSet.updateMany({
-        where: { id: Number(missingSetId), eventId },
-        data: { isApproved: true },
+      const link = await prisma.eventMissingSet.findUnique({
+        where: { id: Number(missingSetId) },
+        select: { missingSetId: true },
       });
+
+      if (link) {
+        await prisma.eventMissingSet.deleteMany({
+          where: { id: Number(missingSetId), eventId },
+        });
+
+        await prisma.missingSet.deleteMany({
+          where: {
+            id: link.missingSetId,
+            isApproved: false,
+            events: { none: true },
+          },
+        });
+      }
     }
 
     return NextResponse.json(linked, { status: 200 });

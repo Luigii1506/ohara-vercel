@@ -1959,7 +1959,22 @@ async function scrapeEventDetail(
     const fallbackTitle =
       $("h1").first().text().trim() || $("title").text().trim();
     const title = cleanPageTitle(structuredTitle || fallbackTitle);
-    const description = $('meta[name="description"]').attr("content") || null;
+    let description: string | null = null;
+    const overviewHeading = $("h4, h5, h6")
+      .toArray()
+      .find((element) =>
+        $(element).text().trim().toLowerCase().includes("overview")
+      );
+    if (overviewHeading) {
+      const overviewParagraph = $(overviewHeading)
+        .nextAll("p")
+        .first()
+        .text()
+        .trim();
+      if (overviewParagraph.length > 0) {
+        description = overviewParagraph;
+      }
+    }
     const categoryText =
       $(".pageTitCategory").first().text().trim() ||
       $(".eventCategory").first().text().trim() ||

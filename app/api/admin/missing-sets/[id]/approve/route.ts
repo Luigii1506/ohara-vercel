@@ -433,12 +433,11 @@ export async function POST(
       where: { missingSetId: missingSetData.id },
     });
 
-    await prisma.missingSet.update({
+    await prisma.missingSet.delete({
       where: { id: missingSetData.id },
-      data: { isApproved: true },
     });
 
-    console.log(`✅ EventMissingSet deleted (no longer missing)`);
+    console.log(`✅ Missing set removed from backlog`);
 
     return NextResponse.json({
       success: true,

@@ -1134,7 +1134,7 @@ export const altArtOptions = [
     label: "Full Art",
   },
   { value: "Treasure Cup", label: "Treasure Cup" },
-  ,
+
   { value: "Treasure Rare", label: "Treasure Rare" },
   { value: "Special Card", label: "Special Card" },
   { value: "Winner Version", label: "Winner Version" },

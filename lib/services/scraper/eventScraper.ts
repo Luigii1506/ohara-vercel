@@ -69,6 +69,7 @@ interface DetectSetsOptions {
 }
 
 const UNWANTED_EVENT_SECTION_SELECTORS = [
+  ".categoryTitle",
   ".pageFooterBackBtn",
   ".pageContentsRelated",
   ".relatedPageList",

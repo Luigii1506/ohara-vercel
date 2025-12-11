@@ -2353,6 +2353,7 @@ a {
   width: pxVwSP(710px);
   margin: 0 auto;
   padding: pxVwSP(30px);
+  border-radius: 30px;
   @include mediaPc {
     width: 1050px;
     padding: 50px 75px;

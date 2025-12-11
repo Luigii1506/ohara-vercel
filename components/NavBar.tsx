@@ -333,7 +333,7 @@ const NavBar = () => {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`relative text-white hover:text-gray-300 transition-colors font-medium ${
+                      className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline  ${
                         (item.href === "/" && pathname.length === 0) ||
                         (item.href !== "/" &&
                           pathname[0] === item.href.slice(1))
@@ -372,7 +372,7 @@ const NavBar = () => {
                         {isAdminMenuOpen && (
                           <div className="absolute top-full mt-2 right-0 w-[600px] max-w-[90vw] bg-gray-900 border border-gray-800 rounded-lg shadow-xl overflow-hidden z-50">
                             <div className="p-3 border-b border-gray-800 bg-gray-900/50">
-                              <p className="text-xs text-gray-400 font-semibold px-2">
+                              <p className="text-xs text-white font-semibold px-2">
                                 ADMIN TOOLS
                               </p>
                             </div>
@@ -382,7 +382,7 @@ const NavBar = () => {
                                   key={category.category}
                                   className="space-y-1"
                                 >
-                                  <p className="text-[10px] text-gray-500 font-semibold px-2 mb-2 uppercase tracking-wider">
+                                  <p className="text-[10px] text-white font-semibold px-2 mb-2 uppercase tracking-wider">
                                     {category.category}
                                   </p>
                                   {category.items.map((item) => {
@@ -398,7 +398,7 @@ const NavBar = () => {
                                         onClick={() =>
                                           setIsAdminMenuOpen(false)
                                         }
-                                        className={`flex items-start gap-2.5 px-3 py-2 rounded-md transition-all duration-200 group ${
+                                        className={`flex items-start gap-2.5 px-3 py-2 rounded-md transition-all duration-200 group no-underline ${
                                           isActive
                                             ? "bg-red-500/20 text-white shadow-sm"
                                             : "hover:bg-white/5 text-gray-300 hover:text-white"
@@ -409,14 +409,14 @@ const NavBar = () => {
                                           className={`mt-0.5 flex-shrink-0 ${
                                             isActive
                                               ? "text-red-400"
-                                              : "text-gray-500 group-hover:text-gray-400"
+                                              : "text-white group-hover:text-gray-400"
                                           }`}
                                         />
                                         <div className="flex-1 min-w-0 flex flex-col gap-1">
-                                          <p className="font-medium text-xs leading-tight">
+                                          <p className="font-medium text-xs leading-tight no-underline text-white">
                                             {item.label}
                                           </p>
-                                          <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                                          <p className="text-[10px] !no-underline mt-0.5 leading-tight text-white">
                                             {item.description}
                                           </p>
                                         </div>
@@ -542,7 +542,7 @@ const NavBar = () => {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
                         isActive
                           ? "bg-white/10 text-white"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
@@ -550,9 +550,9 @@ const NavBar = () => {
                     >
                       <Icon
                         size={20}
-                        className={isActive ? "text-white" : "text-gray-400"}
+                        className={isActive ? "text-white" : "text-white"}
                       />
-                      <span className="font-medium text-gray-400">
+                      <span className="font-medium text-white">
                         {item.label}
                       </span>
                       {isActive && (
@@ -566,13 +566,13 @@ const NavBar = () => {
               {/* Sección Admin en móvil con categorías */}
               {role === "ADMIN" && (
                 <div className="pt-6 border-t border-gray-800">
-                  <p className="text-xs text-gray-400 font-medium px-4 mb-3">
+                  <p className="text-xs text-white font-medium px-4 mb-3">
                     ADMIN TOOLS
                   </p>
                   <div className="space-y-4">
                     {adminMenuCategories.map((category) => (
                       <div key={category.category} className="space-y-1">
-                        <p className="text-[10px] text-gray-500 font-semibold px-4 mb-2 uppercase tracking-wider">
+                        <p className="text-[10px] text-white font-semibold px-4 mb-2 uppercase tracking-wider">
                           {category.category}
                         </p>
                         {category.items.map((item) => {
@@ -585,7 +585,7 @@ const NavBar = () => {
                             <Link
                               key={item.href}
                               href={item.href}
-                              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 no-underline ${
                                 isActive
                                   ? "bg-red-500/20 text-white"
                                   : "text-gray-300 hover:bg-white/5 hover:text-white"
@@ -594,10 +594,10 @@ const NavBar = () => {
                               <Icon
                                 size={18}
                                 className={
-                                  isActive ? "text-red-400" : "text-gray-400"
+                                  isActive ? "text-white" : "text-white"
                                 }
                               />
-                              <span className="font-medium text-sm text-gray-400">
+                              <span className="font-medium text-sm text-white">
                                 {item.label}
                               </span>
                               {isActive && (
@@ -642,7 +642,7 @@ const NavBar = () => {
                   className="w-full bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
                   onClick={() => signOut({ callbackUrl: "/?from=logout" })}
                 >
-                  <LogOutIcon size={18} />
+                  <LogOutIcon size={18} className="text-white" />
                   <span className="text-white">Sign Out</span>
                 </Button>
               ) : (

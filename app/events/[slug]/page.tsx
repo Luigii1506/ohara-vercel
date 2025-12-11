@@ -299,19 +299,19 @@ const EventDetailPage = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 w-full">
-        <div className="">
-          {/* Back button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-6"
-            onClick={() => router.push("/events")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Events
-          </Button>
-
+      <div className="event-page min-h-screen bg-gradient-to-b from-background to-muted/20 w-full">
+        <div className="mx-auto pt-3 pb-8  overflow-scroll max-w-[1050px]">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-4">
+            <Button
+              variant="secondary"
+              size="lg"
+              className="gap-2 rounded-full bg-white/90 px-6 py-4 text-base font-semibold text-black shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:bg-white"
+              onClick={() => router.push("/events")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Back to Events
+            </Button>
+          </div>
           {/* Hero Banner */}
           {heroImage && (
             <div className="mb-8 overflow-hidden rounded-xl border shadow-lg container mx-auto">
@@ -376,10 +376,10 @@ const EventDetailPage = () => {
 
           {/* Original Content */}
           {eventContentHtml && parsedEventContent.remainingHtml && (
-            <div className="">
+            <div className="rounded-full">
               <div
                 className={cn(
-                  "prose prose-sm max-w-none text-foreground/90 dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0",
+                  "rounded-full prose prose-sm max-w-none text-foreground/90 dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0",
                   styles.eventContentHtml,
                   extraStyles.eventContentShell
                 )}
@@ -387,6 +387,18 @@ const EventDetailPage = () => {
                   __html: parsedEventContent.remainingHtml,
                 }}
               />
+
+              <div className="mt-8 flex justify-center pb-8">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="gap-3 rounded-full bg-white/95 px-8 py-4 text-lg font-semibold text-black shadow-2xl shadow-black/25 transition hover:-translate-y-1 hover:bg-white"
+                  onClick={() => router.push("/events")}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  Back to Events
+                </Button>
+              </div>
             </div>
           )}
 

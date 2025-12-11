@@ -69,7 +69,13 @@ export async function POST(
           where: {
             id: link.missingSetId,
             isApproved: false,
-            events: { none: true },
+            events: {
+              none: {
+                eventId: {
+                  equals: eventId,
+                },
+              },
+            },
           },
         });
       }

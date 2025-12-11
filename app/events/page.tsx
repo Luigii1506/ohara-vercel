@@ -347,7 +347,7 @@ const EventsPage = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 flex  justify-end  pt-2">
+                        <div className="mt-4 flex justify-end  pt-2">
                           <div className=" flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition-all group-hover:gap-2">
                             <span>View Details</span>
                             <ArrowRight className="h-3.5 w-3.5" />

@@ -36,6 +36,8 @@ interface PublicEvent {
   status: string;
   eventType: string;
   category?: string | null;
+  eventTxt?: string | null;
+  rawDateText?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   location?: string | null;
@@ -178,9 +180,7 @@ const EventsPage = () => {
                   <SelectItem value="all">All Categories</SelectItem>
                   {uniqueCategories.map((category) => (
                     <SelectItem key={category} value={category}>
-                      {category.replace(/\b\w/g, (char) =>
-                        char.toUpperCase()
-                      )}
+                      {category.replace(/\b\w/g, (char) => char.toUpperCase())}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -197,7 +197,9 @@ const EventsPage = () => {
               </span>{" "}
               {filteredEvents.length === 1 ? "event" : "events"}
             </p>
-            {(searchTerm || regionFilter !== "all" || categoryFilter !== "all") && (
+            {(searchTerm ||
+              regionFilter !== "all" ||
+              categoryFilter !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -258,8 +260,12 @@ const EventsPage = () => {
               const thumbnail = event.eventThumbnail ?? event.imageUrl;
 
               return (
-                <Link key={event.id} href={`/events/${event.slug}`}>
-                  <Card className="group h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-border/50">
+                <Link
+                  key={event.id}
+                  href={`/events/${event.slug}`}
+                  className="no-underline"
+                >
+                  <Card className="group h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-border/50 flex flex-1 flex-col">
                     {/* Image Container */}
                     <div className="relative aspect-[16/10] overflow-hidden bg-muted/30">
                       {thumbnail ? (
@@ -281,12 +287,13 @@ const EventsPage = () => {
                       {/* Status badge */}
                       <div className="absolute right-3 top-3 z-10">
                         <Badge
-                          variant={
+                          className={`text-xs font-semibold shadow-lg border ${
                             event.status === "UPCOMING"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className="text-xs font-semibold shadow-lg border"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : event.status === "ONGOING"
+                              ? "bg-amber-200 text-amber-900 border-amber-200"
+                              : "bg-emerald-200 text-emerald-900 border-emerald-200"
+                          }`}
                         >
                           {event.status}
                         </Badge>
@@ -303,57 +310,45 @@ const EventsPage = () => {
                       </div>
                     </div>
 
-                    {/* Content */}
-                    <CardContent className="p-5">
-                      <div className="space-y-4">
-                        {/* Title */}
-                        <div>
-                          <h3 className="text-base font-bold leading-snug line-clamp-2 mb-2 transition-colors group-hover:text-primary">
-                            {event.title}
-                          </h3>
-                        </div>
-
-                        {/* Divider */}
-                        <div className="border-t border-border/50" />
-
-                        {/* Meta Information */}
-                        <div className="space-y-2.5 text-sm">
-                          {event.startDate && (
+                    <CardContent className="flex h-full flex-col p-5 flex-1">
+                      <div className="flex flex-1 flex-col justify-between">
+                        <div className="space-y-4">
+                          <div className="flex flex-col gap-1">
+                            <h3 className="mb-1 text-base font-bold leading-snug line-clamp-2 transition-colors group-hover:text-primary">
+                              {event.title}
+                            </h3>
+                            {event.eventTxt && (
+                              <p className="line-clamp-1 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                {event.eventTxt}
+                              </p>
+                            )}
+                          </div>
+                          <div className="border-t border-border/50" />
+                          <div className="space-y-2.5 text-sm">
                             <div className="flex items-start gap-2.5">
                               <Calendar className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
                               <span className="line-clamp-1 text-foreground/80 font-medium">
-                                {new Date(event.startDate).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                  }
-                                )}
+                                {event.rawDateText || "Date TBA"}
                               </span>
                             </div>
-                          )}
 
-                          {event.location && (
                             <div className="flex items-start gap-2.5">
                               <MapPin className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
                               <span className="line-clamp-2 text-foreground/80">
-                                {event.location}
+                                {event.location || "Location TBA"}
                               </span>
                             </div>
-                          )}
 
-                          <div className="flex items-start gap-2.5">
-                            <Globe className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
-                            <span className="line-clamp-1 text-foreground/80">
-                              {event.region}
-                            </span>
+                            <div className="flex items-start gap-2.5">
+                              <Globe className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-1 text-foreground/80">
+                                {event.region}
+                              </span>
+                            </div>
                           </div>
                         </div>
-
-                        {/* CTA */}
-                        <div className="flex items-center justify-end pt-2">
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary group-hover:gap-2 transition-all">
+                        <div className="mt-4 flex  justify-end  pt-2">
+                          <div className=" flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary transition-all group-hover:gap-2">
                             <span>View Details</span>
                             <ArrowRight className="h-3.5 w-3.5" />
                           </div>

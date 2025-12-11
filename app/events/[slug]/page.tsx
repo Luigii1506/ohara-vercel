@@ -295,9 +295,7 @@ const EventDetailPage = () => {
     );
   }
 
-  const thumbnail = resolveEventAssetUrl(
-    event.imageUrl ?? event.eventThumbnail
-  );
+  const heroImage = resolveEventAssetUrl(event.imageUrl);
 
   return (
     <>
@@ -315,15 +313,20 @@ const EventDetailPage = () => {
           </Button>
 
           {/* Hero Banner */}
-          {thumbnail && (
+          {heroImage && (
             <div className="mb-8 overflow-hidden rounded-xl border shadow-lg">
               <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[500px] bg-muted">
                 <Image
-                  src={thumbnail}
+                  src={heroImage}
                   alt={event.title}
                   fill
-                  className="object-cover"
+                  className="object-cover bg-background transition-transform duration-500"
                   priority
+                  sizes="100vw"
+                  quality={90}
+                  fetchPriority="high"
+                  placeholder="blur"
+                  blurDataURL="data:image/webp;base64,UklGRlIAAABXRUJQVlA4WAoAAAAQAAAADwAADwAAQUxQSDIAAAARL0AmbZurmr57yyIiqE8oiG0bejIYEQTgQAAD+/gQAA"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
                 {/* Title overlay */}
@@ -363,7 +366,7 @@ const EventDetailPage = () => {
           )}
 
           {/* Event Info */}
-          {!thumbnail && (
+          {!heroImage && (
             <div className="mb-8">
               <h1 className="mb-4 text-3xl font-bold lg:text-4xl">
                 {event.title}

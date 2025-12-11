@@ -125,13 +125,18 @@ const stripUnwantedEventSections = ($: cheerio.CheerioAPI, root: cheerio.Cheerio
     }
   });
 
-  root.find(".categoryTitle").first().remove();
+  const heroSection = root.find(".mvImgCol").first();
+  if (heroSection.length) {
+    heroSection.find("img").first().remove();
+  } else {
+    root.find("img").first().remove();
+  }
 
   const firstImage = root.find("img").first();
   if (firstImage.length) {
     const container = firstImage.closest(".mvImgCol");
     if (container.length) {
-      container.remove();
+      container.empty();
     } else {
       firstImage.remove();
     }
@@ -2050,16 +2055,6 @@ async function scrapeEventDetail(
       $(".eventCategory").first().text().trim() ||
       null;
 
-    // Extrae el contenido completo
-    const contentElement = $(".event-content, .content, main, article").first();
-    const sanitizedContentElement =
-      contentElement.length > 0 ? contentElement : $("body");
-    stripUnwantedEventSections($, sanitizedContentElement);
-    const content =
-      sanitizedContentElement.text().trim() || $("body").text().trim();
-    const originalContent = sanitizedContentElement.html() || null;
-    const dateText = extractPeriodText($);
-
     // Extrae imagen
     const heroSrc =
       $(".mvImgCol img").first().attr("src") ||
@@ -2086,6 +2081,16 @@ async function scrapeEventDetail(
       eventThumbnail ||
       resolvedFallback ||
       null;
+
+    // Extrae el contenido completo
+    const contentElement = $(".event-content, .content, main, article").first();
+    const sanitizedContentElement =
+      contentElement.length > 0 ? contentElement : $("body");
+    stripUnwantedEventSections($, sanitizedContentElement);
+    const content =
+      sanitizedContentElement.text().trim() || $("body").text().trim();
+    const originalContent = sanitizedContentElement.html() || null;
+    const dateText = extractPeriodText($);
 
     // Detecta región, tipo y fechas
     const fullText = `${title} ${description || ""} ${categoryText || ""} ${

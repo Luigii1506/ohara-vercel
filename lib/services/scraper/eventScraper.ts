@@ -125,22 +125,7 @@ const stripUnwantedEventSections = ($: cheerio.CheerioAPI, root: cheerio.Cheerio
     }
   });
 
-  const heroSection = root.find(".mvImgCol").first();
-  if (heroSection.length) {
-    heroSection.find("img").first().remove();
-  } else {
-    root.find("img").first().remove();
-  }
-
-  const firstImage = root.find("img").first();
-  if (firstImage.length) {
-    const container = firstImage.closest(".mvImgCol");
-    if (container.length) {
-      container.empty();
-    } else {
-      firstImage.remove();
-    }
-  }
+  root.find(".mvImgCol").remove();
 };
 
 interface SetDetectionContext {

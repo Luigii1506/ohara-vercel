@@ -542,6 +542,7 @@ img {
   .pkjBox {
     margin-left: auto;
     margin-right: auto;
+    //display: block;
     &.is-shadow {
       filter: drop-shadow(0px 0px pxVwSP(4px) rgba(0, 0, 0, 0.2));
     }
@@ -2808,6 +2809,7 @@ a {
     margin-left: auto;
     margin-right: auto;
     width: pxVwSP(149px);
+    //display: block;
   }
   .includecardBox {
     padding: pxVwSP(40px) 0;

@@ -300,7 +300,7 @@ const EventDetailPage = () => {
   return (
     <>
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 w-full">
-        <div className="container mx-auto px-4 py-8">
+        <div className="">
           {/* Back button */}
           <Button
             variant="ghost"
@@ -314,7 +314,7 @@ const EventDetailPage = () => {
 
           {/* Hero Banner */}
           {heroImage && (
-            <div className="mb-8 overflow-hidden rounded-xl border shadow-lg">
+            <div className="mb-8 overflow-hidden rounded-xl border shadow-lg container mx-auto">
               <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[500px] bg-muted">
                 <Image
                   src={heroImage}

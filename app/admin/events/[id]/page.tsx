@@ -103,6 +103,8 @@ const AdminEventDetailPage = ({ params }: PageParams) => {
     { id: number; title: string; code?: string | null }[]
   >([]);
   const [setsLoading, setSetsLoading] = useState(false);
+  const [cardOptions, setCardOptions] = useState<SingleSelectOption[]>([]);
+  const [cardOptionsLoading, setCardOptionsLoading] = useState(false);
   const [selectedSetOption, setSelectedSetOption] = useState<string>("");
 
   const [form, setForm] = useState({

@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+import styles from "../event-content.module.scss";
+import extraStyles from "../event.module.scss";
 import {
   Calendar,
   MapPin,
@@ -22,6 +25,51 @@ interface StructuredDetail {
   label: string;
   value: string;
 }
+
+const EVENT_ASSET_ORIGIN = "https://en.onepiece-cardgame.com";
+
+const resolveEventAssetUrl = (url?: string | null): string | null => {
+  if (!url) {
+    return null;
+  }
+  const trimmed = url.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("tel:") ||
+    trimmed.startsWith("#")
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  try {
+    const resolved = new URL(trimmed, EVENT_ASSET_ORIGIN);
+    return resolved.toString();
+  } catch {
+    return trimmed;
+  }
+};
+
+const normalizeEventContentHtml = (html?: string | null): string => {
+  if (!html) {
+    return "";
+  }
+
+  return html.replace(
+    /(src|href)=["']([^"']+)["']/gi,
+    (_, attr: string, value: string) => {
+      const resolved = resolveEventAssetUrl(value);
+      if (!resolved) {
+        return `${attr}="${value}"`;
+      }
+      const sanitized = resolved.replace(/"/g, "&quot;");
+      return `${attr}="${sanitized}"`;
+    }
+  );
+};
 
 const parseEventContent = (
   html?: string
@@ -82,6 +130,7 @@ interface EventDetail {
   title: string;
   description?: string | null;
   content?: string | null;
+  originalContent?: string | null;
   locale?: string | null;
   region: string;
   status: string;
@@ -163,9 +212,14 @@ const EventDetailPage = () => {
   const [imagePreview, setImagePreview] = useState<ImagePreviewPayload | null>(
     null
   );
+  const eventContentHtml = useMemo(() => {
+    const raw = event?.originalContent ?? event?.content ?? "";
+    return normalizeEventContentHtml(raw);
+  }, [event?.originalContent, event?.content]);
+
   const parsedEventContent = useMemo(
-    () => parseEventContent(event?.content ?? ""),
-    [event?.content]
+    () => parseEventContent(eventContentHtml),
+    [eventContentHtml]
   );
 
   console.log("eventevent", event);
@@ -241,7 +295,9 @@ const EventDetailPage = () => {
     );
   }
 
-  const thumbnail = event.imageUrl ?? event.eventThumbnail;
+  const thumbnail = resolveEventAssetUrl(
+    event.imageUrl ?? event.eventThumbnail
+  );
 
   return (
     <>
@@ -315,194 +371,23 @@ const EventDetailPage = () => {
             </div>
           )}
 
-          {/* Event Metadata */}
-          <div className="mb-12 grid gap-6 lg:grid-cols-3">
-            {/* Event Details */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Event Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {event.description && (
-                  <div className="flex flex-col">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">
-                      Description
-                    </p>
-                    <p className="text-base leading-relaxed">
-                      {event.description}
-                    </p>
-                  </div>
-                )}
-
-                {event.description && <Separator />}
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {event.startDate && (
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
-                        Date
-                      </p>
-                      <p className="text-sm">
-                        {new Date(event.startDate).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                        {event.endDate &&
-                          event.endDate !== event.startDate &&
-                          ` - ${new Date(event.endDate).toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "long",
-                              day: "numeric",
-                            }
-                          )}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {event.location && (
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
-                        Location
-                      </p>
-                      <p className="text-sm">{event.location}</p>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col">
-                    <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
-                      Region
-                    </p>
-                    <p className="text-sm">
-                      {event.region}
-                      {event.locale && ` (${event.locale.toUpperCase()})`}
-                    </p>
-                  </div>
-
-                  {event.sourceUrl && (
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
-                        Official Page
-                      </p>
-                      <a
-                        href={event.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
-                      >
-                        Visit website
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Stats Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Layers className="h-5 w-5" />
-                  Content Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 rounded-lg border bg-gradient-to-r from-muted/50 to-muted/30">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <Layers className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="text-sm font-semibold">Sets</span>
-                    </div>
-                    <span className="text-3xl font-bold">
-                      {event.sets.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-4 rounded-lg border bg-gradient-to-r from-muted/50 to-muted/30">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <ImageIcon className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="text-sm font-semibold">Cards</span>
-                    </div>
-                    <span className="text-3xl font-bold">
-                      {event.cards.length}
-                    </span>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">
-                    Event Type
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge
-                      variant={
-                        event.status === "UPCOMING" ? "default" : "secondary"
-                      }
-                    >
-                      {event.status}
-                    </Badge>
-                    <Badge variant="outline">{event.eventType}</Badge>
-                    {event.category && (
-                      <Badge variant="outline">{event.category}</Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Original Content */}
-          {event.content && (
-            <Card className="mb-12">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Info className="h-5 w-5" />
-                  Event Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {parsedEventContent.entries.length > 0 && (
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {parsedEventContent.entries.map((detail, index) => (
-                      <div
-                        key={`${detail.label}-${index}`}
-                        className="rounded-lg border p-4 bg-muted/30"
-                      >
-                        <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                          {detail.label}
-                        </p>
-                        <p className="text-base font-medium mt-1 leading-relaxed">
-                          {detail.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+          {eventContentHtml && parsedEventContent.remainingHtml && (
+            <div className="">
+              <div
+                className={cn(
+                  "prose prose-sm max-w-none text-foreground/90 dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0",
+                  styles.eventContentHtml,
+                  extraStyles.eventContentShell
                 )}
-
-                {parsedEventContent.remainingHtml && (
-                  <div
-                    className="prose prose-sm max-w-none dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0"
-                    dangerouslySetInnerHTML={{
-                      __html: parsedEventContent.remainingHtml,
-                    }}
-                  />
-                )}
-              </CardContent>
-            </Card>
+                dangerouslySetInnerHTML={{
+                  __html: parsedEventContent.remainingHtml,
+                }}
+              />
+            </div>
           )}
 
-          {/* Sets Section with Cards */}
-          {event.sets.length > 0 && (
+          {/* {event.sets.length > 0 && (
             <div>
               <div className="mb-8">
                 <h2 className="text-3xl font-bold flex items-center gap-3 mb-2">
@@ -524,9 +409,6 @@ const EventDetailPage = () => {
                   const attachments = set.attachments || [];
                   const hasImages = attachments.length > 0 || set.image;
 
-                  // Filter cards that belong to this set from event.cards
-                  // If event has cards, filter them by set
-                  // Otherwise, show message that cards need to be added to event
                   const eventLinkedCards = event.cards.filter((eventCard) =>
                     eventCard.card.sets.some(
                       (cardSet) => cardSet.setId === set.id
@@ -589,17 +471,17 @@ const EventDetailPage = () => {
                       </CardHeader>
 
                       <CardContent className="p-6 space-y-8 ">
-                        {/* Set Images */}
                         {hasImages && (
                           <div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 justify-items-center">
-                              {/* Show main set image if no attachments */}
                               {attachments.length === 0 && set.image && (
                                 <div
                                   className="w-full group relative overflow-hidden rounded-xl border-2 bg-muted transition-all hover:shadow-2xl hover:border-primary/50 cursor-pointer"
                                   onClick={() =>
                                     openImagePreview({
-                                      src: set.image!,
+                                      src:
+                                        resolveEventAssetUrl(set.image) ??
+                                        set.image!,
                                       title: set.title,
                                       subtitle: "Set cover",
                                     })
@@ -607,7 +489,10 @@ const EventDetailPage = () => {
                                 >
                                   <div className="relative aspect-[3/4]">
                                     <Image
-                                      src={set.image}
+                                      src={
+                                        resolveEventAssetUrl(set.image) ||
+                                        set.image!
+                                      }
                                       alt={set.title}
                                       fill
                                       className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -625,7 +510,6 @@ const EventDetailPage = () => {
                                 </div>
                               )}
 
-                              {/* Show attachments */}
                               {attachments.map((attachment) => {
                                 const isPlaymat = attachment.type === "PLAYMAT";
                                 const aspectClass = isPlaymat
@@ -634,6 +518,12 @@ const EventDetailPage = () => {
                                 const imageClass = isPlaymat
                                   ? "object-contain"
                                   : "object-cover";
+                                const attachmentUrl = resolveEventAssetUrl(
+                                  attachment.imageUrl
+                                );
+                                if (!attachmentUrl) {
+                                  return null;
+                                }
 
                                 return (
                                   <div
@@ -645,7 +535,7 @@ const EventDetailPage = () => {
                                     }`}
                                     onClick={() =>
                                       openImagePreview({
-                                        src: attachment.imageUrl,
+                                        src: attachmentUrl,
                                         title: set.title,
                                         subtitle: attachment.type,
                                       })
@@ -653,7 +543,7 @@ const EventDetailPage = () => {
                                   >
                                     <div className={`relative ${aspectClass}`}>
                                       <Image
-                                        src={attachment.imageUrl}
+                                        src={attachmentUrl}
                                         alt={`${set.title} - ${attachment.type}`}
                                         fill
                                         className={`${imageClass} transition-transform duration-500 group-hover:scale-110`}
@@ -675,19 +565,20 @@ const EventDetailPage = () => {
                           </div>
                         )}
 
-                        {/* Set Cards */}
                         {setCards.length > 0 && (
                           <div>
                             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                               {setCards.map((eventCard) => {
                                 const card = eventCard.card;
+                                const resolvedCardImage =
+                                  resolveEventAssetUrl(card.src) || card.src;
                                 return (
                                   <Card
                                     key={eventCard.id}
                                     className="group overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 cursor-pointer"
                                     onClick={() =>
                                       openImagePreview({
-                                        src: card.src,
+                                        src: resolvedCardImage,
                                         title: card.name,
                                         subtitle: card.code,
                                       })
@@ -695,7 +586,7 @@ const EventDetailPage = () => {
                                   >
                                     <div className="relative aspect-[2.5/3.5] overflow-hidden bg-muted">
                                       <Image
-                                        src={card.src}
+                                        src={resolvedCardImage}
                                         alt={card.name}
                                         fill
                                         className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -759,7 +650,6 @@ const EventDetailPage = () => {
             </div>
           )}
 
-          {/* Event Cards Section */}
           {event.cards.length > 0 && (
             <div className="mt-16">
               <div className="mb-6">
@@ -781,13 +671,15 @@ const EventDetailPage = () => {
                   const card = eventCard.card;
                   const cardSet =
                     card.sets?.[0]?.set?.title || card.setCode || "Set";
+                  const resolvedCardImage =
+                    resolveEventAssetUrl(card.src) || card.src;
                   return (
                     <Card
                       key={`event-card-${eventCard.id}`}
                       className="group overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 cursor-pointer"
                       onClick={() =>
                         openImagePreview({
-                          src: card.src,
+                          src: resolvedCardImage,
                           title: card.name,
                           subtitle: card.code,
                         })
@@ -795,7 +687,7 @@ const EventDetailPage = () => {
                     >
                       <div className="relative aspect-[2.5/3.5] overflow-hidden bg-muted">
                         <Image
-                          src={card.src}
+                          src={resolvedCardImage}
                           alt={card.name}
                           fill
                           className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -823,7 +715,7 @@ const EventDetailPage = () => {
                 })}
               </div>
             </div>
-          )}
+          )} */}
         </div>
       </div>
 

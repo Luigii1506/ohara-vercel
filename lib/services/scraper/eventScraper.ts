@@ -68,6 +68,76 @@ interface DetectSetsOptions {
   translator?: HeadingTranslationService | null;
 }
 
+const UNWANTED_EVENT_SECTION_SELECTORS = [
+  ".pageFooterBackBtn",
+  ".pageContentsRelated",
+  ".relatedPageList",
+  ".relatedLinks",
+  ".linksList",
+  ".linkList",
+  ".pageLinks",
+  ".pageLinksCol",
+  ".mvImgCol",
+  ".pageTitCol",
+  ".pageTitInner",
+  ".pageTitInfoCol",
+  ".btnBack",
+  ".commonBackBtn",
+];
+
+const UNWANTED_EVENT_HEADING_KEYWORDS = ["related page", "related pages", "links"];
+
+const stripUnwantedEventSections = ($: cheerio.CheerioAPI, root: cheerio.Cheerio<any>) => {
+  UNWANTED_EVENT_SECTION_SELECTORS.forEach((selector) => {
+    if (root.is(selector)) {
+      root.remove();
+      return;
+    }
+    root.find(selector).remove();
+  });
+
+  root.find("h2, h3, h4, h5, h6").each((_, element) => {
+    const text = $(element).text().trim().toLowerCase();
+    if (!text) return;
+    const shouldRemove = UNWANTED_EVENT_HEADING_KEYWORDS.some((keyword) =>
+      text.includes(keyword)
+    );
+    if (!shouldRemove) {
+      return;
+    }
+    const container = $(element).closest("section, article, div, ul, ol").first();
+    if (container.length) {
+      container.remove();
+    } else {
+      $(element).remove();
+    }
+  });
+
+  root.find("a").each((_, element) => {
+    const text = $(element).text().trim().toLowerCase();
+    if (text === "back" || text === "back to list" || text === "back to page") {
+      const container = $(element).closest(".pageFooterBackBtn");
+      if (container.length) {
+        container.remove();
+      } else {
+        $(element).remove();
+      }
+    }
+  });
+
+  root.find(".categoryTitle").first().remove();
+
+  const firstImage = root.find("img").first();
+  if (firstImage.length) {
+    const container = firstImage.closest(".mvImgCol");
+    if (container.length) {
+      container.remove();
+    } else {
+      firstImage.remove();
+    }
+  }
+};
+
 interface SetDetectionContext {
   locale: string;
   primaryKeywords: string[];
@@ -1982,8 +2052,12 @@ async function scrapeEventDetail(
 
     // Extrae el contenido completo
     const contentElement = $(".event-content, .content, main, article").first();
-    const content = contentElement.text().trim() || $("body").text().trim();
-    const originalContent = contentElement.html() || null;
+    const sanitizedContentElement =
+      contentElement.length > 0 ? contentElement : $("body");
+    stripUnwantedEventSections($, sanitizedContentElement);
+    const content =
+      sanitizedContentElement.text().trim() || $("body").text().trim();
+    const originalContent = sanitizedContentElement.html() || null;
     const dateText = extractPeriodText($);
 
     // Extrae imagen

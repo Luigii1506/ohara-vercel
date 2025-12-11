@@ -304,8 +304,7 @@ export default function CreateAlternateCardPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: newSetTitle.trim(),
-          imageUrl:
-            form.imageUrl || missingCard.imageUrl || baseCard?.src || null,
+          imageUrl: "",
         }),
       });
 
@@ -326,9 +325,7 @@ export default function CreateAlternateCardPanel({
     } catch (error) {
       console.error("Error creating quick set:", error);
       showErrorToast(
-        error instanceof Error
-          ? error.message
-          : "Error al crear el nuevo set"
+        error instanceof Error ? error.message : "Error al crear el nuevo set"
       );
     } finally {
       setCreatingQuickSet(false);
@@ -525,19 +522,6 @@ export default function CreateAlternateCardPanel({
 
           <div className="space-y-5">
             <div className="rounded-xl border p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <p className="font-semibold">Sets de la carta</p>
-                  <p className="text-xs text-muted-foreground">
-                    Selecciona uno o varios sets existentes. Es obligatorio
-                    vincular al menos uno.
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {selectedSetIds.length} seleccionados
-                </Badge>
-              </div>
-
               {setsLoading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -604,9 +588,7 @@ export default function CreateAlternateCardPanel({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          setShowCreateSetForm((prev) => !prev)
-                        }
+                        onClick={() => setShowCreateSetForm((prev) => !prev)}
                       >
                         {showCreateSetForm ? "Ocultar" : "Crear"}
                       </Button>

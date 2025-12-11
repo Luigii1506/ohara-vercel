@@ -24,14 +24,12 @@ export async function POST(req: NextRequest) {
     }
 
     const rawImage = typeof body?.imageUrl === "string" ? body.imageUrl : "";
-    const image = rawImage?.trim() || null;
+    const image = rawImage?.trim() || "";
     const rawCode = typeof body?.code === "string" ? body.code.trim() : "";
     const rawVersion =
       typeof body?.version === "string" ? body.version.trim() : "";
 
-    const fallbackCode =
-      slugifyCode(title) || `CUSTOM-${Date.now().toString(36).toUpperCase()}`;
-    const code = rawCode || fallbackCode;
+    const code = rawCode || "";
 
     const newSet = await prisma.set.create({
       data: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,64 @@ import {
   Image as ImageIcon,
   Info,
 } from "lucide-react";
+
+interface StructuredDetail {
+  label: string;
+  value: string;
+}
+
+const parseEventContent = (
+  html?: string
+): {
+  entries: StructuredDetail[];
+  remainingHtml: string;
+} => {
+  if (!html) {
+    return { entries: [], remainingHtml: "" };
+  }
+
+  if (typeof window === "undefined") {
+    return { entries: [], remainingHtml: html };
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const entries: StructuredDetail[] = [];
+    const leftover: string[] = [];
+
+    Array.from(doc.body.children).forEach((node) => {
+      if (
+        node.tagName === "P" &&
+        node.querySelector("strong") &&
+        node.textContent
+      ) {
+        const strong = node.querySelector("strong");
+        const label = strong?.textContent?.replace(/[:：]/g, "").trim();
+        const value = node.textContent
+          ?.replace(strong?.textContent ?? "", "")
+          .replace(/[:：]/, "")
+          .trim();
+
+        if (label && value) {
+          entries.push({ label, value });
+          return;
+        }
+      }
+
+      leftover.push(node.outerHTML || node.textContent || "");
+    });
+
+    const remainingHtml = leftover.join("");
+
+    return {
+      entries,
+      remainingHtml: remainingHtml.length > 0 ? remainingHtml : html,
+    };
+  } catch {
+    return { entries: [], remainingHtml: html };
+  }
+};
 
 interface EventDetail {
   id: number;
@@ -104,6 +162,10 @@ const EventDetailPage = () => {
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<ImagePreviewPayload | null>(
     null
+  );
+  const parsedEventContent = useMemo(
+    () => parseEventContent(event?.content ?? ""),
+    [event?.content]
   );
 
   console.log("eventevent", event);
@@ -265,7 +327,7 @@ const EventDetailPage = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {event.description && (
-                  <div>
+                  <div className="flex flex-col">
                     <p className="text-sm font-medium text-muted-foreground mb-2">
                       Description
                     </p>
@@ -279,7 +341,7 @@ const EventDetailPage = () => {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   {event.startDate && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
                         Date
                       </p>
@@ -303,7 +365,7 @@ const EventDetailPage = () => {
                   )}
 
                   {event.location && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
                         Location
                       </p>
@@ -311,7 +373,7 @@ const EventDetailPage = () => {
                     </div>
                   )}
 
-                  <div>
+                  <div className="flex flex-col">
                     <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
                       Region
                     </p>
@@ -322,7 +384,7 @@ const EventDetailPage = () => {
                   </div>
 
                   {event.sourceUrl && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
                         Official Page
                       </p>
@@ -408,11 +470,33 @@ const EventDetailPage = () => {
                   Event Details
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div
-                  className="prose prose-sm max-w-none dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: event.content }}
-                />
+              <CardContent className="space-y-6">
+                {parsedEventContent.entries.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {parsedEventContent.entries.map((detail, index) => (
+                      <div
+                        key={`${detail.label}-${index}`}
+                        className="rounded-lg border p-4 bg-muted/30"
+                      >
+                        <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                          {detail.label}
+                        </p>
+                        <p className="text-base font-medium mt-1 leading-relaxed">
+                          {detail.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {parsedEventContent.remainingHtml && (
+                  <div
+                    className="prose prose-sm max-w-none dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0"
+                    dangerouslySetInnerHTML={{
+                      __html: parsedEventContent.remainingHtml,
+                    }}
+                  />
+                )}
               </CardContent>
             </Card>
           )}

@@ -18,7 +18,6 @@ import {
   Edit,
   Plus,
   FileText,
-  Calendar,
   Upload,
   Images,
   Menu,
@@ -28,6 +27,8 @@ import {
   Copy,
   FolderOpen,
   ShoppingBag,
+  AlertTriangle,
+  Calendar,
 } from "lucide-react";
 import {
   siInstagram,
@@ -119,73 +120,103 @@ const NavBar = () => {
     };
   }, [isMobileMenuOpen]);
 
-  const adminMenuItems = [
+  const adminMenuCategories = [
     {
-      href: "/admin/edit-card",
-      label: "Edit Card",
-      icon: Edit,
-      description: "Modify existing cards",
-    },
-    // {
-    //   href: "/admin/add-card",
-    //   label: "Add Card",
-    //   icon: Plus,
-    //   description: "Create new card entries",
-    // },
-    {
-      href: "/admin/add-set",
-      label: "Add Set",
-      icon: Plus,
-      description: "Create new card sets",
-    },
-    {
-      href: "/admin/add-rulings",
-      label: "Add Rulings",
-      icon: FileText,
-      description: "Add card rulings",
-    },
-    // {
-    //   href: "/admin/add-event",
-    //   label: "Add Event",
-    //   icon: Calendar,
-    //   description: "Create new events",
-    // },
-    {
-      href: "/admin/upload-sets",
-      label: "Upload Sets",
-      icon: Upload,
-      description: "Bulk upload card sets",
-    },
-    {
-      href: "/admin/create-decks",
-      label: "Decks para venta",
-      icon: ShoppingBag,
-      description: "Crea decks especiales para la tienda",
+      category: "Cards & Sets",
+      items: [
+        {
+          href: "/admin/edit-card",
+          label: "Edit Card",
+          icon: Edit,
+          description: "Modify existing cards",
+        },
+        {
+          href: "/admin/add-set",
+          label: "Add Set",
+          icon: Plus,
+          description: "Create new card sets",
+        },
+        {
+          href: "/admin/upload-sets",
+          label: "Upload Sets",
+          icon: Upload,
+          description: "Bulk upload card sets",
+        },
+        {
+          href: "/admin/add-rulings",
+          label: "Add Rulings",
+          icon: FileText,
+          description: "Add card rulings",
+        },
+        {
+          href: "/admin/dons",
+          label: "Admin Don!!",
+          icon: Shield,
+          description: "Gestiona Don base y alternos",
+        },
+      ],
     },
     {
-      href: "/admin/shop-decks",
-      label: "Gestionar decks venta",
-      icon: Layers,
-      description: "Edita y publica tus decks de tienda",
+      category: "Events & Scraping",
+      items: [
+        {
+          href: "/admin/events",
+          label: "Events",
+          icon: Calendar,
+          description: "Aprueba y edita eventos",
+        },
+        {
+          href: "/admin/missing-sets",
+          label: "Missing Sets",
+          icon: AlertTriangle,
+          description: "Aprueba sets detectados",
+        },
+        {
+          href: "/admin/missing-cards",
+          label: "Missing Cards",
+          icon: AlertTriangle,
+          description: "Aprueba cartas detectadas",
+        },
+      ],
     },
     {
-      href: "/admin/dons",
-      label: "Admin Don!!",
-      icon: Shield,
-      description: "Gestiona Don base y alternos",
+      category: "Shop & Decks",
+      items: [
+        {
+          href: "/admin/create-decks",
+          label: "Crear Decks",
+          icon: ShoppingBag,
+          description: "Decks para la tienda",
+        },
+        {
+          href: "/admin/shop-decks",
+          label: "Gestionar Decks",
+          icon: Layers,
+          description: "Edita y publica decks",
+        },
+      ],
     },
     {
-      href: "/admin/upload-image-r2",
-      label: "Upload Image R2",
-      icon: Images,
-      description: "Sube imágenes directamente a R2",
+      category: "Media",
+      items: [
+        {
+          href: "/admin/upload-image-r2",
+          label: "Upload Images",
+          icon: Images,
+          description: "Sube imágenes a R2",
+        },
+      ],
     },
   ];
+
+  // Flatten para mantener compatibilidad con mobile
+  const adminMenuItems = adminMenuCategories.flatMap((cat) => cat.items);
 
   // Menú completo para desktop
   const desktopMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
+    { href: "/events", label: "Events", icon: Calendar },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/proxies", label: "Proxies", icon: Copy },
   ];
@@ -302,7 +333,7 @@ const NavBar = () => {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`relative text-white hover:text-gray-300 transition-colors font-medium ${
+                      className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline  ${
                         (item.href === "/" && pathname.length === 0) ||
                         (item.href !== "/" &&
                           pathname[0] === item.href.slice(1))
@@ -337,64 +368,72 @@ const NavBar = () => {
                           />
                         </button>
 
-                        {/* Dropdown Menu */}
+                        {/* Dropdown Menu - Modern Grid Layout */}
                         {isAdminMenuOpen && (
-                          <div className="absolute top-full mt-2 right-0 w-64 bg-gray-900 border border-gray-800 rounded-lg shadow-xl overflow-hidden z-50">
-                            <div className="p-2 border-b border-gray-800">
-                              <p className="text-xs text-gray-400 font-medium px-2">
+                          <div className="absolute top-full mt-2 right-0 w-[600px] max-w-[90vw] bg-gray-900 border border-gray-800 rounded-lg shadow-xl overflow-hidden z-50">
+                            <div className="p-3 border-b border-gray-800 bg-gray-900/50">
+                              <p className="text-xs text-white font-semibold px-2">
                                 ADMIN TOOLS
                               </p>
                             </div>
-                            <div className="p-2">
-                              {adminMenuItems.map((item) => {
-                                const Icon = item.icon;
-                                const isActive = pathname
-                                  .join("/")
-                                  .includes(item.href.slice(1));
+                            <div className="p-3 grid grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto">
+                              {adminMenuCategories.map((category) => (
+                                <div
+                                  key={category.category}
+                                  className="space-y-1"
+                                >
+                                  <p className="text-[10px] text-white font-semibold px-2 mb-2 uppercase tracking-wider">
+                                    {category.category}
+                                  </p>
+                                  {category.items.map((item) => {
+                                    const Icon = item.icon;
+                                    const isActive = pathname
+                                      .join("/")
+                                      .includes(item.href.slice(1));
 
-                                return (
-                                  <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    onClick={() => setIsAdminMenuOpen(false)}
-                                    className={`flex items-start gap-3 px-3 py-2.5 rounded-md transition-all duration-200 group ${
-                                      isActive
-                                        ? "bg-red-500/20 text-white"
-                                        : "hover:bg-white/5 text-gray-300 hover:text-white"
-                                    }`}
-                                  >
-                                    <Icon
-                                      size={18}
-                                      className={`mt-0.5 ${
-                                        isActive
-                                          ? "text-red-400"
-                                          : "text-gray-500 group-hover:text-gray-400"
-                                      }`}
-                                    />
-                                    <div className="flex-1 flex-col">
-                                      <div>
-                                        <p className="font-medium text-sm">
-                                          {item.label}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                          {item.description}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    {isActive && (
-                                      <div className="w-1.5 h-1.5 bg-red-400 rounded-full mt-2"></div>
-                                    )}
-                                  </Link>
-                                );
-                              })}
+                                    return (
+                                      <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() =>
+                                          setIsAdminMenuOpen(false)
+                                        }
+                                        className={`flex items-start gap-2.5 px-3 py-2 rounded-md transition-all duration-200 group no-underline ${
+                                          isActive
+                                            ? "bg-red-500/20 text-white shadow-sm"
+                                            : "hover:bg-white/5 text-gray-300 hover:text-white"
+                                        }`}
+                                      >
+                                        <Icon
+                                          size={16}
+                                          className={`mt-0.5 flex-shrink-0 ${
+                                            isActive
+                                              ? "text-red-400"
+                                              : "text-white group-hover:text-gray-400"
+                                          }`}
+                                        />
+                                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                          <p className="font-medium text-xs leading-tight no-underline text-white">
+                                            {item.label}
+                                          </p>
+                                          <p className="text-[10px] !no-underline mt-0.5 leading-tight text-white">
+                                            {item.description}
+                                          </p>
+                                        </div>
+                                        {isActive && (
+                                          <div className="w-1 h-1 bg-red-400 rounded-full mt-1 flex-shrink-0"></div>
+                                        )}
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              ))}
                             </div>
-                            <div className="p-2 border-t border-gray-800">
+                            <div className="p-2 border-t border-gray-800 bg-gray-900/50">
                               <Link
                                 href="/admin"
                                 onClick={() => setIsAdminMenuOpen(false)}
-                                className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-all duration-200"
+                                className="flex items-center justify-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-all duration-200"
                               >
                                 View all admin options →
                               </Link>
@@ -503,7 +542,7 @@ const NavBar = () => {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
                         isActive
                           ? "bg-white/10 text-white"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
@@ -511,9 +550,9 @@ const NavBar = () => {
                     >
                       <Icon
                         size={20}
-                        className={isActive ? "text-white" : "text-gray-400"}
+                        className={isActive ? "text-white" : "text-white"}
                       />
-                      <span className="font-medium text-gray-400">
+                      <span className="font-medium text-white">
                         {item.label}
                       </span>
                       {isActive && (
@@ -524,44 +563,51 @@ const NavBar = () => {
                 })}
               </div>
 
-              {/* Sección Admin en móvil */}
+              {/* Sección Admin en móvil con categorías */}
               {role === "ADMIN" && (
                 <div className="pt-6 border-t border-gray-800">
-                  <p className="text-xs text-gray-400 font-medium px-4 mb-3">
+                  <p className="text-xs text-white font-medium px-4 mb-3">
                     ADMIN TOOLS
                   </p>
-                  <div className="space-y-1">
-                    {adminMenuItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = pathname
-                        .join("/")
-                        .includes(item.href.slice(1));
+                  <div className="space-y-4">
+                    {adminMenuCategories.map((category) => (
+                      <div key={category.category} className="space-y-1">
+                        <p className="text-[10px] text-white font-semibold px-4 mb-2 uppercase tracking-wider">
+                          {category.category}
+                        </p>
+                        {category.items.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = pathname
+                            .join("/")
+                            .includes(item.href.slice(1));
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                            isActive
-                              ? "bg-red-500/20 text-white"
-                              : "text-gray-300 hover:bg-white/5 hover:text-white"
-                          }`}
-                        >
-                          <Icon
-                            size={20}
-                            className={
-                              isActive ? "text-red-400" : "text-gray-400"
-                            }
-                          />
-                          <span className="font-medium text-gray-400">
-                            {item.label}
-                          </span>
-                          {isActive && (
-                            <div className="ml-auto w-2 h-2 bg-red-400 rounded-full"></div>
-                          )}
-                        </Link>
-                      );
-                    })}
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 no-underline ${
+                                isActive
+                                  ? "bg-red-500/20 text-white"
+                                  : "text-gray-300 hover:bg-white/5 hover:text-white"
+                              }`}
+                            >
+                              <Icon
+                                size={18}
+                                className={
+                                  isActive ? "text-white" : "text-white"
+                                }
+                              />
+                              <span className="font-medium text-sm text-white">
+                                {item.label}
+                              </span>
+                              {isActive && (
+                                <div className="ml-auto w-2 h-2 bg-red-400 rounded-full"></div>
+                              )}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -596,7 +642,7 @@ const NavBar = () => {
                   className="w-full bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
                   onClick={() => signOut({ callbackUrl: "/?from=logout" })}
                 >
-                  <LogOutIcon size={18} />
+                  <LogOutIcon size={18} className="text-white" />
                   <span className="text-white">Sign Out</span>
                 </Button>
               ) : (

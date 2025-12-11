@@ -51,6 +51,7 @@ model Card {
   GameLogCard      GameLogCard[]
   userListCards    UserListCard[]
   alternateCards   Card[]          @relation("CardAlternates") // Las alternativas de esta carta base
+  eventCards       EventCard[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -312,17 +313,26 @@ model Event {
   description     String?       @db.Text
   content         String?       @db.Text
   originalContent String?       @db.Text
+  locale          String?       @default("en")
   region          EventRegion   @default(GLOBAL)
   status          EventStatus   @default(UPCOMING)
   eventType       EventType     @default(OTHER)
+  category        EventCategory?
   startDate       DateTime?     @map("event_date")
   endDate         DateTime?
+  rawDateText     String?
   location        String?
   sourceUrl       String?
   imageUrl        String?
+  eventThumbnail  String?
+  eventTxt        String?
+  isApproved      Boolean       @default(false)
   createdAt       DateTime?     @default(now())
   updatedAt       DateTime?     @updatedAt
   sets            EventSet[]
+  cards           EventCard[]
+  missingSets     EventMissingSet[]
+  missingCards    EventMissingCard[]
 }
 
 model Set {
@@ -337,6 +347,24 @@ model Set {
   version     String?
   cards       CardSet[]
   events      EventSet[]
+  attachments SetAttachment[]
+}
+
+model SetAttachment {
+  id          Int               @id @default(autoincrement())
+  setId       Int
+  type        SetAttachmentType
+  title       String
+  description String?
+  imageUrl    String?
+  releaseDate DateTime?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  set         Set               @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([setId, type])
 }
 
 model EventSet {
@@ -347,6 +375,70 @@ model EventSet {
 
   @@id([eventId, setId])
   @@index([setId])
+}
+
+model EventCard {
+  eventId Int
+  cardId  Int
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  card    Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, cardId])
+  @@index([cardId])
+}
+
+model MissingSet {
+  id               Int      @id @default(autoincrement())
+  title            String   @unique
+  translatedTitle  String?
+  imagesJson       Json?
+  versionSignature String?
+  isApproved       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  events           EventMissingSet[]
+}
+
+model EventMissingSet {
+  id            Int        @id @default(autoincrement())
+  eventId       Int
+  missingSetId  Int
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingSet    MissingSet @relation(fields: [missingSetId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([missingSetId])
+  @@unique([eventId, missingSetId])
+}
+
+model MissingCard {
+  id          Int                 @id @default(autoincrement())
+  code        String
+  title       String
+  imageUrl    String
+  isApproved  Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  events      EventMissingCard[]
+
+  @@unique([code, title])
+  @@index([code])
+}
+
+model EventMissingCard {
+  id             Int          @id @default(autoincrement())
+  eventId        Int
+  missingCardId  Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingCard    MissingCard  @relation(fields: [missingCardId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([missingCardId])
+  @@unique([eventId, missingCardId])
 }
 
 model CardSet {
@@ -424,6 +516,21 @@ model Product {
   reviews           Review[]
 
   @@index([sellerId])
+}
+
+model CatalogProduct {
+  id          Int                 @id @default(autoincrement())
+  uuid        String              @unique @default(uuid())
+  name        String
+  description String?             @db.Text
+  imageUrl    String?
+  releaseDate DateTime?
+  productType CatalogProductType
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([productType])
 }
 
 model Cart {
@@ -578,6 +685,18 @@ model Review {
   @@index([userId])
 }
 
+enum SetAttachmentType {
+  UNCUT_SHEET
+  PLAYMAT
+  SLEEVE
+}
+
+enum CatalogProductType {
+  BOOSTER
+  DECK
+  OTHER
+}
+
 enum Role {
   ADMIN
   USER
@@ -615,4 +734,11 @@ enum EventType {
   RELEASE_EVENT
   ONLINE
   OTHER
+}
+
+enum EventCategory {
+  BEGINNER
+  ROOKIES
+  INTERMEDIATE
+  COMPETITIVE
 }

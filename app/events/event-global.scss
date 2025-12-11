@@ -1,0 +1,3211 @@
+@charset "UTF-8";
+// ==========================================================================
+// Foundation
+// ==========================================================================
+@import "foundation/_reset";
+@import "foundation/_base";
+@import "foundation/_mixin";
+// ==========================================================================
+
+img {
+  @include mediaSp {
+    width: 100%;
+  }
+}
+
+* {
+  font-family: $main-font;
+  font-weight: 300;
+  font-style: normal;
+  position: static;
+}
+
+*::selection {
+  background: #afa384;
+  color: #ffffff;
+}
+
+:root {
+  --z-main: -1;
+  --z-pageTitCol: 0;
+  --z-pageTitInner: 1;
+  --z-header: 500;
+}
+
+// html {
+//   position: relative;
+//   width: 100%;
+//   overflow-x: auto;
+//   background: #ffffff;
+//   color: #000000;
+//   padding-top: pxVwSP(100px);
+//   font-size: pxVwSP(28px);
+//   line-height: 1.4;
+//   &::before {
+//     content: "";
+//     position: fixed;
+//     background: none;
+//     background-size: cover;
+//     width: 100%;
+//     height: 100%;
+//     z-index: var(--z-main);
+//     @include mediaPc {
+//       background: none;
+//       background-size: cover;
+//     }
+//   }
+//   @include mediaPc {
+//     padding-top: 90px;
+//     font-size: 16px;
+//     line-height: 1.5;
+//     &::before {
+//       background: none;
+//       background-size: cover;
+//     }
+//   }
+// }
+
+/* 汎用クラス
+==========================================================================*/
+
+/* 余白 */
+//top
+.mtNone {
+  margin-top: 0 !important;
+}
+
+.mtXXS {
+  margin-top: pxVwSP(7px) !important;
+  @include mediaPc {
+    margin-top: 5px !important;
+  }
+}
+.mtXS {
+  margin-top: pxVwSP(10px) !important;
+  @include mediaPc {
+    margin-top: 10px !important;
+  }
+}
+.mtS {
+  margin-top: pxVwSP(20px) !important;
+  @include mediaPc {
+    margin-top: 15px !important;
+  }
+}
+.mtM {
+  margin-top: pxVwSP(40px) !important;
+  @include mediaPc {
+    margin-top: 30px !important;
+  }
+}
+.mtL {
+  margin-top: pxVwSP(60px) !important;
+  @include mediaPc {
+    margin-top: 45px !important;
+  }
+}
+.mtXL {
+  margin-top: pxVwSP(80px) !important;
+  @include mediaPc {
+    margin-top: 60px !important;
+  }
+}
+.mtXXL {
+  margin-top: pxVwSP(100px) !important;
+  @include mediaPc {
+    margin-top: 80px !important;
+  }
+}
+
+.ptNone {
+  padding-top: 0 !important;
+}
+.ptXXS {
+  padding-top: pxVwSP(7px) !important;
+  @include mediaPc {
+    padding-top: 5px !important;
+  }
+}
+.ptXS {
+  padding-top: pxVwSP(10px) !important;
+  @include mediaPc {
+    padding-top: 10px !important;
+  }
+}
+.ptS {
+  padding-top: pxVwSP(20px) !important;
+  @include mediaPc {
+    padding-top: 15px !important;
+  }
+}
+.ptM {
+  padding-top: pxVwSP(40px) !important;
+  @include mediaPc {
+    padding-top: 30px !important;
+  }
+}
+.ptL {
+  padding-top: pxVwSP(60px) !important;
+  @include mediaPc {
+    padding-top: 45px !important;
+  }
+}
+.ptXL {
+  padding-top: pxVwSP(80px) !important;
+  @include mediaPc {
+    padding-top: 60px !important;
+  }
+}
+.ptXXL {
+  padding-top: pxVwSP(100px) !important;
+  @include mediaPc {
+    padding-top: 80px !important;
+  }
+}
+
+//bottom
+.mbNone {
+  margin-bottom: 0 !important;
+}
+.mbXXS {
+  margin-bottom: pxVwSP(7px) !important;
+  @include mediaPc {
+    margin-bottom: 5px !important;
+  }
+}
+.mbXS {
+  margin-bottom: pxVwSP(10px) !important;
+  @include mediaPc {
+    margin-bottom: 10px !important;
+  }
+}
+.mbS {
+  margin-bottom: pxVwSP(20px) !important;
+  @include mediaPc {
+    margin-bottom: 15px !important;
+  }
+}
+.mbM {
+  margin-bottom: pxVwSP(40px) !important;
+  @include mediaPc {
+    margin-bottom: 30px !important;
+  }
+}
+.mbL {
+  margin-bottom: pxVwSP(60px) !important;
+  @include mediaPc {
+    margin-bottom: 45px !important;
+  }
+}
+.mbXL {
+  margin-bottom: pxVwSP(80px) !important;
+  @include mediaPc {
+    margin-bottom: 60px !important;
+  }
+}
+.mbXXL {
+  margin-bottom: pxVwSP(100px) !important;
+  @include mediaPc {
+    margin-bottom: 80px !important;
+  }
+}
+
+.pbNone {
+  padding-bottom: 0 !important;
+}
+.pbXXS {
+  padding-bottom: pxVwSP(7px) !important;
+  @include mediaPc {
+    padding-bottom: 5px !important;
+  }
+}
+.pbXS {
+  padding-bottom: pxVwSP(10px) !important;
+  @include mediaPc {
+    padding-bottom: 10px !important;
+  }
+}
+.pbS {
+  padding-bottom: pxVwSP(20px) !important;
+  @include mediaPc {
+    padding-bottom: 15px !important;
+  }
+}
+.pbM {
+  padding-bottom: pxVwSP(40px) !important;
+  @include mediaPc {
+    padding-bottom: 30px !important;
+  }
+}
+.pbL {
+  padding-bottom: pxVwSP(60px) !important;
+  @include mediaPc {
+    padding-bottom: 45px !important;
+  }
+}
+.pbXL {
+  padding-bottom: pxVwSP(80px) !important;
+  @include mediaPc {
+    padding-bottom: 60px !important;
+  }
+}
+.pbXXL {
+  padding-bottom: pxVwSP(100px) !important;
+  @include mediaPc {
+    padding-bottom: 80px !important;
+  }
+}
+
+//right(flexで並べたとき用)
+.spMrReset {
+  @include mediaSp {
+    margin-right: 0 !important;
+  }
+}
+.pcMrReset {
+  @include mediaPc {
+    margin-right: 0 !important;
+  }
+}
+
+/* 横幅(SPのみ) */
+@include mediaSp {
+  .spWidthS {
+    width: 30%;
+  }
+  .spWidthM {
+    width: 50%;
+  }
+  .spWidthL {
+    width: 70%;
+  }
+  .spWidthLL {
+    width: 80%;
+  }
+  .spWidthXL {
+    width: 90%;
+  }
+  .spWidthFull {
+    width: 100%;
+  }
+}
+
+/* 横幅(PCのみ) */
+@include mediaPc {
+  .pcWidthS {
+    width: 30%;
+  }
+  .pcWidthM {
+    width: 50%;
+  }
+  .pcWidthL {
+    width: 70%;
+  }
+  .pcWidthLL {
+    width: 80%;
+  }
+  .pcWidthXL {
+    width: 90%;
+  }
+  .pcWidthFull {
+    width: 100%;
+  }
+}
+
+/* 横幅100% */
+.widthFull {
+  width: 100%;
+}
+
+/* SPのみflex */
+@include mediaSp {
+  .spFlexCol {
+    display: flex;
+    flex-wrap: wrap;
+    .spFlexPartsW10 {
+      width: 10%;
+    } //子要素に付与
+    .spFlexPartsW20 {
+      width: 20%;
+    }
+    .spFlexPartsW30 {
+      width: 30%;
+    }
+    .spFlexPartsW40 {
+      width: 40%;
+    }
+    .spFlexPartsW48 {
+      width: 48%;
+    }
+    .spFlexPartsW50 {
+      width: 50%;
+    }
+    .spFlexPartsW60 {
+      width: 60%;
+    }
+    .spFlexPartsW70 {
+      width: 70%;
+    }
+    .spFlexPartsW80 {
+      width: 80%;
+    }
+    .spFlexPartsW90 {
+      width: 90%;
+    }
+    .spFlexPartsW100 {
+      width: 100%;
+    }
+  }
+}
+
+/* PCのみflex */
+@include mediaPc {
+  .pcFlexCol {
+    display: flex;
+    flex-wrap: wrap;
+    &.verticalCenter {
+      align-items: center;
+    }
+    .pcFlexPartsW10 {
+      width: 10%;
+    } //子要素に付与
+    .pcFlexPartsW20 {
+      width: 20%;
+    }
+    .pcFlexPartsW30 {
+      width: 30%;
+    }
+    .pcFlexPartsW40 {
+      width: 40%;
+    }
+    .pcFlexPartsW48 {
+      width: 48%;
+    }
+    .pcFlexPartsW50 {
+      width: 50%;
+    }
+    .pcFlexPartsW60 {
+      width: 60%;
+    }
+    .pcFlexPartsW70 {
+      width: 70%;
+    }
+    .pcFlexPartsW80 {
+      width: 80%;
+    }
+    .pcFlexPartsW90 {
+      width: 90%;
+    }
+    .pcFlexPartsW100 {
+      width: 100%;
+    }
+  }
+}
+/* PCのみホバー */
+@include mediaPc {
+  .hvr {
+    @include hoverAction;
+  }
+}
+
+//カード横並び
+.cardFlexCol {
+  background: #f9f9f6;
+  padding: 4vw 4vw 2.5vw;
+  @include mediaPc {
+    padding: 30px 30px 15px;
+  }
+}
+.cardFlexWrap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  > li {
+    width: calc(calc(100% / 3) - 1.5vw);
+    margin: 0 0.75vw 1.5vw;
+    @include mediaPc {
+      width: calc(calc(100% / 4) - 15px);
+      margin: 0 7.5px 15px;
+      &:nth-child(4n) {
+        //margin-right: 0;
+      }
+    }
+    img {
+      width: 100%;
+    }
+  }
+  &.col3 {
+    width: 100%;
+    li {
+      &:nth-child(3n) {
+        //margin-right: 0;
+      }
+    }
+  }
+  &.col5 {
+    li {
+      @include mediaPc {
+        width: calc(calc(100% / 5) - 15px);
+      }
+    }
+  }
+  &.col2_big {
+    li {
+      @include mediaPc {
+        width: calc(calc(100% / 3) - 15px);
+      }
+    }
+  }
+  &.cardFlexSpWidthL {
+    li {
+      @include mediaSp {
+        width: calc(calc(100% / 2.1) - 1vw);
+      }
+    }
+  }
+  &.includeBoxIs {
+    & > li {
+      width: 100%;
+      margin: 0 0.75vw 1.5vw;
+      text-align: center;
+      @include mediaPc {
+        width: calc(calc(100% / 2) - 50px);
+        margin: 0 7.5px 0;
+        &:last-child {
+          margin: 0;
+        }
+      }
+      img:first-child {
+        width: 42vw;
+        @include mediaPc {
+          width: 195px;
+        }
+      }
+      .includeBox {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 4vw;
+        margin-right: auto;
+        margin-left: auto;
+        padding: 2.4vw;
+        background-color: $main-color;
+        @include mediaPc {
+          margin-top: 30px;
+          padding: 14px;
+        }
+        &:before {
+          content: "";
+          position: absolute;
+          border-width: 0 3vw 3vw 3vw;
+          border-color: transparent #92815700 #928157 #92815700;
+          width: 0;
+          height: 0;
+          border-style: solid;
+          top: -2vw;
+          @include mediaPc {
+            border-width: 0 30px 30px 30px;
+            top: -20px;
+          }
+        }
+        li {
+          width: 37vw;
+          margin: 0 1vw;
+          &:last-child {
+            margin: 0;
+          }
+          @include mediaPc {
+            width: 150px;
+            margin: 0 5px;
+          }
+          img {
+            width: 100%;
+          }
+        }
+      }
+    }
+  }
+  &.colSp3 {
+    > li {
+      @include mediaSp {
+        &:nth-child(3n) {
+          margin: 0;
+        }
+      }
+    }
+  }
+}
+
+//カード横並び 拡大機能あり
+.cardPackCol {
+  .pkjBox {
+    margin-left: auto;
+    margin-right: auto;
+    //display: block;
+    &.is-shadow {
+      filter: drop-shadow(0px 0px pxVwSP(4px) rgba(0, 0, 0, 0.2));
+    }
+  }
+  .includecardBox {
+    padding: pxVwSP(40px) 0;
+    background: #f9f9f6;
+    .includecardTit {
+      font-size: pxVwSP(26px);
+      font-weight: bold;
+    }
+    .cardPopupWrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      li {
+        position: relative;
+        z-index: 1;
+        margin-right: pxVwSP(20px);
+        margin-top: pxVwSP(27px);
+        width: pxVwSP(169px);
+        &:nth-child(3n) {
+          margin-right: 0;
+        }
+        &:nth-child(-n + 3) {
+          margin-top: pxVwSP(20px);
+        }
+        &.is-empty {
+          height: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+        a {
+          &:after {
+            content: "";
+            position: absolute;
+            z-index: 5;
+            right: pxVwSP(-6px);
+            bottom: pxVwSP(-6px);
+            width: pxVwSP(50px);
+            height: pxVwSP(50px);
+            background: none center;
+            background-size: contain;
+          }
+        }
+      }
+    }
+    &.pkjBoxNone {
+      .cardPopupWrap {
+        li {
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+    &.singleCards {
+      width: 100%;
+      .cardPopupWrap {
+        li {
+          width: 35vw;
+          margin-right: 0;
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+    &.singleSheet {
+      width: 100%;
+      .cardPopupWrap {
+        li {
+          width: 35vw;
+          margin-right: 0;
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+  }
+  @include mediaPc {
+    display: flex;
+    align-items: center;
+    .pkjBox {
+      width: 283px;
+      padding-left: 20px;
+      &.is-shadow {
+        filter: drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.2));
+      }
+    }
+    .includecardBox {
+      padding: 50px 0;
+      width: 621px;
+      .includecardTit {
+        font-size: 20px;
+      }
+      .cardPopupWrap {
+        li {
+          margin-right: 30px;
+          margin-top: 20px;
+          width: 150px;
+          img {
+            width: 100%;
+          }
+          &:nth-child(-n + 3) {
+            margin-top: 20px;
+          }
+          a {
+            &:after {
+              right: -5px;
+              bottom: -5px;
+              width: 40px;
+              height: 40px;
+              background: none center;
+              background-size: contain;
+            }
+            &:hover {
+              opacity: 0.7;
+              transition-duration: 0.3s;
+              cursor: pointer;
+            }
+          }
+        }
+      }
+      &.pkjBoxNone {
+        width: 100%;
+        .cardPopupWrap {
+          width: 621px;
+          margin: 0 auto;
+        }
+      }
+    }
+  }
+  &.cardPackColL {
+    .includecardBox {
+      .cardPopupWrap {
+        li {
+          width: pxVwSP(130px);
+          &:nth-child(3n) {
+            margin-right: pxVwSP(20px);
+          }
+          &:nth-child(4n) {
+            margin-right: 0;
+          }
+          &:nth-child(-n + 4) {
+            margin-top: pxVwSP(20px);
+          }
+          a {
+            &:after {
+              right: pxVwSP(-6px);
+              bottom: pxVwSP(-6px);
+              width: pxVwSP(50px);
+              height: pxVwSP(50px);
+            }
+          }
+        }
+      }
+      &.card4items {
+        .cardPopupWrap {
+          li {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+
+    @include mediaPc {
+      .includecardBox {
+        .cardPopupWrap {
+          li {
+            width: 110px;
+            &:nth-child(3n) {
+              margin-right: 30px;
+            }
+            &:nth-child(4n) {
+              margin-right: 0;
+            }
+            &:nth-child(-n + 4) {
+              margin-top: 20px;
+            }
+            a {
+              &:after {
+                right: -6px;
+                bottom: -6px;
+                width: 32px;
+                height: 32px;
+              }
+            }
+          }
+        }
+        &.card4items {
+          .cardPopupWrap {
+            li {
+              margin-top: 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/* 汎用アコーディオン格納エリア */
+.js_acContentsCol {
+  display: none;
+  &.isOpen {
+    display: block;
+  }
+}
+.accordionCol {
+  display: none;
+  &.isOpen {
+    display: block;
+  }
+  .mediumTit:first-child {
+    margin-top: pxVwSP(40px);
+    @include mediaPc {
+      margin-top: 30px;
+    }
+  }
+}
+
+/* センタリング */
+.centering {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 文字ぞろえ */
+.txtCenter {
+  text-align: center !important;
+}
+
+.txtLeft {
+  text-align: left !important;
+}
+
+.txtright {
+  text-align: right !important;
+}
+
+/* 文字ぞろえ(PCのみ) */
+@include mediaPc {
+  .pcTxtCenter {
+    text-align: center !important;
+  }
+  .pcTxtLeft {
+    text-align: left !important;
+  }
+  .pcTxtright {
+    text-align: right !important;
+  }
+}
+
+/* 文字ぞろえ(SPのみ) */
+@include mediaSp {
+  .spTxtCenter {
+    text-align: center !important;
+  }
+  .spTxtLeft {
+    text-align: left !important;
+  }
+  .spTxtright {
+    text-align: right !important;
+  }
+}
+
+/* フォントサイズ */
+.txtSmall {
+  font-size: 0.8rem !important;
+  @include mediaPc {
+    font-size: 14px !important;
+  }
+}
+.txtLarge {
+  font-size: 1.2rem !important;
+  @include mediaPc {
+    font-size: 18px !important;
+  }
+}
+.txtExtraLarge {
+  font-size: 1.4rem !important;
+  @include mediaPc {
+    font-size: 20px !important;
+  }
+}
+
+/* フォントサイズ(PCのみ) */
+@include mediaPc {
+  .pcTxtXXS {
+    font-size: 10px !important;
+  }
+  .pcTxtXS {
+    font-size: 12px !important;
+  }
+  .pcTxtSmall {
+    font-size: 14px !important;
+  }
+  .pcTxtM {
+    font-size: 16px !important;
+  }
+  .pcTxtLarge {
+    font-size: 18px !important;
+  }
+  .pcTxtExtraLarge {
+    font-size: 20px !important;
+  }
+  .pcTxtL {
+    font-size: 22px !important;
+  }
+  .pcTxtXL {
+    font-size: 24px !important;
+  }
+  .pcTxtXXL {
+    font-size: 26px !important;
+  }
+  .pcTxt3L {
+    font-size: 28px !important;
+  }
+  .pcTxt4L {
+    font-size: 30px !important;
+  }
+  .pcTxt5L {
+    font-size: 32px !important;
+  }
+  .pcTxt6L {
+    font-size: 34px !important;
+  }
+  .pcTxt6L {
+    font-size: 36px !important;
+  }
+  .pcTxt6L {
+    font-size: 38px !important;
+  }
+  .pcTxt7L {
+    font-size: 40px !important;
+  }
+  .pcTxt8L {
+    //キャッチと同じ
+    font-size: 42px !important;
+  }
+}
+
+/* フォントサイズ(SPのみ) */
+@include mediaSp {
+  .spTxtXXS {
+    font-size: 0.6rem !important;
+  }
+  .spTxtXS {
+    font-size: 0.7rem !important;
+  }
+  .spTxtSmall {
+    font-size: 0.8rem !important;
+  }
+  .spTxtSM {
+    font-size: 0.9rem !important;
+  }
+  .spTxtM {
+    font-size: 1rem !important;
+  }
+  .spTxtLarge {
+    font-size: 1.2rem !important;
+  }
+  .spTxtL {
+    font-size: 1.3rem !important;
+  }
+  .spTxtExtraLarge {
+    font-size: 1.4rem !important;
+  }
+  .spTxtXXL {
+    font-size: 1.5rem !important;
+  }
+  .spTxt3L {
+    font-size: 1.6rem !important;
+  }
+  /* 以下キャッチより大きい */
+  .spTxt4L {
+    font-size: 1.7rem !important;
+  }
+  .spTxt5L {
+    font-size: 1.8rem !important;
+  }
+  .spTxt6L {
+    font-size: 1.9rem !important;
+  }
+  .spTxt6L {
+    font-size: 2rem !important;
+  }
+  .spTxt6L {
+    font-size: 2.1rem !important;
+  }
+  .spTxt7L {
+    font-size: 2.2rem !important;
+  }
+  .spTxt8L {
+    font-size: 2.3rem !important;
+  }
+}
+
+/* 強調文字 */
+.txtStrong {
+  font-weight: 700;
+  color: #ca0000;
+}
+.txtLight {
+  font-weight: 300;
+}
+.txtRegular {
+  font-weight: 400;
+}
+.txtMedium {
+  font-weight: 500;
+}
+.txtBold {
+  font-weight: 700;
+}
+.txtBlack {
+  font-weight: 900;
+}
+.markYellow {
+  background: linear-gradient(transparent 60%, #fff607 60%);
+}
+
+/* 文字の色 */
+.txtRed {
+  color: #ca0000;
+}
+.txtBlue {
+  color: #003bb4;
+}
+.txtGreen {
+  color: #53a62e;
+}
+.txtGold {
+  color: $main-color;
+}
+
+/* リンク */
+a {
+  color: $main-color;
+  text-decoration: underline;
+  transition-duration: 0.3s;
+  @include mediaPc {
+    &:hover {
+      color: $pale-color;
+    }
+  }
+}
+
+/* ポップアップリンク */
+.popupLinkTxt {
+  width: fit-content;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* リンクボタン */
+.commonBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  background-color: $main-color;
+  color: #ffffff;
+  width: 92%;
+  margin: 0 auto;
+  padding: pxVwSP(20px);
+  border-radius: 100px;
+  text-align: center;
+  text-decoration: none;
+  transition-duration: 0.3s;
+  span {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    line-height: 1.3;
+    padding-left: pxVwSP(20px);
+    padding-right: pxVwSP(10px);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  &::after {
+    content: "";
+    display: flex;
+    background: none;
+    background-size: pxVwSP(16px);
+    width: pxVwSP(30px);
+    height: pxVwSP(12px);
+    filter: brightness(0) invert(1);
+  }
+  &.isIcoLink {
+    &::after {
+      background: none;
+      background-size: pxVwSP(17px);
+      width: pxVwSP(30px);
+      height: pxVwSP(18px);
+      filter: brightness(0) invert(1);
+    }
+  }
+  &.isIcoDL {
+    &::after {
+      background: none;
+      background-size: 3vw;
+      width: 4vw;
+      height: 4vw;
+      filter: brightness(0) invert(1);
+    }
+  }
+  &.isPageFooter {
+    width: pxVwSP(650px);
+    margin: 0;
+    &::after {
+      content: "";
+      display: flex;
+      background: none;
+      background-size: pxVwSP(17px);
+      width: pxVwSP(30px);
+      height: pxVwSP(18px);
+      filter: brightness(0) invert(1);
+    }
+  }
+  &.isMore {
+    cursor: pointer;
+    width: 84%;
+    span {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      line-height: 1.3;
+      padding-left: pxVwSP(10px);
+      padding-right: pxVwSP(10px);
+      font-family: $sub-font;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    &::before {
+      content: "";
+      display: block;
+      position: absolute;
+      top: 50%;
+      right: pxVwSP(30px);
+      transform: translateY(-50%);
+      background: #ffffff;
+      width: pxVwSP(24px);
+      height: pxVwSP(4px);
+      transition-duration: 0.3s;
+    }
+    &::after {
+      content: "";
+      display: block;
+      position: absolute;
+      top: 33.7%;
+      right: pxVwSP(40px);
+      background: #ffffff;
+      width: pxVwSP(4px);
+      height: pxVwSP(24px);
+      transform: rotateZ(180deg);
+      transition-duration: 0.3s;
+      filter: none;
+    }
+    &.js_acOpen::after {
+      transition-duration: 0.3s;
+      top: 38%;
+      transform: rotateZ(90deg);
+    }
+  }
+  &.js_acContentsBtn,
+  &.accordionBtn {
+    cursor: pointer;
+    span:first-child {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      line-height: 1.3;
+      margin-left: pxVwSP(40px);
+      padding-left: 0px;
+      padding-right: 10px;
+    }
+    &::after {
+      content: "";
+      display: none;
+    }
+    .icoPlusMinus {
+      position: relative;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-right: pxVwSP(10px);
+      width: pxVwSP(24px);
+      height: pxVwSP(24px);
+      font-size: 0;
+      line-height: 0;
+      text-indent: -9999px;
+      &::before {
+        content: "";
+        position: absolute;
+        top: pxVwSP(10px);
+        left: 0;
+        background: #ffffff;
+        width: pxVwSP(24px);
+        height: pxVwSP(4px);
+        transition-duration: 0.3s;
+      }
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: pxVwSP(10px);
+        background: #ffffff;
+        width: pxVwSP(4px);
+        height: pxVwSP(24px);
+        transform: rotateZ(180deg);
+        transition-duration: 0.3s;
+        filter: none;
+      }
+      &.js_acMinus::after {
+        transition-duration: 0.3s;
+        top: 0px;
+        transform: rotateZ(90deg);
+      }
+    }
+  }
+  &.disable {
+    flex-wrap: wrap;
+    background: #b2b2b2;
+    span {
+      padding: 0;
+    }
+    &:after {
+      display: none;
+    }
+    .addTxt {
+      margin: pxVwSP(13px) auto 0;
+      padding: pxVwSP(5px) pxVwSP(21px);
+      width: auto;
+      border-radius: 100vh;
+      background: #fff;
+      font-size: pxVwSP(24px);
+      line-height: 1;
+      color: #b2b2b2;
+      @include mediaPc {
+        margin: 7px auto 0;
+        padding: 3px 21px;
+        font-size: 14px;
+        line-height: 1;
+      }
+    }
+  }
+  &.addTxtSub {
+    span {
+      display: block;
+      .addTxt {
+        display: inline-block;
+        margin: pxVwSP(13px) auto 0;
+        padding: pxVwSP(5px) pxVwSP(21px);
+        width: auto;
+        border-radius: 100vh;
+        background-color: #fff;
+        font-size: pxVwSP(24px);
+        line-height: 1;
+        color: #928157;
+        transition-duration: 0.3s;
+        font-weight: 500;
+        @include mediaPc {
+          margin: 7px auto 0;
+          padding: 3px 21px;
+          font-size: 14px;
+          line-height: 1;
+        }
+      }
+    }
+    &.disable {
+      .addTxt {
+        color: #b2b2b2;
+      }
+    }
+  }
+  @include mediaPc {
+    width: 56%;
+    padding: 12px;
+    span {
+      padding-left: 20px;
+      padding-right: 10px;
+      font-size: 18px;
+    }
+    &::after {
+      background-size: 16px;
+      width: 30px;
+      height: 12px;
+    }
+    &:hover {
+      background-color: $pale-color;
+      color: $main-color;
+      &::after {
+        filter: none;
+      }
+    }
+    &.isIcoLink {
+      &::after {
+        background-size: 17px;
+        width: 30px;
+        height: 18px;
+      }
+    }
+    &.isIcoDL {
+      &::after {
+        background-size: 16px;
+        width: 20px;
+        height: 20px;
+      }
+    }
+    &.isPageFooter {
+      width: 1050px;
+      margin: 0 auto;
+      &::after {
+        background-size: 17px;
+        width: 30px;
+        height: 18px;
+      }
+    }
+    &.isMore {
+      width: 320px;
+      span {
+        font-size: 20px;
+      }
+      &::before {
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 3px;
+      }
+      &::after {
+        top: 34%;
+        right: 26px;
+        width: 3px;
+        height: 15px;
+        transform: rotateZ(180deg);
+      }
+      &:hover {
+        background-color: $pale-color;
+        color: $main-color;
+        &::before {
+          background: $main-color;
+        }
+        &::after {
+          background: $main-color;
+        }
+      }
+    }
+    &.js_acContentsBtn,
+    &.accordionBtn {
+      cursor: pointer;
+      span:first-child {
+        font-size: 20px;
+        margin-left: 40px;
+      }
+      &::after {
+        content: "";
+        display: none;
+      }
+      .icoPlusMinus {
+        margin-right: 0px;
+        width: 15px;
+        height: 15px;
+        &::before {
+          top: 6px;
+          left: 0;
+          width: 15px;
+          height: 3px;
+          transition-duration: 0.3s;
+        }
+        &::after {
+          top: 0;
+          left: 6px;
+          width: 3px;
+          height: 15px;
+          transform: rotateZ(180deg);
+          transition-duration: 0.3s;
+          filter: none;
+        }
+        &.js_acMinus::after {
+          transition-duration: 0.3s;
+          top: 0px;
+          transform: rotateZ(90deg);
+        }
+      }
+      &:hover {
+        background-color: $pale-color;
+        color: $main-color;
+        .icoPlusMinus {
+          &::before {
+            background: $main-color;
+          }
+          &::after {
+            background: $main-color;
+          }
+        }
+      }
+    }
+    &.disable {
+      &:hover {
+        transform: none;
+        background: #b2b2b2;
+        color: #fff;
+      }
+    }
+    &.addTxtSub {
+      &:hover {
+        .addTxt {
+          background-color: #928157;
+          color: #fff;
+        }
+      }
+      &.disable {
+        &:hover {
+          .addTxt {
+            transform: none;
+            background-color: #fff;
+            color: #b2b2b2;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* PC2つ並び、SP縦並びリンクボタン */
+.btnflexCol {
+  .commonBtn {
+    margin-top: pxVwSP(20px);
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+  @include mediaPc {
+    display: flex;
+    justify-content: space-between;
+    margin-left: auto;
+    margin-right: auto;
+    width: 670px;
+    .commonBtn {
+      margin: 0;
+      width: 320px;
+    }
+  }
+}
+
+/* PCSP共に2つ横並びリンクボタン */
+.btn2columnsCol {
+  display: flex;
+  justify-content: space-between;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  .commonBtn {
+    margin: 0;
+    width: 47.8%;
+  }
+  @include mediaPc {
+    .commonBtn {
+      width: 430px;
+    }
+  }
+}
+
+/* PC3つ並び、SP2つ並びリンクボタン */
+.commonBtnList {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  li {
+    display: flex;
+    width: 50%;
+    padding: pxVwSP(10px);
+    a {
+      width: 100%;
+    }
+  }
+  @include mediaPc {
+    li {
+      width: 300px;
+      padding: 10px;
+    }
+  }
+}
+
+/*youtube*/
+.yt {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  iframe {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+}
+
+/* インデント */
+.indentCol1 {
+  margin-left: 0.5em;
+}
+.indentCol2 {
+  margin-left: 1em;
+}
+.indentCol3 {
+  margin-left: 1.5em;
+}
+.indentCol4 {
+  margin-left: 2em;
+}
+
+/* 注釈 */
+//単体
+.commonNotice {
+  margin-left: 1em;
+  text-indent: -1em;
+}
+.commonNotice3 {
+  margin-left: 1.5em;
+  text-indent: -1.5em;
+}
+.commonNotice4 {
+  margin-left: 2em;
+  text-indent: -2em;
+}
+//リスト
+.commonNoticeList {
+  li {
+    margin-left: 1em;
+    text-indent: -1em;
+    margin-bottom: pxVwSP(10px);
+    &:last-child {
+      margin-bottom: 0px;
+    }
+  }
+  &.isHalf {
+    li {
+      margin-left: 0.5em;
+      text-indent: -0.5em;
+    }
+  }
+  .commonNotice4 {
+    margin-left: 2em;
+    text-indent: -2em;
+  }
+  @include mediaPc {
+    li {
+      margin-bottom: 5px;
+    }
+  }
+}
+
+/* 注釈の枠 */
+.commonNoticeBox {
+  width: 100%;
+  border: #000000 pxVwSP(2px) solid;
+  padding: pxVwSP(30px);
+  font-size: 0.9rem;
+  @include mediaPc {
+    font-size: 14px;
+    border-width: 1px;
+    padding: 30px 20px;
+  }
+  &.noticeRed {
+    font-size: 1rem;
+    border: 3px solid #ca0000;
+    color: #ca0000;
+    @include mediaPc {
+      font-size: 16px;
+    }
+  }
+}
+
+//汎用枠
+.commonFrameCol {
+  border: 3px solid #ca0000;
+  padding: 4vw;
+  @include mediaPc {
+    padding: 20px;
+  }
+  &.isBlue {
+    border-color: #003bb4;
+  }
+  &.isBlack {
+    border-color: #000000;
+  }
+  &.isGreen {
+    border-color: #53a62e;
+  }
+}
+
+/* お知らせ枠 */
+.impNoticeBox {
+  border: 3px solid #ca0000;
+  dt {
+    font-size: 100%;
+    font-weight: 700;
+    background: #ca0000;
+    color: #fff;
+    padding: 3vw 4vw;
+    text-align: center;
+    &.isTxtSizeUp {
+      font-size: 1.2rem;
+    }
+    @include mediaPc {
+      font-size: 22px;
+      padding: 12px 20px 17px;
+      &.isTxtSizeUp {
+        font-size: 22px;
+      }
+    }
+    .isTxtS {
+      display: block;
+      font-size: 90%;
+      margin-top: 0.2em;
+      @include mediaPc {
+        font-size: 70%;
+      }
+    }
+  }
+  dd {
+    padding: 4vw;
+    @include mediaPc {
+      padding: 20px;
+    }
+    .isTxtL {
+      font-size: 140%;
+      @include mediaPc {
+        font-size: 130%;
+      }
+    }
+    .isTxtBold {
+      font-weight: 700;
+    }
+  }
+  &.isBlue {
+    border: 3px solid #003bb4;
+    dt {
+      background: #003bb4;
+    }
+  }
+  &.isBlack {
+    border: 3px solid #000000;
+    dt {
+      background: #000000;
+    }
+  }
+  &.isGreen {
+    border: 3px solid #53a62e;
+    dt {
+      background: #53a62e;
+    }
+  }
+}
+
+/* 見出しありテーブル */
+.tableCol {
+  width: 100%;
+  .tableLargeTit {
+    display: block;
+    width: 100%;
+    background: $main-color;
+    color: #ffffff;
+    padding: pxVwSP(20px);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  @include mediaPc {
+    .tableLargeTit {
+      padding: 20px;
+      font-size: 26px;
+    }
+  }
+}
+
+/* テーブル */
+.commonTable {
+  width: 100%;
+  .tableMediumTit {
+    background: #afa384;
+    color: #ffffff;
+    padding: pxVwSP(15px);
+    font-weight: 700;
+    line-height: 1.3;
+    border: pxVwSP(10px) solid #f4f2ee;
+    text-align: center;
+  }
+  .tableSmallTit {
+    background: #ffffff;
+    font-weight: 700;
+    border: pxVwSP(10px) solid #f4f2ee;
+    padding: pxVwSP(15px);
+    font-size: 0.9rem;
+  }
+  .tableTxt {
+    background: #ffffff;
+    padding: pxVwSP(15px);
+    border: pxVwSP(10px) solid #f4f2ee;
+    font-size: 0.9rem;
+  }
+  @include mediaPc {
+    .tableMediumTit {
+      padding: 20px;
+      border-width: 5px;
+      font-size: 20px;
+    }
+    .tableSmallTit {
+      border-width: 5px;
+      padding: 20px;
+      font-size: 18px;
+    }
+    .tableTxt {
+      padding: 20px;
+      border-width: 5px;
+      font-size: 16px;
+    }
+  }
+
+  &.spVertical {
+    //sp時に縦積み
+    @include mediaSp {
+      display: block;
+      tbody {
+        display: block;
+        width: 100%;
+      }
+      tr {
+        display: block;
+        width: 100%;
+        margin-bottom: pxVwSP(10px);
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+      th {
+        display: block;
+        width: 100%;
+        border-bottom: none;
+      }
+      td {
+        display: block;
+        width: 100%;
+      }
+    }
+  }
+
+  .flexTable {
+    //テーブル内でflex
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  //セルの幅
+  .cellWFull {
+    width: 100%;
+  }
+  .cellW20 {
+    width: 20%;
+  }
+  .cellW30 {
+    width: 30%;
+  }
+  .cellW40 {
+    width: 40%;
+  }
+  .cellW50 {
+    width: 50%;
+  }
+  .cellW60 {
+    width: 60%;
+  }
+  .cellW70 {
+    width: 70%;
+  }
+  .cellW80 {
+    width: 80%;
+  }
+  .cellW90 {
+    width: 90%;
+  }
+}
+
+/* 背景薄ゴールド枠 */
+.detailCol {
+  width: 100%;
+  background: #f9f9f6;
+  padding: pxVwSP(40px);
+  .commonTable {
+    .tableMediumTit {
+      background: #a89b7a;
+    }
+    .tableMediumTit,
+    .tableSmallTit,
+    .tableTxt {
+      border-color: $pale-color;
+    }
+  }
+  img {
+    width: 100%;
+  }
+  @include mediaPc {
+    padding: 50px;
+  }
+  &.isPdS {
+    padding: pxVwSP(20px) pxVwSP(23px) pxVwSP(22px);
+    @include mediaPc {
+      padding: 20px 23px 22px;
+    }
+  }
+}
+
+/* ポイント枠 */
+.pointWrap {
+  display: flex;
+  flex-direction: column;
+  border: $main-color pxVwSP(2px) solid;
+  padding: pxVwSP(10px);
+  .pointCol {
+    order: 2;
+    padding: pxVwSP(10px) pxVwSP(10px);
+    .pointTit {
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: $main-color;
+    }
+  }
+  .pointImg {
+    order: 1;
+    img {
+      width: 100%;
+    }
+  }
+  @include mediaPc {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border: $main-color 1px solid;
+    padding: 10px;
+    .pointCol {
+      order: 1;
+      width: 550px;
+      padding: 0 20px;
+      .pointTit {
+        font-size: 26px;
+      }
+      .pointTxt {
+        margin-top: 10px;
+      }
+    }
+    .pointImg {
+      order: 2;
+      width: 333px;
+    }
+  }
+}
+
+/* お知らせ */
+.typographicalWrap {
+  display: flex;
+  flex-direction: column;
+  padding: pxVwSP(10px);
+  .typographicalCol {
+    order: 2;
+    padding: pxVwSP(10px) pxVwSP(10px);
+    .typographicalTit {
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: $main-color;
+    }
+  }
+  .typographicalImg {
+    order: 1;
+    img {
+      width: 100%;
+    }
+  }
+  .typographicalBoxLeft {
+    order: 1;
+    img {
+      width: 100%;
+    }
+  }
+  .typographicalBoxRight {
+    order: 2;
+    @include mediaSp {
+      margin-top: pxVwSP(20px);
+    }
+    img {
+      width: 100%;
+    }
+  }
+  .arrowDownCol {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
+    font-size: 0;
+    img {
+      width: pxVwSP(20px);
+    }
+  }
+  @include mediaPc {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 10px;
+    .typographicalCol {
+      order: 1;
+      width: 550px;
+      padding: 0 20px;
+      .typographicalTit {
+        font-size: 26px;
+      }
+      .typographicalTxt {
+        margin-top: 10px;
+      }
+    }
+    .typographicalImg {
+      order: 2;
+      width: 333px;
+    }
+    .typographicalBoxLeft {
+      order: 1;
+      width: 333px;
+      &.isWidthXXS {
+        width: 150px;
+      }
+      &.isWidthXS {
+        width: 200px;
+      }
+      &.isWidthS {
+        width: 250px;
+      }
+      &.isWidthL {
+        width: 450px;
+      }
+      &.isWidthXL {
+        width: 500px;
+      }
+      &.isWidthXXL {
+        width: 550px;
+      }
+    }
+    .typographicalBoxRight {
+      order: 2;
+      width: 333px;
+      &.isWidthXXS {
+        width: 150px;
+      }
+      &.isWidthXS {
+        width: 200px;
+      }
+      &.isWidthS {
+        width: 250px;
+      }
+      &.isWidthL {
+        width: 450px;
+      }
+      &.isWidthXL {
+        width: 500px;
+      }
+      &.isWidthXXL {
+        width: 550px;
+      }
+    }
+    .arrowDownCol {
+      img {
+        width: 20px;
+      }
+    }
+  }
+}
+
+/* 終了表記 */
+.endText {
+  font-size: 30px;
+  color: #ca0000;
+  text-align: center;
+  padding: 16px;
+  border: solid 4px #ca0000;
+  p {
+    font-weight: 800;
+  }
+  @include mediaSp {
+    font-size: 1.2rem;
+    padding: pxVwSP(15px);
+    border: solid pxVwSP(7.5px) #ca0000;
+  }
+}
+
+/* PC Chromeで画像がぼやける場合imgタグに付与 */
+@include mediaPc {
+  .pcRendering {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
+/* fancybox
+==========================================================================*/
+.fancybox-bg {
+  background: rgba($color: $main-color, $alpha: 0.5);
+}
+
+.fancybox-button {
+  background: $main-color;
+  color: #fff;
+  @include mediaSp {
+    svg {
+      display: none;
+    }
+    background: $main-color none center center no-repeat;
+    background-size: contain;
+    width: pxVwSP(100px);
+    height: pxVwSP(100px);
+    &.fancybox-button--zoom {
+      svg {
+        display: block;
+        width: 13.33333vw;
+        height: 13.33333vw;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: #928157;
+      }
+    }
+  }
+  @include mediaPc {
+    transition-duration: 0.3s;
+    &:hover {
+      background: $pale-color;
+      color: $main-color;
+    }
+  }
+}
+
+.fancybox-navigation {
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  position: relative;
+  .fancybox-button--arrow_left {
+    svg {
+      display: none;
+    }
+    background: none;
+    width: 54px;
+    height: 54px;
+    left: -90px;
+    top: calc(50% - 54px);
+    outline: none;
+    padding: 2px;
+    div {
+      background: $main-color none;
+      border-radius: 100px;
+      width: 50px;
+      height: 50px;
+      outline: none;
+      padding: 10px 6px 10px 16px;
+      transform: rotateZ(180deg);
+    }
+  }
+
+  .fancybox-button--arrow_right {
+    svg {
+      display: none;
+    }
+    background: none;
+    width: 54px;
+    height: 54px;
+    right: -90px;
+    top: calc(50% - 54px);
+    outline: none;
+    padding: 2px;
+    div {
+      background: $main-color none;
+      border-radius: 100px;
+      width: 50px;
+      height: 50px;
+      outline: none;
+      padding: 10px 6px 10px 16px;
+    }
+  }
+  @include mediaSp {
+    .fancybox-button--arrow_left,
+    .fancybox-button--arrow_right {
+      width: pxVwSP(50px);
+      height: pxVwSP(50px);
+      padding: 0;
+      top: 48.5%;
+      div {
+        background-size: pxVwSP(19px);
+        width: pxVwSP(50px);
+        height: pxVwSP(50px);
+        padding: 0;
+      }
+    }
+    .fancybox-button--arrow_left {
+      left: pxVwSP(5px);
+    }
+    .fancybox-button--arrow_right {
+      right: pxVwSP(5px);
+    }
+  }
+  @include mediaPc {
+    width: 80%;
+    max-width: 1000px;
+    .fancybox-button--arrow_left,
+    .fancybox-button--arrow_right {
+      &:hover {
+        div {
+          transition-duration: 0.3s;
+          background: $pale-color none no-repeat center center;
+        }
+      }
+    }
+  }
+}
+.fancybox-slide--iframe {
+  .fancybox-content {
+    width: 92% !important;
+    @include mediaPc {
+      max-width: 1000px;
+    }
+  }
+  .fancybox-slide {
+    padding: 0;
+  }
+}
+
+.fancybox-slide--image {
+  padding: 44px !important;
+}
+
+//汎用モーダル
+.commonBtn {
+  &.js_commonModalOpen {
+    cursor: pointer;
+  }
+}
+.fancybox-content {
+  &.commonModalCol {
+    position: static;
+    width: 980px;
+    @include mediaSp {
+      width: 92%;
+      padding: pxVwSP(35px);
+    }
+    .fancybox-button {
+      background: $main-color;
+      color: #fff;
+      @include mediaSp {
+        svg {
+          display: none;
+        }
+        background: $main-color none;
+        background-size: contain;
+        width: pxVwSP(100px);
+        height: pxVwSP(100px);
+        &.fancybox-button--zoom {
+          svg {
+            display: block;
+            width: 13.33333vw;
+            height: 13.33333vw;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: #928157;
+          }
+        }
+      }
+      @include mediaPc {
+        transition-duration: 0.3s;
+        &:hover {
+          background: $pale-color;
+          color: $main-color;
+        }
+      }
+    }
+  }
+}
+.commonModalCol {
+  display: none;
+}
+
+/* ヘッダーフッター ※日本以外共通
+==========================================================================*/
+/* layout_各国ID.scss に移動しました。 */
+
+/* ページ
+==========================================================================*/
+.mainCol {
+  width: 100%;
+  @include mediaPc {
+    min-width: 1200px;
+  }
+}
+
+/* パンくず(PCのみ) */
+.breadcrumbList {
+  padding: 18px 0 0 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  font-size: 13.8px;
+  color: $main-color;
+  li {
+    background: none;
+    background-size: 10px;
+    margin-left: 6px;
+    padding-right: 18px;
+    min-height: 8px;
+    letter-spacing: 0.05em;
+    font-weight: 400;
+    line-height: 1.3;
+    &:first-child {
+      margin-left: 0px;
+    }
+    &:last-child {
+      padding-right: 0px;
+      background: none;
+    }
+    a {
+      font-weight: 400;
+      color: $main-color;
+      text-decoration: none;
+      &:hover {
+        color: $pale-color;
+      }
+    }
+  }
+  @include mediaSp {
+    display: none;
+  }
+}
+
+/* カテゴリタイトル */
+.categoryTitle {
+  display: block;
+  width: 100%;
+  background: none;
+  background-size: pxVwSP(38px);
+  padding-top: pxVwSP(80px);
+  padding-bottom: pxVwSP(50px);
+  text-align: center;
+  color: #000000;
+  font-family: $sub-font;
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: 1;
+  @include mediaPc {
+    background: none bottom center no-repeat;
+    background-size: auto;
+    font-size: 42px;
+    padding-top: 45px;
+    padding-bottom: 35px;
+  }
+}
+
+/* MV */
+.mvImgCol {
+  width: 100%;
+  text-align: center;
+  @include mediaSp {
+    overflow: hidden;
+    img {
+      width: pxVwSP(810px);
+      margin-left: pxVwSP(-30px);
+    }
+  }
+  @include mediaPc {
+    width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+/* ページタイトル */
+.pageTitCol {
+  display: block;
+  position: relative;
+  margin-top: pxVwSP(106px);
+  &::after {
+    content: "";
+    position: absolute;
+    background-color: #ffffff;
+    width: pxVwSP(710px);
+    height: pxVwSP(106px);
+    bottom: 0;
+    left: 50%;
+    margin: auto;
+    transform: translateX(-50%);
+    z-index: var(--z-pageTitCol);
+  }
+  .pageTitInner {
+    position: relative;
+    background-color: #000000;
+    width: pxVwSP(708px);
+    color: #ffffff;
+    z-index: var(--z-pageTitInner);
+    .pageTit {
+      padding: pxVwSP(30px);
+      font-size: 1.44rem;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+    .pageTitInfoCol {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: #000000;
+      padding: pxVwSP(26px) pxVwSP(30px) 0px pxVwSP(30px);
+      top: pxVwSP(-47px);
+      left: 0;
+      line-height: 1;
+      .pageTitDate {
+        display: flex;
+        align-items: center;
+        background: none left center no-repeat;
+        background-size: pxVwSP(17px);
+        padding-right: pxVwSP(28px);
+        padding-left: pxVwSP(26px);
+        margin-left: pxVwSP(6px);
+        font-family: $sub-font;
+        font-weight: 400;
+        color: #cbcbcb;
+        font-size: 0.8rem;
+      }
+      .pageTitCategory {
+        a {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #ffffff;
+          padding: pxVwSP(5px) pxVwSP(10px);
+          color: #000000;
+          font-family: $sub-font;
+          font-weight: 700;
+          font-size: 0.8rem;
+          text-decoration: none;
+          border: 1px solid #000000;
+        }
+      }
+    }
+  }
+  @include mediaPc {
+    width: 1090px;
+    margin: 50px auto 0;
+    &::after {
+      width: 1050px;
+      height: 78px;
+    }
+    .pageTitInner {
+      width: 1038px;
+      .pageTit {
+        font-size: 36px;
+        padding: 40px 50px 30px;
+      }
+      .pageTitInfoCol {
+        padding: 30px 70px 0px 54px;
+        top: -40px;
+        .pageTitDate {
+          background-size: 15px;
+          min-height: 18px;
+          padding-right: 12px;
+          padding-left: 20px;
+          margin-left: 0;
+          font-size: 13px;
+        }
+        .pageTitCategory {
+          a {
+            padding: 5px 10px;
+            font-size: 12px;
+            transition-duration: 0.3s;
+            &:hover {
+              background: #000000;
+              color: #ffffff;
+              border: 1px solid #ffffff;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+.mvImgCol + .pageTitCol {
+  margin-top: 0;
+}
+
+.contentsWrap {
+  background: #ffffff;
+  width: pxVwSP(710px);
+  margin: 0 auto;
+  padding: pxVwSP(30px);
+  border-radius: 30px;
+  @include mediaPc {
+    width: 1050px;
+    padding: 50px 75px;
+  }
+  &.isIndex {
+    background: none;
+    @include mediaPc {
+      padding: 50px 75px 0px;
+    }
+  }
+  &.isNoneTit {
+    margin-top: pxVwSP(60px);
+    @include mediaPc {
+      margin-top: 50px;
+    }
+  }
+  .movieCol {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    &.disable {
+      padding-top: 56.25%;
+      height: auto;
+      background: #b2b2b2;
+      @include mediaPc {
+        width: 990px;
+        height: 557px;
+      }
+      &::after {
+        content: "coming soon";
+        position: absolute;
+        top: 16vw;
+        right: 0;
+        left: 0;
+        bottom: 0;
+        margin: auto;
+        font-size: 8vw;
+        font-weight: bold;
+        color: #e3e3e3;
+        text-align: center;
+        @include mediaPc {
+          top: 240px;
+          font-size: 40px;
+        }
+      }
+    }
+    iframe {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  }
+}
+
+/* MVタイトル下のアオリ文章 */
+.topCatchphrase {
+  font-size: 1.6rem;
+  color: $main-color;
+  font-weight: 900;
+  line-height: 1.3;
+  @include mediaPc {
+    font-size: 42px;
+  }
+}
+
+/* アオリ文章用の金枠 */
+.goldBorderbox {
+  padding: pxVwSP(15px);
+  border: solid pxVwSP(5px) $main-color;
+  @include mediaPc {
+    padding: 15px;
+    border: solid 5px $main-color;
+  }
+}
+
+/* 中見出し用の枠 */
+.contentsLCol {
+  margin-top: pxVwSP(50px);
+  @include mediaPc {
+    margin-top: 90px;
+  }
+  .mediumTit,
+  .mediumTitTop {
+    display: block;
+    position: relative;
+    //margin-top: pxVwSP(50px);
+    font-size: 1.3rem;
+    color: $main-color;
+    font-weight: 900;
+    line-height: 1.3;
+    &::before {
+      content: "";
+      display: block;
+      position: absolute;
+      top: pxVwSP(-24px);
+      left: 0;
+      background: none left top no-repeat;
+      background-size: pxVwSP(64px);
+      width: pxVwSP(64px);
+      height: pxVwSP(73px);
+    }
+    @include mediaPc {
+      //margin-top: 90px;
+      font-size: 26px;
+      &::before {
+        top: -24px;
+        left: -26px;
+        background-size: 38px;
+        width: 38px;
+        height: 44px;
+      }
+    }
+  }
+  .mediumTitTop {
+    margin-top: pxVwSP(20px);
+    @include mediaPc {
+      margin-top: 10px;
+    }
+  }
+}
+
+/* 小見出し用の枠 */
+.contentsMCol {
+  padding-left: pxVwSP(18px);
+  @include mediaPc {
+    padding-left: 0;
+  }
+}
+
+/* 小見出し */
+.smallTit {
+  display: block;
+  position: relative;
+  font-weight: 900;
+  &::before {
+    content: "";
+    display: block;
+    position: absolute;
+    top: pxVwSP(18px);
+    left: pxVwSP(-18px);
+    background: #000000;
+    width: pxVwSP(10px);
+    height: pxVwSP(2px);
+  }
+  @include mediaPc {
+    font-size: 22px;
+    padding-left: 28px;
+    &::before {
+      top: 17px;
+      left: 0px;
+      width: 20px;
+      height: 1px;
+    }
+  }
+}
+
+/* 小見出し赤 */
+.smallTitRed {
+  display: block;
+  position: relative;
+  font-weight: 900;
+  color: #ca0000;
+  &::before {
+    content: "";
+    display: block;
+    position: absolute;
+    top: pxVwSP(18px);
+    left: pxVwSP(-18px);
+    background: #ca0000;
+    width: pxVwSP(10px);
+    height: pxVwSP(2px);
+  }
+  @include mediaPc {
+    font-size: 22px;
+    padding-left: 28px;
+    &::before {
+      top: 17px;
+      left: 0px;
+      width: 20px;
+      height: 1px;
+    }
+  }
+}
+
+/* 小小見出し */
+.extraSmallTit {
+  display: block;
+  font-weight: 900;
+  @include mediaPc {
+    font-size: 18px;
+  }
+}
+
+/* 小小見出し赤 */
+.extraSmallTitRed {
+  display: block;
+  font-weight: 900;
+  color: #ca0000;
+  @include mediaPc {
+    font-size: 18px;
+  }
+}
+
+/* 関連サイトと関連ページ */
+.pageFooterCol {
+  padding-left: pxVwSP(50px);
+  width: 100%;
+  .connectionCol {
+    margin-top: pxVwSP(60px);
+  }
+  .connectionTit {
+    display: block;
+    position: relative;
+    font-weight: 900;
+    padding-left: pxVwSP(18px);
+    &::before {
+      content: "";
+      display: block;
+      position: absolute;
+      top: pxVwSP(18px);
+      left: 0;
+      background: #000000;
+      width: pxVwSP(10px);
+      height: pxVwSP(2px);
+    }
+  }
+  .connectionSiteCol {
+    margin-top: pxVwSP(30px);
+  }
+  .connectionPageListCol {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: unset;
+    width: 100%;
+    margin-top: pxVwSP(30px);
+    @include mediaSp {
+      overflow-x: scroll;
+    }
+    li {
+      display: flex;
+      background: $main-color;
+      min-width: pxVwSP(290px);
+      width: pxVwSP(290px);
+      max-width: pxVwSP(290px);
+      margin-right: pxVwSP(20px);
+      a {
+        display: flex;
+        flex-direction: column;
+        color: #000000;
+        text-decoration: none;
+        background: #ffffff;
+        width: 100%;
+      }
+      .connectionPageTxt {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: pxVwSP(10px) pxVwSP(15px) pxVwSP(15px);
+        width: 100%;
+      }
+      //省略表示用
+      .js_connectionPageTxt {
+        display: flex;
+        -webkit-box-orient: vertical; //反映されないのでjsで付加
+        -webkit-line-clamp: 3;
+        display: -webkit-box;
+        overflow: hidden;
+      }
+    }
+  }
+  @include mediaPc {
+    padding-left: 0px;
+    width: 1050px;
+    margin: 0 auto;
+    .connectionCol {
+      margin-top: 70px;
+    }
+    .connectionTit {
+      font-size: 22px;
+      padding-left: 30px;
+      &::before {
+        top: 17px;
+        width: 20px;
+        height: 1px;
+      }
+    }
+    .connectionSiteCol {
+      margin-top: 30px;
+    }
+    .connectionPageListCol {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      margin-top: 10px;
+      li {
+        min-width: 247px;
+        max-width: 247px;
+        width: 247px;
+        margin-top: 20px;
+        margin-right: 20px;
+        transition-duration: 0.3s;
+        &:nth-child(4n) {
+          margin-right: 0px;
+        }
+        &:hover {
+          a {
+            opacity: 0.5;
+          }
+        }
+        .connectionPageTxt {
+          padding: 9px 15px 10px;
+          font-size: 14px;
+          width: 247px;
+        }
+      }
+    }
+  }
+}
+
+/* カテゴリトップへ戻るボタン */
+.pageFooterBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  background-color: #000000;
+  color: #ffffff;
+  width: pxVwSP(350px);
+  margin: pxVwSP(50px) auto 0;
+  padding: pxVwSP(20px);
+  border-radius: 100px;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition-duration: 0.3s;
+  span {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    line-height: 1.3;
+    padding-right: pxVwSP(10px);
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  &::before {
+    content: "";
+    display: flex;
+    background: none;
+    background-size: pxVwSP(16px);
+    width: pxVwSP(26px);
+    height: pxVwSP(12px);
+    filter: brightness(0) invert(1);
+    transform: rotateZ(180deg);
+  }
+  @include mediaPc {
+    width: 300px;
+    margin: 70px auto 0;
+    padding: 15px;
+    span {
+      padding-right: 10px;
+      font-size: 18px;
+    }
+    &::before {
+      background-size: 16px;
+      width: 26px;
+      height: 12px;
+    }
+    &:hover {
+      background-color: #ffffff;
+      color: #000000;
+      &::before {
+        filter: brightness(0) invert(0);
+      }
+    }
+  }
+}
+
+/* アプリリンク */
+.appDownload {
+  display: flex;
+  justify-content: space-between;
+  background: #fff;
+  padding: 0;
+  &.disable {
+    position: relative;
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #838383bf;
+    }
+    &::after {
+      content: "coming soon";
+      position: absolute;
+      top: 11vw;
+      right: 0;
+      left: 0;
+      bottom: 0;
+      margin: auto;
+      font-size: 8vw;
+      font-weight: bold;
+      color: #e3e3e3;
+      text-align: center;
+      @include mediaPc {
+        top: 60px;
+        font-size: 40px;
+      }
+    }
+  }
+  .appCol {
+    background: #fff;
+    width: 49%;
+    padding: pxVwSP(20px);
+    text-align: center;
+    background: #f4f2ee;
+    @include mediaPc {
+      padding: 20px;
+    }
+    a {
+      margin: auto;
+      display: block;
+      width: 100% !important;
+      height: 10.5vw !important;
+      vertical-align: bottom;
+      @include mediaPc {
+        width: 270px !important;
+        height: 80px !important;
+      }
+      img {
+        width: 100%;
+      }
+    }
+    p {
+      color: #938157;
+      font-weight: 900;
+      margin-top: pxVwSP(20px);
+      @include mediaPc {
+        margin-top: 10px;
+      }
+    }
+  }
+}
+
+/* 賞品等の画像 */
+.eventPackCol {
+  .pkjBox {
+    margin-left: auto;
+    margin-right: auto;
+    width: pxVwSP(149px);
+    //display: block;
+  }
+  .includecardBox {
+    padding: pxVwSP(40px) 0;
+    background: #f9f9f6;
+    .includecardTit {
+      font-size: pxVwSP(26px);
+      font-weight: bold;
+    }
+    .cardPopupWrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      li {
+        position: relative;
+        z-index: 1;
+        margin-right: pxVwSP(10px);
+        margin-left: pxVwSP(10px);
+        margin-top: pxVwSP(27px);
+        width: pxVwSP(169px);
+        &:nth-child(3n) {
+          //margin-right: 0;
+        }
+        &:nth-child(-n + 3) {
+          margin-top: pxVwSP(20px);
+        }
+        a {
+          &:after {
+            content: "";
+            position: absolute;
+            z-index: 5;
+            right: pxVwSP(-5px);
+            bottom: pxVwSP(-5px);
+            width: pxVwSP(65px);
+            height: pxVwSP(65px);
+            background: none center;
+            background-size: contain;
+          }
+        }
+      }
+    }
+    &.isPair {
+      padding: pxVwSP(30px) 0;
+      .pairCardPopupWrap {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        li {
+          position: relative;
+          z-index: 1;
+          margin-right: pxVwSP(10px);
+          margin-left: pxVwSP(10px);
+          margin-top: pxVwSP(0px);
+          width: pxVwSP(169px);
+          &:nth-child(-n + 3) {
+            margin-top: pxVwSP(0px);
+          }
+          a {
+            &:after {
+              content: "";
+              position: absolute;
+              z-index: 5;
+              right: pxVwSP(-5px);
+              bottom: pxVwSP(-5px);
+              width: pxVwSP(65px);
+              height: pxVwSP(65px);
+              background: none center;
+              background-size: contain;
+            }
+          }
+        }
+        li.cardPlusIcon {
+          font-weight: 900;
+          @include mediaSp {
+            width: 100%;
+            text-align: center;
+            font-size: pxVwSP(40px);
+            margin: pxVwSP(3px) 0;
+          }
+        }
+      }
+    }
+    &.pkjBoxNone {
+      .cardPopupWrap {
+        li {
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+    &.singleCards {
+      width: 100%;
+      .cardPopupWrap {
+        li {
+          width: 35vw;
+          margin-left: 0;
+          margin-right: 0;
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+      .itemLargeSingle {
+        li {
+          width: 55vw;
+        }
+      }
+    }
+    &.singleSheet {
+      width: 100%;
+      .cardPopupWrap {
+        li {
+          width: 50vw;
+          margin-left: 0;
+          margin-right: 0;
+          &:nth-child(-n + 3) {
+            margin-top: 0;
+          }
+        }
+      }
+    }
+    &.twoItems {
+      .cardPopupWrap {
+        li {
+          width: pxVwSP(250px);
+        }
+      }
+    }
+  }
+
+  @include mediaPc {
+    display: flex;
+    align-items: center;
+    .pkjBox {
+      width: 283px;
+      padding-left: 20px;
+    }
+    .includecardBox {
+      padding: 50px 0;
+      width: 621px;
+      .includecardTit {
+        font-size: 20px;
+      }
+      .cardPopupWrap {
+        li {
+          margin-left: 15px;
+          margin-right: 15px;
+          margin-top: 20px;
+          width: 150px;
+          img {
+            width: 100%;
+          }
+          &:nth-child(-n + 3) {
+            margin-top: 20px;
+          }
+          a {
+            &:after {
+              right: -5px;
+              bottom: -5px;
+              width: 40px;
+              height: 40px;
+              background: none center;
+              background-size: contain;
+            }
+            &:hover {
+              opacity: 0.7;
+              transition-duration: 0.3s;
+              cursor: pointer;
+            }
+          }
+        }
+      }
+      &.isPair {
+        padding: 20px 0;
+        .pairCardPopupWrap {
+          width: 800px;
+          margin-left: auto;
+          margin-right: auto;
+          li {
+            margin-left: 5px;
+            margin-right: 5px;
+            margin-top: 0px;
+            width: 142px;
+            img {
+              width: 100%;
+            }
+            &:nth-child(-n + 3) {
+              margin-top: 0px;
+            }
+            a {
+              &:after {
+                right: -5px;
+                bottom: -5px;
+                width: 40px;
+                height: 40px;
+                background: none no-repeat center center;
+                background-size: contain;
+              }
+              &:hover {
+                opacity: 0.7;
+                transition-duration: 0.3s;
+                cursor: pointer;
+              }
+            }
+          }
+          li.cardPlusIcon {
+            width: auto;
+            display: flex;
+            align-items: center;
+            font-size: 30px;
+          }
+        }
+      }
+      &.pkjBoxNone {
+        width: 100%;
+        .cardPopupWrap {
+          width: 621px;
+          margin: 0 auto;
+        }
+      }
+      &.singleCards {
+        .cardPopupWrap {
+          li {
+            width: 300px;
+          }
+        }
+        .itemLargeSingle {
+          li {
+            width: 500px;
+          }
+        }
+      }
+      &.singleSheet {
+        .cardPopupWrap {
+          li {
+            width: 500px;
+          }
+        }
+      }
+      &.twoItems {
+        .cardPopupWrap {
+          li {
+            width: 280px;
+          }
+        }
+      }
+    }
+  }
+}
+
+.addTxt {
+  display: block;
+}
+
+/* タブ 
+================================================================= */
+.commonTab {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+  @include mediaSp {
+    //left: pxVwSP(20px);
+  }
+  @include mediaPc {
+    left: 10px;
+  }
+  li {
+    position: relative;
+    a {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: none;
+      cursor: pointer;
+      color: #ffffff;
+      text-align: center;
+      text-decoration: none;
+      @include mediaSp {
+        width: pxVwSP(325px);
+        height: pxVwSP(74px);
+        font-size: pxVwSP(28px);
+      }
+      @include mediaPc {
+        width: calc(160px * 1.3);
+        height: calc(36px * 1.3);
+        font-size: 14px;
+        &:hover {
+          color: $main-color;
+          &::before {
+            filter: none;
+          }
+          &::after {
+            filter: brightness(168%) grayscale(88%);
+          }
+        }
+      }
+      span {
+        position: relative;
+        z-index: 1;
+        font-size: 1em;
+        @include mediaSp {
+          left: pxVwSP(-10px);
+          top: pxVwSP(6px);
+          font-weight: 500;
+        }
+        @include mediaPc {
+          font-size: 1.2em;
+          font-weight: 600;
+          top: 2px;
+          left: -7px;
+        }
+      }
+      &::before {
+        content: "";
+        position: absolute;
+        background-size: contain;
+        background-position: bottom;
+        background-repeat: no-repeat;
+        filter: brightness(0) invert(1);
+      }
+      &::after {
+        content: "";
+        position: absolute;
+        //z-index: -1;
+        @include mediaSp {
+          width: pxVwSP(325px);
+          height: pxVwSP(74px);
+          background: none;
+          background-size: contain;
+        }
+        @include mediaPc {
+          width: calc(160px * 1.3);
+          height: calc(36px * 1.3);
+          background: none;
+          background-size: contain;
+        }
+      }
+    }
+    &.active {
+      a {
+        color: $main-color;
+        &::before {
+          filter: unset;
+        }
+        &::after {
+          filter: brightness(198%) grayscale(96%);
+        }
+      }
+    }
+  }
+}
+
+.commonTabContents {
+  background: #f9f9f6;
+  padding: pxVwSP(50px) pxVwSP(40px);
+  @include mediaPc {
+    padding: 50px;
+  }
+
+  .eventPackCol .includecardBox {
+    background: #ffffff;
+  }
+}
+
+/* 日にち表記（施工日など） */
+.dateText {
+  font-size: 30px;
+  background: #ca0000;
+  color: #fff;
+  text-align: center;
+  padding: 16px;
+  &.isBlue {
+    background: #003bb4;
+  }
+  p {
+    font-weight: 800;
+  }
+  @include mediaSp {
+    font-size: 1.2rem;
+    padding: pxVwSP(15px);
+  }
+  .isTxtS {
+    display: block;
+    font-size: 90%;
+    margin-top: 0.2em;
+    @include mediaPc {
+      font-size: 70%;
+    }
+  }
+}
+
+/* 日にち表記（施工日など） */
+.dateText.priceRevision {
+  font-size: 24px;
+  @include mediaSp {
+    font-size: 1.2rem;
+  }
+}

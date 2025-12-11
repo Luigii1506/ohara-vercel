@@ -1,103 +1,190 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// * GET: Obtener un evento por ID, incluyendo los sets asociados
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const { id } = params;
+const serializeEventMissingSet = (entry: any) => {
+  const images =
+    Array.isArray(entry.missingSet?.imagesJson) &&
+    entry.missingSet.imagesJson.length > 0
+      ? entry.missingSet.imagesJson
+      : [];
 
-    try {
-        const event = await prisma.event.findUnique({
-            where: { id: parseInt(id) },
-            include: {
-                sets: {
-                    include: {
-                        set: true, // Incluir información completa de cada set relacionado
-                    },
-                },
-            },
-        });
+  return {
+    id: entry.id,
+    eventId: entry.eventId,
+    missingSetId: entry.missingSetId,
+    title: entry.missingSet?.title ?? "",
+    translatedTitle: entry.missingSet?.translatedTitle,
+    versionSignature: entry.missingSet?.versionSignature,
+    isApproved: entry.missingSet?.isApproved ?? false,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    images,
+  };
+};
 
-        if (!event) {
-            return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
-        }
-
-        return NextResponse.json(event, { status: 200 });
-    } catch (error: any) {
-        console.error("Error en GET /api/events/[id]:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = Number(params.id);
+    if (Number.isNaN(id)) {
+      return NextResponse.json(
+        { error: "Invalid event id" },
+        { status: 400 }
+      );
     }
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      include: {
+        sets: {
+          include: {
+            set: true,
+          },
+        },
+        cards: {
+          include: {
+            card: true,
+          },
+        },
+        missingSets: {
+          where: { missingSet: { isApproved: false } },
+          orderBy: { createdAt: "desc" },
+          include: {
+            missingSet: true,
+          },
+        },
+      },
+    });
+
+    if (!event) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
+
+    const serializedEvent = {
+      ...event,
+      missingSets: event.missingSets.map(serializeEventMissingSet),
+    };
+
+    return NextResponse.json(serializedEvent, { status: 200 });
+  } catch (error) {
+    console.error("Error fetching event:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch event" },
+      { status: 500 }
+    );
+  }
 }
 
-// * PUT: Actualizar un evento por ID, incluyendo sets asociados
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-    const { id } = params;
-
-    try {
-        const body = await req.json();
-        const { name, eventDate, location, setIds } = body; // setIds: Array con IDs de sets a asociar o reemplazar
-
-        // Actualizamos la información básica del evento
-        const updatedEvent = await prisma.event.update({
-            where: { id: parseInt(id) },
-            data: {
-                ...(name !== undefined ? { title: name } : {}),
-                ...(eventDate !== undefined
-                    ? { startDate: new Date(eventDate) }
-                    : {}),
-                ...(location !== undefined ? { location } : {}),
-            },
-        });
-
-        // Actualizamos las relaciones con sets en la tabla pivote EventSet
-        if (setIds && Array.isArray(setIds)) {
-            // 1. Eliminar las relaciones existentes en EventSet
-            await prisma.eventSet.deleteMany({
-                where: { eventId: parseInt(id) },
-            });
-
-            // 2. Crear las nuevas relaciones
-            const setRelations = setIds.map((setId: number) => ({
-                eventId: updatedEvent.id,
-                setId: setId,
-            }));
-
-            if (setRelations.length > 0) {
-                await prisma.eventSet.createMany({
-                    data: setRelations,
-                });
-            }
-        }
-
-        return NextResponse.json(updatedEvent, { status: 200 });
-    } catch (error: any) {
-        console.error("Error en PUT /api/events/[id]:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = Number(params.id);
+    if (Number.isNaN(id)) {
+      return NextResponse.json(
+        { error: "Invalid event id" },
+        { status: 400 }
+      );
     }
-}
 
-// * DELETE: Eliminar un evento por ID, incluyendo sus relaciones con sets
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-    const { id } = params;
+    const body = await req.json();
+    const {
+      title,
+      description,
+      content,
+      locale,
+      region,
+      status,
+      eventType,
+      category,
+      startDate,
+      endDate,
+      rawDateText,
+      location,
+      sourceUrl,
+      imageUrl,
+      eventThumbnail,
+      isApproved,
+    } = body;
 
-    try {
-        // Eliminar relaciones existentes en EventSet
-        await prisma.eventSet.deleteMany({
-            where: { eventId: parseInt(id) },
-        });
+    const data: any = {};
 
-        // Eliminar el evento
-        await prisma.event.delete({
-            where: { id: parseInt(id) },
-        });
+    if (typeof title === "string") data.title = title.trim();
+    if (typeof description === "string" || description === null)
+      data.description = description;
+    if (typeof content === "string" || content === null)
+      data.content = content;
+    if (typeof locale === "string") data.locale = locale.trim();
+    if (typeof region === "string") data.region = region;
+    if (typeof status === "string") data.status = status;
+    if (typeof eventType === "string") data.eventType = eventType;
+    if (typeof category === "string" || category === null)
+      data.category = category;
+    if (typeof rawDateText === "string" || rawDateText === null)
+      data.rawDateText = rawDateText;
+    if (typeof location === "string" || location === null)
+      data.location = location;
+    if (typeof sourceUrl === "string" || sourceUrl === null)
+      data.sourceUrl = sourceUrl;
+    if (typeof imageUrl === "string" || imageUrl === null)
+      data.imageUrl = imageUrl;
+    if (typeof eventThumbnail === "string" || eventThumbnail === null)
+      data.eventThumbnail = eventThumbnail;
+    if (typeof isApproved === "boolean") data.isApproved = isApproved;
 
-        return NextResponse.json(
-            { message: "Evento y sus relaciones eliminados exitosamente" },
-            { status: 200 }
-        );
-    } catch (error: any) {
-        console.error("Error en DELETE /api/events/[id]:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (startDate) {
+      const parsed = new Date(startDate);
+      if (!isNaN(parsed.getTime())) data.startDate = parsed;
+    } else if (startDate === null) {
+      data.startDate = null;
     }
+
+    if (endDate) {
+      const parsed = new Date(endDate);
+      if (!isNaN(parsed.getTime())) data.endDate = parsed;
+    } else if (endDate === null) {
+      data.endDate = null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        { error: "No valid fields provided for update" },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.event.update({
+      where: { id },
+      data,
+      include: {
+        sets: true,
+        cards: true,
+        missingSets: {
+          where: { missingSet: { isApproved: false } },
+          orderBy: { createdAt: "desc" },
+          include: {
+            missingSet: true,
+          },
+        },
+      },
+    });
+
+    const serializedEvent = {
+      ...updated,
+      missingSets: updated.missingSets.map(serializeEventMissingSet),
+    };
+
+    return NextResponse.json(serializedEvent, { status: 200 });
+  } catch (error) {
+    console.error("Error updating event:", error);
+    return NextResponse.json(
+      { error: "Failed to update event" },
+      { status: 500 }
+    );
+  }
 }

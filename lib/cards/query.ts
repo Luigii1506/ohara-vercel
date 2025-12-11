@@ -303,7 +303,7 @@ const normalizeAlternates = (
   });
 };
 
-const mapCard = (
+export const mapCard = (
   card: Card & { alternateCards?: AlternateWithRelations[] },
   includeAlternates: boolean,
   includeCounts: boolean

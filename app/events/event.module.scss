@@ -1,0 +1,456 @@
+@charset "UTF-8";
+// ==========================================================================
+// Foundation
+// ==========================================================================
+@import "foundation/_base";
+@import "foundation/_mixin";
+// ==========================================================================
+.commonBtn {
+  &.endBtn {
+    .js_acEndBtn {
+      &::after {
+        top: 34.5%;
+        @include mediaPc {
+          right: 26px;
+          top: 17px;
+          width: 2px;
+          height: 14px;
+        }
+      }
+    }
+  }
+}
+
+.eventContentShell {
+  position: relative;
+}
+
+/* イベント扉と一覧
+==========================================================================*/
+.categoryTitle {
+  padding-top: pxVwSP(82px);
+  @include mediaPc {
+    padding-top: 50px;
+  }
+}
+.mainCol.eventsIndex {
+  @include mediaPc {
+    min-width: auto;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+.eventsColTit {
+  font-weight: 900;
+  color: $main-color;
+  position: relative;
+  font-family: $sub-font;
+  @include mediaSp {
+    font-size: pxVwSP(34px);
+  }
+  @include mediaPc {
+    font-size: 26px;
+  }
+  &:before {
+    content: "";
+    position: absolute;
+    display: block;
+    background: none;
+    background-size: 8.53333vw;
+    @include mediaPc {
+      top: -16px;
+      left: -26px;
+      background-size: 38px;
+      width: 38px;
+      height: 44px;
+    }
+    @include mediaSp {
+      top: -3.2vw;
+      left: 0;
+      width: 8.53333vw;
+      height: 9.73333vw;
+    }
+  }
+}
+
+.eventsIndexBnr {
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: pxVwSP(54px);
+  max-width: pxVwSP(672px);
+  @include mediaPc {
+    margin-top: 42px;
+    width: 840px;
+    &:hover {
+      display: block;
+      transform: translateY(-12px);
+      transition-duration: 0.3s;
+    }
+  }
+  img {
+    width: 100%;
+  }
+}
+
+.eventsCategoryCol {
+  width: 100%;
+  margin: pxVwSP(48px) auto 0;
+  .eventsCategoryBnr {
+    position: relative;
+    width: 100%;
+    margin-bottom: pxVwSP(25px);
+    &:last-child {
+      margin-bottom: pxVwSP(60px);
+    }
+    .eventsCatTxt {
+      display: none;
+    }
+    .eventsCat {
+      display: block;
+      background: none
+        center center;
+      width: 100%;
+      height: pxVwSP(280px);
+      &.isBeginner {
+        background: none;
+        @include mediaSp {
+          .btnMoreCol {
+            .btnMore {
+              filter: drop-shadow(
+                0px 0px 5px rgba($color: #134eae, $alpha: 0.9)
+              );
+            }
+          }
+        }
+      }
+      &.isRookies {
+        background: none;
+        @include mediaSp {
+          .btnMoreCol {
+            .btnMore {
+              filter: drop-shadow(
+                0px 0px 5px rgba($color: #a67e01, $alpha: 0.9)
+              );
+            }
+          }
+        }
+      }
+      &.isIntermediate {
+        background: none;
+        @include mediaSp {
+          .btnMoreCol {
+            .btnMore {
+              filter: drop-shadow(
+                0px 0px 5px rgba($color: #8e2205, $alpha: 0.9)
+              );
+            }
+          }
+        }
+      }
+      &.isCompetitive {
+        background: none;
+        @include mediaSp {
+          .btnMoreCol {
+            .btnMore {
+              filter: drop-shadow(
+                0px 0px 5px rgba($color: #40618f, $alpha: 0.9)
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+  .btnMoreCol {
+    position: absolute;
+    @include mediaSp {
+      bottom: pxVwSP(48px);
+      left: pxVwSP(40px);
+    }
+    .btnMore {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background-color: #ffffff;
+      color: #000000;
+      width: pxVwSP(320px);
+      margin: 0 auto;
+      padding: pxVwSP(12.5px) pxVwSP(14px) pxVwSP(12.5px);
+      border-radius: 100px;
+      text-align: center;
+      text-decoration: none;
+      font-family: $sub-font;
+      font-size: pxVwSP(24px);
+      font-weight: 700;
+      line-height: 1;
+      &::after {
+        content: "";
+        display: block;
+        position: absolute;
+        background: none;
+        width: pxVwSP(14px);
+        height: pxVwSP(11px);
+        right: pxVwSP(21px);
+        top: 0;
+        bottom: 0;
+        margin: auto;
+      }
+    }
+  }
+  @include mediaPc {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    max-width: 1050px;
+    margin: 42px auto 60px;
+    .eventsCategoryBnr {
+      width: 23.8%;
+      margin-bottom: 0;
+      overflow: hidden;
+      &:last-child {
+        margin-bottom: 0;
+      }
+      &:hover {
+        .eventsCat {
+          &::after {
+            filter: brightness(150%);
+            transform: scale(1.05, 1.05);
+            transition: 0.5s all;
+          }
+        }
+        .btnMore {
+          background-color: #000000;
+          color: #ffffff;
+          transition: 0.5s all;
+          &::after {
+            filter: brightness(0) invert(1);
+            transition: 0.5s all;
+          }
+        }
+      }
+      .eventsCat {
+        position: relative;
+        display: block;
+        background: none;
+        width: 100%;
+        height: 500px;
+        &::after {
+          content: "";
+          display: block;
+          position: absolute;
+          top: 0;
+          left: 0;
+          background: none;
+          width: 100%;
+          height: 500px;
+          z-index: -1;
+          transition: 0.5s all;
+        }
+        &.isBeginner {
+          background: none;
+          &::after {
+            background: none;
+          }
+        }
+        &.isRookies {
+          background: none;
+          &::after {
+            background: none;
+          }
+        }
+        &.isIntermediate {
+          background: none;
+          &::after {
+            background: none;
+          }
+        }
+        &.isCompetitive {
+          background: none;
+          &::after {
+            background: none;
+          }
+        }
+      }
+    }
+    .btnMoreCol {
+      bottom: 19px;
+      right: 0;
+      left: 0;
+      margin: auto;
+      .btnMore {
+        width: 80%;
+        padding: 9.5px 7px 9.5px;
+        font-size: 16px;
+        transition: 0.5s all;
+        &::after {
+          right: 13px;
+          background-size: 11px;
+          width: 12px;
+          height: 9px;
+          transition: 0.5s all;
+        }
+      }
+    }
+  }
+}
+
+.js_eventsAllBtn {
+  display: none;
+}
+
+.eventsAllBtn {
+  position: relative;
+  width: pxVwSP(672px);
+  margin-bottom: pxVwSP(30px);
+  padding: pxVwSP(23px) pxVwSP(20px) pxVwSP(24px);
+  span {
+    font-family: $sub-font;
+    font-size: pxVwSP(30px);
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+  }
+  &::after {
+    content: "";
+    display: block;
+    position: absolute;
+    background-size: pxVwSP(17px);
+    height: pxVwSP(13px);
+    top: 0;
+    bottom: 0;
+    right: pxVwSP(16px);
+    margin: auto;
+  }
+  @include mediaPc {
+    margin-bottom: 20px;
+    width: 900px;
+    padding: 12px 10px 13px;
+    span {
+      font-size: 20px;
+    }
+    &::after {
+      right: 6px;
+      background-size: 16px;
+      width: 30px;
+      height: 12px;
+    }
+  }
+  &.isList {
+    margin-top: pxVwSP(0px);
+    margin-bottom: 0;
+    @include mediaPc {
+      margin-top: 30px;
+    }
+  }
+}
+
+.eventsEndBtn {
+  position: relative;
+  width: pxVwSP(350px);
+  margin-bottom: pxVwSP(100px);
+  padding: pxVwSP(23px) pxVwSP(20px) pxVwSP(24px);
+  span {
+    font-family: $sub-font;
+    font-size: pxVwSP(30px);
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+  }
+  &::after {
+    content: "";
+    display: block;
+    position: absolute;
+    background-size: pxVwSP(17px);
+    height: pxVwSP(13px);
+    top: 0;
+    bottom: 0;
+    right: pxVwSP(16px);
+    margin: auto;
+  }
+  @include mediaPc {
+    width: 320px;
+    padding: 12px 10px 13px;
+    span {
+      font-size: 20px;
+    }
+    &::after {
+      right: 6px;
+      background-size: 16px;
+      width: 30px;
+      height: 12px;
+    }
+  }
+  &.isMbNone {
+    margin-bottom: 0;
+  }
+}
+
+.pageFooterBackBtn.isList {
+  position: relative;
+  span {
+    padding-right: 0;
+    font-family: $sub-font;
+  }
+  &::before {
+    content: "";
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: pxVwSP(18px);
+    margin: auto;
+  }
+  @include mediaPc {
+    span {
+      padding-right: 0;
+    }
+    &::before {
+      left: 13px;
+    }
+  }
+}
+/*--イベント扉と一覧ここまで--*/
+
+/* roadmap
+==========================================================================*/
+.roadmap {
+  overflow-x: scroll;
+  .roadmapInner {
+    display: flex;
+    width: 200%;
+    @include mediaSp {
+      width: 400%;
+    }
+    .image {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+    }
+  }
+  img {
+    width: 100%;
+    height: auto;
+  }
+  .contents_box {
+    position: relative;
+    padding-bottom: 10px;
+    @include mediaSp {
+      padding-bottom: pxVwSP(7px);
+    }
+  }
+  &::-webkit-scrollbar {
+    height: 10px;
+    @include mediaSp {
+      height: 5px;
+    }
+  }
+  &::-webkit-scrollbar-track {
+    background: $pale-color;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $main-color;
+  }
+}

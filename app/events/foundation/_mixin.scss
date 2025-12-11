@@ -1,0 +1,141 @@
+@charset "UTF-8";
+//========================
+//MIXIN
+//========================
+
+//========================
+//メディアクエリ
+//========================
+
+@mixin mediaPc {
+  @media (min-width: 1000.1px) {
+    @content;
+  }
+}
+
+@mixin mediaSp {
+  @media (max-width: 1000px) {
+    @content;
+  }
+}
+
+@mixin mediaPopupPc {
+  @media (min-width: 905.1px) {
+    @content;
+  }
+}
+
+@mixin mediaPopupSp {
+  @media (max-width: 905px) {
+    @content;
+  }
+}
+
+@mixin mediaHdMPc {
+  @media screen and (min-width: 1200.1px) and (max-width: 1460px) {
+    @content;
+  }
+}
+
+@mixin mediaHdPc {
+  @media (min-width: 1200.1px) {
+    @content;
+  }
+}
+
+@mixin mediaHdMSp {
+  @media screen and (min-width: 1000.1px) and (max-width: 1200px) {
+    @content;
+  }
+}
+
+@mixin mediaHdSp {
+  @media (max-width: 1200px) {
+    @content;
+  }
+}
+
+@mixin mediaTab {
+  @media screen and (min-width: 1000.1px) and (max-width: 1500px) {
+    @content;
+  }
+}
+
+//========================
+//PCスマホの切り替え
+//========================
+@include mediaPc {
+  .pc {
+    display: block !important;
+  }
+
+  .sp {
+    display: none !important;
+  }
+
+  .pcInline {
+    display: inline !important;
+  }
+
+  .spInline {
+    display: none !important;
+  }
+}
+
+@include mediaSp {
+  .pc {
+    display: none !important;
+  }
+
+  .sp {
+    display: block !important;
+  }
+
+  .pcInline {
+    display: none !important;
+  }
+
+  .spInline {
+    display: inline !important;
+  }
+}
+
+//========================
+// px → vw
+// 指定px ÷ Viewport × 100
+// 例：pxVw(12px)→1.5vw
+//========================
+$vpSp: 750px;
+@function pxVwSP($pxSize) {
+  @return ($pxSize / $vpSp * 100) + vw;
+}
+
+//========================
+//z-index
+//========================
+@mixin z-map($z-map) {
+  $before-index: -1;
+
+  @each $name, $value in $z-map {
+    $result-z: null;
+
+    @if $value == auto {
+      $result-z: $before-index + 1;
+    } @else {
+      $result-z: $value;
+    }
+
+    $before-index: $result-z;
+    #{$name}: $result-z;
+  }
+}
+
+//========================
+//hover
+//========================
+@mixin hoverAction {
+  transition-duration: 0.3s;
+  &:hover {
+    opacity: 0.5;
+  }
+}

@@ -306,6 +306,24 @@ export const setCodesOptions = [
   { value: "ST28", label: "ST28" },
 ];
 
+export const setCodeMetadata = setCodesOptions.reduce(
+  (acc, option) => {
+    const code = option.value.toUpperCase();
+    const label = option.label;
+    const trimmedTitle = label.toUpperCase().startsWith(code)
+      ? label.slice(code.length).trim()
+      : label;
+
+    acc[code] = {
+      code,
+      label,
+      title: trimmedTitle.length > 0 ? trimmedTitle : label,
+    };
+    return acc;
+  },
+  {}
+);
+
 export const promotionalDecks = ["P-000"];
 
 export const effectOptions = [
@@ -1115,6 +1133,7 @@ export const altArtOptions = [
     value: "Full Art",
     label: "Full Art",
   },
+  { value: "Treasure Cup", label: "Treasure Cup" },
   { value: "Treasure Rare", label: "Treasure Rare" },
   { value: "Special Card", label: "Special Card" },
   { value: "Winner Version", label: "Winner Version" },

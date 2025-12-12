@@ -306,23 +306,20 @@ export const setCodesOptions = [
   { value: "ST28", label: "ST28" },
 ];
 
-export const setCodeMetadata = setCodesOptions.reduce(
-  (acc, option) => {
-    const code = option.value.toUpperCase();
-    const label = option.label;
-    const trimmedTitle = label.toUpperCase().startsWith(code)
-      ? label.slice(code.length).trim()
-      : label;
+export const setCodeMetadata = setCodesOptions.reduce((acc, option) => {
+  const code = option.value.toUpperCase();
+  const label = option.label;
+  const trimmedTitle = label.toUpperCase().startsWith(code)
+    ? label.slice(code.length).trim()
+    : label;
 
-    acc[code] = {
-      code,
-      label,
-      title: trimmedTitle.length > 0 ? trimmedTitle : label,
-    };
-    return acc;
-  },
-  {}
-);
+  acc[code] = {
+    code,
+    label,
+    title: trimmedTitle.length > 0 ? trimmedTitle : label,
+  };
+  return acc;
+}, {});
 
 export const promotionalDecks = ["P-000"];
 
@@ -1313,6 +1310,7 @@ export const typesOptions = [
   { value: "Revolutionary Army", label: "Revolutionary Army" },
   { value: "Roger Pirates", label: "Roger Pirates" },
   { value: "Rumbar Pirates", label: "Rumbar Pirates" },
+  { value: "Sabaody Archipelago", label: "Sabaody Archipelago" },
   { value: "SMILE", label: "SMILE" },
   { value: "Scientist", label: "Scientist" },
   { value: "Seraphim", label: "Seraphim" },

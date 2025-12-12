@@ -21,6 +21,10 @@ import {
   CheckCircle2,
   Globe,
 } from "lucide-react";
+import {
+  HoverImagePreviewOverlay,
+  useHoverImagePreview,
+} from "@/components/HoverImagePreview";
 
 const LANGUAGE_OPTIONS = [
   { value: "en", label: "English / Global" },
@@ -194,6 +198,11 @@ const AdminEventScraperPage = () => {
   const [bulkCollectionsOpen, setBulkCollectionsOpen] = useState<
     Record<string, boolean>
   >({});
+  const {
+    preview: imagePreview,
+    showPreview: handlePreviewEnter,
+    hidePreview: handlePreviewLeave,
+  } = useHoverImagePreview();
 
   const formatHost = (url?: string) => {
     if (!url) return null;
@@ -793,6 +802,10 @@ const AdminEventScraperPage = () => {
                       src={src}
                       alt={`Event visual ${index + 1}`}
                       className="h-32 w-32 rounded-lg border object-cover"
+                      onMouseEnter={() =>
+                        handlePreviewEnter(src, `Event visual ${index + 1}`)
+                      }
+                      onMouseLeave={handlePreviewLeave}
                     />
                   ))}
                 </div>
@@ -899,6 +912,13 @@ const AdminEventScraperPage = () => {
                                               index + 1
                                             }`}
                                             className="h-28 w-full rounded-lg border bg-white object-contain p-1"
+                                            onMouseEnter={() =>
+                                              handlePreviewEnter(
+                                                img,
+                                                `${set.title} image ${index + 1}`
+                                              )
+                                            }
+                                            onMouseLeave={handlePreviewLeave}
                                           />
                                         ))}
                                     </div>
@@ -915,6 +935,13 @@ const AdminEventScraperPage = () => {
                                               src={card.image}
                                               alt={card.title}
                                               className="h-48 w-full rounded bg-white object-contain p-1"
+                                              onMouseEnter={() =>
+                                                handlePreviewEnter(
+                                                  card.image,
+                                                  `${card.title} (${card.code || "No code"})`
+                                                )
+                                              }
+                                              onMouseLeave={handlePreviewLeave}
                                             />
                                           ) : (
                                             <div className="flex h-48 w-full items-center justify-center rounded border text-xs text-muted-foreground">
@@ -976,6 +1003,15 @@ const AdminEventScraperPage = () => {
                                         imgIndex + 1
                                       }`}
                                       className="h-32 w-full rounded-lg border bg-white object-contain p-1"
+                                      onMouseEnter={() =>
+                                        handlePreviewEnter(
+                                          img,
+                                          `${set.title} preview ${
+                                            imgIndex + 1
+                                          }`
+                                        )
+                                      }
+                                      onMouseLeave={handlePreviewLeave}
                                     />
                                   ))}
                               </div>
@@ -1006,6 +1042,13 @@ const AdminEventScraperPage = () => {
                                 src={card.image}
                                 alt={card.title}
                                 className="h-40 w-28 rounded bg-white object-contain p-1"
+                                onMouseEnter={() =>
+                                  handlePreviewEnter(
+                                    card.image,
+                                    `${card.title} (${card.code || "No code"})`
+                                  )
+                                }
+                                onMouseLeave={handlePreviewLeave}
                               />
                             ) : (
                               <div className="flex h-40 w-28 items-center justify-center rounded border text-xs text-muted-foreground">
@@ -1210,6 +1253,13 @@ const AdminEventScraperPage = () => {
                                 src={eventImage}
                                 alt={`${event.title} visual`}
                                 className="h-40 w-40 rounded-lg border object-cover"
+                                onMouseEnter={() =>
+                                  handlePreviewEnter(
+                                    eventImage,
+                                    `${event.title} visual`
+                                  )
+                                }
+                                onMouseLeave={handlePreviewLeave}
                               />
                             </div>
                           )}
@@ -1321,18 +1371,27 @@ const AdminEventScraperPage = () => {
                                                         img: string,
                                                         imgIndex: number
                                                       ) => (
-                                                        <img
-                                                          key={`${set.id}-img-${imgIndex}`}
-                                                          src={img}
-                                                          alt={`${
-                                                            set.title
-                                                          } image ${
-                                                            imgIndex + 1
-                                                          }`}
-                                                          className="h-28 w-full rounded-lg border bg-white object-contain p-1"
-                                                        />
-                                                      )
-                                                    )}
+                                                <img
+                                                  key={`${set.id}-img-${imgIndex}`}
+                                                  src={img}
+                                                  alt={`${
+                                                    set.title
+                                                  } image ${
+                                                    imgIndex + 1
+                                                  }`}
+                                                  className="h-28 w-full rounded-lg border bg-white object-contain p-1"
+                                                  onMouseEnter={() =>
+                                                    handlePreviewEnter(
+                                                      img,
+                                                      `${set.title} image ${
+                                                        imgIndex + 1
+                                                      }`
+                                                    )
+                                                  }
+                                                  onMouseLeave={handlePreviewLeave}
+                                                />
+                                              )
+                                            )}
                                                 </div>
                                               )}
                                             {set.cards &&
@@ -1420,6 +1479,15 @@ const AdminEventScraperPage = () => {
                                                     imgIndex + 1
                                                   }`}
                                                   className="h-56 w-full rounded bg-white object-contain p-1"
+                                                  onMouseEnter={() =>
+                                                    handlePreviewEnter(
+                                                      img,
+                                                      `${set.title} preview ${
+                                                        imgIndex + 1
+                                                      }`
+                                                    )
+                                                  }
+                                                  onMouseLeave={handlePreviewLeave}
                                                 />
                                               )
                                             )}
@@ -1481,6 +1549,7 @@ const AdminEventScraperPage = () => {
           </CardContent>
         </Card>
       )}
+      <HoverImagePreviewOverlay preview={imagePreview} />
     </div>
   );
 };

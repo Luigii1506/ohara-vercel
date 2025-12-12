@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 
 type PageProps = {
   searchParams: Record<string, string | string[] | undefined>;
 };
 
-export default async function HomePage({ searchParams }: PageProps) {
+export default function HomePage({ searchParams }: PageProps) {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(searchParams)) {
@@ -16,5 +16,5 @@ export default async function HomePage({ searchParams }: PageProps) {
   }
 
   const queryString = params.toString();
-  redirect(queryString ? `/card-list?${queryString}` : "/card-list");
+  permanentRedirect(queryString ? `/card-list?${queryString}` : "/card-list");
 }

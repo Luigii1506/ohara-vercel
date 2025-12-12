@@ -360,14 +360,27 @@ const AdminMissingSetsPage = () => {
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" asChild>
-                                <Link
-                                  href={`/admin/events/${eventLink.eventId}`}
-                                >
-                                  <ArrowUpRight className="mr-2 h-4 w-4" />
-                                  Ver evento
-                                </Link>
-                              </Button>
+                              {eventLink.event?.sourceUrl ? (
+                                <Button size="sm" variant="outline" asChild>
+                                  <a
+                                    href={eventLink.event.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ArrowUpRight className="mr-2 h-4 w-4" />
+                                    Ver evento
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link
+                                    href={`/admin/events/${eventLink.eventId}`}
+                                  >
+                                    <ArrowUpRight className="mr-2 h-4 w-4" />
+                                    Ver evento
+                                  </Link>
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))}

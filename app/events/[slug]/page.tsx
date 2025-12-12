@@ -202,6 +202,54 @@ interface ImagePreviewPayload {
   subtitle?: string;
 }
 
+const formatSourceHost = (url?: string | null): string | null => {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
+
+const OriginalSourceBanner = ({
+  title,
+  sourceUrl,
+}: {
+  title?: string | null;
+  sourceUrl?: string | null;
+}) => {
+  if (!sourceUrl) {
+    return null;
+  }
+  const displayHost = formatSourceHost(sourceUrl) ?? "Official site";
+
+  return (
+    <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary/90 via-primary to-primary/80 px-6 py-4 text-white shadow-lg shadow-black/15">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/70">
+            Original material
+          </p>
+          <p className="text-base font-medium">
+            {title ? `${title} · ` : ""}
+            <span className="text-white/80">{displayHost}</span>
+          </p>
+        </div>
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="!text-white inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-wide transition hover:bg-white/20"
+        >
+          Visit Source
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </div>
+    </div>
+  );
+};
+
 const EventDetailPage = () => {
   const params = useParams();
   const router = useRouter();
@@ -313,6 +361,10 @@ const EventDetailPage = () => {
               Back to Events
             </Button>
           </div>
+          <OriginalSourceBanner
+            title={event.title}
+            sourceUrl={event.sourceUrl}
+          />
           {/* Hero Banner */}
           {heroImage && (
             <div className="mb-8 overflow-hidden rounded-xl border shadow-lg container mx-auto">

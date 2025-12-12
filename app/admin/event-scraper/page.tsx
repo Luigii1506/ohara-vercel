@@ -794,52 +794,55 @@ const AdminEventScraperPage = () => {
                   View source
                 </a>
               )}
-              {previewImages.length > 0 && (
-                <div className="flex flex-wrap gap-3">
-                  {previewImages.map((src, index) => (
-                    <img
-                      key={`${src}-${index}`}
-                      src={src}
-                      alt={`Event visual ${index + 1}`}
-                      className="h-32 w-32 rounded-lg border object-cover"
-                      onMouseEnter={() =>
-                        handlePreviewEnter(src, `Event visual ${index + 1}`)
-                      }
-                      onMouseLeave={handlePreviewLeave}
-                    />
-                  ))}
-                </div>
-              )}
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <InfoBlock
-                  label="Start date"
-                  value={formatDate(detailResult.event.startDate)}
-                />
-                <InfoBlock
-                  label="End date"
-                  value={formatDate(detailResult.event.endDate)}
-                />
-                <InfoBlock
-                  label="Raw date text"
-                  value={detailResult.event.rawDateText || "—"}
-                />
-                <InfoBlock
-                  label="Event text (list)"
-                  value={detailResult.event.eventTxt || "—"}
-                />
-                <InfoBlock
-                  label="Location"
-                  value={detailResult.event.location || "—"}
-                />
-                <InfoBlock
-                  label="List order"
-                  value={
-                    typeof detailResult.event.listOrder === "number"
-                      ? `#${detailResult.event.listOrder}`
-                      : "—"
-                  }
-                />
+              <div className="flex gap-5 justify-center items-center">
+                {previewImages.length > 0 && (
+                  <div className="flex flex-wrap gap-3">
+                    {previewImages.map((src, index) => (
+                      <img
+                        key={`${src}-${index}`}
+                        src={src}
+                        alt={`Event visual ${index + 1}`}
+                        className="h-40 w-40 rounded-lg border object-cover"
+                        onMouseEnter={() =>
+                          handlePreviewEnter(src, `Event visual ${index + 1}`)
+                        }
+                        onMouseLeave={handlePreviewLeave}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid gap-3 md:grid-cols-3 flex-1">
+                  <InfoBlock
+                    label="Start date"
+                    value={formatDate(detailResult.event.startDate)}
+                  />
+                  <InfoBlock
+                    label="End date"
+                    value={formatDate(detailResult.event.endDate)}
+                  />
+                  <InfoBlock
+                    label="Raw date text"
+                    value={detailResult.event.rawDateText || "—"}
+                  />
+                  <InfoBlock
+                    label="Event text (list)"
+                    value={detailResult.event.eventTxt || "—"}
+                  />
+                  <InfoBlock
+                    label="Location"
+                    value={detailResult.event.location || "—"}
+                  />
+                  <InfoBlock
+                    label="List order"
+                    value={
+                      typeof detailResult.event.listOrder === "number"
+                        ? `#${detailResult.event.listOrder}`
+                        : "—"
+                    }
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -875,9 +878,9 @@ const AdminEventScraperPage = () => {
                             >
                               <div className="flex flex-col">
                                 <p className="font-semibold">{set.title}</p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-muted-foreground mt-1">
                                   Matched text:{" "}
-                                  <span className="font-mono">
+                                  <span className="font-mono text-black font-bold">
                                     {set.matchedText}
                                   </span>
                                 </p>
@@ -915,7 +918,9 @@ const AdminEventScraperPage = () => {
                                             onMouseEnter={() =>
                                               handlePreviewEnter(
                                                 img,
-                                                `${set.title} image ${index + 1}`
+                                                `${set.title} image ${
+                                                  index + 1
+                                                }`
                                               )
                                             }
                                             onMouseLeave={handlePreviewLeave}
@@ -938,7 +943,9 @@ const AdminEventScraperPage = () => {
                                               onMouseEnter={() =>
                                                 handlePreviewEnter(
                                                   card.image,
-                                                  `${card.title} (${card.code || "No code"})`
+                                                  `${card.title} (${
+                                                    card.code || "No code"
+                                                  })`
                                                 )
                                               }
                                               onMouseLeave={handlePreviewLeave}
@@ -978,7 +985,7 @@ const AdminEventScraperPage = () => {
                         No unmatched set references detected.
                       </p>
                     ) : (
-                      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                      <div className="mt-2 flex flex-col gap-2">
                         {missingSets.map((set, index) => (
                           <div
                             key={`${set.title}-${index}`}
@@ -1002,13 +1009,11 @@ const AdminEventScraperPage = () => {
                                       alt={`${set.title} preview ${
                                         imgIndex + 1
                                       }`}
-                                      className="h-32 w-full rounded-lg border bg-white object-contain p-1"
+                                      className="h-56 w-full rounded-lg border bg-white object-contain p-1"
                                       onMouseEnter={() =>
                                         handlePreviewEnter(
                                           img,
-                                          `${set.title} preview ${
-                                            imgIndex + 1
-                                          }`
+                                          `${set.title} preview ${imgIndex + 1}`
                                         )
                                       }
                                       onMouseLeave={handlePreviewLeave}
@@ -1031,17 +1036,16 @@ const AdminEventScraperPage = () => {
                         No unmatched card references detected.
                       </p>
                     ) : (
-                      <div className="mt-2 grid gap-4 sm:grid-cols-2">
+                      <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         {missingCards.map((card, index) => (
                           <div
-                            key={`${card.code}-${index}`}
-                            className="flex items-center gap-3 rounded border bg-muted/20 p-3"
+                            key={`${card.code}-card-${index}`}
+                            className="flex items-center gap-3 rounded border bg-muted/20 p-3 flex-col"
                           >
                             {card.image ? (
                               <img
                                 src={card.image}
                                 alt={card.title}
-                                className="h-40 w-28 rounded bg-white object-contain p-1"
                                 onMouseEnter={() =>
                                   handlePreviewEnter(
                                     card.image,
@@ -1049,65 +1053,24 @@ const AdminEventScraperPage = () => {
                                   )
                                 }
                                 onMouseLeave={handlePreviewLeave}
+                                className="rounded bg-white object-contain p-1"
                               />
                             ) : (
                               <div className="flex h-40 w-28 items-center justify-center rounded border text-xs text-muted-foreground">
                                 No image
                               </div>
                             )}
-                            <div>
-                              <p className="font-medium">{card.title}</p>
-                              <p className="text-xs text-muted-foreground">
+                            <div className="flex flex-col w-full fle-1">
+                              <p className="font-medium text-center">
+                                {card.title}
+                              </p>
+                              <p className="text-medium text-muted-foreground text-center">
                                 {card.code || "No code"}
                               </p>
                             </div>
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Detected sets ({detailResult.event.detectedSets.length})
-                    </p>
-                    {detailResult.event.detectedSets.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No set references were detected.
-                      </p>
-                    ) : (
-                      <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                        {detailResult.event.detectedSets.map((set, index) => (
-                          <li key={`${set.title}-${index}`}>
-                            • {set.title}
-                            {set.versionSignature
-                              ? ` (${set.versionSignature})`
-                              : ""}
-                            {set.translatedTitle
-                              ? ` → ${set.translatedTitle}`
-                              : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Detected cards ({detailResult.event.detectedCards.length})
-                    </p>
-                    {detailResult.event.detectedCards.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No direct card mentions detected.
-                      </p>
-                    ) : (
-                      <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                        {detailResult.event.detectedCards.map((card, index) => (
-                          <li key={`${card.code}-${index}`}>
-                            • {card.title} {card.code ? `- ${card.code}` : ""}
-                          </li>
-                        ))}
-                      </ul>
                     )}
                   </div>
                 </>
@@ -1371,27 +1334,31 @@ const AdminEventScraperPage = () => {
                                                         img: string,
                                                         imgIndex: number
                                                       ) => (
-                                                <img
-                                                  key={`${set.id}-img-${imgIndex}`}
-                                                  src={img}
-                                                  alt={`${
-                                                    set.title
-                                                  } image ${
-                                                    imgIndex + 1
-                                                  }`}
-                                                  className="h-28 w-full rounded-lg border bg-white object-contain p-1"
-                                                  onMouseEnter={() =>
-                                                    handlePreviewEnter(
-                                                      img,
-                                                      `${set.title} image ${
-                                                        imgIndex + 1
-                                                      }`
-                                                    )
-                                                  }
-                                                  onMouseLeave={handlePreviewLeave}
-                                                />
-                                              )
-                                            )}
+                                                        <img
+                                                          key={`${set.id}-img-${imgIndex}`}
+                                                          src={img}
+                                                          alt={`${
+                                                            set.title
+                                                          } image ${
+                                                            imgIndex + 1
+                                                          }`}
+                                                          className="h-28 w-full rounded-lg border bg-white object-contain p-1"
+                                                          onMouseEnter={() =>
+                                                            handlePreviewEnter(
+                                                              img,
+                                                              `${
+                                                                set.title
+                                                              } image ${
+                                                                imgIndex + 1
+                                                              }`
+                                                            )
+                                                          }
+                                                          onMouseLeave={
+                                                            handlePreviewLeave
+                                                          }
+                                                        />
+                                                      )
+                                                    )}
                                                 </div>
                                               )}
                                             {set.cards &&
@@ -1487,7 +1454,9 @@ const AdminEventScraperPage = () => {
                                                       }`
                                                     )
                                                   }
-                                                  onMouseLeave={handlePreviewLeave}
+                                                  onMouseLeave={
+                                                    handlePreviewLeave
+                                                  }
                                                 />
                                               )
                                             )}
@@ -1518,7 +1487,16 @@ const AdminEventScraperPage = () => {
                                         <img
                                           src={card.image}
                                           alt={card.title}
-                                          className="h-40 w-28 rounded bg-white object-contain p-1"
+                                          onMouseEnter={() =>
+                                            handlePreviewEnter(
+                                              card.image,
+                                              `${card.title} (${
+                                                card.code || "No code"
+                                              })`
+                                            )
+                                          }
+                                          onMouseLeave={handlePreviewLeave}
+                                          className="rounded bg-white object-contain p-1"
                                         />
                                       ) : (
                                         <div className="flex h-40 w-28 items-center justify-center rounded border text-xs text-muted-foreground">

@@ -225,26 +225,30 @@ const OriginalSourceBanner = ({
   const displayHost = formatSourceHost(sourceUrl) ?? "Official site";
 
   return (
-    <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary/90 via-primary to-primary/80 px-6 py-4 text-white shadow-lg shadow-black/15">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-col">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/70">
-            Original material
-          </p>
-          <p className="text-base font-medium">
-            {title ? `${title} · ` : ""}
-            <span className="text-white/80">{displayHost}</span>
-          </p>
+    <div className="px-4 md:px-0">
+      <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary/90 via-primary to-primary/80 px-6 py-4 text-white shadow-lg shadow-black/15">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/70">
+              Original material
+            </p>
+            <p className="text-base font-medium hidden md:block">
+              <span> {title ? `${title} · ` : ""}</span>
+              <span className="text-white/80">{displayHost}</span>
+            </p>
+          </div>
+          <div className="flex justify-center md:justify-end flex-1">
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="!text-white inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-wide transition hover:bg-white/20"
+            >
+              Visit Source
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
         </div>
-        <a
-          href={sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="!text-white inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-wide transition hover:bg-white/20"
-        >
-          Visit Source
-          <ExternalLink className="h-4 w-4" />
-        </a>
       </div>
     </div>
   );
@@ -350,7 +354,7 @@ const EventDetailPage = () => {
     <>
       <div className="event-page min-h-screen bg-gradient-to-b from-background to-muted/20 w-full">
         <div className="mx-auto pt-3 pb-8  overflow-scroll max-w-[1050px]">
-          <div className="flex flex-wrap items-center justify-between gap-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-4 mb-2 md:mb-0 ml-5 md:ml-0">
             <Button
               variant="secondary"
               size="lg"
@@ -367,8 +371,8 @@ const EventDetailPage = () => {
           />
           {/* Hero Banner */}
           {heroImage && (
-            <div className="mb-8 overflow-hidden rounded-xl border shadow-lg container mx-auto">
-              <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[500px] bg-muted">
+            <div className="mb-8 overflow-hidden rounded-xl border shadow-lg container mx-auto w-[95%] md:w-full pb-5 md:pb-0 bg-white">
+              <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[500px] bg-muted ">
                 <Image
                   src={heroImage}
                   alt={event.title}

@@ -71,7 +71,10 @@ const AdminEventsPage = () => {
       setLoading(true);
       const params = new URLSearchParams();
       if (approvalFilter !== "all") {
-        params.set("approved", approvalFilter === "approved" ? "true" : "false");
+        params.set(
+          "approved",
+          approvalFilter === "approved" ? "true" : "false"
+        );
       }
       if (searchTerm.trim()) {
         params.set("search", searchTerm.trim());
@@ -122,32 +125,49 @@ const AdminEventsPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Eventos</h1>
-          <p className="text-muted-foreground">
-            Revisa, aprueba y navega a la vista detallada para editar eventos.
-          </p>
+      <div className="relative overflow-hidden rounded-2xl border bg-slate-900/90 text-white shadow-xl">
+        <div className="absolute inset-0">
+          <Image
+            src="/assets/images/banner_events.png"
+            alt="Eventos banner"
+            fill
+            priority
+            className="object-cover opacity-40"
+          />
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant={approvalFilter === "all" ? "default" : "outline"}
-            onClick={() => setApprovalFilter("all")}
-          >
-            Todos
-          </Button>
-          <Button
-            variant={approvalFilter === "pending" ? "default" : "outline"}
-            onClick={() => setApprovalFilter("pending")}
-          >
-            Pendientes
-          </Button>
-          <Button
-            variant={approvalFilter === "approved" ? "default" : "outline"}
-            onClick={() => setApprovalFilter("approved")}
-          >
-            Aprobados
-          </Button>
+        <div className="relative flex flex-col gap-4 px-6 py-8 sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-white/70">
+              Admin · Events
+            </p>
+            <h1 className="mt-3 text-3xl font-black leading-tight text-white drop-shadow-lg sm:text-4xl">
+              Gestión de eventos
+            </h1>
+            <p className="mt-2 text-sm text-white/80 sm:text-base">
+              Aprueba, actualiza y navega a los detalles completos de cada
+              evento.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={approvalFilter === "all" ? "default" : "outline"}
+              onClick={() => setApprovalFilter("all")}
+            >
+              Todos
+            </Button>
+            <Button
+              variant={approvalFilter === "pending" ? "default" : "outline"}
+              onClick={() => setApprovalFilter("pending")}
+            >
+              Pendientes
+            </Button>
+            <Button
+              variant={approvalFilter === "approved" ? "default" : "outline"}
+              onClick={() => setApprovalFilter("approved")}
+            >
+              Aprobados
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -182,7 +202,10 @@ const AdminEventsPage = () => {
             const thumbnail = event.eventThumbnail ?? event.imageUrl ?? null;
 
             return (
-              <Card key={event.id} className="overflow-hidden border border-muted shadow-sm">
+              <Card
+                key={event.id}
+                className="overflow-hidden border border-muted shadow-sm"
+              >
                 <div className="flex flex-col gap-4 p-4 md:flex-row">
                   <div className="flex-shrink-0 md:w-56">
                     <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
@@ -204,8 +227,12 @@ const AdminEventsPage = () => {
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <CardTitle className="text-xl">{event.title}</CardTitle>
-                          <Badge variant={event.isApproved ? "default" : "secondary"}>
+                          <CardTitle className="text-xl">
+                            {event.title}
+                          </CardTitle>
+                          <Badge
+                            variant={event.isApproved ? "default" : "secondary"}
+                          >
                             {event.isApproved ? "Aprobado" : "Pendiente"}
                           </Badge>
                           <Badge variant="outline">{event.status}</Badge>

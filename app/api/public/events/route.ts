@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: [
+        { status: "desc" },
         { listOrder: "asc" },
         { startDate: "desc" },
         { createdAt: "desc" },

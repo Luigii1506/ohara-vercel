@@ -296,7 +296,6 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<
       url: PAST_EVENTS_URL,
       label: "global-past",
       type: "past",
-      limit: 20,
       region: EventRegion.NA,
     },
   },
@@ -312,7 +311,6 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<
       url: FRENCH_PAST_EVENTS_URL,
       label: "fr-past",
       type: "past",
-      limit: 20,
       region: EventRegion.EU,
     },
   },
@@ -328,7 +326,6 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<
       url: JAPANESE_PAST_EVENTS_URL,
       label: "jp-past",
       type: "past",
-      limit: 20,
       region: EventRegion.JP,
     },
   },
@@ -2407,6 +2404,14 @@ export async function scrapeEvents(
       if (!scrapedEvent) {
         result.errors.push(`Failed to scrape: ${eventUrl}`);
         continue;
+      }
+
+      if (
+        entrySourceType === "past" &&
+        scrapedEvent.status !== EventStatus.COMPLETED
+      ) {
+        // Past feeds should only surface finished events; normalize their status.
+        scrapedEvent.status = EventStatus.COMPLETED;
       }
 
       try {

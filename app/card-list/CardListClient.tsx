@@ -493,58 +493,6 @@ const CardListClient = ({
   const { isSyncing, lastUpdated } = useCardsSyncStatus(allCardsQueryKey);
   const isOnline = useOnlineStatus();
 
-  // Función para actualizar URL params
-  const updateURLParams = useCallback(() => {
-    const params = new URLSearchParams();
-
-    if (search) params.set("search", search);
-    if (selectedColors.length) params.set("colors", selectedColors.join(","));
-    if (selectedSets.length) params.set("sets", selectedSets.join(","));
-    if (selectedRarities.length)
-      params.set("rarities", selectedRarities.join(","));
-    if (selectedCosts.length) params.set("costs", selectedCosts.join(","));
-    if (selectedPower.length) params.set("power", selectedPower.join(","));
-    if (selectedAttributes.length)
-      params.set("attributes", selectedAttributes.join(","));
-    if (selectedCategories.length)
-      params.set("categories", selectedCategories.join(","));
-    if (selectedEffects.length)
-      params.set("effects", selectedEffects.join(","));
-    if (selectedTypes.length) params.set("types", selectedTypes.join(","));
-    if (selectedCounter) params.set("counter", selectedCounter);
-    if (selectedTrigger) params.set("trigger", selectedTrigger);
-    if (selectedSort) params.set("sort", selectedSort);
-    if (selectedCodes.length) params.set("codes", selectedCodes.join(","));
-    if (selectedAltArts.length)
-      params.set("altArts", selectedAltArts.join(","));
-    if (selectedRegion) params.set("region", selectedRegion);
-    if (viewSelected !== "list") params.set("view", viewSelected);
-
-    const queryString = params.toString();
-    if (typeof window !== "undefined") {
-      const nextUrl = `/card-list${queryString ? `?${queryString}` : ""}`;
-      window.history.replaceState(null, "", nextUrl);
-    }
-  }, [
-    search,
-    selectedColors,
-    selectedSets,
-    selectedRarities,
-    selectedCosts,
-    selectedPower,
-    selectedAttributes,
-    selectedCategories,
-    selectedEffects,
-    selectedTypes,
-    selectedCounter,
-    selectedTrigger,
-    selectedSort,
-    selectedCodes,
-    selectedAltArts,
-    selectedRegion,
-    viewSelected,
-  ]);
-
   // ✅ Datos ahora vienen de TanStack Query (arriba)
 
   const BATCH_SIZE = 200;
@@ -705,11 +653,6 @@ const CardListClient = ({
       }
     );
   }, [filteredCards, selectedSets, selectedAltArts]);
-
-  // Actualizar URL cuando cambien los filtros
-  useEffect(() => {
-    updateURLParams();
-  }, [updateURLParams]);
 
   // Scroll to top y resetear visibleCount cuando cambien filtros
   useEffect(() => {

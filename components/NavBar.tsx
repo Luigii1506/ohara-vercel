@@ -29,6 +29,7 @@ import {
   ShoppingBag,
   AlertTriangle,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import {
   siInstagram,
@@ -176,6 +177,12 @@ const NavBar = () => {
           label: "Missing Cards",
           icon: AlertTriangle,
           description: "Aprueba cartas detectadas",
+        },
+        {
+          href: "/admin/event-scraper",
+          label: "Scraper Lab",
+          icon: RefreshCw,
+          description: "Dry-run tools para scraping",
         },
       ],
     },

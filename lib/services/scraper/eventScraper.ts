@@ -175,6 +175,13 @@ interface ScrapeResult {
       id: number;
       title: string;
       match: string;
+      images: string[];
+      cards: Array<{
+        id: number;
+        title: string;
+        code: string | null;
+        image: string | null;
+      }>;
     }>;
     dryRun?: boolean;
     region: EventRegion;
@@ -200,7 +207,7 @@ interface ScrapeResult {
     cards: Array<{
       code: string;
       title: string;
-      image: string | null;
+      image?: string | null;
     }>;
   }>;
   translation?: TranslationStats;
@@ -1313,7 +1320,7 @@ function extractCardTitle(
   return fallback?.trim() || "";
 }
 
-function dedupeMissingCandidates(
+export function dedupeMissingCandidates(
   candidates: DetectedSetCandidate[]
 ): DetectedSetCandidate[] {
   const map = new Map<string, DetectedSetCandidate>();
@@ -1381,7 +1388,7 @@ function dedupeMissingCandidates(
   return mergedCandidates;
 }
 
-function dedupeCardCandidates(
+export function dedupeCardCandidates(
   candidates: DetectedCardCandidate[]
 ): DetectedCardCandidate[] {
   const map = new Map<string, DetectedCardCandidate>();
@@ -1389,7 +1396,8 @@ function dedupeCardCandidates(
     const canonicalTitle = canonicalizeSetDisplay(
       candidate.title || ""
     ).toLowerCase();
-    const key = `${candidate.code.toUpperCase()}|${canonicalTitle}`;
+    const imageKey = candidate.image ? candidate.image.trim().toLowerCase() : "";
+    const key = `${candidate.code.toUpperCase()}|${canonicalTitle}|${imageKey}`;
 
     if (map.has(key)) {
       const existing = map.get(key)!;
@@ -1832,7 +1840,7 @@ async function detectSetsAndCards(
 /**
  * Busca sets en la base de datos que coincidan con el texto detectado
  */
-async function findMatchingSets(
+export async function findMatchingSets(
   detectedTexts: DetectedSetCandidate[]
 ): Promise<{
   matches: MatchedSet[];
@@ -2011,7 +2019,7 @@ function cleanPageTitle(title: string): string {
     .trim();
 }
 
-async function scrapeEventDetail(
+export async function scrapeEventDetail(
   eventUrl: string,
   options: ScrapeEventDetailOptions
 ): Promise<ScrapedEvent | null> {
@@ -2428,6 +2436,69 @@ export async function scrapeEvents(
 
         const dedupedMissingSets = dedupeMissingCandidates(unmatchedCandidates);
         const dedupedCards = dedupeCardCandidates(scrapedEvent.detectedCards);
+        let matchedSetsWithDetails: Array<
+          MatchedSet & {
+            images: string[];
+            cards: Array<{
+              id: number;
+              title: string;
+              code: string | null;
+              image: string | null;
+            }>;
+          }
+        > = matchedSets.map((set) => ({
+          ...set,
+          images: [],
+          cards: [],
+        }));
+        if (matchedSets.length > 0) {
+          const setIds = matchedSets.map((set) => set.id);
+          const setDetails = await prisma.set.findMany({
+            where: { id: { in: setIds } },
+            include: {
+              attachments: {
+                select: { imageUrl: true },
+                orderBy: { id: "asc" },
+              },
+              cards: {
+                include: {
+                  card: {
+                    select: {
+                      id: true,
+                      name: true,
+                      code: true,
+                      src: true,
+                    },
+                  },
+                },
+                orderBy: { cardId: "asc" },
+                take: 20,
+              },
+            },
+          });
+          matchedSetsWithDetails = matchedSets.map((set) => {
+            const detail = setDetails.find((item) => item.id === set.id);
+            const images: string[] = [];
+            if (detail?.image) {
+              images.push(detail.image);
+            }
+            if (detail?.attachments) {
+              detail.attachments.forEach((attachment) => {
+                if (attachment.imageUrl) {
+                  images.push(attachment.imageUrl);
+                }
+              });
+            }
+            const cards =
+              detail?.cards?.map((setCard) => ({
+                id: setCard.card.id,
+                title: setCard.card.name,
+                code: setCard.card.code,
+                image: setCard.card.src,
+              })) ?? [];
+            return { ...set, images, cards };
+          });
+        }
 
         if (dedupedMissingSets.length > 0) {
           console.warn(
@@ -2514,10 +2585,12 @@ export async function scrapeEvents(
           title: scrapedEvent.title,
           locale: scrapedEvent.locale,
           isApproved: persistedEventIsApproved ?? false,
-          sets: matchedSets.map((matchedSet) => ({
+          sets: matchedSetsWithDetails.map((matchedSet) => ({
             id: matchedSet.id,
             title: matchedSet.title,
             match: matchedSet.matchedText,
+            images: matchedSet.images,
+            cards: matchedSet.cards,
           })),
           dryRun: dryRun || undefined,
           region: scrapedEvent.region,

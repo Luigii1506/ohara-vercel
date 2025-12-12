@@ -2466,7 +2466,7 @@ export async function scrapeEvents(
               eventThumbnail: scrapedEvent.eventThumbnail,
               eventTxt: scrapedEvent.eventTxt,
               listOrder: scrapedEvent.listOrder,
-                  isApproved: false,
+              isApproved: true,
             },
             update: {
               title: scrapedEvent.title,

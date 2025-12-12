@@ -55,6 +55,7 @@ const EventsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchEvents();
@@ -100,8 +101,16 @@ const EventsPage = () => {
       );
     }
 
+    if (statusFilter === "current") {
+      filtered = filtered.filter((event) =>
+        ["UPCOMING", "ONGOING"].includes(event.status)
+      );
+    } else if (statusFilter === "past") {
+      filtered = filtered.filter((event) => event.status === "COMPLETED");
+    }
+
     return filtered;
-  }, [events, searchTerm, regionFilter, categoryFilter]);
+  }, [events, searchTerm, regionFilter, categoryFilter, statusFilter]);
 
   // Extraer regiones y tipos únicos para los filtros
   const uniqueRegions = useMemo(() => {
@@ -117,6 +126,12 @@ const EventsPage = () => {
       )
     ).sort();
   }, [events]);
+
+  const statusOptions = [
+    { value: "all", label: "All Events" },
+    { value: "current", label: "Current" },
+    { value: "past", label: "Past" },
+  ];
 
   return (
     <div className="h-full bg-gradient-to-b from-background to-muted/20 w-full">
@@ -185,6 +200,20 @@ const EventsPage = () => {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -199,7 +228,8 @@ const EventsPage = () => {
             </p>
             {(searchTerm ||
               regionFilter !== "all" ||
-              categoryFilter !== "all") && (
+              categoryFilter !== "all" ||
+              statusFilter !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -207,6 +237,7 @@ const EventsPage = () => {
                   setSearchTerm("");
                   setRegionFilter("all");
                   setCategoryFilter("all");
+                  setStatusFilter("all");
                 }}
               >
                 Clear filters
@@ -256,7 +287,7 @@ const EventsPage = () => {
           </Card>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...filteredEvents].reverse().map((event) => {
+            {filteredEvents.map((event) => {
               const thumbnail = event.eventThumbnail ?? event.imageUrl;
 
               return (

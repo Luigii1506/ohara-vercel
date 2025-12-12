@@ -325,6 +325,7 @@ model Event {
   sourceUrl       String?
   imageUrl        String?
   eventThumbnail  String?
+  listOrder       Int?
   eventTxt        String?
   isApproved      Boolean       @default(false)
   createdAt       DateTime?     @default(now())

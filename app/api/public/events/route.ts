@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     const search = req.nextUrl.searchParams.get("search");
     const region = req.nextUrl.searchParams.get("region");
     const eventType = req.nextUrl.searchParams.get("eventType");
+    const statusFilter = req.nextUrl.searchParams.get("status");
 
     const where: any = {
       isApproved: true, // Solo eventos aprobados para vista pública
@@ -30,6 +31,17 @@ export async function GET(req: NextRequest) {
       where.eventType = eventType.trim();
     }
 
+    if (statusFilter && statusFilter.trim().length > 0 && statusFilter !== "all") {
+      const value = statusFilter.trim().toUpperCase();
+      if (value === "CURRENT") {
+        where.status = { in: ["UPCOMING", "ONGOING"] };
+      } else if (value === "PAST") {
+        where.status = "COMPLETED";
+      } else if (["UPCOMING", "ONGOING", "COMPLETED"].includes(value)) {
+        where.status = value;
+      }
+    }
+
     const events = await prisma.event.findMany({
       where,
       include: {
@@ -41,6 +53,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: [
+        { listOrder: "asc" },
         { startDate: "desc" },
         { createdAt: "desc" },
       ],

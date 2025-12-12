@@ -28,6 +28,7 @@ async function resetEvents() {
     const missingSetLinkCount = await prisma.eventMissingSet.count();
     const canonicalMissingSetCount = await prisma.missingSet.count();
     const missingCardCount = await prisma.eventMissingCard.count();
+    const canonicalMissingCardCount = await prisma.missingCard.count();
 
     console.log('📊 Estadísticas actuales:');
     console.log(`   - Eventos: ${eventCount}`);
@@ -36,6 +37,7 @@ async function resetEvents() {
     console.log(`   - MissingSet links: ${missingSetLinkCount}`);
     console.log(`   - MissingSets únicos: ${canonicalMissingSetCount}`);
     console.log(`   - MissingCards: ${missingCardCount}`);
+    console.log(`   - MissingCards únicos: ${canonicalMissingCardCount}`);
     console.log();
 
     // Confirmar acción (comentar esta sección si quieres ejecutar sin confirmación)
@@ -57,6 +59,7 @@ async function resetEvents() {
     const deletedEventSets = await prisma.eventSet.deleteMany({});
     const deletedMissingCardLinks = await prisma.eventMissingCard.deleteMany({});
     const deletedMissingSetLinks = await prisma.eventMissingSet.deleteMany({});
+    const deletedMissingCards = await prisma.missingCard.deleteMany({});
     const deletedEvents = await prisma.event.deleteMany({});
     const deletedMissingSets = await prisma.missingSet.deleteMany({});
 
@@ -66,6 +69,7 @@ async function resetEvents() {
     console.log(`   - EventCards eliminados: ${deletedEventCards.count}`);
     console.log(`   - MissingCard links eliminados: ${deletedMissingCardLinks.count}`);
     console.log(`   - MissingSet links eliminados: ${deletedMissingSetLinks.count}`);
+    console.log(`   - MissingCards únicos eliminados: ${deletedMissingCards.count}`);
     console.log(`   - MissingSets únicos eliminados: ${deletedMissingSets.count}`);
     console.log();
     console.log('🎉 Reset completado exitosamente!');

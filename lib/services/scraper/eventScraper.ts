@@ -37,6 +37,8 @@ interface EventListEntry {
   thumbnail?: string | null;
   eventTxt?: string | null;
   rawDateText?: string | null;
+  listOrder?: number | null;
+  sourceType?: EventListSourceType;
 }
 
 export interface ScrapedEvent {
@@ -45,6 +47,7 @@ export interface ScrapedEvent {
   content: string | null;
   originalContent: string | null;
   eventTxt: string | null;
+  listOrder: number | null;
   region: EventRegion;
   locale: string;
   status: EventStatus;
@@ -156,6 +159,7 @@ interface ScrapeEventDetailOptions {
   listThumbnail?: string | null;
   listEventTxt?: string | null;
   listRawDateText?: string | null;
+  listOrder?: number | null;
 }
 
 interface ScrapeResult {
@@ -186,6 +190,7 @@ interface ScrapeResult {
     eventThumbnail?: string | null;
     imageUrl?: string | null;
     eventTxt?: string | null;
+    listOrder?: number | null;
     missingSets: Array<{
       title: string;
       translatedTitle?: string;
@@ -2021,8 +2026,9 @@ async function scrapeEventDetail(
     listThumbnail,
     listEventTxt,
     listRawDateText,
-  } =
-    options;
+    listOrder,
+  } = options;
+  const normalizedListOrder = listOrder ?? null;
   try {
     console.log(`\n🔍 Scraping event: ${eventUrl}`);
 
@@ -2142,6 +2148,8 @@ async function scrapeEventDetail(
       description,
       content,
       originalContent,
+      eventTxt,
+      listOrder: normalizedListOrder,
       region,
       locale,
       status,
@@ -2155,7 +2163,6 @@ async function scrapeEventDetail(
       eventThumbnail,
       imageUrl,
       detectedSets,
-      eventTxt,
       detectedCards,
     };
   } catch (error) {
@@ -2204,6 +2211,8 @@ async function scrapeEventsList(
     const seen = new Set<string>();
 
     // Busca enlaces a eventos usando la grilla oficial
+    let listPosition = 0;
+
     $('.eventDetail a[href], a[href*="event"]').each((_, element) => {
       const href = $(element).attr("href");
       if (href) {
@@ -2234,6 +2243,7 @@ async function scrapeEventsList(
           const text = clone.text().trim();
           return cleanPeriodText(text);
         })();
+        const entryOrder = listPosition++;
 
         seen.add(fullUrl);
         eventEntries.push({
@@ -2241,6 +2251,8 @@ async function scrapeEventsList(
           thumbnail,
           eventTxt: listEventTxt,
           rawDateText: listRawDateText,
+          listOrder: entryOrder,
+          sourceType: source.type ?? "current",
         });
       }
     });
@@ -2284,8 +2296,8 @@ async function collectEventUrlsFromSources(
 
     for (const entry of limitedEntries) {
       if (collected.length >= maxEvents) break;
-      if (seen.has(entry.url)) {
-        const existing = seen.get(entry.url)!;
+      const existing = seen.get(entry.url);
+      if (existing) {
         if (!existing.thumbnail && entry.thumbnail) {
           existing.thumbnail = entry.thumbnail;
         }
@@ -2295,10 +2307,20 @@ async function collectEventUrlsFromSources(
         if (!existing.rawDateText && entry.rawDateText) {
           existing.rawDateText = entry.rawDateText;
         }
+        if (
+          (existing.listOrder === null || existing.listOrder === undefined) &&
+          typeof entry.listOrder === "number"
+        ) {
+          existing.listOrder = entry.listOrder;
+        }
+        if (!existing.sourceType && entry.sourceType) {
+          existing.sourceType = entry.sourceType;
+        }
         continue;
       }
-      seen.set(entry.url, { ...entry });
-      collected.push(entry);
+      const copy = { ...entry };
+      seen.set(entry.url, copy);
+      collected.push(copy);
     }
   }
 
@@ -2361,8 +2383,12 @@ export async function scrapeEvents(
 
     console.log(`\n📌 Processing ${eventEntries.length} unique event URLs`);
 
+    const currentSourceSlugs = new Set<string>();
+    let touchedCurrentSource = false;
+
     // 2. Procesa cada evento con límite global
     for (const entry of eventEntries) {
+      const entrySourceType = entry.sourceType ?? "current";
       const eventUrl = entry.url;
       const regionOverride = getRegionOverrideForUrl(eventUrl);
       const localeOverride =
@@ -2375,6 +2401,7 @@ export async function scrapeEvents(
         listThumbnail: entry.thumbnail ?? null,
         listEventTxt: entry.eventTxt ?? null,
         listRawDateText: entry.rawDateText ?? null,
+        listOrder: entry.listOrder ?? null,
       });
 
       if (!scrapedEvent) {
@@ -2433,7 +2460,8 @@ export async function scrapeEvents(
               imageUrl: scrapedEvent.imageUrl,
               eventThumbnail: scrapedEvent.eventThumbnail,
               eventTxt: scrapedEvent.eventTxt,
-              isApproved: false,
+              listOrder: scrapedEvent.listOrder,
+                  isApproved: false,
             },
             update: {
               title: scrapedEvent.title,
@@ -2453,7 +2481,8 @@ export async function scrapeEvents(
               imageUrl: scrapedEvent.imageUrl,
               eventThumbnail: scrapedEvent.eventThumbnail,
               eventTxt: scrapedEvent.eventTxt,
-            },
+              listOrder: scrapedEvent.listOrder,
+                },
           });
 
           // 5. Vincula sets
@@ -2502,9 +2531,15 @@ export async function scrapeEvents(
           eventThumbnail: scrapedEvent.eventThumbnail,
           imageUrl: scrapedEvent.imageUrl,
           eventTxt: scrapedEvent.eventTxt,
+          listOrder: scrapedEvent.listOrder,
           missingSets: dedupedMissingSets,
           cards: dedupedCards,
         });
+
+        if (!dryRun && entrySourceType !== "past") {
+          touchedCurrentSource = true;
+          currentSourceSlugs.add(slug);
+        }
       } catch (dbError) {
         const error = dbError as Error;
         result.errors.push(
@@ -2513,9 +2548,23 @@ export async function scrapeEvents(
         console.error("❌ Database error:", error);
       }
 
-      // Pequeña pausa entre requests para no sobrecargar el servidor
-      if (delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    if (!dryRun && touchedCurrentSource) {
+      const slugs = Array.from(currentSourceSlugs);
+      if (slugs.length > 0) {
+        await prisma.event.updateMany({
+          where: {
+            status: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
+            slug: { notIn: slugs },
+          },
+          data: { status: EventStatus.COMPLETED },
+        });
+      } else {
+        await prisma.event.updateMany({
+          where: { status: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] } },
+          data: { status: EventStatus.COMPLETED },
+        });
       }
     }
 

@@ -136,19 +136,22 @@ const EventsPage = () => {
   return (
     <div className="h-full bg-gradient-to-b from-background to-muted/20 w-full">
       {/* Hero Section */}
-      <div className="relative overflow-hidden border-b bg-gradient-to-r from-red-500/10 via-purple-500/10 to-blue-500/10">
-        <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,black)]" />
-        <div className="container relative mx-auto px-4 py-16 md:py-24">
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="mb-4 text-4xl font-bold tracking-tight md:text-6xl">
-              One Piece TCG{" "}
-              <span className="bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">
-                Events
-              </span>
-            </h1>
-            <p className="text-lg text-muted-foreground md:text-xl">
-              Discover tournaments, championships, and promotional events from
-              around the world
+      <div className="relative overflow-hidden border-b py-8">
+        <div className="absolute inset-0">
+          <Image
+            src="/assets/images/banner_events.png"
+            alt="Events banner"
+            fill
+            priority
+            className="object-fit"
+          />
+        </div>
+        <div className="relative mx-auto flex h-full w-full items-center justify-center px-4 py-16 md:py-24">
+          <div className="sr-only">
+            <h1>One Piece TCG Events</h1>
+            <p>
+              Discover tournaments, championships and promotional events across
+              the globe.
             </p>
           </div>
         </div>

@@ -2563,12 +2563,18 @@ export async function scrapeEvents(
             status: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
             slug: { notIn: slugs },
           },
-          data: { status: EventStatus.COMPLETED },
+          data: {
+            status: EventStatus.COMPLETED,
+            listOrder: null,
+          },
         });
       } else {
         await prisma.event.updateMany({
           where: { status: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] } },
-          data: { status: EventStatus.COMPLETED },
+          data: {
+            status: EventStatus.COMPLETED,
+            listOrder: null,
+          },
         });
       }
     }

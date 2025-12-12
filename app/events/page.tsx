@@ -162,7 +162,7 @@ const EventsPage = () => {
         <div className="mb-8 space-y-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             {/* Search */}
-            <div className="relative flex-1">
+            <div className="relative w-full flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search events by name, location..."
@@ -173,9 +173,9 @@ const EventsPage = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-3">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
               <Select value={regionFilter} onValueChange={setRegionFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Region" />
                 </SelectTrigger>
@@ -190,7 +190,7 @@ const EventsPage = () => {
               </Select>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
@@ -205,7 +205,7 @@ const EventsPage = () => {
               </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -221,8 +221,8 @@ const EventsPage = () => {
           </div>
 
           {/* Results count */}
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>
+          <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-base sm:text-sm">
               Showing{" "}
               <span className="font-semibold text-foreground">
                 {filteredEvents.length}
@@ -236,6 +236,7 @@ const EventsPage = () => {
               <Button
                 variant="ghost"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setSearchTerm("");
                   setRegionFilter("all");

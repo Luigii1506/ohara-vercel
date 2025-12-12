@@ -53,14 +53,19 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: [
-        { status: "desc" },
         { listOrder: "asc" },
         { startDate: "desc" },
         { createdAt: "desc" },
       ],
     });
 
-    return NextResponse.json(events, { status: 200 });
+    const currentEvents = events.filter(
+      (event) => event.status !== "COMPLETED"
+    );
+    const pastEvents = events.filter((event) => event.status === "COMPLETED");
+    const orderedEvents = [...currentEvents, ...pastEvents];
+
+    return NextResponse.json(orderedEvents, { status: 200 });
   } catch (error) {
     console.error("Error fetching public events:", error);
     return NextResponse.json(

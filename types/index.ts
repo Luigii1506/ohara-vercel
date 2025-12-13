@@ -51,6 +51,12 @@ export type CardData = {
   id: string;
   alias: string;
   tcgUrl?: string;
+  tcgplayerProductId?: string | null;
+  marketPrice?: number | string | null;
+  lowPrice?: number | string | null;
+  highPrice?: number | string | null;
+  priceCurrency?: string | null;
+  priceUpdatedAt?: string | Date | null;
   rulings?: CardRuling[]; // <-- Aquí agregamos los rulings
 };
 

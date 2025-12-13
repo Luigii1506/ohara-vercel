@@ -14,6 +14,50 @@ import Link from "next/link";
 import { useCartStore, CartItem } from "@/store/cartStore";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
+const toNumericValue = (value?: number | string | null) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatPriceValue = (
+  value?: number | string | null,
+  currency?: string | null
+) => {
+  const numericValue = toNumericValue(value);
+  if (numericValue === null) {
+    return null;
+  }
+  const safeCurrency = currency || "USD";
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: safeCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  } catch {
+    return `${safeCurrency} ${numericValue.toFixed(2)}`;
+  }
+};
+
+const formatUpdatedTimestamp = (value?: string | Date | null) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
 interface CardModalProps {
   selectedCard: CardWithCollectionData | undefined;
   setIsOpen: (isOpen: boolean) => void;
@@ -67,6 +111,44 @@ const CardModal: React.FC<CardModalProps> = ({
 
   const [indexSelected, setIndexSelected] = React.useState(0);
   const [isTouchable, setIsTouchable] = React.useState(false);
+
+  const activeCardForPricing = selectedCard ?? baseCard;
+  const formattedMarketPrice = formatPriceValue(
+    activeCardForPricing?.marketPrice ?? baseCard?.marketPrice ?? null,
+    activeCardForPricing?.priceCurrency ?? baseCard?.priceCurrency ?? "USD"
+  );
+  const formattedPriceUpdatedAt = formatUpdatedTimestamp(
+    activeCardForPricing?.priceUpdatedAt ?? baseCard?.priceUpdatedAt ?? null
+  );
+  const shouldShowPriceSummary = Boolean(formattedMarketPrice);
+
+  const renderPriceSummary = (className = "") => {
+    if (!shouldShowPriceSummary) return null;
+    return (
+      <div
+        className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className}`}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+          Market price
+        </p>
+        <p className="text-2xl font-bold text-gray-900">
+          {formattedMarketPrice}
+        </p>
+        {formattedPriceUpdatedAt && (
+          <p className="text-[11px] text-gray-500">
+            Updated {formattedPriceUpdatedAt}
+          </p>
+        )}
+        <p className="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-500">
+          <TcgplayerLogo
+            className="h-4 w-10 text-blue-600"
+            aria-hidden="true"
+          />
+          <span>Prices provided by TCGplayer</span>
+        </p>
+      </div>
+    );
+  };
 
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -264,6 +346,8 @@ const CardModal: React.FC<CardModalProps> = ({
                       </div>
                     </div>
 
+                    {renderPriceSummary()}
+
                     <Link
                       href={
                         selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
@@ -315,6 +399,8 @@ const CardModal: React.FC<CardModalProps> = ({
                   <div className="text-center text-[13px] leading-[15px] min-h-[15px]">
                     {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}
                   </div>
+
+                  {renderPriceSummary()}
 
                   <Link
                     href={

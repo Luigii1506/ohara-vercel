@@ -53,6 +53,7 @@ export function CardDetailsSection({
     <div className="flex flex-col lg:flex-row gap-8">
       <div className="w-full max-w-[240px] mx-auto lg:mx-0 shrink-0">
         <div
+          className="w-full"
           onMouseEnter={() =>
             onPreviewEnter?.(selectedLinkCard.src, selectedLinkCard.name)
           }

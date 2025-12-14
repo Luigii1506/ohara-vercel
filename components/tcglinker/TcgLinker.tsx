@@ -1308,6 +1308,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           )}
                           <div className="flex justify-center items-center w-full relative">
                             <div
+                              className="w-[80%] m-auto"
                               onMouseEnter={() =>
                                 handlePreviewEnter(card?.src, card?.name)
                               }
@@ -1319,7 +1320,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                                 alt={card?.name}
                                 priority={index < 20}
                                 size="small"
-                                className="w-[80%] m-auto"
+                                className="w-full"
                               />
                             </div>
                             {(() => {
@@ -1378,6 +1379,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                             )}
                             <div className="flex justify-center items-center w-full relative">
                               <div
+                                className="w-[80%] m-auto"
                                 onMouseEnter={() =>
                                   handlePreviewEnter(alt?.src, alt?.name)
                                 }
@@ -1389,7 +1391,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                                   alt={alt?.name}
                                   priority={index < 20}
                                   size="small"
-                                  className="w-[80%] m-auto"
+                                  className="w-full"
                                 />
                               </div>
                               {alternateInProxies && (
@@ -1483,32 +1485,33 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                 return (
                   <React.Fragment key={card.id}>
                     {baseCardMatches() && (
-                      <div
-                        onClick={(e) => handleCardClick(e, card, card)}
-                        className="w-full cursor-pointer transition-all duration-200 rounded-lg"
-                      >
                         <div
-                          className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
-                            card.tcgplayerProductId
-                              ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                              : "bg-white"
-                          }`}
+                          onClick={(e) => handleCardClick(e, card, card)}
+                          className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                         >
                           <div
-                            onMouseEnter={() =>
-                              handlePreviewEnter(card?.src, card?.name)
-                            }
-                            onMouseLeave={hidePreview}
+                            className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
+                              card.tcgplayerProductId
+                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                                : "bg-white"
+                            }`}
                           >
-                            <LazyImage
-                              src={card.src}
-                              fallbackSrc="/assets/images/backcard.webp"
-                              alt={card.name}
-                              priority={index < 20}
-                              size="small"
+                            <div
                               className="w-full"
-                            />
-                          </div>
+                              onMouseEnter={() =>
+                                handlePreviewEnter(card?.src, card?.name)
+                              }
+                              onMouseLeave={hidePreview}
+                            >
+                              <LazyImage
+                                src={card.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={card.name}
+                                priority={index < 20}
+                                size="small"
+                                className="w-full"
+                              />
+                            </div>
                           {card.tcgplayerProductId && (
                             <div className="absolute top-2 left-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] text-white shadow flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
@@ -1578,6 +1581,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                               </Badge>
                             )}
                             <div
+                              className="w-full"
                               onMouseEnter={() =>
                                 handlePreviewEnter(alt?.src, alt?.name)
                               }

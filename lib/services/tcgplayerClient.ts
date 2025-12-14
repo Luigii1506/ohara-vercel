@@ -243,6 +243,88 @@ export async function getTcgplayerProductsByIds(
   return data.results ?? [];
 }
 
+export async function searchTcgplayerByName(
+  params: ProductSearchParams
+): Promise<ProductSearchResponse> {
+  const categoryId =
+    typeof params.categoryId === "number" && params.categoryId > 0
+      ? params.categoryId
+      : ONE_PIECE_CATEGORY_ID;
+
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+  const offset = Math.max(params.offset ?? 0, 0);
+
+  // IMPORTANT: TCGplayer's ProductName filter has a known limitation
+  // It only returns up to 50 total results regardless of actual matches
+  // This is a TCGplayer API limitation, not our bug
+  const filters: CategorySearchFilter[] = [];
+
+  if (params.name) {
+    filters.push({ name: "ProductName", values: [params.name] });
+  }
+
+  const requestBody = {
+    sort: "ProductName ASC",
+    limit,
+    offset,
+    filters,
+  };
+
+  console.log("[searchTcgplayerByName] Request:", {
+    categoryId,
+    body: requestBody,
+  });
+
+  const response = await tcgplayerFetch<{
+    success: boolean;
+    totalItems: number;
+    results: number[];
+    errors?: unknown[];
+  }>(`/catalog/categories/${categoryId}/search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  console.log("[searchTcgplayerByName] API Response:", {
+    success: response.success,
+    totalItems: response.totalItems,
+    resultsCount: response.results?.length,
+  });
+
+  if (!response.success) {
+    console.error("[searchTcgplayerByName] Search failed:", response);
+    throw new Error("TCGplayer text search failed");
+  }
+
+  const productIds = response.results ?? [];
+  const products = await getTcgplayerProductsByIds(
+    productIds,
+    params.getExtendedFields ?? true
+  );
+
+  // Calculate nextOffset using totalItems (not totalResults!)
+  const nextOffset =
+    offset + productIds.length < (response.totalItems ?? 0)
+      ? offset + productIds.length
+      : null;
+
+  console.log("[searchTcgplayerByName] Pagination:", {
+    offset,
+    productIdsLength: productIds.length,
+    totalItems: response.totalItems,
+    calculatedNextOffset: nextOffset,
+  });
+
+  return {
+    results: products,
+    totalResults: response.totalItems ?? products.length,
+    nextOffset,
+  };
+}
+
 export async function searchTcgplayerCategoryProducts(
   options: CategorySearchOptions
 ): Promise<ProductSearchResponse> {

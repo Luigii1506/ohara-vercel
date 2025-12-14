@@ -40,6 +40,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import ClearFiltersButton from "../ClearFiltersButton";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 
@@ -290,6 +292,8 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   const [linkedProduct, setLinkedProduct] =
     useState<TcgplayerProductDetail | null>(null);
   const [linking, setLinking] = useState(false);
+  const [searchMode, setSearchMode] = useState<"filters" | "text">("filters");
+  const [textSearchQuery, setTextSearchQuery] = useState("");
   const defaultQueryFields: Record<QueryFieldKey, boolean> = {
     name: true,
     color: true,
@@ -823,18 +827,6 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     overrideFilters?: TcgSearchFilter[]
   ) => {
     if (!selectedLinkCard) return;
-    let filtersToUse: TcgSearchFilter[] =
-      overrideFilters && overrideFilters.length
-        ? overrideFilters
-        : offset > 0 && activeFilters.length
-        ? activeFilters
-        : draftFilters.length
-        ? draftFilters
-        : buildFiltersFromCard(selectedLinkCard, queryFields);
-
-    const normalizedFilters = ensureLanguageFilter([...(filtersToUse ?? [])]);
-
-    if (!normalizedFilters.length) return;
 
     if (offset === 0) {
       setTcgNextOffset(null);
@@ -843,31 +835,85 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
     setTcgLoading(true);
     try {
-      const data = await fetchJSON<TcgplayerSearchResponse>(
-        "/api/admin/tcgplayer/search",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            categoryId: ONE_PIECE_CATEGORY_ID,
-            filters: normalizedFilters,
-            offset,
-            limit: 50,
-            includeExtendedFields: true,
-          }),
+      let data: TcgplayerSearchResponse;
+
+      if (searchMode === "text") {
+        // Búsqueda por texto libre
+        const searchText = textSearchQuery.trim() || selectedLinkCard.name;
+        if (!searchText) {
+          setTcgLoading(false);
+          return;
         }
-      );
+
+        data = await fetchJSON<TcgplayerSearchResponse>(
+          "/api/admin/tcgplayer/search-by-name",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              searchText,
+              categoryId: ONE_PIECE_CATEGORY_ID,
+              offset,
+              limit: 50,
+              includeExtendedFields: true,
+            }),
+          }
+        );
+      } else {
+        // Búsqueda por filtros (modo original)
+        let filtersToUse: TcgSearchFilter[] =
+          overrideFilters && overrideFilters.length
+            ? overrideFilters
+            : offset > 0 && activeFilters.length
+            ? activeFilters
+            : draftFilters.length
+            ? draftFilters
+            : buildFiltersFromCard(selectedLinkCard, queryFields);
+
+        const normalizedFilters = ensureLanguageFilter([...(filtersToUse ?? [])]);
+
+        if (!normalizedFilters.length) {
+          setTcgLoading(false);
+          return;
+        }
+
+        data = await fetchJSON<TcgplayerSearchResponse>(
+          "/api/admin/tcgplayer/search",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              categoryId: ONE_PIECE_CATEGORY_ID,
+              filters: normalizedFilters,
+              offset,
+              limit: 50,
+              includeExtendedFields: true,
+            }),
+          }
+        );
+
+        if (offset === 0) {
+          setActiveFilters(normalizedFilters);
+          setDraftFilters(normalizedFilters);
+        }
+      }
+
       if (offset === 0) {
-        setActiveFilters(normalizedFilters);
-        setDraftFilters(normalizedFilters);
         setTcgResults(data.results);
         setIsSearchDirty(false);
         setLastSearchTimestamp(new Date());
       } else {
         setTcgResults((prev) => [...prev, ...data.results]);
       }
+      console.log("[handleSearchTcg] Setting nextOffset:", {
+        nextOffset: data.nextOffset,
+        totalResults: data.totalResults,
+        resultsCount: data.results.length,
+      });
       setTcgNextOffset(data.nextOffset);
     } catch (error) {
       console.error("TCGplayer search failed", error);
@@ -1791,89 +1837,186 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                       </p>
                     </div>
                   )}
-                  <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 space-y-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex-1 min-w-[200px] space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Query preview
-                        </p>
-                        <p className="text-base font-semibold text-gray-900">
-                          {tcgSearch || selectedLinkCard.name || "Auto"}
-                        </p>
-                        {lastSearchTimestamp && !isSearchDirty && (
-                          <p className="text-xs text-muted-foreground">
-                            Last search:{" "}
-                            {formatUpdatedTimestamp(lastSearchTimestamp)}
-                          </p>
+
+                  <Tabs
+                    value={searchMode}
+                    onValueChange={(value) => {
+                      setSearchMode(value as "filters" | "text");
+                      setIsSearchDirty(true);
+                    }}
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="filters">Filter Search</TabsTrigger>
+                      <TabsTrigger value="text">Text Search</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="filters" className="space-y-4 mt-4">
+                      <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 space-y-4 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="flex-1 min-w-[200px] space-y-1">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Query preview
+                            </p>
+                            <p className="text-base font-semibold text-gray-900">
+                              {tcgSearch || selectedLinkCard.name || "Auto"}
+                            </p>
+                            {lastSearchTimestamp && !isSearchDirty && (
+                              <p className="text-xs text-muted-foreground">
+                                Last search:{" "}
+                                {formatUpdatedTimestamp(lastSearchTimestamp)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md"
+                              onClick={() => handleSearchTcg(0)}
+                              disabled={tcgLoading}
+                            >
+                              {tcgLoading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Searching...
+                                </>
+                              ) : (
+                                <>
+                                  <Search className="mr-2 h-4 w-4" />
+                                  Search TCGplayer
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleResetTcgFilters}
+                              disabled={tcgLoading}
+                            >
+                              <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                              Reset filters
+                            </Button>
+                          </div>
+                        </div>
+                        {isSearchDirty ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            Filters updated. Run a new search to refresh the list.
+                          </div>
+                        ) : (
+                          lastSearchTimestamp && (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                              Results are in sync with your last search.
+                            </div>
+                          )
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md"
-                          onClick={() => handleSearchTcg(0)}
-                          disabled={tcgLoading}
-                        >
-                          {tcgLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Searching...
-                            </>
-                          ) : (
-                            <>
-                              <Search className="mr-2 h-4 w-4" />
-                              Search TCGplayer
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleResetTcgFilters}
-                          disabled={tcgLoading}
-                        >
-                          <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
-                          Reset filters
-                        </Button>
-                      </div>
-                    </div>
-                    {isSearchDirty ? (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        Filters updated. Run a new search to refresh the list.
-                      </div>
-                    ) : (
-                      lastSearchTimestamp && (
-                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                          Results are in sync with your last search.
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Include the following attributes in the search query:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {queryToggleOptions.map((option) => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              disabled={!option.available}
+                              onClick={() => handleToggleQueryField(option.key)}
+                              className={`px-3 py-1 rounded-full text-xs border transition ${
+                                queryFields[option.key] && option.available
+                                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                                  : "bg-gray-100 text-gray-600 border-gray-200"
+                              } ${
+                                !option.available
+                                  ? "opacity-40 cursor-not-allowed"
+                                  : ""
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
                         </div>
-                      )
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Include the following attributes in the search query:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {queryToggleOptions.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          disabled={!option.available}
-                          onClick={() => handleToggleQueryField(option.key)}
-                          className={`px-3 py-1 rounded-full text-xs border transition ${
-                            queryFields[option.key] && option.available
-                              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                              : "bg-gray-100 text-gray-600 border-gray-200"
-                          } ${
-                            !option.available
-                              ? "opacity-40 cursor-not-allowed"
-                              : ""
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="text" className="space-y-4 mt-4">
+                      <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 space-y-4 shadow-sm">
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-muted-foreground block mb-2">
+                              Search query
+                            </label>
+                            <Input
+                              type="text"
+                              placeholder={`Search for "${selectedLinkCard.name}" or enter custom text...`}
+                              value={textSearchQuery}
+                              onChange={(e) => {
+                                setTextSearchQuery(e.target.value);
+                                setIsSearchDirty(true);
+                              }}
+                              className="w-full"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleSearchTcg(0);
+                                }
+                              }}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {textSearchQuery.trim()
+                                ? `Searching for: "${textSearchQuery.trim()}"`
+                                : `Will search for card name: "${selectedLinkCard.name}"`}
+                            </p>
+                          </div>
+                          {lastSearchTimestamp && !isSearchDirty && (
+                            <p className="text-xs text-muted-foreground">
+                              Last search: {formatUpdatedTimestamp(lastSearchTimestamp)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md"
+                            onClick={() => handleSearchTcg(0)}
+                            disabled={tcgLoading}
+                          >
+                            {tcgLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Searching...
+                              </>
+                            ) : (
+                              <>
+                                <Search className="mr-2 h-4 w-4" />
+                                Search TCGplayer
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setTextSearchQuery("");
+                              setIsSearchDirty(true);
+                            }}
+                            disabled={tcgLoading || !textSearchQuery}
+                          >
+                            <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                            Clear text
+                          </Button>
+                        </div>
+                        {isSearchDirty ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            Search text updated. Run a new search to refresh the list.
+                          </div>
+                        ) : (
+                          lastSearchTimestamp && (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                              Results are in sync with your last search.
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+
                   <div className="space-y-3">
                     {tcgResults.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-muted-foreground bg-white/60">
@@ -1887,9 +2030,23 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                       <>
                         {isSearchDirty && (
                           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                            Filters changed since the last search. Run a new
-                            search to update this list.
+                            Search parameters changed. Run a new search to update this list.
                           </div>
+                        )}
+                        {!isSearchDirty && tcgResults.length > 0 && (
+                          <>
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-center justify-between">
+                              <span>
+                                Showing <strong>{tcgResults.length}</strong> results
+                                {tcgNextOffset !== null && " (more available)"}
+                              </span>
+                              {tcgNextOffset !== null && (
+                                <span className="text-[11px] opacity-75">
+                                  Click "Load more" below to see more results
+                                </span>
+                              )}
+                            </div>
+                          </>
                         )}
                         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                           {tcgResults.map((product) => {

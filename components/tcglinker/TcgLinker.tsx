@@ -8,6 +8,7 @@ import {
   useEffect,
   useMemo,
   Fragment,
+  useCallback,
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   Loader2,
   ExternalLink,
   RefreshCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
@@ -49,6 +51,11 @@ import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
 import Link from "next/link";
+import { CardDetailsSection } from "./CardDetailsSection";
+import {
+  HoverImagePreviewOverlay,
+  useHoverImagePreview,
+} from "@/components/HoverImagePreview";
 
 const ONE_PIECE_CATEGORY_ID = 68;
 
@@ -229,6 +236,11 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     setCards(initialCards);
   }, [initialCards]);
   const [proxies, setProxies] = useState<DeckCard[]>([]);
+  const {
+    preview: hoverPreview,
+    showPreview,
+    hidePreview,
+  } = useHoverImagePreview();
 
   const [search, setSearch] = useState("");
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
@@ -291,6 +303,29 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   >({
     ...defaultQueryFields,
   });
+  const linkedProductId = selectedLinkCard?.tcgplayerProductId
+    ? Number(selectedLinkCard.tcgplayerProductId)
+    : null;
+  const linkedProductIds = useMemo(() => {
+    const ids = new Set<number>();
+    cards.forEach((card) => {
+      if (card.tcgplayerProductId) {
+        const id = Number(card.tcgplayerProductId);
+        if (Number.isFinite(id)) {
+          ids.add(id);
+        }
+      }
+      card.alternates?.forEach((alt) => {
+        if (alt.tcgplayerProductId) {
+          const id = Number(alt.tcgplayerProductId);
+          if (Number.isFinite(id)) {
+            ids.add(id);
+          }
+        }
+      });
+    });
+    return ids;
+  }, [cards]);
   const snapshotInfo = useMemo(() => {
     if (!selectedLinkCard?.marketPrice) return null;
     return {
@@ -309,6 +344,20 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       updatedAt: formatUpdatedTimestamp(selectedLinkCard.priceUpdatedAt),
     };
   }, [selectedLinkCard]);
+  const buildPreviewSrc = useCallback((src?: string | null) => {
+    if (!src) return null;
+    const optimized = getOptimizedImageUrl(src, "large");
+    return optimized || src;
+  }, []);
+  const handlePreviewEnter = useCallback(
+    (src?: string | null, alt?: string) => {
+      const previewSrc = buildPreviewSrc(src);
+      if (previewSrc) {
+        showPreview(previewSrc, alt);
+      }
+    },
+    [buildPreviewSrc, showPreview]
+  );
 
   const queryToggleOptions = useMemo(
     () => [
@@ -812,9 +861,15 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         defaultQuery;
       setTcgSearch(detailQuery);
       setDraftFilters(detailFilters);
-      setIsSearchDirty(true);
+      const shouldAutoSearch = Boolean(detail.card.tcgplayerProductId);
+      if (shouldAutoSearch) {
+        await handleSearchTcg(0, detailFilters);
+      } else {
+        setIsSearchDirty(true);
+      }
     } catch (error) {
       console.error("Failed to fetch card detail", error);
+      setIsSearchDirty(true);
     } finally {
       setCardDetailLoading(false);
     }
@@ -987,6 +1042,8 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
   const totalCards = proxies.reduce((total, card) => total + card.quantity, 0);
 
+  console.log("tcgResultstcgResults", tcgResults);
+
   return (
     <div className="flex flex-1 bg-[#f2eede] w-full h-full overflow-hidden">
       {/* Mobile Navigation */}
@@ -1099,6 +1156,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
               <ViewSwitch
                 viewSelected={viewSelected}
                 setViewSelected={setViewSelected}
+                isText={false}
               />
             </div>
           </div>
@@ -1175,7 +1233,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   <div className="flex flex-col gap-5" key={card.id}>
                     <div className="grid gap-3 grid-cols-2 mb-3">
                       {/* Info Card */}
-                      <div className="bg-black border rounded-lg shadow p-5 h-full text-white">
+                      <div className="bg-black border rounded-lg shadow p-5 h-full text-white relative overflow-hidden">
+                        {card.tcgplayerProductId && (
+                          <div className="absolute top-3 right-3 z-10 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                            Linked
+                          </div>
+                        )}
                         <div className="h-full flex flex-col justify-around items-center relative">
                           <div className="flex items-center justify-between flex-col mt-4">
                             <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
@@ -1227,21 +1290,38 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                       {baseCardMatches() && (
                         <div
                           onClick={(e) => handleCardClick(e, card, card)}
-                          className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
+                          className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full relative overflow-hidden ${
+                            card.tcgplayerProductId
+                              ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                              : "bg-white"
+                          } ${
                             totalQuantityBase >= 4
                               ? "opacity-70 grayscale"
                               : "hover:shadow-md"
                           }`}
                         >
+                          {card.tcgplayerProductId && (
+                            <span className="absolute top-2 right-2 rounded-full bg-emerald-600 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Linked
+                            </span>
+                          )}
                           <div className="flex justify-center items-center w-full relative">
-                            <LazyImage
-                              src={card?.src}
-                              fallbackSrc="/assets/images/backcard.webp"
-                              alt={card?.name}
-                              priority={index < 20}
-                              size="small"
-                              className="w-[80%] m-auto"
-                            />
+                            <div
+                              onMouseEnter={() =>
+                                handlePreviewEnter(card?.src, card?.name)
+                              }
+                              onMouseLeave={hidePreview}
+                            >
+                              <LazyImage
+                                src={card?.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={card?.name}
+                                priority={index < 20}
+                                size="small"
+                                className="w-[80%] m-auto"
+                              />
+                            </div>
                             {(() => {
                               const baseCardInProxies = proxies.find(
                                 (proxyCard) =>
@@ -1284,22 +1364,34 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           <div
                             key={alt.id}
                             onClick={(e) => handleCardClick(e, card, alt)}
-                            className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full hover:shadow-md`}
+                            className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full hover:shadow-md relative overflow-hidden ${
+                              alt.tcgplayerProductId
+                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                                : "bg-white"
+                            }`}
                           >
+                            {alt.tcgplayerProductId && (
+                              <span className="absolute top-2 right-2 rounded-full bg-emerald-600 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1 z-10">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Linked
+                              </span>
+                            )}
                             <div className="flex justify-center items-center w-full relative">
-                              {alt.tcgplayerProductId && (
-                                <Badge className="absolute left-2 top-2 bg-green-600 text-white shadow">
-                                  Linked
-                                </Badge>
-                              )}
-                              <LazyImage
-                                src={alt?.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt?.name}
-                                priority={index < 20}
-                                size="small"
-                                className="w-[80%] m-auto"
-                              />
+                              <div
+                                onMouseEnter={() =>
+                                  handlePreviewEnter(alt?.src, alt?.name)
+                                }
+                                onMouseLeave={hidePreview}
+                              >
+                                <LazyImage
+                                  src={alt?.src}
+                                  fallbackSrc="/assets/images/backcard.webp"
+                                  alt={alt?.name}
+                                  priority={index < 20}
+                                  size="small"
+                                  className="w-[80%] m-auto"
+                                />
+                              </div>
                               {alternateInProxies && (
                                 <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
                                   <span className="mb-[2px]">
@@ -1328,33 +1420,6 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {viewSelected === "text" && (
-            <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card) => (
-                <React.Fragment key={card.id}>
-                  <div
-                    className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg`}
-                    onClick={() => handleStoreCardClick(card)}
-                  >
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <StoreCard
-                        card={card}
-                        searchTerm={search}
-                        viewSelected={viewSelected}
-                        selectedRarities={selectedAltArts}
-                        selectedSets={selectedSets}
-                        setSelectedCard={handleSetSelectedCard}
-                        setBaseCard={setBaseCard}
-                        setAlternatesCards={setAlternatesCards}
-                        setIsOpen={setIsOpen}
-                      />
-                    </div>
-                  </div>
-                </React.Fragment>
-              ))}
             </div>
           )}
 
@@ -1422,15 +1487,34 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                         onClick={(e) => handleCardClick(e, card, card)}
                         className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                       >
-                        <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                          <LazyImage
-                            src={card.src}
-                            fallbackSrc="/assets/images/backcard.webp"
-                            alt={card.name}
-                            priority={index < 20}
-                            size="small"
-                            className="w-full"
-                          />
+                        <div
+                          className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
+                            card.tcgplayerProductId
+                              ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                              : "bg-white"
+                          }`}
+                        >
+                          <div
+                            onMouseEnter={() =>
+                              handlePreviewEnter(card?.src, card?.name)
+                            }
+                            onMouseLeave={hidePreview}
+                          >
+                            <LazyImage
+                              src={card.src}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={card.name}
+                              priority={index < 20}
+                              size="small"
+                              className="w-full"
+                            />
+                          </div>
+                          {card.tcgplayerProductId && (
+                            <div className="absolute top-2 left-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] text-white shadow flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Linked
+                            </div>
+                          )}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1480,20 +1564,34 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           onClick={(e) => handleCardClick(e, card, alt)}
                           className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                         >
-                          <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
+                          <div
+                            className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
+                              alt.tcgplayerProductId
+                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                                : "bg-white"
+                            }`}
+                          >
                             {alt.tcgplayerProductId && (
-                              <Badge className="absolute left-2 top-2 bg-green-600 text-white shadow">
+                              <Badge className="absolute left-2 top-2 bg-emerald-600 text-white shadow flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
                                 Linked
                               </Badge>
                             )}
-                            <LazyImage
-                              src={alt.src}
-                              fallbackSrc="/assets/images/backcard.webp"
-                              alt={alt.name}
-                              priority={index < 20}
-                              size="small"
-                              className="w-full"
-                            />
+                            <div
+                              onMouseEnter={() =>
+                                handlePreviewEnter(alt?.src, alt?.name)
+                              }
+                              onMouseLeave={hidePreview}
+                            >
+                              <LazyImage
+                                src={alt.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={alt.name}
+                                priority={index < 20}
+                                size="small"
+                                className="w-full"
+                              />
+                            </div>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1529,187 +1627,6 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
               })}
             </div>
           )}
-
-          {viewSelected === "grid" && (
-            <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredCards?.slice(0, visibleCount).map((card, index) => {
-                // Función que determina si la carta base cumple con los filtros
-                const baseCardMatches = (card: any): boolean => {
-                  if (!card) return false;
-
-                  if (
-                    [
-                      "Demo Version",
-                      "Not for Sale",
-                      "Pre-Errata",
-                      "Pre-Release",
-                    ].includes(card.alternateArt ?? "")
-                  ) {
-                    return false;
-                  }
-
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
-                  return true;
-                };
-
-                const alternateMatches = (alt: any): boolean => {
-                  if (
-                    [
-                      "Demo Version",
-                      "Not for Sale",
-                      "Pre-Errata",
-                      "Pre-Release",
-                    ].includes(alt.alternateArt ?? "")
-                  ) {
-                    return false;
-                  }
-
-                  if (normalizedSelectedSets.length > 0) {
-                    const altSetCodes = (alt.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !altSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(alt.alternateArt ?? "");
-                  }
-                  return true;
-                };
-
-                // Filtrar las alternates que cumplen los criterios
-                const filteredAlternates =
-                  card.alternates?.filter((alt) => alternateMatches(alt)) || [];
-
-                // Si ni la carta base ni ninguna alterna cumplen, no renderizamos nada para esta carta
-                if (!baseCardMatches(card) && filteredAlternates.length === 0)
-                  return null;
-
-                return (
-                  <React.Fragment key={card.id}>
-                    {/* Render the base card only if it matches the filters */}
-                    {baseCardMatches(card) && (
-                      <div
-                        className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                        onClick={(e) => handleCardClick(e, card, card)}
-                      >
-                        <LazyImage
-                          src={card.src ?? "/assets/images/backcard.webp"}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={card?.name}
-                          priority={index < 20}
-                          size="small"
-                          className="w-full"
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex justify-center items-center w-full flex-col">
-                                <span
-                                  className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                                >
-                                  {card.code}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{card.sets?.[0]?.set?.title}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {(() => {
-                          const baseCardInProxies = proxies.find(
-                            (proxyCard) => proxyCard.cardId === Number(card.id)
-                          );
-                          return (
-                            baseCardInProxies && (
-                              <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[30px] w-[30px] flex items-center justify-center text-[12px] font-bold border-2 border-white z-10">
-                                <span className="mb-[2px]">
-                                  {baseCardInProxies.quantity}
-                                </span>
-                              </div>
-                            )
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {filteredAlternates.map((alt) => {
-                      const alternateInProxies = proxies.find(
-                        (proxyCard) => proxyCard.cardId === Number(alt.id)
-                      );
-
-                      return (
-                        <div
-                          key={alt.id}
-                          className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                          onClick={(e) => handleCardClick(e, card, alt)}
-                        >
-                          {alt.tcgplayerProductId && (
-                            <Badge className="absolute left-1 top-1 bg-green-600 text-white shadow">
-                              Linked
-                            </Badge>
-                          )}
-                          <LazyImage
-                            src={alt.src ?? "/assets/images/backcard.webp"}
-                            fallbackSrc="/assets/images/backcard.webp"
-                            alt={alt?.name}
-                            priority={index < 20}
-                            size="small"
-                            className="w-full"
-                          />
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex justify-center items-center w-full flex-col">
-                                  <span
-                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                                  >
-                                    {card.code}
-                                  </span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{alt.sets?.[0]?.set?.title}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {alternateInProxies && (
-                            <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[30px] w-[30px] flex items-center justify-center text-[12px] font-bold border-2 border-white z-10">
-                              <span className="mb-[2px]">
-                                {alternateInProxies.quantity}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1730,101 +1647,16 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : selectedLinkCard ? (
-                <div className="flex flex-col lg:flex-row gap-4">
-                  <div className="w-full max-w-[220px] mx-auto lg:mx-0">
-                    <LazyImage
-                      src={selectedLinkCard.src}
-                      fallbackSrc="/assets/images/backcard.webp"
-                      alt={selectedLinkCard.name}
-                      size="small"
-                      className="w-full rounded-lg border border-gray-200"
-                    />
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-xl font-semibold">
-                        {selectedLinkCard.name}
-                      </h2>
-                      <Badge variant="outline">{selectedLinkCard.code}</Badge>
-                      {selectedLinkCard.tcgplayerProductId && (
-                        <Badge className="bg-green-600 text-white">
-                          Linked
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Set: {selectedLinkCard.setCode} • Rarity:{" "}
-                      {selectedLinkCard.rarity ?? "—"}
-                    </p>
-                    {snapshotInfo ? (
-                      <div className="rounded-lg border p-3 bg-white/70 space-y-1 text-sm">
-                        <div className="flex flex-wrap gap-4">
-                          <span>Market: {snapshotInfo.market}</span>
-                          {snapshotInfo.low && (
-                            <span>Low: {snapshotInfo.low}</span>
-                          )}
-                          {snapshotInfo.high && (
-                            <span>High: {snapshotInfo.high}</span>
-                          )}
-                        </div>
-                        {snapshotInfo.updatedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Updated {snapshotInfo.updatedAt}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">
-                        No price snapshot yet.
-                      </p>
-                    )}
-                    {selectedLinkCard.tcgUrl && (
-                      <Link
-                        href={selectedLinkCard.tcgUrl}
-                        target="_blank"
-                        className="inline-flex items-center gap-2 text-primary text-sm"
-                      >
-                        View on TCGplayer <ExternalLink className="h-4 w-4" />
-                      </Link>
-                    )}
-                    {selectedLinkCard.tcgplayerProductId && (
-                      <Button
-                        variant="secondary"
-                        onClick={handleUnlinkProduct}
-                        disabled={linking}
-                      >
-                        {linking ? "Unlinking..." : "Unlink product"}
-                      </Button>
-                    )}
-
-                    {selectedLinkCard?.tcgplayerProductId && linkedProduct && (
-                      <div className="flex flex-col">
-                        <p className="font-semibold">
-                          {linkedProduct.product?.name ?? "Unknown product"}
-                        </p>
-                        {linkedProduct.product?.url && (
-                          <Link
-                            href={linkedProduct.product.url}
-                            target="_blank"
-                            className="text-primary text-xs inline-flex items-center gap-1"
-                          >
-                            View on TCGplayer{" "}
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                        )}
-                        {linkedProduct.pricing?.marketPrice && (
-                          <p>
-                            Market:{" "}
-                            {formatPriceValue(
-                              linkedProduct.pricing.marketPrice,
-                              selectedLinkCard?.priceCurrency
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <CardDetailsSection
+                  selectedLinkCard={selectedLinkCard}
+                  snapshotInfo={snapshotInfo}
+                  linkedProduct={linkedProduct}
+                  linking={linking}
+                  handleUnlinkProduct={handleUnlinkProduct}
+                  formatPriceValue={formatPriceValue}
+                  onPreviewEnter={handlePreviewEnter}
+                  onPreviewLeave={hidePreview}
+                />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Select a card from the left to view details and link it to
@@ -1843,17 +1675,20 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                 <p className="text-sm text-muted-foreground">
                   Select a card on the left to configure a TCGplayer search.
                 </p>
-              ) : selectedLinkCard.tcgplayerProductId ? (
-                <div className="flex flex-col rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/80 p-5 text-center text-sm text-emerald-900">
-                  <p className="font-semibold">
-                    This card is already linked to TCGplayer.
-                  </p>
-                  <p className="mt-2">
-                    Remove the existing link to search for a different product.
-                  </p>
-                </div>
               ) : (
                 <>
+                  {selectedLinkCard.tcgplayerProductId && (
+                    <div className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/80 p-4 text-sm text-emerald-900">
+                      <p className="font-semibold">
+                        This card is currently linked to TCGplayer product #
+                        {selectedLinkCard.tcgplayerProductId}.
+                      </p>
+                      <p className="mt-2">
+                        You can unlink it from the detail panel or directly from
+                        the product card below.
+                      </p>
+                    </div>
+                  )}
                   <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 space-y-4 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="flex-1 min-w-[200px] space-y-1">
@@ -1955,59 +1790,127 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           </div>
                         )}
                         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {tcgResults.map((product) => (
-                            <div
-                              key={product.productId}
-                              className="border rounded-xl bg-white/90 p-3 flex flex-col shadow-sm hover:shadow-md transition"
-                            >
-                              <div className="flex gap-3">
-                                <div className="w-20 h-28 rounded-lg overflow-hidden bg-gray-50 border">
-                                  {product.imageUrl ? (
-                                    <img
-                                      src={product.imageUrl}
-                                      alt={product.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
-                                      No image
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <p className="font-semibold text-sm leading-tight line-clamp-2">
-                                    {product.name}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {product.groupName ??
-                                      product.categoryName ??
-                                      "-"}
-                                  </p>
-                                  <p className="text-[11px] text-muted-foreground mt-1">
-                                    Product ID: {product.productId}
-                                  </p>
-                                  {product.url && (
-                                    <Link
-                                      href={product.url}
-                                      target="_blank"
-                                      className="inline-flex items-center gap-1 text-primary text-[11px] mt-1"
-                                    >
-                                      View on TCGplayer
-                                      <ExternalLink className="h-3 w-3" />
-                                    </Link>
-                                  )}
-                                </div>
-                              </div>
-                              <Button
-                                className="mt-3"
-                                variant="secondary"
-                                disabled={linking}
-                                onClick={() => handleLinkProduct(product)}
+                          {tcgResults.map((product) => {
+                            const isLinkedCard =
+                              Boolean(linkedProductId) &&
+                              linkedProductId === product.productId;
+                            const isLinkedAnywhere = linkedProductIds.has(
+                              product.productId
+                            );
+                            const cardClasses = isLinkedAnywhere
+                              ? "relative overflow-hidden border-2 border-emerald-500/70 bg-gradient-to-br from-emerald-50 via-emerald-100 to-white shadow-lg ring-2 ring-emerald-300"
+                              : "border bg-white/90 shadow-sm hover:shadow-md";
+                            return (
+                              <div
+                                key={product.productId}
+                                className={`${cardClasses} rounded-xl p-3 flex flex-col transition`}
                               >
-                                Link product
-                              </Button>
-                            </div>
-                          ))}
+                                {isLinkedAnywhere && (
+                                  <>
+                                    <div className="absolute inset-0 pointer-events-none rounded-xl bg-emerald-500/5" />
+                                    <div className="flex items-center gap-2 text-emerald-800 font-semibold text-xs uppercase tracking-wide pb-2">
+                                      <CheckCircle2 className="h-4 w-4" />
+                                      {isLinkedCard
+                                        ? "Linked to this card"
+                                        : "Linked elsewhere"}
+                                    </div>
+                                  </>
+                                )}
+                                <div className="flex gap-3 relative z-[1]">
+                                  <div className="relative w-20 h-28 rounded-lg overflow-hidden bg-gray-50 border">
+                                    {isLinkedAnywhere && (
+                                      <span className="absolute top-1 right-1 rounded-full bg-emerald-600 text-white text-[9px] px-2 py-0.5 shadow">
+                                        {isLinkedCard
+                                          ? "Active Link"
+                                          : "Linked"}
+                                      </span>
+                                    )}
+                                    {product.imageUrl ? (
+                                      <img
+                                        src={product.imageUrl}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover"
+                                        onMouseEnter={() =>
+                                          handlePreviewEnter(
+                                            product.imageUrl,
+                                            product.name
+                                          )
+                                        }
+                                        onMouseLeave={hidePreview}
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
+                                        No image
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <p
+                                      className={`font-semibold text-sm leading-tight line-clamp-2 ${
+                                        isLinkedAnywhere
+                                          ? "text-emerald-900"
+                                          : ""
+                                      }`}
+                                    >
+                                      {product.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {product.groupName ??
+                                        product.categoryName ??
+                                        "-"}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground mt-1">
+                                      Product ID: {product.productId}
+                                    </p>
+                                    {product.url && (
+                                      <Link
+                                        href={product.url}
+                                        target="_blank"
+                                        className={`inline-flex items-center gap-1 text-[11px] mt-1 ${
+                                          isLinkedAnywhere
+                                            ? "text-emerald-700"
+                                            : "text-primary"
+                                        }`}
+                                      >
+                                        View on TCGplayer
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Link>
+                                    )}
+                                  </div>
+                                </div>
+                                {isLinkedCard ? (
+                                  <Button
+                                    className="mt-4 bg-red-600 hover:bg-red-700 text-white"
+                                    variant="destructive"
+                                    disabled={linking}
+                                    onClick={handleUnlinkProduct}
+                                  >
+                                    {linking
+                                      ? "Unlinking..."
+                                      : "Unlink product"}
+                                  </Button>
+                                ) : isLinkedAnywhere ? (
+                                  <Button
+                                    className="mt-4"
+                                    variant="secondary"
+                                    disabled
+                                    title="This product is already linked to another card"
+                                  >
+                                    Linked to another card
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    className="mt-4"
+                                    variant="secondary"
+                                    disabled={linking}
+                                    onClick={() => handleLinkProduct(product)}
+                                  >
+                                    Link product
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
 
                         {tcgNextOffset !== null && !isSearchDirty && (
@@ -2028,6 +1931,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
               )}
             </CardContent>
           </UICard>
+          <HoverImagePreviewOverlay preview={hoverPreview} />
         </div>
       </div>
 

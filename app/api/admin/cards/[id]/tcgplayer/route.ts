@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import {
+  getTcgplayerProductPricing,
+  getTcgplayerProductsByIds,
+} from "@/lib/services/tcgplayerClient";
 
 const decimalOrNull = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
@@ -29,7 +33,8 @@ export async function POST(
   try {
     const body = await req.json();
     const { productId, tcgUrl, pricing, currency } = body ?? {};
-    if (!productId || !Number.isFinite(Number(productId))) {
+    const numericProductId = Number(productId);
+    if (!numericProductId || !Number.isFinite(numericProductId)) {
       return NextResponse.json(
         { error: "productId is required" },
         { status: 400 }
@@ -41,20 +46,27 @@ export async function POST(
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
     }
 
+    const [productDetail] = await getTcgplayerProductsByIds(
+      [numericProductId],
+      true
+    );
+    const [pricingEntry] = await getTcgplayerProductPricing([numericProductId]);
+
+    const resolvedPricing = pricing ?? pricingEntry ?? null;
+    const resolvedUrl = tcgUrl ?? productDetail?.url ?? card.tcgUrl ?? null;
+    const resolvedCurrency = currency ?? card.priceCurrency ?? "USD";
     const now = new Date();
     const data: Prisma.CardUpdateInput = {
-      tcgplayerProductId: String(productId),
-      tcgUrl: tcgUrl ?? card.tcgUrl ?? null,
+      tcgplayerProductId: String(numericProductId),
+      tcgUrl: resolvedUrl,
     };
 
-    if (pricing) {
-      data.marketPrice = decimalOrNull(pricing.marketPrice);
-      data.lowPrice = decimalOrNull(pricing.lowPrice);
-      data.highPrice = decimalOrNull(pricing.highPrice);
-      data.priceCurrency = currency || "USD";
-      data.priceUpdatedAt = pricing.priceUpdatedAt
-        ? new Date(pricing.priceUpdatedAt)
-        : now;
+    if (resolvedPricing) {
+      data.marketPrice = decimalOrNull(resolvedPricing.marketPrice);
+      data.lowPrice = decimalOrNull(resolvedPricing.lowPrice);
+      data.highPrice = decimalOrNull(resolvedPricing.highPrice);
+      data.priceCurrency = resolvedCurrency;
+      data.priceUpdatedAt = now;
     }
 
     const updated = await prisma.card.update({

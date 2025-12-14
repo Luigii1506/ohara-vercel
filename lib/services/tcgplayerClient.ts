@@ -3,6 +3,7 @@ import "server-only";
 const TOKEN_ENDPOINT = "https://api.tcgplayer.com/token";
 const API_VERSION = process.env.TCGPLAYER_API_VERSION ?? "v1.39.0";
 const API_BASE_URL = `https://api.tcgplayer.com/${API_VERSION}`;
+const ONE_PIECE_CATEGORY_ID = 68;
 
 interface TokenCache {
   accessToken: string;
@@ -47,6 +48,20 @@ export interface ProductSearchResponse {
   nextOffset: number | null;
 }
 
+export interface CategorySearchFilter {
+  name: string;
+  values: string[];
+}
+
+export interface CategorySearchOptions {
+  categoryId: number;
+  filters: CategorySearchFilter[];
+  sort?: string;
+  limit?: number;
+  offset?: number;
+  includeExtendedFields?: boolean;
+}
+
 interface PricingEntry {
   productId: number;
   marketPrice?: number | null;
@@ -56,6 +71,24 @@ interface PricingEntry {
   directLowPrice?: number | null;
   subTypeName?: string | null;
 }
+
+const scorePricingEntry = (entry: PricingEntry | undefined) => {
+  if (!entry) return -Infinity;
+  const values = [
+    entry.marketPrice,
+    entry.midPrice,
+    entry.lowPrice,
+    entry.highPrice,
+    entry.directLowPrice,
+  ];
+  const defined = values.filter(
+    (value) => typeof value === "number" && Number.isFinite(value)
+  ).length;
+  const subtype = entry.subTypeName?.toLowerCase() ?? "";
+  const normalBonus = subtype === "normal" ? 2 : 0;
+  const foilPenalty = subtype.includes("foil") ? -1 : 0;
+  return defined * 10 + normalBonus + foilPenalty;
+};
 
 let tokenCache: TokenCache | null = null;
 
@@ -144,49 +177,6 @@ async function tcgplayerFetch<T>(
   return (await response.json()) as T;
 }
 
-export async function searchTcgplayerProducts(
-  params: ProductSearchParams
-): Promise<ProductSearchResponse> {
-  const searchParams = new URLSearchParams();
-  if (params.name) searchParams.set("productName", params.name);
-  if (params.productLineName)
-    searchParams.set("productLineName", params.productLineName);
-  if (typeof params.categoryId === "number")
-    searchParams.set("categoryId", String(params.categoryId));
-  if (typeof params.groupId === "number")
-    searchParams.set("groupId", String(params.groupId));
-  if (typeof params.offset === "number")
-    searchParams.set("offset", String(params.offset));
-  if (typeof params.limit === "number")
-    searchParams.set("limit", String(params.limit));
-  if (params.getExtendedFields)
-    searchParams.set("getExtendedFields", "true");
-
-  const data = await tcgplayerFetch<{
-    success: boolean;
-    results: TcgplayerProduct[];
-    totalResults: number;
-    resultsCount: number;
-    offset: number;
-    errors?: unknown[];
-  }>(`/catalog/products?${searchParams.toString()}`);
-
-  if (!data.success) {
-    throw new Error("TCGplayer product search returned an unsuccessful status");
-  }
-
-  const nextOffset =
-    data.results?.length && data.results.length > 0
-      ? data.offset + data.results.length
-      : null;
-
-  return {
-    results: data.results ?? [],
-    totalResults: data.totalResults ?? data.results?.length ?? 0,
-    nextOffset,
-  };
-}
-
 export async function getTcgplayerProductPricing(productIds: number[]) {
   if (!productIds.length) {
     return [];
@@ -202,7 +192,24 @@ export async function getTcgplayerProductPricing(productIds: number[]) {
     throw new Error("TCGplayer pricing request failed");
   }
 
-  return data.results ?? [];
+  const entries = data.results ?? [];
+  if (!entries.length) {
+    return [];
+  }
+
+  const bestEntries = new Map<number, PricingEntry>();
+  for (const entry of entries) {
+    const current = bestEntries.get(entry.productId);
+    if (!current) {
+      bestEntries.set(entry.productId, entry);
+      continue;
+    }
+    if (scorePricingEntry(entry) >= scorePricingEntry(current)) {
+      bestEntries.set(entry.productId, entry);
+    }
+  }
+
+  return Array.from(bestEntries.values());
 }
 
 export { tcgplayerFetch };
@@ -213,26 +220,75 @@ export async function getTcgplayerProductsByIds(
 ): Promise<TcgplayerProduct[]> {
   if (!productIds.length) return [];
 
-  const payload = {
-    productIds,
-    getExtendedFields,
-  };
+  const query = new URLSearchParams();
+  if (getExtendedFields) {
+    query.set("includeExtendedFields", "true");
+  }
+  const joinedIds = productIds.join(",");
+  const path = `/catalog/products/${joinedIds}${
+    query.toString() ? `?${query.toString()}` : ""
+  }`;
 
   const data = await tcgplayerFetch<{
     success: boolean;
     results: TcgplayerProduct[];
     errors?: unknown[];
-  }>("/catalog/products/list", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  }>(path);
 
   if (!data.success) {
     throw new Error("TCGplayer product lookup failed");
   }
 
   return data.results ?? [];
+}
+
+export async function searchTcgplayerCategoryProducts(
+  options: CategorySearchOptions
+): Promise<ProductSearchResponse> {
+  const categoryId =
+    typeof options.categoryId === "number" && options.categoryId > 0
+      ? options.categoryId
+      : ONE_PIECE_CATEGORY_ID;
+
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+  const offset = Math.max(options.offset ?? 0, 0);
+
+  const response = await tcgplayerFetch<{
+    success: boolean;
+    totalResults: number;
+    results: number[];
+    errors?: unknown[];
+  }>(`/catalog/categories/${categoryId}/search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      sort: options.sort ?? "ProductName ASC",
+      limit,
+      offset,
+      filters: options.filters ?? [],
+    }),
+  });
+
+  if (!response.success) {
+    throw new Error("TCGplayer category search failed");
+  }
+
+  const productIds = response.results ?? [];
+  const products = await getTcgplayerProductsByIds(
+    productIds,
+    options.includeExtendedFields ?? true
+  );
+
+  const nextOffset =
+    offset + productIds.length < (response.totalResults ?? 0)
+      ? offset + productIds.length
+      : null;
+
+  return {
+    results: products,
+    totalResults: response.totalResults ?? products.length,
+    nextOffset,
+  };
 }

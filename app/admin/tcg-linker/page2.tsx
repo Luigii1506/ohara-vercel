@@ -505,6 +505,30 @@ export default function AdminTcgLinkerPage() {
     if (!selectedCard) return;
     setLinking(true);
     try {
+      let productDetail: TcgplayerProductDetail | null = null;
+      try {
+        productDetail = await fetchJSON<TcgplayerProductDetail>(
+          `/api/admin/tcgplayer/products/${product.productId}?includePricing=true`
+        );
+      } catch (detailError) {
+        console.error("Failed to fetch product detail before linking", detailError);
+      }
+
+      const payload: {
+        productId: number;
+        tcgUrl: string | null;
+        pricing?: TcgplayerProductDetail["pricing"];
+        currency?: string;
+      } = {
+        productId: product.productId,
+        tcgUrl: productDetail?.product?.url ?? product.url ?? null,
+      };
+
+      if (productDetail?.pricing) {
+        payload.pricing = productDetail.pricing;
+        payload.currency = selectedCard.priceCurrency ?? "USD";
+      }
+
       const res = await fetchJSON<CardDetail>(
         `/api/admin/cards/${selectedCard.id}/tcgplayer`,
         {
@@ -512,15 +536,12 @@ export default function AdminTcgLinkerPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            productId: product.productId,
-            tcgUrl: product.url,
-          }),
+          body: JSON.stringify(payload),
         }
       );
       setSelectedCard(res);
       updateLocalCard(res);
-      setLinkedProduct(null);
+      setLinkedProduct(productDetail);
     } catch (error) {
       console.error("Failed to link card", error);
     } finally {

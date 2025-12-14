@@ -11,31 +11,25 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  ChartColumnBigIcon,
-  Eye,
+  Card as UICard,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   Grid,
-  RotateCcw,
-  X,
   Layers,
-  Users,
-  Save,
-  Minus,
-  Plus,
+  Search,
+  Loader2,
+  ExternalLink,
+  RefreshCcw,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
 import FiltersSidebar from "@/components/FiltersSidebar";
-import {
-  Dialog,
-  DialogPanel,
-  DialogTitle,
-  Transition,
-  TransitionChild,
-} from "@headlessui/react";
+import { Transition } from "@headlessui/react";
 import { CardWithCollectionData } from "@/types";
-import { TransitionGroup, CSSTransition } from "react-transition-group";
 import React from "react";
-import GroupedCardPreview from "../deckbuilder/GroupedCardPreview";
 import {
   Tooltip,
   TooltipContent,
@@ -43,7 +37,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import SearchFilters from "@/components/home/SearchFilters";
 import ClearFiltersButton from "../ClearFiltersButton";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 
@@ -55,14 +48,186 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
+import Link from "next/link";
+
+const ONE_PIECE_CATEGORY_ID = 68;
 
 interface TcgLinkerLayoutProps {
   initialCards: CardWithCollectionData[];
 }
 
-const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
-  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+type CardDetail = CardWithCollectionData & {
+  tcgplayerProductId?: string | null;
+  tcgUrl?: string | null;
+  marketPrice?: number | string | null;
+  lowPrice?: number | string | null;
+  highPrice?: number | string | null;
+  priceCurrency?: string | null;
+  priceUpdatedAt?: string | Date | null;
+  isWatchlisted?: boolean;
+};
 
+interface TcgplayerProduct {
+  productId: number;
+  name: string;
+  imageUrl?: string | null;
+  groupName?: string | null;
+  url?: string | null;
+  categoryName?: string | null;
+}
+
+interface TcgplayerSearchResponse {
+  results: TcgplayerProduct[];
+  totalResults: number;
+  nextOffset: number | null;
+}
+
+interface TcgplayerProductDetail {
+  product: TcgplayerProduct | null;
+  pricing: {
+    marketPrice?: number | null;
+    lowPrice?: number | null;
+    highPrice?: number | null;
+    midPrice?: number | null;
+  } | null;
+}
+
+const fetchJSON = async <T,>(input: RequestInfo, init?: RequestInit) => {
+  const res = await fetch(input, init);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Request failed");
+  }
+  return (await res.json()) as T;
+};
+
+const formatPriceValue = (
+  value?: number | string | null,
+  currency?: string | null
+) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+  const safeCurrency = currency || "USD";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: safeCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  } catch {
+    return `${safeCurrency} ${numericValue.toFixed(2)}`;
+  }
+};
+
+const formatUpdatedTimestamp = (value?: string | Date | null) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
+type QueryFieldKey =
+  | "name"
+  | "color"
+  | "rarity"
+  | "type"
+  | "cost"
+  | "power"
+  | "counter"
+  | "attribute";
+type TcgSearchFilter = { name: string; values: string[] };
+
+const FILTER_NAME_MAP: Record<QueryFieldKey, string> = {
+  name: "ProductName",
+  color: "Color",
+  rarity: "Rarity",
+  type: "Card Type",
+  cost: "Cost",
+  power: "Power",
+  counter: "Counter",
+  attribute: "Attribute",
+};
+
+const buildQueryFromCard = (
+  card: CardWithCollectionData | null,
+  fields: Record<QueryFieldKey, boolean>
+) => {
+  if (!card) return "";
+  const parts: string[] = [];
+  if (fields.name && card.name) parts.push(card.name);
+  if (fields.color && card.colors?.length) {
+    parts.push(card.colors.map((c) => c.color).join(" "));
+  }
+  if (fields.rarity && card.rarity) parts.push(card.rarity);
+  if (fields.type && card.category) parts.push(card.category);
+  if (fields.cost && card.cost) parts.push(card.cost);
+  if (fields.power && card.power) parts.push(card.power);
+  if (fields.counter && card.counter) parts.push(card.counter);
+  if (fields.attribute && card.attribute) parts.push(card.attribute);
+  return parts.join(" ").trim();
+};
+
+const buildFiltersFromCard = (
+  card: CardWithCollectionData | null,
+  fields: Record<QueryFieldKey, boolean>
+): TcgSearchFilter[] => {
+  if (!card) return [];
+  const filters: TcgSearchFilter[] = [];
+  if (fields.name && card.name) {
+    filters.push({ name: FILTER_NAME_MAP.name, values: [card.name] });
+  }
+  if (fields.color && card.colors?.length) {
+    filters.push({
+      name: FILTER_NAME_MAP.color,
+      values: card.colors.map((c) => c.color),
+    });
+  }
+  if (fields.rarity && card.rarity) {
+    filters.push({ name: FILTER_NAME_MAP.rarity, values: [card.rarity] });
+  }
+  if (fields.type && card.category) {
+    filters.push({ name: FILTER_NAME_MAP.type, values: [card.category] });
+  }
+  if (fields.cost && card.cost) {
+    filters.push({ name: FILTER_NAME_MAP.cost, values: [card.cost] });
+  }
+  if (fields.power && card.power) {
+    filters.push({ name: FILTER_NAME_MAP.power, values: [card.power] });
+  }
+  if (fields.counter && card.counter) {
+    filters.push({ name: FILTER_NAME_MAP.counter, values: [card.counter] });
+  }
+  if (fields.attribute && card.attribute) {
+    filters.push({
+      name: FILTER_NAME_MAP.attribute,
+      values: [card.attribute],
+    });
+  }
+  return ensureLanguageFilter(filters);
+};
+
+const ensureLanguageFilter = (filters: TcgSearchFilter[]) => {
+  const hasLanguage = filters.some(
+    (filter) =>
+      filter.name.toLowerCase() === "language" && filter.values.length > 0
+  );
+  if (!hasLanguage) {
+    filters.push({ name: "Language", values: ["All"] });
+  }
+  return filters;
+};
+
+const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
+  const [cards, setCards] = useState<CardWithCollectionData[]>(initialCards);
+  useEffect(() => {
+    setCards(initialCards);
+  }, [initialCards]);
   const [proxies, setProxies] = useState<DeckCard[]>([]);
 
   const [search, setSearch] = useState("");
@@ -92,6 +257,140 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
+
+  const [activeFilters, setActiveFilters] = useState<TcgSearchFilter[]>([]);
+  const [draftFilters, setDraftFilters] = useState<TcgSearchFilter[]>([]);
+  const [isSearchDirty, setIsSearchDirty] = useState(false);
+  const [lastSearchTimestamp, setLastSearchTimestamp] = useState<Date | null>(
+    null
+  );
+
+  const [selectedLinkCard, setSelectedLinkCard] = useState<CardDetail | null>(
+    null
+  );
+  const [cardDetailLoading, setCardDetailLoading] = useState(false);
+  const [tcgSearch, setTcgSearch] = useState("");
+  const [tcgResults, setTcgResults] = useState<TcgplayerProduct[]>([]);
+  const [tcgLoading, setTcgLoading] = useState(false);
+  const [tcgNextOffset, setTcgNextOffset] = useState<number | null>(null);
+  const [linkedProduct, setLinkedProduct] =
+    useState<TcgplayerProductDetail | null>(null);
+  const [linking, setLinking] = useState(false);
+  const defaultQueryFields: Record<QueryFieldKey, boolean> = {
+    name: true,
+    color: true,
+    rarity: false,
+    type: false,
+    cost: false,
+    power: false,
+    counter: false,
+    attribute: false,
+  };
+  const [queryFields, setQueryFields] = useState<
+    Record<QueryFieldKey, boolean>
+  >({
+    ...defaultQueryFields,
+  });
+  const snapshotInfo = useMemo(() => {
+    if (!selectedLinkCard?.marketPrice) return null;
+    return {
+      market: formatPriceValue(
+        selectedLinkCard.marketPrice,
+        selectedLinkCard.priceCurrency
+      ),
+      low: formatPriceValue(
+        selectedLinkCard.lowPrice,
+        selectedLinkCard.priceCurrency
+      ),
+      high: formatPriceValue(
+        selectedLinkCard.highPrice,
+        selectedLinkCard.priceCurrency
+      ),
+      updatedAt: formatUpdatedTimestamp(selectedLinkCard.priceUpdatedAt),
+    };
+  }, [selectedLinkCard]);
+
+  const queryToggleOptions = useMemo(
+    () => [
+      {
+        key: "name" as QueryFieldKey,
+        label: "Name",
+        available: Boolean(selectedLinkCard?.name),
+      },
+      {
+        key: "color" as QueryFieldKey,
+        label: "Color",
+        available: Boolean(selectedLinkCard?.colors?.length),
+      },
+      {
+        key: "rarity" as QueryFieldKey,
+        label: "Rarity",
+        available: Boolean(selectedLinkCard?.rarity),
+      },
+      {
+        key: "type" as QueryFieldKey,
+        label: "Card Type",
+        available: Boolean(selectedLinkCard?.category),
+      },
+      {
+        key: "cost" as QueryFieldKey,
+        label: "Cost",
+        available: Boolean(selectedLinkCard?.cost),
+      },
+      {
+        key: "power" as QueryFieldKey,
+        label: "Power",
+        available: Boolean(selectedLinkCard?.power),
+      },
+      {
+        key: "counter" as QueryFieldKey,
+        label: "Counter",
+        available: Boolean(selectedLinkCard?.counter),
+      },
+      {
+        key: "attribute" as QueryFieldKey,
+        label: "Attribute",
+        available: Boolean(selectedLinkCard?.attribute),
+      },
+    ],
+    [selectedLinkCard]
+  );
+
+  const handleToggleQueryField = (key: QueryFieldKey) => {
+    if (!selectedLinkCard) return;
+    setQueryFields((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (!Object.values(next).some(Boolean)) {
+        return prev;
+      }
+      const newQuery = buildQueryFromCard(selectedLinkCard, next);
+      setTcgSearch(
+        newQuery || selectedLinkCard.name || selectedLinkCard.code || tcgSearch
+      );
+      const newFilters = ensureLanguageFilter(
+        buildFiltersFromCard(selectedLinkCard, next)
+      );
+      setDraftFilters(newFilters);
+      setIsSearchDirty(true);
+      return next;
+    });
+  };
+
+  const handleResetTcgFilters = () => {
+    if (!selectedLinkCard) return;
+    setQueryFields({ ...defaultQueryFields });
+    const baseQuery =
+      buildQueryFromCard(selectedLinkCard, defaultQueryFields) ||
+      selectedLinkCard.name ||
+      selectedLinkCard.code ||
+      "";
+    setTcgSearch(baseQuery);
+    const baseFilters = ensureLanguageFilter(
+      buildFiltersFromCard(selectedLinkCard, defaultQueryFields)
+    );
+    setDraftFilters(baseFilters);
+    setIsSearchDirty(true);
+  };
 
   const [visibleCount, setVisibleCount] = useState(50);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
@@ -184,6 +483,32 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     selectedCodes?.length +
     selectedAltArts?.length;
 
+  const updateLocalCard = (updated: CardDetail) => {
+    setCards((prev) =>
+      prev.map((card) => {
+        if (card.id === updated.id) {
+          return { ...card, ...updated };
+        }
+        if (card.alternates?.some((alt) => alt.id === updated.id)) {
+          return {
+            ...card,
+            alternates: card.alternates.map((alt) =>
+              alt.id === updated.id ? { ...alt, ...updated } : alt
+            ),
+          };
+        }
+        return card;
+      })
+    );
+    setSelectedLinkCard(updated);
+    setTcgSearch(
+      buildQueryFromCard(updated, queryFields) ||
+        updated.name ||
+        updated.code ||
+        ""
+    );
+  };
+
   const matchesCardCode = (code: string, search: string) => {
     const query = search.toLowerCase().trim();
     const fullCode = code.toLowerCase();
@@ -220,554 +545,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     return parts.some((part) => part.toLowerCase().includes(query));
   };
 
-  const handleProxies = () => {
-    // Expandir cartas según su cantidad para impresión
-    const expandedCards = proxies.flatMap((card) =>
-      Array(card.quantity).fill(card)
-    );
-
-    if (expandedCards.length === 0) {
-      alert("No hay cartas en el deck para imprimir");
-      return;
-    }
-
-    // Función helper para determinar si necesita proxy
-    const getProxiedImageUrl = (originalUrl: string): string => {
-      const problematicDomains = [
-        "limitlesstcg.nyc3.digitaloceanspaces.com",
-        "digitaloceanspaces.com",
-        "limitlesstcg.nyc3.cdn.digitaloceanspaces.com",
-        "en.onepiece-cardgame.com",
-        "static.dotgg.gg",
-        "i.pinimg.com",
-        "assets.pokemon.com",
-        "bez3ta.com",
-        "spellmana.com",
-        "oharatcg-21eab.kxcdn.com",
-      ];
-
-      try {
-        const urlObj = new URL(originalUrl);
-        const needsProxy = problematicDomains.some(
-          (domain) =>
-            urlObj.hostname === domain || urlObj.hostname.endsWith("." + domain)
-        );
-
-        if (needsProxy) {
-          return `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
-        }
-
-        return originalUrl; // Las de tu dominio no necesitan proxy
-      } catch {
-        return originalUrl; // Si falla el parsing, usar URL original
-      }
-    };
-
-    // Crear modal de impresión
-    const printModal = document.createElement("div");
-    printModal.className = "print-modal";
-    printModal.innerHTML = `
-      <style>
-        .print-modal {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.8);
-          z-index: 99999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-        
-        .print-modal-content {
-          background: white;
-          border-radius: 12px;
-          width: 100%;
-          max-width: 900px;
-          max-height: 90vh;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        
-        .print-modal-header {
-          padding: 20px;
-          border-bottom: 1px solid #e0e0e0;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        
-        .print-modal-header h2 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 600;
-        }
-        
-        .print-modal-actions {
-          display: flex;
-          gap: 10px;
-        }
-        
-        .print-modal-btn {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 6px;
-          font-size: 16px;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        
-        .print-modal-btn-primary {
-          background: #2196F3;
-          color: white;
-        }
-        
-        .print-modal-btn-primary:hover {
-          background: #1976d2;
-          transform: translateY(-1px);
-        }
-        
-        .print-modal-btn-primary:disabled {
-          background: #ccc;
-          cursor: not-allowed;
-          transform: none;
-        }
-        
-        .print-modal-btn-close {
-          background: #f5f5f5;
-          color: #666;
-        }
-        
-        .print-modal-btn-close:hover {
-          background: #e0e0e0;
-        }
-        
-        .print-preview-container {
-          flex: 1;
-          overflow: auto;
-          padding: 20px;
-          background: #f5f5f5;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 400px;
-        }
-        
-        .print-preview-iframe {
-          width: 100%;
-          height: 600px;
-          border: none;
-          background: white;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-          border-radius: 4px;
-        }
-        
-        .loading-container {
-          text-align: center;
-          padding: 40px;
-        }
-        
-        .loading-spinner {
-          width: 50px;
-          height: 50px;
-          border: 3px solid #f3f3f3;
-          border-top: 3px solid #2196F3;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 20px;
-        }
-        
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-          font-size: 18px;
-          color: #666;
-          margin-bottom: 10px;
-        }
-        
-        .loading-progress {
-          font-size: 14px;
-          color: #999;
-        }
-        
-        .info-box {
-          background: #e3f2fd;
-          border: 1px solid #bbdefb;
-          border-radius: 4px;
-          padding: 15px;
-          margin-bottom: 15px;
-          font-size: 14px;
-        }
-        
-        .info-box strong {
-          color: #1976d2;
-        }
-      </style>
-      
-      <div class="print-modal-content">
-        <div class="print-modal-header">
-          <h2>Generar PDF de Proxies</h2>
-          <div class="print-modal-actions">
-            <button id="print-btn" class="print-modal-btn print-modal-btn-primary" disabled>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/>
-              </svg>
-              Imprimir PDF
-            </button>
-            <button class="print-modal-btn print-modal-btn-close" id="close-modal-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-              Cerrar
-            </button>
-          </div>
-        </div>
-        <div class="print-preview-container">
-          <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Generando PDF...</div>
-            <div class="loading-progress">Preparando imágenes</div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(printModal);
-
-    // Función para cerrar el modal - definida localmente
-    const closeModal = () => {
-      printModal.remove();
-      document.removeEventListener("keydown", handleEsc);
-    };
-
-    // Event listener para el botón de cerrar
-    const closeBtn = document.getElementById("close-modal-btn");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", closeModal);
-    }
-
-    // Cerrar con ESC
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeModal();
-      }
-    };
-    document.addEventListener("keydown", handleEsc);
-
-    // Cerrar al hacer click fuera del modal
-    printModal.addEventListener("click", (e) => {
-      if (e.target === printModal) {
-        closeModal();
-      }
-    });
-
-    // Generar PDF
-    generatePDFContent();
-
-    async function generatePDFContent() {
-      try {
-        // Cargar jsPDF
-        const script = document.createElement("script");
-        script.src =
-          "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        document.head.appendChild(script);
-
-        await new Promise<void>((resolve) => {
-          script.onload = () => resolve();
-        });
-
-        const { jsPDF } = window.jspdf;
-
-        const loadingProgress = printModal.querySelector(
-          ".loading-progress"
-        ) as HTMLElement;
-
-        // Pre-cargar TODAS las imágenes antes de crear el PDF
-        if (loadingProgress) {
-          loadingProgress.textContent = `Cargando ${expandedCards.length} imágenes...`;
-        }
-
-        const imageCache = new Map<number, string>();
-        const loadPromises: Promise<void>[] = [];
-
-        // Cargar todas las imágenes en paralelo usando el proxy para dominios problemáticos
-        for (let i = 0; i < expandedCards.length; i++) {
-          const card = expandedCards[i];
-          // Usar la versión "large" optimizada para mejor calidad en el PDF
-          const optimizedUrl = getOptimizedImageUrl(card.src, "large");
-          const proxiedUrl = getProxiedImageUrl(optimizedUrl);
-
-          const promise = loadImageWithProxy(proxiedUrl)
-            .then((imgData: string) => {
-              imageCache.set(i, imgData);
-              if (loadingProgress) {
-                loadingProgress.textContent = `Cargando imágenes... ${imageCache.size}/${expandedCards.length}`;
-              }
-            })
-            .catch((error) => {
-              console.warn(`Error cargando imagen ${i}:`, error);
-              imageCache.set(i, "error");
-              if (loadingProgress) {
-                loadingProgress.textContent = `Cargando imágenes... ${
-                  imageCache.size
-                }/${expandedCards.length} (${
-                  imageCache.size -
-                  Array.from(imageCache.values()).filter((v) => v === "error")
-                    .length
-                } exitosas)`;
-              }
-            });
-          loadPromises.push(promise);
-        }
-
-        // Esperar a que TODAS las imágenes se carguen
-        await Promise.all(loadPromises);
-
-        if (loadingProgress) {
-          loadingProgress.textContent = "Creando PDF...";
-        }
-
-        // Crear PDF con configuración optimizada
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: [210, 297],
-          compress: false,
-        });
-
-        // Configuración de las cartas
-        const cardWidth = 62;
-        const cardHeight = 87;
-        const gap = 1;
-        const startX = 11;
-        const startY = 10;
-
-        // Organizar cartas en páginas
-        const cardsPerPage = 9;
-        const pages = [];
-        for (let i = 0; i < expandedCards.length; i += cardsPerPage) {
-          pages.push(expandedCards.slice(i, i + cardsPerPage));
-        }
-
-        // Helper function to draw placeholder
-        const drawPlaceholder = (
-          x: number,
-          y: number,
-          card: any,
-          globalIndex: number
-        ) => {
-          // Si la imagen falló, dibujar un placeholder
-          pdf.setFillColor(245, 245, 245);
-          pdf.rect(x, y, cardWidth, cardHeight, "F");
-          pdf.setDrawColor(200, 200, 200);
-          pdf.setLineWidth(0.5);
-          pdf.rect(x, y, cardWidth, cardHeight, "S");
-
-          pdf.setFontSize(10);
-          pdf.setTextColor(100, 100, 100);
-          const text = card.name || `Carta ${globalIndex + 1}`;
-          const lines = pdf.splitTextToSize(text, cardWidth - 10);
-          pdf.text(
-            lines,
-            x + cardWidth / 2,
-            y + cardHeight / 2 - lines.length * 2,
-            {
-              align: "center",
-            }
-          );
-
-          if (card.code) {
-            pdf.setFontSize(8);
-            pdf.setTextColor(150, 150, 150);
-            pdf.text(card.code, x + cardWidth / 2, y + cardHeight / 2 + 10, {
-              align: "center",
-            });
-          }
-
-          // Mensaje de error
-          pdf.setFontSize(7);
-          pdf.setTextColor(200, 100, 100);
-          pdf.text(
-            "Error al cargar imagen",
-            x + cardWidth / 2,
-            y + cardHeight - 5,
-            {
-              align: "center",
-            }
-          );
-        };
-
-        // Procesar cada página
-        for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-          if (pageIndex > 0) {
-            pdf.addPage();
-          }
-
-          if (loadingProgress) {
-            loadingProgress.textContent = `Generando página ${
-              pageIndex + 1
-            } de ${pages.length}`;
-          }
-
-          const pageCards = pages[pageIndex];
-
-          // Procesar cada carta de la página
-          for (let i = 0; i < pageCards.length; i++) {
-            const card = pageCards[i];
-            const globalIndex = pageIndex * cardsPerPage + i;
-            const row = Math.floor(i / 3);
-            const col = i % 3;
-
-            const x = startX + col * (cardWidth + gap);
-            const y = startY + row * (cardHeight + gap);
-
-            // Usar la imagen pre-cargada del cache
-            const imgData = imageCache.get(globalIndex);
-
-            if (imgData && imgData !== "error") {
-              try {
-                // Como ahora usamos el proxy, las imágenes deberían cargarse como base64
-                pdf.addImage(
-                  imgData,
-                  "JPEG",
-                  x,
-                  y,
-                  cardWidth,
-                  cardHeight,
-                  `card_${pageIndex}_${i}`,
-                  "NONE"
-                );
-              } catch (error) {
-                console.error(`Error agregando imagen al PDF:`, error);
-                drawPlaceholder(x, y, card, globalIndex);
-              }
-            } else {
-              drawPlaceholder(x, y, card, globalIndex);
-            }
-          }
-
-          // Pequeña pausa para no bloquear el UI
-          await new Promise<void>((resolve) => setTimeout(resolve, 10));
-        }
-
-        if (loadingProgress) {
-          loadingProgress.textContent = "Finalizando PDF...";
-        }
-
-        // Generar blob del PDF
-        const pdfBlob = pdf.output("blob");
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-
-        // Mostrar PDF en iframe
-        const previewContainer = printModal.querySelector(
-          ".print-preview-container"
-        ) as HTMLElement;
-
-        if (previewContainer) {
-          previewContainer.innerHTML = `
-            <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-              <iframe id="pdf-preview" class="print-preview-iframe" src="${pdfUrl}"></iframe>
-            </div>
-          `;
-        }
-
-        // Habilitar botón de impresión
-        const printBtn = document.getElementById(
-          "print-btn"
-        ) as HTMLButtonElement;
-        if (printBtn) {
-          printBtn.disabled = false;
-          printBtn.onclick = () => {
-            const iframe = document.getElementById(
-              "pdf-preview"
-            ) as HTMLIFrameElement;
-            if (iframe && iframe.contentWindow) {
-              iframe.contentWindow.print();
-            }
-          };
-        }
-      } catch (error) {
-        console.error("Error generating PDF:", error);
-        const previewContainer = printModal.querySelector(
-          ".print-preview-container"
-        ) as HTMLElement;
-
-        if (previewContainer) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          previewContainer.innerHTML = `
-            <div class="loading-container">
-              <div style="color: #f44336; font-size: 18px;">Error al generar el PDF</div>
-              <div style="color: #666; margin-top: 10px;">Por favor, intenta de nuevo</div>
-              <div style="color: #999; margin-top: 5px; font-size: 12px;">${errorMessage}</div>
-            </div>
-          `;
-        }
-      }
-    }
-
-    // Nueva función optimizada para cargar imágenes usando el proxy
-    async function loadImageWithProxy(url: string): Promise<string> {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-
-        // Las imágenes proxiadas no necesitan crossOrigin ya que vienen del mismo dominio
-        if (!url.startsWith("/api/proxy-image")) {
-          img.crossOrigin = "anonymous";
-        }
-
-        const timeout = setTimeout(() => {
-          img.src = "";
-          reject(new Error("Timeout cargando imagen"));
-        }, 15000); // Aumentamos timeout para images proxiadas
-
-        img.onload = function () {
-          clearTimeout(timeout);
-          try {
-            const canvas = document.createElement("canvas");
-            canvas.width = 744;
-            canvas.height = 1044;
-
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              ctx.fillStyle = "white";
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-              resolve(canvas.toDataURL("image/jpeg", 0.9));
-            } else {
-              reject(new Error("No se pudo obtener el contexto del canvas"));
-            }
-          } catch (error) {
-            clearTimeout(timeout);
-            reject(error);
-          }
-        };
-
-        img.onerror = function () {
-          clearTimeout(timeout);
-          reject(new Error("Error cargando imagen"));
-        };
-
-        img.src = url;
-      });
-    }
-  };
-
   const filteredCards = useMemo(() => {
-    if (!initialCards || initialCards.length === 0) return [];
+    if (!cards || cards.length === 0) return [];
 
-    return initialCards
+    return cards
       .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
@@ -904,7 +685,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         return sortByCollectionOrder(a, b);
       });
   }, [
-    initialCards,
+    cards,
     search,
     selectedColors,
     selectedRarities,
@@ -929,98 +710,183 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Handler para el click en cada carta (compatible con DeckBuilderLayout)
-  const handleCardClick = (
+  const handleSearchTcg = async (
+    offset = 0,
+    overrideFilters?: TcgSearchFilter[]
+  ) => {
+    if (!selectedLinkCard) return;
+    let filtersToUse: TcgSearchFilter[] =
+      overrideFilters && overrideFilters.length
+        ? overrideFilters
+        : offset > 0 && activeFilters.length
+        ? activeFilters
+        : draftFilters.length
+        ? draftFilters
+        : buildFiltersFromCard(selectedLinkCard, queryFields);
+
+    const normalizedFilters = ensureLanguageFilter([...(filtersToUse ?? [])]);
+
+    if (!normalizedFilters.length) return;
+
+    if (offset === 0) {
+      setTcgNextOffset(null);
+      setTcgResults([]);
+    }
+
+    setTcgLoading(true);
+    try {
+      const data = await fetchJSON<TcgplayerSearchResponse>(
+        "/api/admin/tcgplayer/search",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            categoryId: ONE_PIECE_CATEGORY_ID,
+            filters: normalizedFilters,
+            offset,
+            limit: 50,
+            includeExtendedFields: true,
+          }),
+        }
+      );
+      if (offset === 0) {
+        setActiveFilters(normalizedFilters);
+        setDraftFilters(normalizedFilters);
+        setTcgResults(data.results);
+        setIsSearchDirty(false);
+        setLastSearchTimestamp(new Date());
+      } else {
+        setTcgResults((prev) => [...prev, ...data.results]);
+      }
+      setTcgNextOffset(data.nextOffset);
+    } catch (error) {
+      console.error("TCGplayer search failed", error);
+    } finally {
+      setTcgLoading(false);
+    }
+  };
+
+  const handleCardClick = async (
     e: MouseEvent<HTMLDivElement>,
     card: CardWithCollectionData,
     alternate: CardWithCollectionData
   ) => {
-    setSelectedCard({
-      cardId: Number(alternate.id),
-      id: Number(alternate.id),
-      name: card.name,
-      rarity: card.rarity ?? "",
-      src: alternate.src,
-      quantity: 1,
-      code: card.code,
-      color: card.colors.length ? card.colors[0].color : "gray",
-      colors: card.colors,
-      cost: card.cost ?? "",
-      category: card.category,
-      set: card.sets[0]?.set?.title ?? "",
-      power: card.power ?? "",
-      counter: card.counter ?? "",
-      attribute: card.attribute ?? "",
-    });
-
-    // Verificar si la carta ya existe en el array de proxies
-    const existingCardIndex = proxies.findIndex(
-      (proxy) => proxy.cardId === Number(alternate.id)
+    e.preventDefault();
+    const targetCard = alternate ?? card;
+    handleSetSelectedCard(targetCard);
+    setQueryFields({ ...defaultQueryFields });
+    setSelectedLinkCard(targetCard as CardDetail);
+    setLinkedProduct(null);
+    setTcgResults([]);
+    setActiveFilters([]);
+    setTcgNextOffset(null);
+    setLastSearchTimestamp(null);
+    const initialFilters = ensureLanguageFilter(
+      buildFiltersFromCard(targetCard, defaultQueryFields)
     );
-
-    if (existingCardIndex !== -1) {
-      // Si la carta ya existe, incrementar su cantidad
-      setProxies((prev) =>
-        prev.map((proxy, index) =>
-          index === existingCardIndex
-            ? { ...proxy, quantity: proxy.quantity + 1 }
-            : proxy
-        )
+    setDraftFilters(initialFilters);
+    setIsSearchDirty(true);
+    const defaultQuery =
+      buildQueryFromCard(targetCard, defaultQueryFields) ||
+      targetCard.name ||
+      targetCard.code ||
+      card.name ||
+      card.code ||
+      "";
+    setTcgSearch(defaultQuery);
+    setCardDetailLoading(true);
+    try {
+      const detail = await fetchJSON<{ card: CardDetail }>(
+        `/api/admin/cards/${targetCard.id}`
       );
-    } else {
-      // Si la carta no existe, agregarla como nueva
-      setProxies((prev) => [
-        ...prev,
+      updateLocalCard(detail.card);
+      const detailFilters = ensureLanguageFilter(
+        buildFiltersFromCard(detail.card, defaultQueryFields)
+      );
+      const detailQuery =
+        buildQueryFromCard(detail.card, defaultQueryFields) ||
+        detail.card.name ||
+        detail.card.code ||
+        defaultQuery;
+      setTcgSearch(detailQuery);
+      setDraftFilters(detailFilters);
+      setIsSearchDirty(true);
+    } catch (error) {
+      console.error("Failed to fetch card detail", error);
+    } finally {
+      setCardDetailLoading(false);
+    }
+  };
+
+  const handleLinkProduct = async (product: TcgplayerProduct) => {
+    if (!selectedLinkCard) return;
+    setLinking(true);
+    try {
+      let productDetail: TcgplayerProductDetail | null = null;
+      try {
+        productDetail = await fetchJSON<TcgplayerProductDetail>(
+          `/api/admin/tcgplayer/products/${product.productId}?includePricing=true`
+        );
+      } catch (detailError) {
+        console.error(
+          "Failed to load product detail before linking",
+          detailError
+        );
+      }
+
+      const payload: {
+        productId: number;
+        tcgUrl: string | null;
+        pricing?: TcgplayerProductDetail["pricing"];
+        currency?: string;
+      } = {
+        productId: product.productId,
+        tcgUrl: productDetail?.product?.url ?? product.url ?? null,
+      };
+
+      if (productDetail?.pricing) {
+        payload.pricing = productDetail.pricing;
+        payload.currency = selectedLinkCard.priceCurrency ?? "USD";
+      }
+
+      const updated = await fetchJSON<CardDetail>(
+        `/api/admin/cards/${selectedLinkCard.id}/tcgplayer`,
         {
-          cardId: Number(alternate.id),
-          name: card.name,
-          rarity: card.rarity ?? "",
-          src: alternate.src,
-          quantity: 1,
-          color: card.colors.length ? card.colors[0].color : "gray",
-          code: card.code,
-          cost: card.cost ?? "",
-          category: card.category,
-          set: card.sets[0]?.set?.title ?? "",
-          power: card.power ?? "",
-          counter: card.counter ?? "",
-          attribute: card.attribute ?? "",
-          colors: card.colors,
-          id: Number(alternate.id),
-        },
-      ]);
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      updateLocalCard(updated);
+      setLinkedProduct(productDetail);
+    } catch (error) {
+      console.error("Failed to link card", error);
+    } finally {
+      setLinking(false);
     }
-
-    // Scroll para que el card clickeado quede centrado
-    const containerRect = gridRef.current?.getBoundingClientRect();
-    const cardRect = e.currentTarget.getBoundingClientRect();
-
-    if (containerRect) {
-      if (
-        cardRect.top < containerRect.top ||
-        cardRect.bottom > containerRect.bottom
-      ) {
-        e.currentTarget.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-        });
-      }
-    } else {
-      e.currentTarget.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-
-    // Scroll al grupo de la carta agregada después de un breve delay
-    setTimeout(() => {
-      const groupElement = groupRefs.current[card.code];
-      if (groupElement) {
-        groupElement.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 300);
   };
 
-  // Función para eliminar la carta al hacer swipe
-  const removeCard = (cardId: number) => {
-    setProxies((prev) => prev.filter((card) => card.cardId !== cardId));
+  const handleUnlinkProduct = async () => {
+    if (!selectedLinkCard) return;
+    setLinking(true);
+    try {
+      const updated = await fetchJSON<CardDetail>(
+        `/api/admin/cards/${selectedLinkCard.id}/tcgplayer`,
+        {
+          method: "DELETE",
+        }
+      );
+      updateLocalCard(updated);
+      setLinkedProduct(null);
+    } catch (error) {
+      console.error("Failed to unlink card", error);
+    } finally {
+      setLinking(false);
+    }
   };
+
   // Agrupamos las cartas por código sin modificar sus cantidades:
   const groupedCards = Object.values(
     proxies.reduce((groups, card) => {
@@ -1052,6 +918,30 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     const costB = parseInt(cardB.cost ?? "0", 10);
     return costA - costB;
   });
+
+  useEffect(() => {
+    if (!selectedLinkCard?.tcgplayerProductId) {
+      setLinkedProduct(null);
+      return;
+    }
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const detail = await fetchJSON<TcgplayerProductDetail>(
+          `/api/admin/tcgplayer/products/${selectedLinkCard.tcgplayerProductId}?includePricing=true`,
+          { signal: controller.signal }
+        );
+        setLinkedProduct(detail);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("Failed to load product detail", error);
+        }
+        setLinkedProduct(null);
+      }
+    };
+    load();
+    return () => controller.abort();
+  }, [selectedLinkCard?.tcgplayerProductId]);
 
   // Infinite scroll usando scroll event (como en card-list)
   useEffect(() => {
@@ -1397,6 +1287,11 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                             className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full hover:shadow-md`}
                           >
                             <div className="flex justify-center items-center w-full relative">
+                              {alt.tcgplayerProductId && (
+                                <Badge className="absolute left-2 top-2 bg-green-600 text-white shadow">
+                                  Linked
+                                </Badge>
+                              )}
                               <LazyImage
                                 src={alt?.src}
                                 fallbackSrc="/assets/images/backcard.webp"
@@ -1586,6 +1481,11 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                         >
                           <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
+                            {alt.tcgplayerProductId && (
+                              <Badge className="absolute left-2 top-2 bg-green-600 text-white shadow">
+                                Linked
+                              </Badge>
+                            )}
                             <LazyImage
                               src={alt.src}
                               fallbackSrc="/assets/images/backcard.webp"
@@ -1766,6 +1666,11 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
                           onClick={(e) => handleCardClick(e, card, alt)}
                         >
+                          {alt.tcgplayerProductId && (
+                            <Badge className="absolute left-1 top-1 bg-green-600 text-white shadow">
+                              Linked
+                            </Badge>
+                          )}
                           <LazyImage
                             src={alt.src ?? "/assets/images/backcard.webp"}
                             fallbackSrc="/assets/images/backcard.webp"
@@ -1808,165 +1713,321 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         </div>
       </div>
 
-      {/* Área principal: Lista de Proxies */}
+      {/* Área principal*/}
       <div
-        className={`flex flex-col flex-1 min-h-0 bg-[#f2eede] ${
+        className={`flex flex-col flex-1 min-h-0 bg-[#f2eede] overflow-y-auto ${
           mobileView === "proxies" ? "flex" : "hidden md:flex"
         }`}
       >
-        {/* Header de proxies */}
-        <div className="bg-gradient-to-br from-white via-gray-50 to-gray-100 border-b border-[#d3d3d3] p-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Layers className="w-7 h-7 text-purple-500" />
-                Proxy Builder
-              </h1>
-              <div className="bg-white rounded-xl p-3 shadow-md border border-gray-200">
-                <div className="text-center">
-                  <div className="font-bold text-lg text-purple-600 leading-none">
-                    {totalCards}
-                  </div>
-                  <div className="text-xs text-gray-600 leading-tight mt-0.5">
-                    Proxies
-                  </div>
+        <div className="flex flex-col gap-4 p-4">
+          <UICard className="shadow-lg border border-gray-200">
+            <CardHeader>
+              <CardTitle>Card Detail</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {cardDetailLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setProxies([])}
-                disabled={proxies.length === 0}
-                className="border-red-300 text-red-600 hover:bg-red-50"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Clear All
-              </Button>
-              <Button
-                onClick={handleProxies}
-                disabled={proxies.length === 0}
-                size="sm"
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                Generate Proxies
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Contenido de proxies */}
-        <div className="flex-1 p-5 overflow-auto">
-          <div className="rounded-lg h-full">
-            {proxies.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 shadow-lg p-8 text-center rounded-lg">
-                  <div className="mb-6">
-                    <div className="w-16 h-16 mx-auto bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                      <Layers className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">
-                      TCG Linker
-                    </h3>
-                    <p className="text-gray-600 text-sm leading-relaxed">
-                      Select cards from the left panel to add them to your proxy
-                      list.
-                    </p>
+              ) : selectedLinkCard ? (
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <div className="w-full max-w-[220px] mx-auto lg:mx-0">
+                    <LazyImage
+                      src={selectedLinkCard.src}
+                      fallbackSrc="/assets/images/backcard.webp"
+                      alt={selectedLinkCard.name}
+                      size="small"
+                      className="w-full rounded-lg border border-gray-200"
+                    />
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
-                {proxies.map((proxy, index) => (
-                  <div
-                    key={`${proxy.cardId}-${index}`}
-                    className="flex flex-col items-center"
-                  >
-                    <div className="cursor-pointer border rounded-lg shadow p-2 bg-white justify-center items-center flex flex-col relative h-fit hover:shadow-xl transition-all duration-200 w-full mb-2">
-                      <div
-                        onClick={() => {
-                          setSelectedCard(proxy);
-                          setShowLargeImageCard(true);
-                        }}
-                        className="w-full aspect-[3/4] relative overflow-hidden rounded"
-                      >
-                        <img
-                          src={getOptimizedImageUrl(proxy.src, "small")}
-                          alt={proxy.name}
-                          className="w-full h-full object-cover"
-                          loading={index < 20 ? "eager" : "lazy"}
-                        />
-                      </div>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex justify-center items-center w-full flex-col">
-                              <span
-                                className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                              >
-                                {proxy.code}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{proxy.set}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {proxy.quantity > 0 && (
-                        <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white shadow-lg z-10">
-                          <span className="mb-[2px]">{proxy.quantity}</span>
-                        </div>
+                  <div className="flex-1 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-xl font-semibold">
+                        {selectedLinkCard.name}
+                      </h2>
+                      <Badge variant="outline">{selectedLinkCard.code}</Badge>
+                      {selectedLinkCard.tcgplayerProductId && (
+                        <Badge className="bg-green-600 text-white">
+                          Linked
+                        </Badge>
                       )}
-                      <div className="flex items-center gap-2 w-full mt-3">
-                        <Button
-                          onClick={() => {
-                            const newQuantity = Math.max(0, proxy.quantity - 1);
-                            if (newQuantity === 0) {
-                              removeCard(proxy.cardId);
-                            } else {
-                              setProxies((prev) =>
-                                prev.map((p) =>
-                                  p.cardId === proxy.cardId
-                                    ? { ...p, quantity: newQuantity }
-                                    : p
-                                )
-                              );
-                            }
-                          }}
-                          disabled={proxy.quantity <= 0}
-                          size="sm"
-                          variant="ghost"
-                          className="flex-1 h-12 bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 text-white font-semibold rounded-lg shadow-lg shadow-red-500/25 hover:shadow-red-500/40 disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-gray-300/25 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-none"
-                        >
-                          <Minus className="w-5 h-5" />
-                        </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Set: {selectedLinkCard.setCode} • Rarity:{" "}
+                      {selectedLinkCard.rarity ?? "—"}
+                    </p>
+                    {snapshotInfo ? (
+                      <div className="rounded-lg border p-3 bg-white/70 space-y-1 text-sm">
+                        <div className="flex flex-wrap gap-4">
+                          <span>Market: {snapshotInfo.market}</span>
+                          {snapshotInfo.low && (
+                            <span>Low: {snapshotInfo.low}</span>
+                          )}
+                          {snapshotInfo.high && (
+                            <span>High: {snapshotInfo.high}</span>
+                          )}
+                        </div>
+                        {snapshotInfo.updatedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Updated {snapshotInfo.updatedAt}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">
+                        No price snapshot yet.
+                      </p>
+                    )}
+                    {selectedLinkCard.tcgUrl && (
+                      <Link
+                        href={selectedLinkCard.tcgUrl}
+                        target="_blank"
+                        className="inline-flex items-center gap-2 text-primary text-sm"
+                      >
+                        View on TCGplayer <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
+                    {selectedLinkCard.tcgplayerProductId && (
+                      <Button
+                        variant="secondary"
+                        onClick={handleUnlinkProduct}
+                        disabled={linking}
+                      >
+                        {linking ? "Unlinking..." : "Unlink product"}
+                      </Button>
+                    )}
 
+                    {selectedLinkCard?.tcgplayerProductId && linkedProduct && (
+                      <div className="flex flex-col">
+                        <p className="font-semibold">
+                          {linkedProduct.product?.name ?? "Unknown product"}
+                        </p>
+                        {linkedProduct.product?.url && (
+                          <Link
+                            href={linkedProduct.product.url}
+                            target="_blank"
+                            className="text-primary text-xs inline-flex items-center gap-1"
+                          >
+                            View on TCGplayer{" "}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        )}
+                        {linkedProduct.pricing?.marketPrice && (
+                          <p>
+                            Market:{" "}
+                            {formatPriceValue(
+                              linkedProduct.pricing.marketPrice,
+                              selectedLinkCard?.priceCurrency
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select a card from the left to view details and link it to
+                  TCGplayer.
+                </p>
+              )}
+            </CardContent>
+          </UICard>
+
+          <UICard className="flex-1 shadow-lg border border-gray-200">
+            <CardHeader>
+              <CardTitle>TCGplayer Search</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {!selectedLinkCard ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a card on the left to configure a TCGplayer search.
+                </p>
+              ) : selectedLinkCard.tcgplayerProductId ? (
+                <div className="flex flex-col rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/80 p-5 text-center text-sm text-emerald-900">
+                  <p className="font-semibold">
+                    This card is already linked to TCGplayer.
+                  </p>
+                  <p className="mt-2">
+                    Remove the existing link to search for a different product.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex-1 min-w-[200px] space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Query preview
+                        </p>
+                        <p className="text-base font-semibold text-gray-900">
+                          {tcgSearch || selectedLinkCard.name || "Auto"}
+                        </p>
+                        {lastSearchTimestamp && !isSearchDirty && (
+                          <p className="text-xs text-muted-foreground">
+                            Last search:{" "}
+                            {formatUpdatedTimestamp(lastSearchTimestamp)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
-                          onClick={() => {
-                            setProxies((prev) =>
-                              prev.map((p) =>
-                                p.cardId === proxy.cardId
-                                  ? { ...p, quantity: p.quantity + 1 }
-                                  : p
-                              )
-                            );
-                          }}
-                          size="sm"
-                          variant="ghost"
-                          className="flex-1 h-12 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold rounded-lg shadow-lg shadow-green-500/25 hover:shadow-green-500/40 disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-gray-300/25 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-none"
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md"
+                          onClick={() => handleSearchTcg(0)}
+                          disabled={tcgLoading}
                         >
-                          <Plus className="w-5 h-5" />
+                          {tcgLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Searching...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="mr-2 h-4 w-4" />
+                              Search TCGplayer
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleResetTcgFilters}
+                          disabled={tcgLoading}
+                        >
+                          <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                          Reset filters
                         </Button>
                       </div>
                     </div>
+                    {isSearchDirty ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        Filters updated. Run a new search to refresh the list.
+                      </div>
+                    ) : (
+                      lastSearchTimestamp && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                          Results are in sync with your last search.
+                        </div>
+                      )
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Include the following attributes in the search query:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {queryToggleOptions.map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          disabled={!option.available}
+                          onClick={() => handleToggleQueryField(option.key)}
+                          className={`px-3 py-1 rounded-full text-xs border transition ${
+                            queryFields[option.key] && option.available
+                              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          } ${
+                            !option.available
+                              ? "opacity-40 cursor-not-allowed"
+                              : ""
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {tcgResults.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-muted-foreground bg-white/60">
+                        {tcgLoading
+                          ? "Searching TCGplayer..."
+                          : isSearchDirty
+                          ? 'Your search is ready. Click "Search TCGplayer" to load results.'
+                          : "No matches for the current filters. Adjust the toggles and search again."}
+                      </div>
+                    ) : (
+                      <>
+                        {isSearchDirty && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            Filters changed since the last search. Run a new
+                            search to update this list.
+                          </div>
+                        )}
+                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {tcgResults.map((product) => (
+                            <div
+                              key={product.productId}
+                              className="border rounded-xl bg-white/90 p-3 flex flex-col shadow-sm hover:shadow-md transition"
+                            >
+                              <div className="flex gap-3">
+                                <div className="w-20 h-28 rounded-lg overflow-hidden bg-gray-50 border">
+                                  {product.imageUrl ? (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
+                                      No image
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-semibold text-sm leading-tight line-clamp-2">
+                                    {product.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {product.groupName ??
+                                      product.categoryName ??
+                                      "-"}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground mt-1">
+                                    Product ID: {product.productId}
+                                  </p>
+                                  {product.url && (
+                                    <Link
+                                      href={product.url}
+                                      target="_blank"
+                                      className="inline-flex items-center gap-1 text-primary text-[11px] mt-1"
+                                    >
+                                      View on TCGplayer
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                className="mt-3"
+                                variant="secondary"
+                                disabled={linking}
+                                onClick={() => handleLinkProduct(product)}
+                              >
+                                Link product
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {tcgNextOffset !== null && !isSearchDirty && (
+                          <div className="flex justify-center pt-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => handleSearchTcg(tcgNextOffset)}
+                              disabled={tcgLoading}
+                            >
+                              {tcgLoading ? "Loading..." : "Load more"}
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </UICard>
         </div>
       </div>
 

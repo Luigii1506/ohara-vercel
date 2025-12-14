@@ -52,6 +52,7 @@ export type CardData = {
   alias: string;
   tcgUrl?: string;
   tcgplayerProductId?: string | null;
+  tcgplayerLinkStatus?: boolean | null;
   marketPrice?: number | string | null;
   lowPrice?: number | string | null;
   highPrice?: number | string | null;

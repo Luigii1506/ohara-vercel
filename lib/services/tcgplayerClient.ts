@@ -234,6 +234,7 @@ export async function getTcgplayerProductsByIds(
     results: TcgplayerProduct[];
     errors?: unknown[];
   }>(path);
+  console.log("654321", data);
 
   if (!data.success) {
     throw new Error("TCGplayer product lookup failed");
@@ -270,6 +271,8 @@ export async function searchTcgplayerCategoryProducts(
       filters: options.filters ?? [],
     }),
   });
+
+  console.log("123", response);
 
   if (!response.success) {
     throw new Error("TCGplayer category search failed");

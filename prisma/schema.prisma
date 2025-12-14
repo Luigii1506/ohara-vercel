@@ -32,6 +32,7 @@ model Card {
   updatedAt          DateTime?        @updatedAt
   tcgUrl             String?          @default("")
   tcgplayerProductId String?          @unique
+  tcgplayerLinkStatus Boolean?        // null = not attempted, false = marked missing, true = linked
   marketPrice        Decimal?
   lowPrice           Decimal?
   highPrice          Decimal?

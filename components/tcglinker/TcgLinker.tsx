@@ -25,6 +25,7 @@ import {
   ExternalLink,
   RefreshCcw,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
@@ -65,6 +66,7 @@ interface TcgLinkerLayoutProps {
 
 type CardDetail = CardWithCollectionData & {
   tcgplayerProductId?: string | null;
+  tcgplayerLinkStatus?: boolean | null;
   tcgUrl?: string | null;
   marketPrice?: number | string | null;
   lowPrice?: number | string | null;
@@ -350,13 +352,61 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     return optimized || src;
   }, []);
   const handlePreviewEnter = useCallback(
-    (src?: string | null, alt?: string) => {
-      const previewSrc = buildPreviewSrc(src);
+    (src?: string | null, alt?: string, options?: { raw?: boolean }) => {
+      const previewSrc = options?.raw ? src : buildPreviewSrc(src);
       if (previewSrc) {
         showPreview(previewSrc, alt);
       }
     },
     [buildPreviewSrc, showPreview]
+  );
+
+  const isCardLinked = useCallback(
+    (card?: {
+      tcgplayerLinkStatus?: boolean | null;
+      tcgplayerProductId?: string | null;
+    }) =>
+      card?.tcgplayerLinkStatus === true || Boolean(card?.tcgplayerProductId),
+    []
+  );
+
+  const isCardMarkedMissing = useCallback(
+    (card?: { tcgplayerLinkStatus?: boolean | null }) =>
+      card?.tcgplayerLinkStatus === false,
+    []
+  );
+
+  const toggleMissingLink = useCallback(
+    async (cardId: string | number) => {
+      try {
+        const cardIdStr = String(cardId);
+
+        // Buscar primero en selectedLinkCard, luego en cards
+        let card =
+          selectedLinkCard && String(selectedLinkCard.id) === cardIdStr
+            ? selectedLinkCard
+            : cards.find((c) => String(c.id) === cardIdStr) ||
+              cards
+                .flatMap((c) => c.alternates || [])
+                .find((alt) => String(alt.id) === cardIdStr);
+
+        const currentlyMissing = card?.tcgplayerLinkStatus === false;
+        const method = currentlyMissing ? "DELETE" : "POST";
+
+        console.log(
+          `Toggling missing for card ${cardIdStr}: currentlyMissing=${currentlyMissing}, method=${method}`
+        );
+
+        const updated = await fetchJSON<CardDetail>(
+          `/api/admin/cards/${cardIdStr}/tcgplayer/missing`,
+          { method }
+        );
+        updateLocalCard(updated);
+      } catch (error) {
+        console.error("Failed to toggle missing link status", error);
+      }
+    },
+    [cards, selectedLinkCard]
   );
 
   const queryToggleOptions = useMemo(
@@ -533,23 +583,32 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     selectedAltArts?.length;
 
   const updateLocalCard = (updated: CardDetail) => {
+    // Normalizar el ID a string para comparación
+    const updatedIdStr = String(updated.id);
+
     setCards((prev) =>
       prev.map((card) => {
-        if (card.id === updated.id) {
-          return { ...card, ...updated };
+        if (String(card.id) === updatedIdStr) {
+          return { ...card, ...updated, id: card.id };
         }
-        if (card.alternates?.some((alt) => alt.id === updated.id)) {
+        if (card.alternates?.some((alt) => String(alt.id) === updatedIdStr)) {
           return {
             ...card,
             alternates: card.alternates.map((alt) =>
-              alt.id === updated.id ? { ...alt, ...updated } : alt
+              String(alt.id) === updatedIdStr
+                ? { ...alt, ...updated, id: alt.id }
+                : alt
             ),
           };
         }
         return card;
       })
     );
-    setSelectedLinkCard(updated);
+    setSelectedLinkCard((prev) =>
+      prev && String(prev.id) === updatedIdStr
+        ? { ...prev, ...updated, id: prev.id }
+        : updated
+    );
     setTcgSearch(
       buildQueryFromCard(updated, queryFields) ||
         updated.name ||
@@ -1221,6 +1280,18 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                 };
 
                 const filteredAlts = getFilteredAlternates();
+                const isBaseLinked = isCardLinked(card);
+                const isBaseMissing = isCardMarkedMissing(card);
+                const baseListStateClass = isBaseLinked
+                  ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                  : isBaseMissing
+                  ? "bg-gradient-to-br from-amber-50 via-white to-amber-100 border-amber-400 ring-2 ring-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                  : "bg-white";
+                const baseCardStateClass = isBaseLinked
+                  ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                  : isBaseMissing
+                  ? "bg-gradient-to-br from-amber-50 via-white to-amber-100 border-amber-400 ring-2 ring-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                  : "bg-white";
 
                 if (!baseCardMatches() && filteredAlts.length === 0)
                   return null;
@@ -1290,22 +1361,23 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                       {baseCardMatches() && (
                         <div
                           onClick={(e) => handleCardClick(e, card, card)}
-                          className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full relative overflow-hidden ${
-                            card.tcgplayerProductId
-                              ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                              : "bg-white"
-                          } ${
+                          className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full relative overflow-hidden ${baseCardStateClass} ${
                             totalQuantityBase >= 4
                               ? "opacity-70 grayscale"
                               : "hover:shadow-md"
                           }`}
                         >
-                          {card.tcgplayerProductId && (
+                          {card.tcgplayerProductId ? (
                             <span className="absolute top-2 right-2 rounded-full bg-emerald-600 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
                               Linked
                             </span>
-                          )}
+                          ) : isBaseMissing ? (
+                            <span className="absolute top-2 right-2 rounded-full bg-amber-500 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Missing
+                            </span>
+                          ) : null}
                           <div className="flex justify-center items-center w-full relative">
                             <div
                               className="w-[80%] m-auto"
@@ -1360,23 +1432,31 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                         const alternateInProxies = proxies.find(
                           (proxyCard) => proxyCard.cardId === Number(alt.id)
                         );
+                        const isAltLinked = Boolean(alt.tcgplayerProductId);
+                        const isAltMissing = isCardMarkedMissing(alt);
+                        const altCardStateClass = isAltLinked
+                          ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                          : isAltMissing
+                          ? "bg-gradient-to-br from-amber-50 via-white to-amber-100 border-amber-400 ring-2 ring-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                          : "bg-white";
 
                         return (
                           <div
                             key={alt.id}
                             onClick={(e) => handleCardClick(e, card, alt)}
-                            className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full hover:shadow-md relative overflow-hidden ${
-                              alt.tcgplayerProductId
-                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                                : "bg-white"
-                            }`}
+                            className={`cursor-pointer border rounded-lg shadow flex justify-center items-center p-4 flex-col h-full hover:shadow-md relative overflow-hidden ${altCardStateClass}`}
                           >
-                            {alt.tcgplayerProductId && (
+                            {isAltLinked ? (
                               <span className="absolute top-2 right-2 rounded-full bg-emerald-600 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1 z-10">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Linked
                               </span>
-                            )}
+                            ) : isAltMissing ? (
+                              <span className="absolute top-2 right-2 rounded-full bg-amber-500 text-white text-[11px] px-2 py-0.5 shadow flex items-center gap-1 z-10">
+                                <AlertTriangle className="h-3 w-3" />
+                                Missing
+                              </span>
+                            ) : null}
                             <div className="flex justify-center items-center w-full relative">
                               <div
                                 className="w-[80%] m-auto"
@@ -1477,6 +1557,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                 };
 
                 const filteredAlts = getFilteredAlternates();
+                const isBaseMissingList = isCardMarkedMissing(card);
+                const baseListStateClass = card.tcgplayerProductId
+                  ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                  : isBaseMissingList
+                  ? "bg-gradient-to-br from-amber-50 via-white to-amber-100 border-amber-400 ring-2 ring-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                  : "bg-white";
 
                 // Si ni la carta base ni alguna alterna coinciden, no renderizamos nada
                 if (!baseCardMatches() && filteredAlts.length === 0)
@@ -1485,39 +1571,40 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                 return (
                   <React.Fragment key={card.id}>
                     {baseCardMatches() && (
+                      <div
+                        onClick={(e) => handleCardClick(e, card, card)}
+                        className="w-full cursor-pointer transition-all duration-200 rounded-lg"
+                      >
                         <div
-                          onClick={(e) => handleCardClick(e, card, card)}
-                          className="w-full cursor-pointer transition-all duration-200 rounded-lg"
+                          className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${baseListStateClass}`}
                         >
                           <div
-                            className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
-                              card.tcgplayerProductId
-                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                                : "bg-white"
-                            }`}
+                            className="w-full"
+                            onMouseEnter={() =>
+                              handlePreviewEnter(card?.src, card?.name)
+                            }
+                            onMouseLeave={hidePreview}
                           >
-                            <div
+                            <LazyImage
+                              src={card.src}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={card.name}
+                              priority={index < 20}
+                              size="small"
                               className="w-full"
-                              onMouseEnter={() =>
-                                handlePreviewEnter(card?.src, card?.name)
-                              }
-                              onMouseLeave={hidePreview}
-                            >
-                              <LazyImage
-                                src={card.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={card.name}
-                                priority={index < 20}
-                                size="small"
-                                className="w-full"
-                              />
-                            </div>
-                          {card.tcgplayerProductId && (
-                            <div className="absolute top-2 left-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] text-white shadow flex items-center gap-1">
+                            />
+                          </div>
+                          {card.tcgplayerProductId ? (
+                            <div className="absolute top-2 left-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] text-white shadow flex items-center gap-1 z-10">
                               <CheckCircle2 className="h-3 w-3" />
                               Linked
                             </div>
-                          )}
+                          ) : isBaseMissingList ? (
+                            <div className="absolute top-2 left-2 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] text-white shadow flex items-center gap-1 z-10">
+                              <AlertTriangle className="h-3 w-3" />
+                              Missing
+                            </div>
+                          ) : null}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1560,6 +1647,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                       const alternateInProxies = proxies.find(
                         (proxyCard) => proxyCard.cardId === Number(alt.id)
                       );
+                      const isAltMissingList = isCardMarkedMissing(alt);
+                      const altListStateClass = alt.tcgplayerProductId
+                        ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                        : isAltMissingList
+                        ? "bg-gradient-to-br from-amber-50 via-white to-amber-100 border-amber-400 ring-2 ring-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                        : "bg-white";
 
                       return (
                         <div
@@ -1568,16 +1661,18 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                           className="w-full cursor-pointer transition-all duration-200 rounded-lg"
                         >
                           <div
-                            className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${
-                              alt.tcgplayerProductId
-                                ? "bg-gradient-to-br from-emerald-50 via-white to-emerald-100 border-emerald-500 ring-2 ring-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                                : "bg-white"
-                            }`}
+                            className={`border rounded-lg shadow pb-3 justify-center items-center flex flex-col relative overflow-hidden ${altListStateClass}`}
                           >
                             {alt.tcgplayerProductId && (
-                              <Badge className="absolute left-2 top-2 bg-emerald-600 text-white shadow flex items-center gap-1">
+                              <Badge className="absolute left-2 top-2 bg-emerald-600 text-white shadow flex items-center gap-1 z-10">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Linked
+                              </Badge>
+                            )}
+                            {!alt.tcgplayerProductId && isAltMissingList && (
+                              <Badge className="absolute left-2 top-2 bg-amber-500 text-white shadow flex items-center gap-1 z-10">
+                                <AlertTriangle className="h-3 w-3" />
+                                Missing
                               </Badge>
                             )}
                             <div
@@ -1657,6 +1752,9 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   linkedProduct={linkedProduct}
                   linking={linking}
                   handleUnlinkProduct={handleUnlinkProduct}
+                  handleToggleMissing={() =>
+                    toggleMissingLink(selectedLinkCard.id)
+                  }
                   formatPriceValue={formatPriceValue}
                   onPreviewEnter={handlePreviewEnter}
                   onPreviewLeave={hidePreview}

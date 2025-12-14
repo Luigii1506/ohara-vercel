@@ -26,6 +26,13 @@ type AlternateWithRelations = {
   alternateArt: string | null;
   isFirstEdition: boolean;
   tcgUrl: string | null;
+  tcgplayerProductId?: string | null;
+  tcgplayerLinkStatus?: boolean | null;
+  marketPrice?: any;
+  lowPrice?: any;
+  highPrice?: any;
+  priceCurrency?: string | null;
+  priceUpdatedAt?: Date | null;
   isPro: boolean;
   region: string | null;
   setCode: string;
@@ -258,6 +265,7 @@ const buildInclude = (
         isFirstEdition: true,
         tcgUrl: true,
         tcgplayerProductId: true,
+        tcgplayerLinkStatus: true,
         marketPrice: true,
         lowPrice: true,
         highPrice: true,

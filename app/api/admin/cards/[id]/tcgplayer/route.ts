@@ -58,6 +58,7 @@ export async function POST(
     const now = new Date();
     const data: Prisma.CardUpdateInput = {
       tcgplayerProductId: String(numericProductId),
+      tcgplayerLinkStatus: true,
       tcgUrl: resolvedUrl,
     };
 
@@ -106,6 +107,7 @@ export async function DELETE(
       where: { id: cardId },
       data: {
         tcgplayerProductId: null,
+        tcgplayerLinkStatus: null,
         tcgUrl: null,
         marketPrice: null,
         lowPrice: null,

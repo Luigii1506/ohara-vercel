@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import LazyImage from "@/components/LazyImage";
 
@@ -29,6 +29,7 @@ interface CardDetailsSectionProps {
   linkedProduct: LinkedProductDetail | null;
   linking: boolean;
   handleUnlinkProduct: () => void;
+  handleToggleMissing: () => void;
   formatPriceValue: (
     price?: number | string | null,
     currency?: string | null
@@ -43,11 +44,15 @@ export function CardDetailsSection({
   linkedProduct,
   linking,
   handleUnlinkProduct,
+  handleToggleMissing,
   formatPriceValue,
   onPreviewEnter,
   onPreviewLeave,
 }: CardDetailsSectionProps) {
   if (!selectedLinkCard) return null;
+
+  const isLinked = Boolean(selectedLinkCard.tcgplayerProductId);
+  const isMissing = selectedLinkCard.tcgplayerLinkStatus === false;
 
   return (
     <div className="flex flex-col lg:flex-row gap-8">
@@ -195,7 +200,7 @@ export function CardDetailsSection({
             </Button>
           )}
 
-          {selectedLinkCard.tcgplayerProductId && (
+          {isLinked ? (
             <Button
               variant="destructive"
               onClick={handleUnlinkProduct}
@@ -203,6 +208,20 @@ export function CardDetailsSection({
               className="sm:ml-auto"
             >
               {linking ? "Unlinking..." : "Unlink Product"}
+            </Button>
+          ) : (
+            <Button
+              variant={isMissing ? "default" : "outline"}
+              onClick={handleToggleMissing}
+              disabled={linking}
+              className={`sm:ml-auto gap-2 ${
+                isMissing
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : "border-amber-500 text-amber-700 hover:bg-amber-50"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {isMissing ? "Unmark Missing" : "Mark as Missing"}
             </Button>
           )}
         </div>

@@ -20,10 +20,10 @@ export const alertInclude = {
     select: cardSelect,
   },
   logs: {
-    orderBy: { triggeredAt: "desc" },
+    orderBy: { triggeredAt: "desc" as const },
     take: 1,
   },
-};
+} as const;
 
 export const decimalToNumber = (value?: Prisma.Decimal | null) =>
   value ? Number(value) : null;

@@ -149,7 +149,7 @@ async function tcgplayerFetch<T>(
   path: string,
   init?: RequestInit & { skipAuth?: boolean }
 ): Promise<T> {
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     Accept: "application/json",
     ...(init?.headers || {}),
   };

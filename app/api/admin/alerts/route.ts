@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, AlertThresholdType } from "@prisma/client";
 import { alertInclude, serializeAlert, validateThreshold } from "./utils";
 
 export const dynamic = "force-dynamic";

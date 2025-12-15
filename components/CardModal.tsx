@@ -126,33 +126,31 @@ const CardModal: React.FC<CardModalProps> = ({
     if (hasPriceData) {
       return (
         <div
-          className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className} flex flex-col`}
+          className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className} min-h-[120px] flex flex-col justify-center`}
         >
           <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
             Market price
           </p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-gray-900 my-1">
             {formattedMarketPrice}
           </p>
-          {formattedPriceUpdatedAt && (
-            <p className="text-[11px] text-gray-500">
-              Updated {formattedPriceUpdatedAt}
-            </p>
-          )}
+          <p className="text-[11px] text-gray-500 min-h-[16px]">
+            {formattedPriceUpdatedAt ? `Updated ${formattedPriceUpdatedAt}` : ''}
+          </p>
         </div>
       );
     } else {
       return (
         <div
-          className={`w-full rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 via-white to-gray-50 p-2 text-center shadow-sm ${className} flex flex-col`}
+          className={`w-full rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 via-white to-gray-50 px-4 py-3 text-center shadow-sm ${className} min-h-[120px] flex flex-col justify-center`}
         >
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
             Market price
           </p>
-          <p className="text-sm font-medium text-gray-500 py-1">
+          <p className="text-sm font-medium text-gray-500 my-1">
             No sales data available
           </p>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-[11px] text-gray-400 min-h-[16px]">
             This card currently has no market activity on TCGplayer
           </p>
         </div>

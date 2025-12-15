@@ -114,40 +114,50 @@ const CardModal: React.FC<CardModalProps> = ({
 
   const activeCardForPricing = selectedCard ?? baseCard;
   const formattedMarketPrice = formatPriceValue(
-    activeCardForPricing?.marketPrice ?? baseCard?.marketPrice ?? null,
-    activeCardForPricing?.priceCurrency ?? baseCard?.priceCurrency ?? "USD"
+    activeCardForPricing?.marketPrice ?? null,
+    activeCardForPricing?.priceCurrency ?? "USD"
   );
   const formattedPriceUpdatedAt = formatUpdatedTimestamp(
-    activeCardForPricing?.priceUpdatedAt ?? baseCard?.priceUpdatedAt ?? null
+    activeCardForPricing?.priceUpdatedAt ?? null
   );
-  const shouldShowPriceSummary = Boolean(formattedMarketPrice);
+  const hasPriceData = Boolean(formattedMarketPrice);
 
   const renderPriceSummary = (className = "") => {
-    if (!shouldShowPriceSummary) return null;
-    return (
-      <div
-        className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className}`}
-      >
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-          Market price
-        </p>
-        <p className="text-2xl font-bold text-gray-900">
-          {formattedMarketPrice}
-        </p>
-        {formattedPriceUpdatedAt && (
-          <p className="text-[11px] text-gray-500">
-            Updated {formattedPriceUpdatedAt}
+    if (hasPriceData) {
+      return (
+        <div
+          className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className} flex flex-col`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+            Market price
           </p>
-        )}
-        <p className="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-500">
-          <TcgplayerLogo
-            className="h-4 w-10 text-blue-600"
-            aria-hidden="true"
-          />
-          <span>Prices provided by TCGplayer</span>
-        </p>
-      </div>
-    );
+          <p className="text-2xl font-bold text-gray-900">
+            {formattedMarketPrice}
+          </p>
+          {formattedPriceUpdatedAt && (
+            <p className="text-[11px] text-gray-500">
+              Updated {formattedPriceUpdatedAt}
+            </p>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <div
+          className={`w-full rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 via-white to-gray-50 p-2 text-center shadow-sm ${className} flex flex-col`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+            Market price
+          </p>
+          <p className="text-sm font-medium text-gray-500 py-1">
+            No sales data available
+          </p>
+          <p className="text-[11px] text-gray-500">
+            This card currently has no market activity on TCGplayer
+          </p>
+        </div>
+      );
+    }
   };
 
   const touchStartX = useRef(0);
@@ -325,27 +335,28 @@ const CardModal: React.FC<CardModalProps> = ({
               {/* Imagen principal - Desktop */}
               <div className="relative flex-col justify-center items-center w-full lg:w-[50%] hidden md:flex">
                 <div className="flex-1 w-full flex justify-center items-center flex-col gap-2">
-                  <div className="px-3 cursor-pointer max-w-full">
+                  <div className="px-3 cursor-pointer max-w-full flex flex-col gap-2">
                     <img
                       src={selectedCard?.src ?? ""}
                       alt={baseCard?.name}
-                      className="object-contain w-full h-auto max-h-[60vh]"
+                      className="object-contain w-full h-auto max-h-[52vh]"
                       onClick={() =>
                         setShowLargeImage && setShowLargeImage(true)
                       }
                     />
-                  </div>
 
-                  <div className="flex justify-center items-center flex-col gap-2 mt-2">
                     <div className="flex justify-center items-center flex-col gap-0">
                       <div className="text-center text-[16px] leading-[22px] px-2 line-clamp-1 font-[500]">
                         {selectedCard?.sets[0].set?.title}
                       </div>
                       <div className="text-center text-[14px] leading-[18px] font-[400] min-h-[18px]">
-                        {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}
+                        {selectedCard?.alias?.replace(/^\d+\s*/, "") ||
+                          "\u00A0"}
                       </div>
                     </div>
+                  </div>
 
+                  <div className="flex justify-center items-center flex-col gap-1">
                     {renderPriceSummary()}
 
                     <Link
@@ -363,7 +374,7 @@ const CardModal: React.FC<CardModalProps> = ({
                             )}`
                       }
                       target="_blank"
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors mt-2"
                       onClick={(e) => {
                         e.stopPropagation();
                       }}

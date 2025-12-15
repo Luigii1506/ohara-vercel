@@ -19,12 +19,24 @@ import {
   Calendar,
   ShoppingBag,
   Layers,
+  Link as LinkIcon,
+  AlertTriangle,
+  BellRing,
+  Activity,
 } from "lucide-react";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const { role, loading } = useUser();
   const [isVisible, setIsVisible] = useState(false);
+  const [alertStats, setAlertStats] = useState<{
+    activeAlerts: number;
+    inactiveAlerts: number;
+    alertsTriggered24h: number;
+    unreadNotifications: number;
+    lastTriggerAt: string | null;
+  } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && role !== "ADMIN") {
@@ -35,6 +47,37 @@ export default function AdminDashboard() {
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      setStatsLoading(true);
+      try {
+        const res = await fetch("/api/admin/alerts/stats");
+        if (!res.ok) {
+          throw new Error("Failed to load alert stats");
+        }
+        const data = await res.json();
+        setAlertStats(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    if (role === "ADMIN") {
+      loadStats();
+    }
+  }, [role]);
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  };
 
   const adminSections = [
     {
@@ -54,6 +97,12 @@ export default function AdminDashboard() {
           label: "Add New Card",
           icon: Plus,
           description: "Create new card entries",
+        },
+        {
+          href: "/admin/tcg-linker",
+          label: "TCG Linker",
+          icon: LinkIcon,
+          description: "Link cards to TCGplayer products",
         },
         {
           href: "/admin/add-rulings",
@@ -133,6 +182,12 @@ export default function AdminDashboard() {
           icon: Layers,
           description: "Edit and manage decks available in the shop",
         },
+        {
+          href: "/admin/alerts",
+          label: "Price Alerts",
+          icon: AlertTriangle,
+          description: "Configure TCGplayer price alert rules",
+        },
       ],
     },
   ];
@@ -167,6 +222,57 @@ export default function AdminDashboard() {
               </h1>
               <p className="text-gray-600 mt-1">
                 Manage all aspects of OharaTCG
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-2xl border border-red-100 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">
+                    Active alerts
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {alertStats?.activeAlerts ?? (statsLoading ? "…" : 0)}
+                  </p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-400" />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Last trigger: {formatDateTime(alertStats?.lastTriggerAt)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">
+                    Triggers (24h)
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {alertStats?.alertsTriggered24h ?? (statsLoading ? "…" : 0)}
+                  </p>
+                </div>
+                <Activity className="h-8 w-8 text-blue-500" />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Inactive alerts: {alertStats?.inactiveAlerts ?? 0}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-yellow-100 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">
+                    Unread notifications
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {alertStats?.unreadNotifications ?? (statsLoading ? "…" : 0)}
+                  </p>
+                </div>
+                <BellRing className="h-8 w-8 text-yellow-500" />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Powered by TCGplayer sync
               </p>
             </div>
           </div>

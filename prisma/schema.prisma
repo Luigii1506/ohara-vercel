@@ -3,55 +3,66 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model Card {
-  id               Int             @id @default(autoincrement())
-  src              String
-  imageKey         String?
-  name             String
-  cost             String?
-  power            String?
-  attribute        String?
-  counter          String?
-  category         String
-  life             String?
-  rarity           String?
-  illustrator      String?
-  alternateArt     String?
-  status           String?
-  triggerCard      String?
-  code             String
-  setCode          String
-  isFirstEdition   Boolean
-  uuid             String          @unique @default(uuid())
-  createdAt        DateTime?       @default(now())
-  updatedAt        DateTime?       @updatedAt
-  tcgUrl           String?         @default("")
-  alias            String?         @default("")
-  order            String          @default("0")
-  isPro            Boolean         @default(false)
-  region           String?
-  baseCardId       Int?            // NULL si es carta base, ID de la base si es alternativa
-  baseCard         Card?           @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
-  colors           CardColor[]
-  conditions       CardCondition[]
-  effects          CardEffect[]
-  listings         CardListing[]
-  priceLogs        CardPriceLog[]
-  rulings          CardRuling[]
-  sets             CardSet[]
-  texts            CardText[]
-  types            CardType[]
-  DeckCard         DeckCard[]
-  opponentGameLogs GameLog[]       @relation("OpponentLeader")
-  GameLogCard      GameLogCard[]
-  userListCards    UserListCard[]
-  alternateCards   Card[]          @relation("CardAlternates") // Las alternativas de esta carta base
-  eventCards       EventCard[]
+  id                 Int              @id @default(autoincrement())
+  src                String
+  imageKey           String?
+  name               String
+  cost               String?
+  power              String?
+  attribute          String?
+  counter            String?
+  category           String
+  life               String?
+  rarity             String?
+  illustrator        String?
+  alternateArt       String?
+  status             String?
+  triggerCard        String?
+  code               String
+  setCode            String
+  isFirstEdition     Boolean
+  uuid               String           @unique @default(uuid())
+  createdAt          DateTime?        @default(now())
+  updatedAt          DateTime?        @updatedAt
+  tcgUrl             String?          @default("")
+  tcgplayerProductId String?          @unique
+  tcgplayerLinkStatus Boolean?        // null = not attempted, false = marked missing, true = linked
+  marketPrice        Decimal?
+  lowPrice           Decimal?
+  highPrice          Decimal?
+  priceCurrency      String?          @default("USD")
+  priceUpdatedAt     DateTime?
+  isWatchlisted      Boolean          @default(false)
+  alias              String?          @default("")
+  order              String           @default("0")
+  isPro              Boolean          @default(false)
+  region             String?
+  baseCardId         Int? // NULL si es carta base, ID de la base si es alternativa
+  baseCard           Card?            @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
+  colors             CardColor[]
+  conditions         CardCondition[]
+  effects            CardEffect[]
+  listings           CardListing[]
+  priceLogs          CardPriceLog[]
+  rulings            CardRuling[]
+  sets               CardSet[]
+  texts              CardText[]
+  types              CardType[]
+  priceAlerts        CardPriceAlert[]
+  alertLogs          CardPriceAlertLog[]
+  adminNotifications AdminNotification[]
+  DeckCard           DeckCard[]
+  opponentGameLogs   GameLog[]        @relation("OpponentLeader")
+  GameLogCard        GameLogCard[]
+  userListCards      UserListCard[]
+  alternateCards     Card[]           @relation("CardAlternates") // Las alternativas de esta carta base
+  eventCards         EventCard[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -194,7 +205,6 @@ model User {
   accounts          Account[]
   billingAddresses  BillingAddress[]
   cardListings      CardListing[]     @relation("SellerListings")
-  CardPriceLog      CardPriceLog[]
   cart              Cart?
   decks             Deck[]
   gameLogs          GameLog[]
@@ -246,21 +256,21 @@ model VerificationToken {
 }
 
 model UserList {
-  id           Int                 @id @default(autoincrement())
+  id           Int                @id @default(autoincrement())
   userId       Int
   name         String
   description  String?
-  isOrdered    Boolean             @default(false)
-  isDeletable  Boolean             @default(true)
-  isCollection Boolean             @default(false)
+  isOrdered    Boolean            @default(false)
+  isDeletable  Boolean            @default(true)
+  isCollection Boolean            @default(false)
   maxRows      Int?
   maxColumns   Int?
-  totalPages   Int                 @default(1)
+  totalPages   Int                @default(1)
   color        String?
-  isPublic     Boolean             @default(false)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPublic     Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards        UserListCard[]
   backcards    UserListBackcard[] // 🎴 Relación con backcards
 
@@ -307,18 +317,18 @@ model UserListBackcard {
 }
 
 model Event {
-  id              Int           @id @default(autoincrement())
-  slug            String        @unique // Identificador generado (ej: "na-store-tournament-vol-5")
-  title           String        @map("name")
-  description     String?       @db.Text
-  content         String?       @db.Text
-  originalContent String?       @db.Text
-  locale          String?       @default("en")
-  region          EventRegion   @default(GLOBAL)
-  status          EventStatus   @default(UPCOMING)
-  eventType       EventType     @default(OTHER)
+  id              Int                @id @default(autoincrement())
+  slug            String             @unique // Identificador generado (ej: "na-store-tournament-vol-5")
+  title           String             @map("name")
+  description     String?            @db.Text
+  content         String?            @db.Text
+  originalContent String?            @db.Text
+  locale          String?            @default("en")
+  region          EventRegion        @default(GLOBAL)
+  status          EventStatus        @default(UPCOMING)
+  eventType       EventType          @default(OTHER)
   category        EventCategory?
-  startDate       DateTime?     @map("event_date")
+  startDate       DateTime?          @map("event_date")
   endDate         DateTime?
   rawDateText     String?
   location        String?
@@ -327,9 +337,9 @@ model Event {
   eventThumbnail  String?
   listOrder       Int?
   eventTxt        String?
-  isApproved      Boolean       @default(false)
-  createdAt       DateTime?     @default(now())
-  updatedAt       DateTime?     @updatedAt
+  isApproved      Boolean            @default(false)
+  createdAt       DateTime?          @default(now())
+  updatedAt       DateTime?          @updatedAt
   sets            EventSet[]
   cards           EventCard[]
   missingSets     EventMissingSet[]
@@ -337,14 +347,14 @@ model Event {
 }
 
 model Set {
-  id          Int        @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   image       String
   title       String
   code        String?
-  releaseDate DateTime   @map("release_date")
-  isOpen      Boolean    @default(false) @map("is_open")
-  createdAt   DateTime?  @default(now()) @map("created_at")
-  updatedAt   DateTime?  @updatedAt @map("updated_at")
+  releaseDate DateTime        @map("release_date")
+  isOpen      Boolean         @default(false) @map("is_open")
+  createdAt   DateTime?       @default(now()) @map("created_at")
+  updatedAt   DateTime?       @updatedAt @map("updated_at")
   version     String?
   cards       CardSet[]
   events      EventSet[]
@@ -389,57 +399,57 @@ model EventCard {
 }
 
 model MissingSet {
-  id               Int      @id @default(autoincrement())
-  title            String   @unique
+  id               Int               @id @default(autoincrement())
+  title            String            @unique
   translatedTitle  String?
   imagesJson       Json?
   versionSignature String?
-  isApproved       Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  isApproved       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   events           EventMissingSet[]
 }
 
 model EventMissingSet {
-  id            Int        @id @default(autoincrement())
-  eventId       Int
-  missingSetId  Int
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  missingSet    MissingSet @relation(fields: [missingSetId], references: [id], onDelete: Cascade)
+  id           Int        @id @default(autoincrement())
+  eventId      Int
+  missingSetId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingSet   MissingSet @relation(fields: [missingSetId], references: [id], onDelete: Cascade)
 
+  @@unique([eventId, missingSetId])
   @@index([eventId])
   @@index([missingSetId])
-  @@unique([eventId, missingSetId])
 }
 
 model MissingCard {
-  id          Int                 @id @default(autoincrement())
-  code        String
-  title       String
-  imageUrl    String
-  isApproved  Boolean             @default(false)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  events      EventMissingCard[]
+  id         Int                @id @default(autoincrement())
+  code       String
+  title      String
+  imageUrl   String
+  isApproved Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  events     EventMissingCard[]
 
   @@unique([code, title])
   @@index([code])
 }
 
 model EventMissingCard {
-  id             Int          @id @default(autoincrement())
-  eventId        Int
-  missingCardId  Int
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  missingCard    MissingCard  @relation(fields: [missingCardId], references: [id], onDelete: Cascade)
+  id            Int         @id @default(autoincrement())
+  eventId       Int
+  missingCardId Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  missingCard   MissingCard @relation(fields: [missingCardId], references: [id], onDelete: Cascade)
 
+  @@unique([eventId, missingCardId])
   @@index([eventId])
   @@index([missingCardId])
-  @@unique([eventId, missingCardId])
 }
 
 model CardSet {
@@ -453,18 +463,92 @@ model CardSet {
   @@index([setId])
 }
 
+enum PriceType {
+  MARKET
+  LOW
+  HIGH
+}
+
 model CardPriceLog {
-  id            Int      @id @default(autoincrement())
-  cardId        Int
-  previousPrice Float
-  newPrice      Float
-  userId        Int?
-  changedAt     DateTime @default(now())
-  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  user          User?    @relation(fields: [userId], references: [id])
+  id          Int       @id @default(autoincrement())
+  cardId      Int
+  priceType   PriceType
+  price       Decimal
+  source      String    @default("TCGplayer")
+  collectedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
-  @@index([userId])
+  @@index([collectedAt])
+}
+
+model CardPriceAlert {
+  id                 Int                     @id @default(autoincrement())
+  cardId             Int
+  thresholdType      AlertThresholdType
+  thresholdValue     Decimal?
+  percentChange      Float?
+  percentWindowHours Int?                    @default(24)
+  notificationMethod AlertNotificationMethod @default(IN_APP)
+  isActive           Boolean                 @default(true)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  card               Card                    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  logs               CardPriceAlertLog[]
+  notifications      AdminNotification[]
+
+  @@index([cardId, isActive])
+}
+
+enum AlertThresholdType {
+  ABOVE_VALUE
+  BELOW_VALUE
+  PERCENT_CHANGE
+}
+
+enum AlertNotificationMethod {
+  IN_APP
+  EMAIL
+  SLACK
+}
+
+model CardPriceAlertLog {
+  id        Int       @id @default(autoincrement())
+  alertId   Int
+  cardId    Int
+  price     Decimal
+  triggeredAt DateTime @default(now())
+  priceType PriceType  @default(MARKET)
+  alert     CardPriceAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([alertId])
+  @@index([cardId, triggeredAt])
+}
+
+enum AdminNotificationType {
+  PRICE_ALERT
+  SYSTEM
+}
+
+model AdminNotification {
+  id        Int                    @id @default(autoincrement())
+  title     String?
+  message   String
+  type      AdminNotificationType  @default(PRICE_ALERT)
+  isRead    Boolean                @default(false)
+  metadata  Json?
+  cardId    Int?
+  alertId   Int?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  card      Card?                  @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  alert     CardPriceAlert?        @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([isRead, type])
+  @@index([cardId])
+  @@index([alertId])
 }
 
 model CardListing {
@@ -520,16 +604,16 @@ model Product {
 }
 
 model CatalogProduct {
-  id          Int                 @id @default(autoincrement())
-  uuid        String              @unique @default(uuid())
+  id          Int                @id @default(autoincrement())
+  uuid        String             @unique @default(uuid())
   name        String
-  description String?             @db.Text
+  description String?            @db.Text
   imageUrl    String?
   releaseDate DateTime?
   productType CatalogProductType
   metadata    Json?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   @@index([productType])
 }

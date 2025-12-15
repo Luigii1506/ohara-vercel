@@ -178,7 +178,7 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
     await prisma.cardPriceLog.createMany({
       data: logs,
     });
-    alertCardIds.push(...new Set(logs.map((log) => log.cardId)));
+    alertCardIds.push(...Array.from(new Set(logs.map((log) => log.cardId))));
   }
 
   let alertsTriggered = 0;

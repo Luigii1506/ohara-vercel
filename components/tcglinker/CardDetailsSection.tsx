@@ -103,6 +103,15 @@ export function CardDetailsSection({
             <span className="text-muted-foreground/50">•</span>
             <span className="font-medium">Rarity:</span>{" "}
             {selectedLinkCard.rarity ?? "—"}
+            {selectedLinkCard.alternateArt && (
+              <>
+                <span className="text-muted-foreground/50">•</span>
+                <span className="font-medium">Alt Art:</span>{" "}
+                <Badge variant="secondary" className="text-xs">
+                  {selectedLinkCard.alternateArt}
+                </Badge>
+              </>
+            )}
           </p>
         </div>
 

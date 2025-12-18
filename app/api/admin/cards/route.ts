@@ -162,6 +162,12 @@ export async function POST(req: NextRequest) {
         tcgUrl: ______,
         imageKey: ________,
         baseCardId: _________,
+        tcgplayerProductId: _________linkId,
+        marketPrice: _________marketPrice,
+        lowPrice: _________lowPrice,
+        highPrice: _________highPrice,
+        priceCurrency: _________priceCurrency,
+        priceUpdatedAt: _________priceUpdatedAt,
         // El resto de los campos de la carta encontrada se agrupa en "otherData"
         ...otherData
       } = templateCard;
@@ -187,6 +193,12 @@ export async function POST(req: NextRequest) {
         setCode, // campo sobrescrito
         isFirstEdition: false,
         tcgUrl,
+        tcgplayerProductId: null,
+        marketPrice: null,
+        lowPrice: null,
+        highPrice: null,
+        priceCurrency: null,
+        priceUpdatedAt: null,
         alias,
         order: order || "0", // Asegurar que siempre tenga un valor
         ...baseCardRelation,

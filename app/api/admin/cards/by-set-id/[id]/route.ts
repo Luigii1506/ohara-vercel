@@ -9,24 +9,32 @@ const sanitizeForClient = (value: any) =>
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const code = params.code?.toUpperCase();
-    if (!code) {
+    const idParam = params.id;
+    const setId = Number(idParam);
+    if (!idParam || Number.isNaN(setId)) {
       return NextResponse.json(
-        { error: "Set code is required" },
+        { error: "Valid set id is required" },
         { status: 400 }
       );
     }
 
+    const relatedEntries = await prisma.cardSet.findMany({
+      where: { setId },
+      select: { cardId: true },
+    });
+
+    if (!relatedEntries.length) {
+      return NextResponse.json([], { status: 200 });
+    }
+
+    const relatedIds = relatedEntries.map((entry) => entry.cardId);
+
     const cards = await prisma.card.findMany({
       where: {
-        baseCardId: null,
-        setCode: {
-          contains: code,
-          mode: "insensitive",
-        },
+        id: { in: relatedIds },
       },
       orderBy: {
         code: "asc",
@@ -53,7 +61,7 @@ export async function GET(
 
     return NextResponse.json(mapped.map(sanitizeForClient), { status: 200 });
   } catch (error) {
-    console.error("Error fetching cards by set code:", error);
+    console.error("Error fetching cards by set id:", error);
     return NextResponse.json(
       { error: "Failed to fetch cards" },
       { status: 500 }

@@ -130,6 +130,12 @@ export default function AdminDashboard() {
           icon: Upload,
           description: "Bulk upload card sets from files",
         },
+        {
+          href: "/admin/set-visualizer",
+          label: "Set Visualizer",
+          icon: Layers,
+          description: "Visualize cards grouped by selected sets",
+        },
       ],
     },
     {

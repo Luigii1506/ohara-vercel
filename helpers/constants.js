@@ -1133,22 +1133,23 @@ export const altArtOptions = [
   { value: "Treasure Cup", label: "Treasure Cup" },
   { value: "Treasure Rare", label: "Treasure Rare" },
   { value: "Special Card", label: "Special Card" },
+  { value: "Judge", label: "Judge" },
+  { value: "Textured Foil", label: "Textured Foil" },
+  { value: "Jolly Roger Foil", label: "Jolly Roger Foil" },
+  { value: "Pre-Release", label: "Pre-Release" },
+  { value: "1st Anniversary", label: "1st Anniversary" },
+  { value: "2nd Anniversary", label: "2nd Anniversary" },
+  { value: "3rd Anniversary", label: "3rd Anniversary" },
+  { value: "Serial", label: "Serial" },
+  { value: "Reprint", label: "Reprint" },
   { value: "Winner Version", label: "Winner Version" },
   { value: "Finalist Version", label: "Finalist Version" },
   { value: "Top Player Version", label: "Top Player Version" },
   { value: "Participation Version", label: "Participation Version" },
-  { value: "Textured Foil", label: "Textured Foil" },
-  { value: "Jolly Roger Foil", label: "Jolly Roger Foil" },
-  { value: "Pre-Release", label: "Pre-Release" },
   { value: "Pre-Errata", label: "Pre-Errata" },
-  { value: "1st Anniversary", label: "1st Anniversary" },
-  { value: "2nd Anniversary", label: "2nd Anniversary" },
+
   { value: "Demo Version", label: "Demo Version" },
   { value: "Not for sale", label: "Not for sale" },
-
-  { value: "Serial", label: "Serial" },
-  { value: "Judge", label: "Judge" },
-  { value: "Reprint", label: "Reprint" },
 ];
 
 export const conditionOptions = [];

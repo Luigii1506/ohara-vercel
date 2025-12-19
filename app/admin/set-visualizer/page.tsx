@@ -39,6 +39,8 @@ type SetCardsState = {
 };
 
 const FALLBACK_IMAGE = "/assets/images/backcard.webp";
+const WORKER_URL =
+  process.env.NEXT_PUBLIC_WORKER_URL || "https://images.oharatcg.com";
 
 export default function SetVisualizerPage() {
   const [sets, setSets] = useState<AdminSet[]>([]);
@@ -110,9 +112,7 @@ export default function SetVisualizerPage() {
     }));
 
     try {
-      const response = await fetch(
-        `/api/admin/cards/by-set-id/${setId}`
-      );
+      const response = await fetch(`/api/admin/cards/by-set-id/${setId}`);
       if (!response.ok) {
         throw new Error("Error al cargar las cartas del set");
       }
@@ -126,7 +126,7 @@ export default function SetVisualizerPage() {
         },
       }));
     } catch (error) {
-      console.error(`Error fetching cards for set ${title}:`, error);
+      console.error(`Error fetching cards for set ${setId}:`, error);
       setSetCards((prev) => ({
         ...prev,
         [key]: {
@@ -150,30 +150,45 @@ export default function SetVisualizerPage() {
     return lookup;
   }, [sets]);
 
+  const resolveImageSrc = (card: VisualizerCard) => {
+    if (card.src) {
+      return card.src;
+    }
+    if (card.imageKey) {
+      return `${WORKER_URL}/cards/${card.imageKey}.webp`;
+    }
+    return FALLBACK_IMAGE;
+  };
+
   const renderCard = (card: VisualizerCard) => {
-    const imageSrc = card.imageKey || card.src || FALLBACK_IMAGE;
+    const imageSrc = resolveImageSrc(card);
 
     return (
       <div
         key={card.id}
-        className="flex gap-4 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        className="group flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
       >
-        <div className="h-28 w-20 overflow-hidden rounded-md bg-gray-100">
+        <div className="relative aspect-[2/3] w-full overflow-hidden bg-gray-100">
           <img
             src={imageSrc}
             alt={card.name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
             loading="lazy"
             onError={(event) => {
               (event.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
             }}
           />
+          {card.category ? (
+            <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-medium uppercase tracking-wide text-white">
+              {card.category}
+            </span>
+          ) : null}
         </div>
-        <div className="flex flex-1 flex-col">
-          <div className="flex items-center justify-between gap-2">
-            <div>
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          <div className="flex items-start justify-between gap-2 flex-col">
+            <div className="flex flex-col">
               <p className="text-sm font-semibold text-gray-900">{card.name}</p>
-              <p className="text-xs text-gray-500">{card.code}</p>
+              <p className="text-xs font-mono text-gray-500">{card.code}</p>
             </div>
             {card.alternateArt ? (
               <Badge variant="outline" className="text-xs">
@@ -181,29 +196,27 @@ export default function SetVisualizerPage() {
               </Badge>
             ) : null}
           </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-            {card.category ? (
-              <Badge variant="secondary" className="bg-blue-50 text-blue-800">
-                {card.category}
-              </Badge>
-            ) : null}
+          <div className="flex flex-wrap gap-2 text-xs text-gray-600">
             {card.rarity ? (
-              <Badge variant="secondary" className="bg-amber-50 text-amber-800">
+              <Badge
+                variant="secondary"
+                className="rounded-full border border-amber-100 bg-amber-50 text-amber-700"
+              >
                 {card.rarity}
               </Badge>
             ) : null}
             {card.cost ? (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">
-                {card.cost}
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                Coste: {card.cost}
               </span>
             ) : null}
             {card.power ? (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">
-                {card.power}
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                Power: {card.power}
               </span>
             ) : null}
             {card.attribute ? (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
                 {card.attribute}
               </span>
             ) : null}
@@ -234,9 +247,7 @@ export default function SetVisualizerPage() {
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
               <span>
-                {setInfo?.code
-                  ? `Código: ${setInfo.code}`
-                  : "Sin código"}
+                {setInfo?.code ? `Código: ${setInfo.code}` : "Sin código"}
               </span>
               {releaseDate ? (
                 <span>
@@ -283,18 +294,16 @@ export default function SetVisualizerPage() {
 
         <div className="mt-6">
           {state?.loading ? (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {[...Array(4)].map((_, index) => (
                 <div
                   key={`${setId}-skeleton-${index}`}
-                  className="flex gap-4 rounded-xl border border-gray-100 bg-white/70 p-3"
+                  className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white/70 p-3"
                 >
-                  <Skeleton className="h-28 w-20 rounded-md" />
-                  <div className="flex-1 space-y-3">
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-3 w-1/3" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
+                  <Skeleton className="h-40 w-full rounded-xl" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-1/3" />
                 </div>
               ))}
             </div>
@@ -304,7 +313,7 @@ export default function SetVisualizerPage() {
               <p>{state.error}</p>
             </div>
           ) : state?.cards?.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {state.cards.map((card) => renderCard(card))}
             </div>
           ) : (
@@ -319,7 +328,7 @@ export default function SetVisualizerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f9f4eb] via-[#f3e4cf] to-[#f9f4eb] px-4 py-8">
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#f9f4eb] via-[#f0e1ca] to-[#f9f4eb] px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-3xl border border-amber-100 bg-white/90 p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

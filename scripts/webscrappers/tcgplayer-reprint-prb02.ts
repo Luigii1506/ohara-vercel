@@ -52,6 +52,7 @@ async function main() {
   const cards = await scrapePage(1);
   console.log(`Found ${cards.length} reprint cards`);
   cards.forEach((card) => {
+    if (!card) return;
     console.log(`- ${card.code} :: ${card.title} :: ${card.image}`);
     if (card.srcset) {
       console.log(`  srcset: ${card.srcset}`);

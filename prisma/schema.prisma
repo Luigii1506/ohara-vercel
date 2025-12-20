@@ -618,6 +618,30 @@ model CatalogProduct {
   @@index([productType])
 }
 
+model TcgCatalogProduct {
+  productId        Int       @id
+  name             String
+  cleanName        String?
+  productLineName  String?
+  url              String?
+  sku              String?
+  imageUrl         String?
+  metadata         Json?
+  cardType         String?
+  rarity           String?
+  isSealed         Boolean   @default(false)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  linkedCardId     Int?
+  linkedAt         DateTime?
+  linkedById       Int?
+  productStatus    String?   @default("active")
+
+  @@index([linkedCardId])
+  @@index([linkedById])
+}
+
 model Cart {
   id        Int        @id @default(autoincrement())
   userId    Int        @unique

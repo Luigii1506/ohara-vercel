@@ -1,4 +1,10 @@
-import "server-only";
+try {
+  require("server-only");
+} catch (error) {
+  if (process.env.NODE_ENV !== "production") {
+    // Ignore when running scripts outside Next.js
+  }
+}
 
 const TOKEN_ENDPOINT = "https://api.tcgplayer.com/token";
 const API_VERSION = process.env.TCGPLAYER_API_VERSION ?? "v1.39.0";
@@ -26,6 +32,9 @@ export interface TcgplayerProduct {
   url?: string | null;
   categoryId?: number | null;
   categoryName?: string | null;
+  productLineName?: string | null;
+  productTypeName?: string | null;
+  productType?: string | null;
   extendedData?: Array<{ name: string; value: string }>;
   groupId?: number | null;
   shippingCategoryId?: number | null;
@@ -46,6 +55,15 @@ export interface ProductSearchResponse {
   results: TcgplayerProduct[];
   totalResults: number;
   nextOffset: number | null;
+}
+
+export interface ListProductsOptions {
+  categoryId?: number;
+  limit?: number;
+  offset?: number;
+  productTypes?: string[];
+  includeExtendedFields?: boolean;
+  productName?: string;
 }
 
 export interface CategorySearchFilter {
@@ -389,5 +407,48 @@ export async function searchTcgplayerCategoryProducts(
     results: products,
     totalResults: response.totalResults ?? products.length,
     nextOffset,
+  };
+}
+
+export async function listTcgplayerProducts(options: ListProductsOptions = {}) {
+  const categoryId =
+    typeof options.categoryId === "number" && options.categoryId > 0
+      ? options.categoryId
+      : ONE_PIECE_CATEGORY_ID;
+  const limit = Math.min(Math.max(options.limit ?? 100, 1), 100);
+  const offset = Math.max(options.offset ?? 0, 0);
+
+  const query = new URLSearchParams({
+    categoryId: String(categoryId),
+    limit: String(limit),
+    offset: String(offset),
+  });
+
+  if (options.productTypes?.length) {
+    query.set("productTypes", options.productTypes.join(","));
+  }
+
+  if (options.productName) {
+    query.set("productName", options.productName);
+  }
+
+  if (options.includeExtendedFields ?? true) {
+    query.set("getExtendedFields", "true");
+  }
+
+  const response = await tcgplayerFetch<{
+    success: boolean;
+    totalItems?: number;
+    results?: TcgplayerProduct[];
+    errors?: unknown[];
+  }>(`/catalog/products?${query.toString()}`);
+
+  if (!response.success) {
+    throw new Error("TCGplayer list products request failed");
+  }
+
+  return {
+    totalItems: response.totalItems ?? response.results?.length ?? 0,
+    results: response.results ?? [],
   };
 }

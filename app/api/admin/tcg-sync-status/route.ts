@@ -191,7 +191,12 @@ export async function GET(req: NextRequest) {
     };
 
     if (searchFilters.length) {
-      catalogWhere.AND = [...(catalogWhere.AND ?? []), { OR: searchFilters }];
+      const existingAnd = Array.isArray(catalogWhere.AND)
+        ? catalogWhere.AND
+        : catalogWhere.AND
+        ? [catalogWhere.AND]
+        : [];
+      catalogWhere.AND = [...existingAnd, { OR: searchFilters }];
     }
 
     if (view === "linked") {

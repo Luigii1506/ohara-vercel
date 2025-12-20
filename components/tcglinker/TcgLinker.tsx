@@ -266,6 +266,34 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
   const [linkFilter, setLinkFilter] = useState<LinkStatusFilter>("all");
 
+  const linkStatusCounts = useMemo(() => {
+    const counts: Record<LinkStatusFilter, number> = {
+      all: cards?.length ?? 0,
+      linked: 0,
+      unlinked: 0,
+      missing: 0,
+    };
+    if (!cards || cards.length === 0) {
+      return counts;
+    }
+    for (const card of cards) {
+      const baseStatus = card.tcgplayerLinkStatus ?? null;
+      const altStatuses =
+        card.alternates?.map((alt) => alt.tcgplayerLinkStatus ?? null) ?? [];
+      const hasLinked =
+        baseStatus === true || altStatuses.some((status) => status === true);
+      const hasMissing =
+        baseStatus === false || altStatuses.some((status) => status === false);
+      const hasUnlinked =
+        baseStatus === null || altStatuses.some((status) => status === null);
+
+      if (hasLinked) counts.linked += 1;
+      if (hasMissing) counts.missing += 1;
+      if (hasUnlinked) counts.unlinked += 1;
+    }
+    return counts;
+  }, [cards]);
+
   const matchesLinkStatusFilter = useCallback(
     (status?: boolean | null) => {
       const normalizedStatus = status === true ? true : status === false ? false : null;
@@ -1271,6 +1299,11 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                     }`}
                   >
                     {option.label}
+                    {typeof linkStatusCounts[option.value] === "number" ? (
+                      <span className="ml-1 text-[11px] font-normal">
+                        ({linkStatusCounts[option.value]})
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}

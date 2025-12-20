@@ -697,6 +697,8 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
           baseStatus === true || altStatuses?.some((status) => status === true);
         const hasMissing =
           baseStatus === false || altStatuses?.some((status) => status === false);
+        const hasUnlinked =
+          baseStatus === null || altStatuses?.some((status) => status === null);
 
         const satisfiesLinkFilter = (() => {
           switch (linkFilter) {
@@ -705,7 +707,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
             case "missing":
               return hasMissing;
             case "unlinked":
-              return !hasLinked && !hasMissing;
+              return hasUnlinked;
             default:
               return true;
           }

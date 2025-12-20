@@ -268,29 +268,33 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
   const linkStatusCounts = useMemo(() => {
     const counts: Record<LinkStatusFilter, number> = {
-      all: cards?.length ?? 0,
+      all: 0,
       linked: 0,
       unlinked: 0,
       missing: 0,
     };
+    const registerStatus = (status?: boolean | null) => {
+      counts.all += 1;
+      if (status === true) {
+        counts.linked += 1;
+      } else if (status === false) {
+        counts.missing += 1;
+      } else {
+        counts.unlinked += 1;
+      }
+    };
+
     if (!cards || cards.length === 0) {
       return counts;
     }
-    for (const card of cards) {
-      const baseStatus = card.tcgplayerLinkStatus ?? null;
-      const altStatuses =
-        card.alternates?.map((alt) => alt.tcgplayerLinkStatus ?? null) ?? [];
-      const hasLinked =
-        baseStatus === true || altStatuses.some((status) => status === true);
-      const hasMissing =
-        baseStatus === false || altStatuses.some((status) => status === false);
-      const hasUnlinked =
-        baseStatus === null || altStatuses.some((status) => status === null);
 
-      if (hasLinked) counts.linked += 1;
-      if (hasMissing) counts.missing += 1;
-      if (hasUnlinked) counts.unlinked += 1;
+    for (const card of cards) {
+      registerStatus(card.tcgplayerLinkStatus);
+      card.alternates?.forEach((alt) =>
+        registerStatus(alt.tcgplayerLinkStatus)
+      );
     }
+
     return counts;
   }, [cards]);
 

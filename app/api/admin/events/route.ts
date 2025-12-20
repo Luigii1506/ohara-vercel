@@ -56,6 +56,23 @@ export async function GET(req: NextRequest) {
             missingSet: true,
           },
         },
+        missingCards: {
+          where: { missingCard: { isApproved: false } },
+          orderBy: { createdAt: "desc" },
+          include: { missingCard: true },
+        },
+        sets: {
+          include: {
+            set: {
+              select: {
+                id: true,
+                title: true,
+                code: true,
+                image: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             sets: true,
@@ -72,6 +89,21 @@ export async function GET(req: NextRequest) {
     const serialized = events.map((event) => ({
       ...event,
       missingSets: event.missingSets.map(serializeEventMissingSet),
+      missingCards: event.missingCards.map((entry) => ({
+        id: entry.id,
+        missingCardId: entry.missingCardId,
+        code: entry.missingCard?.code ?? "",
+        title: entry.missingCard?.title ?? "",
+        imageUrl: entry.missingCard?.imageUrl ?? "",
+      })),
+      setDetails: event.sets
+        .filter((entry) => entry.set)
+        .map((entry) => ({
+          id: entry.set!.id,
+          title: entry.set!.title,
+          code: entry.set!.code,
+          image: entry.set!.image,
+        })),
     }));
 
     return NextResponse.json(serialized, { status: 200 });

@@ -93,8 +93,8 @@ export async function POST(req: NextRequest) {
     }
 
     const startedAt = Date.now();
-    const result = await scrapeEvents(options);
-    const durationMs = Date.now() - startedAt;
+  const result = await scrapeEvents(options);
+  const durationMs = Date.now() - startedAt;
 
     return NextResponse.json(
       {

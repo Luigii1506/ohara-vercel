@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   RefreshCw,
   Calendar,
   MapPin,
@@ -16,6 +22,7 @@ import {
   Eye,
   EyeOff,
   Link as LinkIcon,
+  Loader2,
 } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -46,6 +53,19 @@ interface AdminEvent {
   createdAt: string;
   updatedAt: string;
   missingSets: MissingSetInfo[];
+  missingCards?: Array<{
+    id: number;
+    missingCardId: number;
+    code: string;
+    title: string;
+    imageUrl?: string | null;
+  }>;
+  setDetails?: Array<{
+    id: number;
+    title: string;
+    code?: string | null;
+    image?: string | null;
+  }>;
   _count: {
     sets: number;
     cards: number;
@@ -54,17 +74,22 @@ interface AdminEvent {
 }
 
 type ApprovalFilter = "all" | "pending" | "approved";
+type UpdatedFilter = "all" | "updated" | "stale";
 
 const AdminEventsPage = () => {
   const [events, setEvents] = useState<AdminEvent[]>([]);
-  const [approvalFilter, setApprovalFilter] =
-    useState<ApprovalFilter>("pending");
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [updatedFilter, setUpdatedFilter] = useState<UpdatedFilter>("all");
+  const [syncingEventId, setSyncingEventId] = useState<number | null>(null);
+  const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>(
+    {}
+  );
 
   useEffect(() => {
     fetchEvents();
-  }, [approvalFilter]);
+  }, [approvalFilter, updatedFilter]);
 
   const fetchEvents = async () => {
     try {
@@ -94,16 +119,47 @@ const AdminEventsPage = () => {
     }
   };
 
+
   const filteredEvents = useMemo(() => {
-    if (!searchTerm.trim()) return events;
-    const term = searchTerm.toLowerCase();
-    return events.filter(
-      (event) =>
-        event.title.toLowerCase().includes(term) ||
-        event.slug.toLowerCase().includes(term) ||
-        (event.sourceUrl && event.sourceUrl.toLowerCase().includes(term))
-    );
-  }, [events, searchTerm]);
+    const term = searchTerm.trim().toLowerCase();
+
+    const isUpdatedToday = (isoDate?: string) => {
+      if (!isoDate) return false;
+      const target = new Date(isoDate);
+      const now = new Date();
+      return (
+        target.getFullYear() === now.getFullYear() &&
+        target.getMonth() === now.getMonth() &&
+        target.getDate() === now.getDate()
+      );
+    };
+
+    return events
+      .filter((event) => {
+        const matchesSearch =
+          term.length === 0 ||
+          event.title.toLowerCase().includes(term) ||
+          event.slug.toLowerCase().includes(term) ||
+          (event.sourceUrl && event.sourceUrl.toLowerCase().includes(term));
+
+        if (!matchesSearch) return false;
+
+        if (updatedFilter === "updated" && !isUpdatedToday(event.updatedAt)) {
+          return false;
+        }
+        if (updatedFilter === "stale" && isUpdatedToday(event.updatedAt)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const aCompleted = a.status === "COMPLETED";
+        const bCompleted = b.status === "COMPLETED";
+        if (aCompleted === bCompleted) return 0;
+        return aCompleted ? 1 : -1;
+      });
+  }, [events, searchTerm, updatedFilter]);
 
   const toggleApproval = async (event: AdminEvent) => {
     try {
@@ -123,18 +179,61 @@ const AdminEventsPage = () => {
     }
   };
 
+  const handleSyncEvent = async (event: AdminEvent) => {
+    if (!event.sourceUrl) {
+      showErrorToast("Este evento no cuenta con URL fuente");
+      return;
+    }
+    try {
+      setSyncingEventId(event.id);
+      const payload = {
+        eventUrl: event.sourceUrl,
+        locale: event.locale || "en",
+        region: event.region,
+        renderMode: "static" as const,
+        renderWaitMs: 2000,
+        dryRun: false,
+      };
+      const response = await fetch("/api/admin/event-scraper/detail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "No se pudo sincronizar el evento");
+      }
+      await fetchEvents();
+      showSuccessToast("Evento sincronizado correctamente");
+    } catch (error) {
+      console.error(error);
+      showErrorToast("Error al sincronizar el evento");
+    } finally {
+      setSyncingEventId(null);
+    }
+  };
+
+  const toggleDetails = (eventId: number) => {
+    setExpandedEvents((prev) => ({
+      ...prev,
+      [eventId]: !prev[eventId],
+    }));
+  };
+
+  const isUpdatedToday = (isoDate?: string) => {
+    if (!isoDate) return false;
+    const target = new Date(isoDate);
+    const now = new Date();
+    return (
+      target.getFullYear() === now.getFullYear() &&
+      target.getMonth() === now.getMonth() &&
+      target.getDate() === now.getDate()
+    );
+  };
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <div className="relative overflow-hidden rounded-2xl border bg-slate-900/90 text-white shadow-xl">
-        <div className="absolute inset-0">
-          <Image
-            src="/assets/images/banner_events.png"
-            alt="Eventos banner"
-            fill
-            priority
-            className="object-cover opacity-40"
-          />
-        </div>
         <div className="relative flex flex-col gap-4 px-6 py-8 sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.4em] text-white/70">
@@ -172,16 +271,46 @@ const AdminEventsPage = () => {
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          placeholder="Buscar por título, slug o URL..."
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          className="w-full md:w-1/2"
-        />
-        <Button variant="outline" onClick={fetchEvents}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refrescar
-        </Button>
+        <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
+          <Input
+            placeholder="Buscar por título, slug o URL..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-full md:w-80"
+          />
+          <div className="flex gap-2">
+            <Button
+              variant={updatedFilter === "all" ? "default" : "outline"}
+              onClick={() => setUpdatedFilter("all")}
+              size="sm"
+            >
+              Todos
+            </Button>
+            <Button
+              variant={updatedFilter === "updated" ? "default" : "outline"}
+              onClick={() => setUpdatedFilter("updated")}
+              size="sm"
+            >
+              Actualizados hoy
+            </Button>
+            <Button
+              variant={updatedFilter === "stale" ? "default" : "outline"}
+              onClick={() => setUpdatedFilter("stale")}
+              size="sm"
+            >
+              Sin actualizar hoy
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            Mostrando {filteredEvents.length} de {events.length}
+          </p>
+          <Button variant="outline" onClick={fetchEvents}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refrescar
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -200,6 +329,7 @@ const AdminEventsPage = () => {
         <div className="space-y-4">
           {filteredEvents.map((event) => {
             const thumbnail = event.eventThumbnail ?? event.imageUrl ?? null;
+            const updatedToday = isUpdatedToday(event.updatedAt);
 
             return (
               <Card
@@ -230,6 +360,11 @@ const AdminEventsPage = () => {
                           <CardTitle className="text-xl">
                             {event.title}
                           </CardTitle>
+                          {updatedToday && (
+                            <Badge className="bg-emerald-600 text-white">
+                              Actualizado hoy
+                            </Badge>
+                          )}
                           <Badge
                             variant={event.isApproved ? "default" : "secondary"}
                           >
@@ -260,6 +395,12 @@ const AdminEventsPage = () => {
                               {event.location}
                             </span>
                           )}
+                          <span className="flex items-center gap-1">
+                            Última actualización:
+                            <strong>
+                              {new Date(event.updatedAt).toLocaleString()}
+                            </strong>
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -295,6 +436,24 @@ const AdminEventsPage = () => {
                             <>
                               <Eye className="mr-2 h-4 w-4" />
                               Aprobar
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={syncingEventId === event.id}
+                          onClick={() => handleSyncEvent(event)}
+                        >
+                          {syncingEventId === event.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sincronizando…
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                              Re-sincronizar
                             </>
                           )}
                         </Button>
@@ -336,20 +495,134 @@ const AdminEventsPage = () => {
                       )}
                     </div>
 
-                    {event.missingSets.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold">
-                          Missing sets pendientes
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {event.missingSets.map((missing) => (
-                            <Badge key={missing.id} variant="secondary">
-                              {missing.title}
-                            </Badge>
-                          ))}
+                    {(() => {
+                      const setDetails = event.setDetails ?? [];
+                      const missingCards = event.missingCards ?? [];
+                      const hasDetails =
+                        setDetails.length > 0 ||
+                        event.missingSets.length > 0 ||
+                        missingCards.length > 0;
+                      if (!hasDetails) return null;
+
+                      const expanded = expandedEvents[event.id] ?? false;
+                      return (
+                        <div className="rounded-xl border bg-muted/10 p-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold">
+                              Detalles del evento
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleDetails(event.id)}
+                            >
+                              {expanded ? "Ocultar detalles" : "Mostrar detalles"}
+                            </Button>
+                          </div>
+                          {expanded && (
+                            <div className="mt-3 space-y-4">
+                              {setDetails.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold mb-2">
+                                    Sets vinculados ({setDetails.length})
+                                  </p>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {setDetails.map((set) => (
+                                      <div
+                                        key={set.id}
+                                        className="flex items-center gap-3 rounded-lg border bg-background p-3"
+                                      >
+                                        <div className="h-14 w-14 overflow-hidden rounded-md border bg-muted">
+                                          {set.image ? (
+                                            <Image
+                                              src={set.image}
+                                              alt={set.title}
+                                              width={56}
+                                              height={56}
+                                              className="h-full w-full object-cover"
+                                            />
+                                          ) : (
+                                            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                                              Sin imagen
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex-1">
+                                          <p className="text-sm font-semibold">
+                                            {set.title}
+                                          </p>
+                                          {set.code && (
+                                            <p className="text-xs text-muted-foreground">
+                                              {set.code}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {event.missingSets.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold mb-2">
+                                    Missing sets pendientes (
+                                    {event.missingSets.length})
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {event.missingSets.map((missing) => (
+                                      <Badge key={missing.id} variant="secondary">
+                                        {missing.title}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {missingCards.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold mb-2">
+                                    Missing cards ({missingCards.length})
+                                  </p>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {missingCards.map((card) => (
+                                      <div
+                                        key={card.id}
+                                        className="flex items-center gap-3 rounded-lg border bg-background p-3"
+                                      >
+                                        <div className="h-14 w-14 overflow-hidden rounded-md border bg-muted">
+                                          {card.imageUrl ? (
+                                            <Image
+                                              src={card.imageUrl}
+                                              alt={card.title}
+                                              width={56}
+                                              height={56}
+                                              className="h-full w-full object-cover"
+                                            />
+                                          ) : (
+                                            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                                              Sin imagen
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex-1">
+                                          <p className="text-sm font-semibold">
+                                            {card.title}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {card.code}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>

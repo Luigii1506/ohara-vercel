@@ -86,9 +86,10 @@ export async function POST(req: NextRequest) {
     // Usar code + title como identificador único
     const missingCardRecord = await prisma.missingCard.upsert({
       where: {
-        code_title: {
+        code_title_imageUrl: {
           code,
           title,
+          imageUrl: imageUrl || "",
         },
       },
       create: {

@@ -8,6 +8,10 @@ import {
   findMatchingSets,
   dedupeMissingCandidates,
   dedupeCardCandidates,
+  generateSlug,
+  syncEventMissingSetsInDb,
+  syncEventMissingCardsInDb,
+  syncEventSetsInDb,
   type RenderMode,
 } from "@/lib/services/scraper/eventScraper";
 import { prisma } from "@/lib/prisma";
@@ -21,6 +25,7 @@ type DetailRequest = {
   listThumbnail?: string | null;
   listEventTxt?: string | null;
   listRawDateText?: string | null;
+  dryRun?: boolean;
 };
 
 const DEFAULT_RENDER_WAIT_MS = 2000;
@@ -46,6 +51,7 @@ export async function POST(req: NextRequest) {
       listThumbnail,
       listEventTxt,
       listRawDateText,
+      dryRun = true,
     } = body;
 
     if (!eventUrl || eventUrl.trim().length === 0) {
@@ -131,13 +137,93 @@ export async function POST(req: NextRequest) {
     const missingSets = dedupeMissingCandidates(unmatchedCandidates);
     const missingCards = dedupeCardCandidates(detail.detectedCards);
 
+    const slug = generateSlug(
+      detail.title,
+      detail.region,
+      detail.sourceUrl || eventUrl.trim()
+    );
+
+    if (dryRun) {
+      return NextResponse.json(
+        {
+          success: true,
+          dryRun: true,
+          event: detail,
+          slug,
+          matchedSets: matchedSetImages,
+          missingSets,
+          missingCards,
+        },
+        { status: 200 }
+      );
+    }
+
+    const existing = await prisma.event.findUnique({ where: { slug } });
+
+    const event = await prisma.event.upsert({
+      where: { slug },
+      create: {
+        slug,
+        title: detail.title,
+        description: detail.description,
+        content: detail.content,
+        originalContent: detail.originalContent,
+        locale: detail.locale,
+        region: detail.region,
+        status: detail.status,
+        eventType: detail.eventType,
+        category: detail.category,
+        startDate: detail.startDate,
+        endDate: detail.endDate,
+        rawDateText: detail.rawDateText,
+        location: detail.location,
+        sourceUrl: detail.sourceUrl,
+        imageUrl: detail.imageUrl,
+        eventThumbnail: detail.eventThumbnail,
+        eventTxt: detail.eventTxt,
+        listOrder: detail.listOrder,
+        isApproved: true,
+      },
+      update: {
+        title: existing?.title ?? detail.title,
+        description: existing?.description ?? detail.description,
+        content: existing?.content ?? detail.content,
+        originalContent: existing?.originalContent ?? detail.originalContent,
+        locale: existing?.locale ?? detail.locale,
+        region: existing?.region ?? detail.region,
+        eventType: existing?.eventType ?? detail.eventType,
+        category: existing?.category ?? detail.category,
+        startDate: existing?.startDate ?? detail.startDate,
+        endDate: existing?.endDate ?? detail.endDate,
+        rawDateText: existing?.rawDateText ?? detail.rawDateText,
+        location: existing?.location ?? detail.location,
+        sourceUrl: existing?.sourceUrl ?? detail.sourceUrl,
+        imageUrl: existing?.imageUrl ?? detail.imageUrl,
+        eventThumbnail: existing?.eventThumbnail ?? detail.eventThumbnail,
+        eventTxt: existing?.eventTxt ?? detail.eventTxt,
+        listOrder: existing?.listOrder ?? detail.listOrder,
+        status:
+          existing?.status === "COMPLETED"
+            ? existing.status
+            : detail.status,
+      },
+    });
+
+    const linkedCount = await syncEventSetsInDb(event.id, matchedSets);
+    await syncEventMissingSetsInDb(event.id, missingSets);
+    await syncEventMissingCardsInDb(event.id, missingCards);
+
     return NextResponse.json(
       {
         success: true,
+        dryRun: false,
         event: detail,
         matchedSets: matchedSetImages,
         missingSets,
         missingCards,
+        slug,
+        eventId: event.id,
+        setsLinked: linkedCount,
       },
       { status: 200 }
     );

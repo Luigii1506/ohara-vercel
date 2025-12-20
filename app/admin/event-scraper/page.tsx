@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -198,6 +199,8 @@ const AdminEventScraperPage = () => {
   const [bulkCollectionsOpen, setBulkCollectionsOpen] = useState<
     Record<string, boolean>
   >({});
+  const [dangerMode, setDangerMode] = useState(false);
+  const [detailDangerMode, setDetailDangerMode] = useState(false);
   const {
     preview: imagePreview,
     showPreview: handlePreviewEnter,
@@ -297,8 +300,10 @@ const AdminEventScraperPage = () => {
         renderWaitMs: Number(formState.renderWaitMs) || undefined,
         delayMs: Number(formState.delayMs) || undefined,
         customUrls: customUrlsArray,
-        dryRun: true,
+        dryRun: !dangerMode,
       };
+
+      console.log("[event-scraper] Running bulk scraper", payload);
 
       const response = await fetch("/api/admin/event-scraper", {
         method: "POST",
@@ -343,7 +348,10 @@ const AdminEventScraperPage = () => {
             : undefined,
         renderMode: detailForm.renderMode as "static" | "auto" | "force",
         renderWaitMs: Number(detailForm.renderWaitMs) || undefined,
+        dryRun: !detailDangerMode,
       };
+
+      console.log("[event-scraper] Running detail tester", payload);
 
       const response = await fetch("/api/admin/event-scraper/detail", {
         method: "POST",
@@ -374,37 +382,74 @@ const AdminEventScraperPage = () => {
     setDetailError(null);
   };
 
+  console.log("missing", missingCards);
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-muted-foreground">
-            Tools
-          </p>
-          <h1 className="text-3xl font-bold">Event Scraper Lab</h1>
-          <p className="text-muted-foreground">
-            Run dry-run scrapes with custom parameters to inspect the raw output
-            without persisting data.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={resetForm} disabled={isRunning}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
-          <Button onClick={runScraper} disabled={isRunning}>
-            {isRunning ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Running…
-              </>
-            ) : (
-              <>
-                <Play className="mr-2 h-4 w-4" />
-                Run dry-run
-              </>
-            )}
-          </Button>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-muted-foreground">
+              Tools
+            </p>
+            <h1 className="text-3xl font-bold">Event Scraper Lab</h1>
+            <p className="text-muted-foreground">
+              Run dry-run scrapes with custom parameters to inspect the raw
+              output. Toggle live mode to persist events, sets, and media.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-amber-900 sm:w-auto">
+              <div className="flex items-start gap-2 text-left">
+                <AlertTriangle className="mt-0.5 h-4 w-4" />
+                <div>
+                  <p className="text-sm font-semibold">
+                    {dangerMode ? "Live mode enabled" : "Dry-run mode"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Live run
+                </span>
+                <Switch
+                  checked={dangerMode}
+                  onCheckedChange={(value) => {
+                    console.log("[event-scraper] Bulk live toggle:", value);
+                    setDangerMode(value);
+                  }}
+                  aria-label="Toggle live run"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 self-end">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                disabled={isRunning}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+              <Button
+                onClick={runScraper}
+                disabled={isRunning}
+                variant={dangerMode ? "destructive" : "default"}
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Running…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    {dangerMode ? "Run live" : "Run dry-run"}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -720,33 +765,59 @@ const AdminEventScraperPage = () => {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={resetDetailForm}
-              disabled={isDetailRunning}
-              className="w-full sm:w-auto"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reset tester
-            </Button>
-            <Button
-              onClick={runDetailScraper}
-              disabled={isDetailRunning}
-              className="w-full sm:w-auto"
-            >
-              {isDetailRunning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Fetching…
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" />
-                  Run event detail
-                </>
-              )}
-            </Button>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-amber-900">
+              <div className="flex items-start gap-2 text-left">
+                <AlertTriangle className="mt-0.5 h-4 w-4" />
+                <div>
+                  <p className="text-sm font-semibold">
+                    {detailDangerMode ? "Live detail run" : "Dry-run detail"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Live run
+                </span>
+                <Switch
+                  checked={detailDangerMode}
+                  onCheckedChange={(value) => {
+                    console.log("[event-scraper] Detail live toggle:", value);
+                    setDetailDangerMode(value);
+                  }}
+                  aria-label="Toggle live event run"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={resetDetailForm}
+                disabled={isDetailRunning}
+                className="w-full sm:w-auto"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset tester
+              </Button>
+              <Button
+                onClick={runDetailScraper}
+                disabled={isDetailRunning}
+                className="w-full sm:w-auto"
+                variant={detailDangerMode ? "destructive" : "default"}
+              >
+                {isDetailRunning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Fetching…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    {detailDangerMode ? "Run live detail" : "Run event detail"}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {detailError && (

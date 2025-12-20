@@ -434,7 +434,7 @@ model MissingCard {
   updatedAt  DateTime           @updatedAt
   events     EventMissingCard[]
 
-  @@unique([code, title])
+  @@unique([code, title, imageUrl], name: "code_title_imageUrl")
   @@index([code])
 }
 

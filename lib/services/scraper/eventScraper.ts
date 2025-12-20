@@ -746,7 +746,7 @@ const EVENT_CATEGORY_MAP: Record<string, EventCategory> = {
 /**
  * Genera un slug único basado en el título y región
  */
-function generateSlug(
+export function generateSlug(
   title: string,
   region: EventRegion,
   sourceUrl: string
@@ -1418,7 +1418,7 @@ export function dedupeCardCandidates(
   return Array.from(map.values());
 }
 
-async function syncEventMissingSetsInDb(
+export async function syncEventMissingSetsInDb(
   eventId: number,
   candidates: DetectedSetCandidate[]
 ) {
@@ -1495,15 +1495,15 @@ async function syncEventMissingSetsInDb(
   });
 }
 
-async function syncEventMissingCardsInDb(
+export async function syncEventMissingCardsInDb(
   eventId: number,
   candidates: DetectedCardCandidate[]
 ) {
-  const codeTitlePairs = candidates.map(
-    (candidate) => `${candidate.code}|${candidate.title}`
+  const candidateKeys = candidates.map((candidate) =>
+    [candidate.code, candidate.title, candidate.image || ""].join("|")
   );
 
-  if (codeTitlePairs.length === 0) {
+  if (candidateKeys.length === 0) {
     await prisma.eventMissingCard.deleteMany({
       where: { eventId },
     });
@@ -1516,44 +1516,76 @@ async function syncEventMissingCardsInDb(
     return;
   }
 
-  // Delete EventMissingCard entries for cards no longer detected
-  await prisma.eventMissingCard.deleteMany({
-    where: {
-      eventId,
-      missingCard: {
-        OR: [
-          {
-            code: {
-              notIn: candidates.map((c) => c.code),
-            },
-          },
-          {
-            title: {
-              notIn: candidates.map((c) => c.title),
-            },
-          },
-        ],
-      },
+  const existing = await prisma.eventMissingCard.findMany({
+    where: { eventId },
+    include: {
+      missingCard: true,
     },
   });
 
+  console.log("[missing-cards] Existing event links:",
+    existing.map((record) => ({
+      eventId: record.eventId,
+      missingCardId: record.missingCardId,
+      code: record.missingCard.code,
+      title: record.missingCard.title,
+      imageUrl: record.missingCard.imageUrl,
+    }))
+  );
+
+  console.log("[missing-cards] Incoming candidates:",
+    candidates.map((candidate) => ({
+      code: candidate.code,
+      title: candidate.title,
+      image: candidate.image || "",
+    }))
+  );
+
+  const candidateKeySet = new Set(candidateKeys);
+  const toDeleteIds = existing
+    .filter((record) => {
+      const key = [
+        record.missingCard.code,
+        record.missingCard.title,
+        record.missingCard.imageUrl || "",
+      ].join("|");
+      return !candidateKeySet.has(key);
+    })
+    .map((record) => record.id);
+
+  if (toDeleteIds.length > 0) {
+    await prisma.eventMissingCard.deleteMany({
+      where: { id: { in: toDeleteIds } },
+    });
+
+    console.log(
+      `[missing-cards] Removed ${toDeleteIds.length} event missing card links (no longer detected)`
+    );
+  }
+
   for (const candidate of candidates) {
+    const imageUrlValue = candidate.image || "";
     const missingCard = await prisma.missingCard.upsert({
       where: {
-        code_title: {
+        code_title_imageUrl: {
           code: candidate.code,
           title: candidate.title,
+          imageUrl: imageUrlValue,
         },
       },
       create: {
         code: candidate.code,
         title: candidate.title,
-        imageUrl: candidate.image || "",
+        imageUrl: imageUrlValue,
       },
       update: {
-        imageUrl: candidate.image || undefined,
+        imageUrl: imageUrlValue || undefined,
       },
     });
+
+    console.log(
+      `[missing-cards] Upserted missing card #${missingCard.id} (${candidate.code} / ${candidate.title}) with image ${imageUrlValue}`
+    );
 
     if (missingCard.isApproved) {
       await prisma.eventMissingCard.deleteMany({
@@ -1565,7 +1597,7 @@ async function syncEventMissingCardsInDb(
       continue;
     }
 
-    await prisma.eventMissingCard.upsert({
+    const eventLink = await prisma.eventMissingCard.upsert({
       where: {
         eventId_missingCardId: {
           eventId,
@@ -1578,6 +1610,10 @@ async function syncEventMissingCardsInDb(
       },
       update: {},
     });
+
+    console.log(
+      `[missing-cards] Linked event ${eventId} -> missing card ${missingCard.id} (link id ${eventLink.id})`
+    );
   }
 
   await prisma.missingCard.deleteMany({
@@ -1588,7 +1624,7 @@ async function syncEventMissingCardsInDb(
   });
 }
 
-async function syncEventSetsInDb(
+export async function syncEventSetsInDb(
   eventId: number,
   matchedSets: MatchedSet[]
 ): Promise<number> {

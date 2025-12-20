@@ -165,6 +165,15 @@ const FILTER_NAME_MAP: Record<QueryFieldKey, string> = {
   attribute: "Attribute",
 };
 
+type LinkStatusFilter = "all" | "linked" | "unlinked" | "missing";
+
+const LINK_FILTER_OPTIONS: { value: LinkStatusFilter; label: string }[] = [
+  { value: "all", label: "Todas" },
+  { value: "linked", label: "Linkeadas" },
+  { value: "unlinked", label: "Sin link" },
+  { value: "missing", label: "Missing" },
+];
+
 const buildQueryFromCard = (
   card: CardWithCollectionData | null,
   fields: Record<QueryFieldKey, boolean>
@@ -255,6 +264,24 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
   const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
   const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
+  const [linkFilter, setLinkFilter] = useState<LinkStatusFilter>("all");
+
+  const matchesLinkStatusFilter = useCallback(
+    (status?: boolean | null) => {
+      const normalizedStatus = status === true ? true : status === false ? false : null;
+      switch (linkFilter) {
+        case "linked":
+          return normalizedStatus === true;
+        case "missing":
+          return normalizedStatus === false;
+        case "unlinked":
+          return normalizedStatus === null;
+        default:
+          return true;
+      }
+    },
+    [linkFilter]
+  );
 
   const normalizedSelectedSets = useMemo(
     () => selectedSets.map((value) => value.toLowerCase()),
@@ -662,6 +689,32 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
     return cards
       .filter((card) => {
+        const baseStatus = card.tcgplayerLinkStatus ?? null;
+        const altStatuses = card.alternates?.map(
+          (alt) => alt.tcgplayerLinkStatus ?? null
+        );
+        const hasLinked =
+          baseStatus === true || altStatuses?.some((status) => status === true);
+        const hasMissing =
+          baseStatus === false || altStatuses?.some((status) => status === false);
+
+        const satisfiesLinkFilter = (() => {
+          switch (linkFilter) {
+            case "linked":
+              return hasLinked;
+            case "missing":
+              return hasMissing;
+            case "unlinked":
+              return !hasLinked && !hasMissing;
+            default:
+              return true;
+          }
+        })();
+
+        if (!satisfiesLinkFilter) {
+          return false;
+        }
+
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
           card.name.toLowerCase().includes(searchLower) ||
@@ -813,6 +866,8 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     selectedSort,
     selectedAltArts,
     selectedCodes,
+    linkFilter,
+    matchesLinkStatusFilter,
   ]);
 
   // Ref para la lista de cartas (grid)
@@ -1195,6 +1250,31 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       >
         {/* Controles móviles */}
         <div className="flex p-3 flex-col gap-3 border-b border-[#f5f5f5]">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Estado TCGplayer
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {LINK_FILTER_OPTIONS.map((option) => {
+                const isActive = linkFilter === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setLinkFilter(option.value)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? "bg-[#2463eb] text-white shadow"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <DropdownSearch
             search={search}
             setSearch={setSearch}
@@ -1236,7 +1316,8 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   selectedPower.length > 0 ||
                   selectedAttributes.length > 0 ||
                   selectedCodes.length > 0 ||
-                  selectedAltArts.length > 0
+                  selectedAltArts.length > 0 ||
+                  linkFilter !== "all"
                 }
                 clearFilters={() => {
                   setSelectedColors([]);
@@ -1252,6 +1333,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                   setSelectedAttributes([]);
                   setSelectedCodes([]);
                   setSelectedAltArts([]);
+                  setLinkFilter("all");
                 }}
                 isMobile={true}
               />
@@ -1297,6 +1379,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                     return selectedAltArts.includes(card?.alternateArt ?? "");
                   }
 
+                  if (!matchesLinkStatusFilter(card?.tcgplayerLinkStatus ?? null)) {
+                    return false;
+                  }
+
                   return true;
                 };
 
@@ -1319,6 +1405,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
 
                     if (selectedAltArts.length > 0) {
                       return selectedAltArts.includes(alt.alternateArt ?? "");
+                    }
+
+                    if (!matchesLinkStatusFilter(alt?.tcgplayerLinkStatus ?? null)) {
+                      return false;
                     }
 
                     return true;
@@ -1576,6 +1666,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                     return selectedAltArts.includes(card?.alternateArt ?? "");
                   }
 
+                  if (!matchesLinkStatusFilter(card?.tcgplayerLinkStatus ?? null)) {
+                    return false;
+                  }
+
                   return true;
                 };
 
@@ -1597,6 +1691,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
                     }
                     if (selectedAltArts.length > 0) {
                       return selectedAltArts.includes(alt.alternateArt ?? "");
+                    }
+
+                    if (!matchesLinkStatusFilter(alt?.tcgplayerLinkStatus ?? null)) {
+                      return false;
                     }
                     return true;
                   });

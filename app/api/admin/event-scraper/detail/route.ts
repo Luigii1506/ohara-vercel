@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     const slug = generateSlug(
       detail.title,
       detail.region,
-      detail.sourceUrl || detail.eventDetailUrl || eventUrl.trim()
+      detail.sourceUrl || eventUrl.trim()
     );
 
     if (dryRun) {

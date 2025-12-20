@@ -7,6 +7,10 @@ import {
   getTcgplayerProductPricing,
   getTcgplayerProductsByIds,
 } from "@/lib/services/tcgplayerClient";
+import {
+  markCatalogProductLinked,
+  markCatalogProductUnlinked,
+} from "@/lib/services/tcgCatalogTracker";
 
 const decimalOrNull = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
@@ -70,10 +74,24 @@ export async function POST(
       data.priceUpdatedAt = now;
     }
 
+    const previousLinkedProductId = card.tcgplayerProductId
+      ? Number(card.tcgplayerProductId)
+      : null;
+
     const updated = await prisma.card.update({
       where: { id: cardId },
       data,
     });
+
+    if (
+      typeof previousLinkedProductId === "number" &&
+      Number.isFinite(previousLinkedProductId) &&
+      previousLinkedProductId !== numericProductId
+    ) {
+      await markCatalogProductUnlinked(previousLinkedProductId, card.id);
+    }
+
+    await markCatalogProductLinked(numericProductId, cardId);
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {
@@ -103,6 +121,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
     }
 
+    const previousProductId = card.tcgplayerProductId
+      ? Number(card.tcgplayerProductId)
+      : null;
+
     const updated = await prisma.card.update({
       where: { id: cardId },
       data: {
@@ -115,6 +137,13 @@ export async function DELETE(
         priceUpdatedAt: null,
       },
     });
+
+    if (
+      typeof previousProductId === "number" &&
+      Number.isFinite(previousProductId)
+    ) {
+      await markCatalogProductUnlinked(previousProductId, card.id);
+    }
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {

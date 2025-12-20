@@ -69,6 +69,24 @@ export async function GET(req: NextRequest) {
                 title: true,
                 code: true,
                 image: true,
+                attachments: {
+                  select: { imageUrl: true },
+                  orderBy: { id: "asc" },
+                },
+                cards: {
+                  include: {
+                    card: {
+                      select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                        src: true,
+                      },
+                    },
+                  },
+                  take: 12,
+                  orderBy: { cardId: "asc" },
+                },
               },
             },
           },
@@ -98,12 +116,30 @@ export async function GET(req: NextRequest) {
       })),
       setDetails: event.sets
         .filter((entry) => entry.set)
-        .map((entry) => ({
-          id: entry.set!.id,
-          title: entry.set!.title,
-          code: entry.set!.code,
-          image: entry.set!.image,
-        })),
+        .map((entry) => {
+          const set = entry.set!;
+          const images: string[] = [];
+          if (set.image) images.push(set.image);
+          set.attachments?.forEach((attachment) => {
+            if (attachment.imageUrl) {
+              images.push(attachment.imageUrl);
+            }
+          });
+          const cards =
+            set.cards?.map((setCard) => ({
+              id: setCard.card.id,
+              title: setCard.card.name,
+              code: setCard.card.code,
+              image: setCard.card.src,
+            })) ?? [];
+          return {
+            id: set.id,
+            title: set.title,
+            code: set.code,
+            images,
+            cards,
+          };
+        }),
     }));
 
     return NextResponse.json(serialized, { status: 200 });

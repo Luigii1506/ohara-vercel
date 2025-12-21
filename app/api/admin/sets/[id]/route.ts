@@ -13,6 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             include: {
                 cards: true, // Relacionar las cartas asociadas al set
                 events: true, // Relacionar los eventos asociados al set
+                attachments: true,
             },
         });
 

@@ -1262,7 +1262,7 @@ function canonicalizeSetDisplay(value: string): string {
 
   const wordCount = result ? result.split(/\s+/).length : 0;
   if (wordCount > 12) {
-    return null;
+    return "";
   }
 
   return result;

@@ -1055,12 +1055,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         defaultQuery;
       setTcgSearch(detailQuery);
       setDraftFilters(detailFilters);
-      const shouldAutoSearch = Boolean(detail.card.tcgplayerProductId);
-      if (shouldAutoSearch) {
-        await handleSearchTcg(0, detailFilters);
-      } else {
-        setIsSearchDirty(true);
-      }
+      await handleSearchTcg(0, detailFilters);
     } catch (error) {
       console.error("Failed to fetch card detail", error);
       setIsSearchDirty(true);

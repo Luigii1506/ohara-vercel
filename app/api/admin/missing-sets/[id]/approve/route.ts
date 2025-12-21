@@ -618,6 +618,7 @@ export async function POST(
           setCode: _setCode,
           alias: _alias,
           tcgUrl: _tcgUrl,
+          sets: _sets,
           ...otherData
         } = baseCard;
 

@@ -24,6 +24,7 @@ export interface Option {
   value: string;
   label: string;
   count?: number; // Opcional, en caso de que quieras mostrar un contador
+  description?: string;
 }
 
 interface SingleSelectProps {
@@ -138,8 +139,11 @@ export default function SingleSelect({
   }, [open]);
 
   // Función para mostrar el texto en el botón según el valor seleccionado
+  const selectedOption = options.find((option) => option.value === selected);
+
   const renderSelected =
-    displaySelectedAs?.(selected ?? "") ?? (selected ? selected : buttonLabel);
+    displaySelectedAs?.(selected ?? "") ??
+    (selectedOption ? selectedOption.label : buttonLabel);
 
   if (isSolid) {
     return (
@@ -159,7 +163,7 @@ export default function SingleSelect({
               : ""
           }`}
         >
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center truncate">
             {selected && (
               <span
                 onClick={(e) => {
@@ -174,9 +178,18 @@ export default function SingleSelect({
                 />
               </span>
             )}
-            <span className="font-bold">
-              {renderSelected.charAt(0).toUpperCase() + renderSelected.slice(1)}
-            </span>
+            <div className="flex flex-col text-left">
+              <span className="font-bold truncate">
+                {renderSelected
+                  ? renderSelected.charAt(0).toUpperCase() + renderSelected.slice(1)
+                  : buttonLabel}
+              </span>
+              {selectedOption?.description && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {selectedOption.description}
+                </span>
+              )}
+            </div>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -225,6 +238,11 @@ export default function SingleSelect({
                       ) : (
                         <div className="flex-1">
                           <p className="text-[13px]">{option.label}</p>
+                          {option.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {option.description}
+                            </p>
+                          )}
                         </div>
                       )}
                       {option.count !== undefined && (
@@ -265,7 +283,7 @@ export default function SingleSelect({
                 : ""
             }`}
           >
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center truncate">
               {selected && (
                 <span
                   onClick={(e) => {
@@ -280,10 +298,18 @@ export default function SingleSelect({
                   />
                 </span>
               )}
-              <span className="font-bold">
-                {renderSelected.charAt(0).toUpperCase() +
-                  renderSelected.slice(1)}
-              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-bold truncate">
+                  {renderSelected
+                    ? renderSelected.charAt(0).toUpperCase() + renderSelected.slice(1)
+                    : buttonLabel}
+                </span>
+                {selectedOption?.description && (
+                  <span className="text-xs text-muted-foreground truncate">
+                    {selectedOption.description}
+                  </span>
+                )}
+              </div>
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -331,6 +357,11 @@ export default function SingleSelect({
                     ) : (
                       <div className="flex-1">
                         <p className="text-base">{option.label}</p>
+                        {option.description && (
+                          <p className="text-xs text-muted-foreground">
+                            {option.description}
+                          </p>
+                        )}
                       </div>
                     )}
                     {option.count !== undefined && (

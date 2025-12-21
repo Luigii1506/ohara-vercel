@@ -694,6 +694,8 @@ const SET_TEXT_STOP_PHRASES = [
   "details",
   "includes",
   "card per pack",
+  "products below",
+  "products listed below",
 ];
 
 const SET_NOISE_PREFIXES = [
@@ -1257,6 +1259,11 @@ function canonicalizeSetDisplay(value: string): string {
   }
   result = result.replace(/\(\s*\d+\s*\)$/g, "");
   result = result.replace(/\s+/g, " ").trim();
+
+  const wordCount = result ? result.split(/\s+/).length : 0;
+  if (wordCount > 12) {
+    return null;
+  }
 
   return result;
 }

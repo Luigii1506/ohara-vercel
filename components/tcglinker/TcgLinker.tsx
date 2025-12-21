@@ -103,6 +103,94 @@ interface TcgplayerProductDetail {
   } | null;
 }
 
+type CardSequenceItem = {
+  card: CardWithCollectionData;
+  fallback?: CardWithCollectionData;
+};
+
+const doesCodeListMatchSelectedSets = (
+  codes: string | null | undefined,
+  normalizedSelectedSets: string[]
+) => {
+  if (!codes || !normalizedSelectedSets.length) return true;
+  const normalizedCodes = codes
+    .split(",")
+    .map((code) => code.trim().toLowerCase())
+    .filter(Boolean);
+  if (!normalizedCodes.length) return false;
+  return normalizedCodes.some((code) => normalizedSelectedSets.includes(code));
+};
+
+const doesBaseCardMatchDisplayFilters = (
+  card: CardWithCollectionData | null | undefined,
+  normalizedSelectedSets: string[],
+  selectedAltArts: string[],
+  matchesLinkStatusFilter: (status?: boolean | null) => boolean
+) => {
+  if (!card) return false;
+  if (
+    normalizedSelectedSets.length > 0 &&
+    !doesCodeListMatchSelectedSets(card.setCode ?? "", normalizedSelectedSets)
+  ) {
+    return false;
+  }
+  if (selectedAltArts.length > 0) {
+    return selectedAltArts.includes(card.alternateArt ?? "");
+  }
+  return matchesLinkStatusFilter(card.tcgplayerLinkStatus ?? null);
+};
+
+const doesAlternateMatchDisplayFilters = (
+  alt: CardWithCollectionData | null | undefined,
+  normalizedSelectedSets: string[],
+  selectedAltArts: string[],
+  matchesLinkStatusFilter: (status?: boolean | null) => boolean
+) => {
+  if (!alt) return false;
+  if (
+    normalizedSelectedSets.length > 0 &&
+    !doesCodeListMatchSelectedSets(alt.setCode ?? "", normalizedSelectedSets)
+  ) {
+    return false;
+  }
+  if (selectedAltArts.length > 0) {
+    return selectedAltArts.includes(alt.alternateArt ?? "");
+  }
+  return matchesLinkStatusFilter(alt.tcgplayerLinkStatus ?? null);
+};
+
+const useBaseCardDisplayMatcher = (
+  normalizedSelectedSets: string[],
+  selectedAltArts: string[],
+  matchesLinkStatusFilter: (status?: boolean | null) => boolean
+) =>
+  useCallback(
+    (card: CardWithCollectionData | null | undefined) =>
+      doesBaseCardMatchDisplayFilters(
+        card,
+        normalizedSelectedSets,
+        selectedAltArts,
+        matchesLinkStatusFilter
+      ),
+    [normalizedSelectedSets, selectedAltArts, matchesLinkStatusFilter]
+  );
+
+const useAlternateCardDisplayMatcher = (
+  normalizedSelectedSets: string[],
+  selectedAltArts: string[],
+  matchesLinkStatusFilter: (status?: boolean | null) => boolean
+) =>
+  useCallback(
+    (card: CardWithCollectionData | null | undefined) =>
+      doesAlternateMatchDisplayFilters(
+        card,
+        normalizedSelectedSets,
+        selectedAltArts,
+        matchesLinkStatusFilter
+      ),
+    [normalizedSelectedSets, selectedAltArts, matchesLinkStatusFilter]
+  );
+
 const fetchJSON = async <T,>(input: RequestInfo, init?: RequestInit) => {
   const res = await fetch(input, init);
   if (!res.ok) {
@@ -318,6 +406,18 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   const normalizedSelectedSets = useMemo(
     () => selectedSets.map((value) => value.toLowerCase()),
     [selectedSets]
+  );
+
+  const baseCardDisplayMatcher = useBaseCardDisplayMatcher(
+    normalizedSelectedSets,
+    selectedAltArts,
+    matchesLinkStatusFilter
+  );
+
+  const alternateDisplayMatcher = useAlternateCardDisplayMatcher(
+    normalizedSelectedSets,
+    selectedAltArts,
+    matchesLinkStatusFilter
   );
 
   const [isTouchable, setIsTouchable] = useState(true);
@@ -904,17 +1004,34 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     matchesLinkStatusFilter,
   ]);
 
-  const getNextCardForAutoSelection = useCallback(() => {
-    if (!selectedLinkCard || !filteredCards.length) return null;
-    const currentIndex = filteredCards.findIndex((card) => {
-      if (card.id === selectedLinkCard.id) return true;
-      return (card.alternates ?? []).some(
-        (alt) => alt.id === selectedLinkCard.id
+  const orderedCardSequence = useMemo<CardSequenceItem[]>(() => {
+    const sequence: CardSequenceItem[] = [];
+    filteredCards.forEach((card) => {
+      const includeBase = baseCardDisplayMatcher(card);
+      const filteredAlternates = (card.alternates ?? []).filter((alt) =>
+        alternateDisplayMatcher(alt as CardWithCollectionData)
       );
+      if (!includeBase && filteredAlternates.length === 0) {
+        return;
+      }
+      if (includeBase) {
+        sequence.push({ card });
+      }
+      filteredAlternates.forEach((alt) => {
+        sequence.push({ card: alt as CardWithCollectionData, fallback: card });
+      });
     });
+    return sequence;
+  }, [filteredCards, baseCardDisplayMatcher, alternateDisplayMatcher]);
+
+  const getNextCardForAutoSelection = useCallback(() => {
+    if (!selectedLinkCard || !orderedCardSequence.length) return null;
+    const currentIndex = orderedCardSequence.findIndex(
+      (item) => item.card.id === selectedLinkCard.id
+    );
     if (currentIndex === -1) return null;
-    return filteredCards[currentIndex + 1] ?? null;
-  }, [filteredCards, selectedLinkCard]);
+    return orderedCardSequence[currentIndex + 1] ?? null;
+  }, [orderedCardSequence, selectedLinkCard]);
 
   // Ref para la lista de cartas (grid)
   const gridRef = useRef<HTMLDivElement>(null);
@@ -1136,7 +1253,10 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       updateLocalCard(updated);
       const nextCard = getNextCardForAutoSelection();
       if (nextCard) {
-        await selectCardForLinking(nextCard);
+        await selectCardForLinking(
+          nextCard.card,
+          nextCard.fallback ?? undefined
+        );
       } else {
         setLinkedProduct(productDetail);
       }
@@ -1427,62 +1547,13 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
             <div className="flex flex-col gap-5">
               {filteredCards?.slice(0, visibleCount).map((card, index) => {
                 // Función que verifica si la carta base cumple con los filtros de display
-                const baseCardMatches = (): boolean => {
-                  if (!card) return false;
+                const baseCardMatches = (): boolean =>
+                  baseCardDisplayMatcher(card);
 
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
-
-                  if (!matchesLinkStatusFilter(card?.tcgplayerLinkStatus ?? null)) {
-                    return false;
-                  }
-
-                  return true;
-                };
-
-                const getFilteredAlternates = () => {
-                  if (!card?.alternates) return [];
-                  return card.alternates.filter((alt) => {
-                    if (normalizedSelectedSets.length > 0) {
-                      const altSetCodes = (alt.setCode ?? "")
-                        .split(",")
-                        .map((code) => code.trim().toLowerCase())
-                        .filter(Boolean);
-                      if (
-                        !altSetCodes.some((code) =>
-                          normalizedSelectedSets.includes(code)
-                        )
-                      ) {
-                        return false;
-                      }
-                    }
-
-                    if (selectedAltArts.length > 0) {
-                      return selectedAltArts.includes(alt.alternateArt ?? "");
-                    }
-
-                    if (!matchesLinkStatusFilter(alt?.tcgplayerLinkStatus ?? null)) {
-                      return false;
-                    }
-
-                    return true;
-                  });
-                };
+                const getFilteredAlternates = () =>
+                  (card?.alternates ?? []).filter((alt) =>
+                    alternateDisplayMatcher(alt as CardWithCollectionData)
+                  );
 
                 const filteredAlts = getFilteredAlternates();
                 const isBaseLinked = isCardLinked(card);
@@ -1714,60 +1785,13 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
             <div className="grid gap-3 grid-cols-3 justify-items-center">
               {filteredCards?.slice(0, visibleCount).map((card, index) => {
                 // Función que determina si la carta base coincide con los filtros
-                const baseCardMatches = (): boolean => {
-                  if (!card) return false;
+                const baseCardMatches = (): boolean =>
+                  baseCardDisplayMatcher(card);
 
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
-
-                  if (!matchesLinkStatusFilter(card?.tcgplayerLinkStatus ?? null)) {
-                    return false;
-                  }
-
-                  return true;
-                };
-
-                const getFilteredAlternates = () => {
-                  if (!card?.alternates) return [];
-                  return card.alternates.filter((alt) => {
-                    if (normalizedSelectedSets.length > 0) {
-                      const altSetCodes = (alt.setCode ?? "")
-                        .split(",")
-                        .map((code) => code.trim().toLowerCase())
-                        .filter(Boolean);
-                      if (
-                        !altSetCodes.some((code) =>
-                          normalizedSelectedSets.includes(code)
-                        )
-                      ) {
-                        return false;
-                      }
-                    }
-                    if (selectedAltArts.length > 0) {
-                      return selectedAltArts.includes(alt.alternateArt ?? "");
-                    }
-
-                    if (!matchesLinkStatusFilter(alt?.tcgplayerLinkStatus ?? null)) {
-                      return false;
-                    }
-                    return true;
-                  });
-                };
+                const getFilteredAlternates = () =>
+                  (card?.alternates ?? []).filter((alt) =>
+                    alternateDisplayMatcher(alt as CardWithCollectionData)
+                  );
 
                 const filteredAlts = getFilteredAlternates();
                 const isBaseMissingList = isCardMarkedMissing(card);

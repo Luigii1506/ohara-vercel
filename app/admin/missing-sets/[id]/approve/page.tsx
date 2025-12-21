@@ -1191,7 +1191,6 @@ export default function ApproveMissingSetPage() {
 
                         {/* Selectores adicionales para CARD */}
                         {requiresClassification &&
-                          approvalMode !== "eventCardOnly" &&
                           imageClassifications[image] === "CARD" && (
                             <div className="space-y-2 pt-2 border-t">
                               {/* Selector de Set Code */}

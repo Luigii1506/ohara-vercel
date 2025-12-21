@@ -904,6 +904,18 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     matchesLinkStatusFilter,
   ]);
 
+  const getNextCardForAutoSelection = useCallback(() => {
+    if (!selectedLinkCard || !filteredCards.length) return null;
+    const currentIndex = filteredCards.findIndex((card) => {
+      if (card.id === selectedLinkCard.id) return true;
+      return (card.alternates ?? []).some(
+        (alt) => alt.id === selectedLinkCard.id
+      );
+    });
+    if (currentIndex === -1) return null;
+    return filteredCards[currentIndex + 1] ?? null;
+  }, [filteredCards, selectedLinkCard]);
+
   // Ref para la lista de cartas (grid)
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -1011,6 +1023,67 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     }
   };
 
+  const selectCardForLinking = useCallback(
+    async (
+      targetCard: CardWithCollectionData,
+      fallbackCard?: CardWithCollectionData
+    ) => {
+      handleSetSelectedCard(targetCard);
+      setQueryFields({ ...defaultQueryFields });
+      setSelectedLinkCard(targetCard as CardDetail);
+      setLinkedProduct(null);
+      setTcgResults([]);
+      setActiveFilters([]);
+      setTcgNextOffset(null);
+      setLastSearchTimestamp(null);
+      const initialFilters = ensureLanguageFilter(
+        buildFiltersFromCard(targetCard, defaultQueryFields)
+      );
+      setDraftFilters(initialFilters);
+      setIsSearchDirty(true);
+      const defaultQuery =
+        buildQueryFromCard(targetCard, defaultQueryFields) ||
+        targetCard.name ||
+        targetCard.code ||
+        fallbackCard?.name ||
+        fallbackCard?.code ||
+        "";
+      setTcgSearch(defaultQuery);
+      setCardDetailLoading(true);
+      try {
+        const detail = await fetchJSON<{ card: CardDetail }>(
+          `/api/admin/cards/${targetCard.id}`
+        );
+        updateLocalCard(detail.card);
+        const detailFilters = ensureLanguageFilter(
+          buildFiltersFromCard(detail.card, defaultQueryFields)
+        );
+        const detailQuery =
+          buildQueryFromCard(detail.card, defaultQueryFields) ||
+          detail.card.name ||
+          detail.card.code ||
+          defaultQuery;
+        setTcgSearch(detailQuery);
+        setDraftFilters(detailFilters);
+        await handleSearchTcg(0, detailFilters);
+      } catch (error) {
+        console.error("Failed to fetch card detail", error);
+        setIsSearchDirty(true);
+      } finally {
+        setCardDetailLoading(false);
+      }
+    },
+    [
+      buildFiltersFromCard,
+      buildQueryFromCard,
+      defaultQueryFields,
+      ensureLanguageFilter,
+      handleSearchTcg,
+      handleSetSelectedCard,
+      updateLocalCard,
+    ]
+  );
+
   const handleCardClick = async (
     e: MouseEvent<HTMLDivElement>,
     card: CardWithCollectionData,
@@ -1018,50 +1091,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
   ) => {
     e.preventDefault();
     const targetCard = alternate ?? card;
-    handleSetSelectedCard(targetCard);
-    setQueryFields({ ...defaultQueryFields });
-    setSelectedLinkCard(targetCard as CardDetail);
-    setLinkedProduct(null);
-    setTcgResults([]);
-    setActiveFilters([]);
-    setTcgNextOffset(null);
-    setLastSearchTimestamp(null);
-    const initialFilters = ensureLanguageFilter(
-      buildFiltersFromCard(targetCard, defaultQueryFields)
-    );
-    setDraftFilters(initialFilters);
-    setIsSearchDirty(true);
-    const defaultQuery =
-      buildQueryFromCard(targetCard, defaultQueryFields) ||
-      targetCard.name ||
-      targetCard.code ||
-      card.name ||
-      card.code ||
-      "";
-    setTcgSearch(defaultQuery);
-    setCardDetailLoading(true);
-    try {
-      const detail = await fetchJSON<{ card: CardDetail }>(
-        `/api/admin/cards/${targetCard.id}`
-      );
-      updateLocalCard(detail.card);
-      const detailFilters = ensureLanguageFilter(
-        buildFiltersFromCard(detail.card, defaultQueryFields)
-      );
-      const detailQuery =
-        buildQueryFromCard(detail.card, defaultQueryFields) ||
-        detail.card.name ||
-        detail.card.code ||
-        defaultQuery;
-      setTcgSearch(detailQuery);
-      setDraftFilters(detailFilters);
-      await handleSearchTcg(0, detailFilters);
-    } catch (error) {
-      console.error("Failed to fetch card detail", error);
-      setIsSearchDirty(true);
-    } finally {
-      setCardDetailLoading(false);
-    }
+    await selectCardForLinking(targetCard, card);
   };
 
   const handleLinkProduct = async (product: TcgplayerProduct) => {
@@ -1104,7 +1134,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         }
       );
       updateLocalCard(updated);
-      setLinkedProduct(productDetail);
+      const nextCard = getNextCardForAutoSelection();
+      if (nextCard) {
+        await selectCardForLinking(nextCard);
+      } else {
+        setLinkedProduct(productDetail);
+      }
     } catch (error) {
       console.error("Failed to link card", error);
     } finally {

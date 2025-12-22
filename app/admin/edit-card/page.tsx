@@ -57,6 +57,51 @@ const oswald = Oswald({
   weight: ["400", "500", "700"],
 });
 
+const getNumericPrice = (value: any) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const getCardPriceValue = (card: CardWithCollectionData | AlternateCard) => {
+  const priceSources = [
+    (card as CardWithCollectionData).marketPrice,
+    card.setCode ? (card as CardWithCollectionData).alternates?.[0]?.marketPrice : null,
+    (card as any).marketPrice,
+  ];
+  for (const source of priceSources) {
+    const value = getNumericPrice(source);
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const formatPriceLabel = ({
+  price,
+  currency,
+}: {
+  price: number | null;
+  currency?: string | null;
+}) => {
+  if (price === null) {
+    return (
+      <span className="text-xs font-semibold tracking-wide text-amber-600">
+        Precio no disponible
+      </span>
+    );
+  }
+  const formatted = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+  }).format(price);
+  return (
+    <span className="text-sm font-semibold text-emerald-600">{formatted}</span>
+  );
+};
+
 // Interfaces
 interface AlternateCard {
   id: string;
@@ -1571,6 +1616,12 @@ const EditCard = () => {
                               </p>
                             </TooltipContent>
                           </Tooltip>
+                          <div className="mb-2">
+                            {formatPriceLabel({
+                              price: getCardPriceValue(card),
+                              currency: card.priceCurrency,
+                            })}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -2052,6 +2103,14 @@ const EditCard = () => {
                                       Sin set
                                     </Badge>
                                   )}
+                                </div>
+                                <div>
+                                  {formatPriceLabel({
+                                    price: getCardPriceValue(
+                                      alternate as unknown as CardWithCollectionData
+                                    ),
+                                    currency: (alternate as any).priceCurrency,
+                                  })}
                                 </div>
                               </div>
                             </div>{" "}

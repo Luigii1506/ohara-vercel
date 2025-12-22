@@ -67,6 +67,17 @@ import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
 
+// AlternateArt types que NO deben mostrarse en el deckbuilder
+const EXCLUDED_ALTERNATE_ARTS = [
+  "Demo Version",
+  "Pre-Errata",
+  "Pre-Release",
+  "1st Anniversary",
+  "2nd Anniversary",
+  "3rd Anniversary",
+  "Not for sale",
+];
+
 interface CompleteDeckBuilderLayoutProps {
   onSave: () => void;
   onRestart: () => void;
@@ -113,9 +124,11 @@ const CompleteDeckBuilderLayout = ({
 
   const getCardPriceValue = useCallback((card: CardWithCollectionData | DeckCard) => {
     if ('marketPrice' in card) {
+      // Filtrar alternativas válidas antes de obtener el precio
+      const validAlternates = filterValidAlternates(card.alternates);
       return (
         getNumericPrice(card.marketPrice) ??
-        getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+        getNumericPrice(validAlternates[0]?.marketPrice) ??
         null
       );
     }
@@ -128,6 +141,14 @@ const CompleteDeckBuilderLayout = ({
       currency: currency || "USD",
       minimumFractionDigits: 2,
     }).format(value);
+
+  // Helper function para filtrar alternativas excluidas
+  const filterValidAlternates = (alternates: CardWithCollectionData[] | undefined) => {
+    if (!alternates) return [];
+    return alternates.filter(
+      (alt) => !EXCLUDED_ALTERNATE_ARTS.includes(alt.alternateArt ?? "")
+    );
+  };
 
   const PriceTag = ({
     card,
@@ -147,8 +168,9 @@ const CompleteDeckBuilderLayout = ({
       );
     }
 
+    const validAlternates = filterValidAlternates(card.alternates);
     const currency =
-      card.priceCurrency ?? card.alternates?.[0]?.priceCurrency ?? "USD";
+      card.priceCurrency ?? validAlternates[0]?.priceCurrency ?? "USD";
 
     return (
       <div
@@ -448,13 +470,18 @@ const CompleteDeckBuilderLayout = ({
           matchesAltArts
         );
       })
+      .map((card) => ({
+        ...card,
+        // Filtrar alternativas excluidas
+        alternates: filterValidAlternates(card.alternates),
+      }))
       .sort((a, b) => {
         // Primero ordenar por el sort seleccionado si existe
         if (selectedSort === "Most variants") {
-          const variantDiff = b.alternates?.length - a.alternates?.length;
+          const variantDiff = (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
           if (variantDiff !== 0) return variantDiff;
         } else if (selectedSort === "Less variants") {
-          const variantDiff = a.alternates?.length - b.alternates?.length;
+          const variantDiff = (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
           if (variantDiff !== 0) return variantDiff;
         }
 
@@ -1654,20 +1681,20 @@ const CompleteDeckBuilderLayout = ({
           mobileView === "deck" ? "flex" : "hidden md:flex"
         }`}
       >
-        {/* Header del deck - Súper Responsivo */}
-        <div className="bg-gradient-to-br from-white via-gray-50 to-gray-100 border-b border-[#d3d3d3] p-2 sm:p-3 lg:p-4 shadow-lg">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 lg:gap-4">
+        {/* Header del deck - Diseño Profesional y Minimalista */}
+        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-4 sm:py-3.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
             {/* Left Section - Leader Info */}
-            <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 bg-white rounded-lg sm:rounded-xl p-2 sm:p-3 shadow-md border border-gray-200 min-w-0 w-full sm:w-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 w-full sm:w-auto bg-white rounded-lg border border-gray-200 p-2 sm:p-2.5 shadow-sm hover:shadow-md transition-shadow">
               {deckBuilder.selectedLeader ? (
                 <>
                   <div
-                    className="relative w-[48px] h-[48px] sm:w-[45px] sm:h-[45px] lg:w-[50px] lg:h-[50px] rounded-lg sm:rounded-xl cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-md flex-shrink-0"
+                    className="relative w-11 h-11 sm:w-10 sm:h-10 rounded-lg cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
                     onClick={() => setShowLargeImage(true)}
                   >
                     {deckBuilder.selectedLeader.colors.length === 2 ? (
                       <div
-                        className="absolute inset-0 rounded-lg sm:rounded-xl"
+                        className="absolute inset-0 rounded-lg"
                         style={{
                           background: `linear-gradient(
                           135deg,
@@ -1688,7 +1715,7 @@ const CompleteDeckBuilderLayout = ({
                       />
                     ) : (
                       <div
-                        className="absolute inset-0 rounded-lg sm:rounded-xl"
+                        className="absolute inset-0 rounded-lg"
                         style={{
                           backgroundColor: getColors(
                             deckBuilder.selectedLeader.colors[0].color
@@ -1697,7 +1724,7 @@ const CompleteDeckBuilderLayout = ({
                       />
                     )}
                     <div
-                      className="absolute inset-1 rounded-md sm:rounded-lg bg-cover bg-center"
+                      className="absolute inset-0.5 rounded-md bg-cover bg-center"
                       style={{
                         backgroundImage: `url(${deckBuilder.selectedLeader.src})`,
                         backgroundSize: "150%",
@@ -1706,12 +1733,27 @@ const CompleteDeckBuilderLayout = ({
                     />
                   </div>
                   <div className="flex flex-col min-w-0 flex-1 justify-center">
-                    <span className="font-bold text-sm sm:text-sm text-gray-900 line-clamp-1 break-all leading-tight">
+                    <span className="font-semibold text-sm sm:text-sm text-gray-900 truncate leading-tight">
                       {deckBuilder.selectedLeader.name}
                     </span>
-                    <span className="text-xs sm:text-xs text-gray-600 leading-tight font-medium">
+                    <span className="text-[11px] text-gray-500 leading-tight font-medium">
                       {deckBuilder.selectedLeader.code}
                     </span>
+                    {(() => {
+                      const priceValue = getCardPriceValue(deckBuilder.selectedLeader);
+                      if (priceValue !== null) {
+                        return (
+                          <span className="text-xs font-semibold text-emerald-600 leading-tight mt-0.5">
+                            {formatCurrency(priceValue)}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] font-medium text-gray-400 leading-tight mt-0.5">
+                          No price
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Clear Leader/Deck Button */}
@@ -1722,7 +1764,7 @@ const CompleteDeckBuilderLayout = ({
                           variant="outline"
                           size="icon"
                           type="button"
-                          className="h-7 w-7 sm:h-7 sm:w-7 lg:h-8 lg:w-8 [&_svg]:size-3 sm:[&_svg]:size-3 lg:[&_svg]:size-4 flex-shrink-0 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all duration-200"
+                          className="h-8 w-8 sm:h-7 sm:w-7 [&_svg]:size-4 sm:[&_svg]:size-3.5 flex-shrink-0 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors rounded-md"
                           onClick={() => {
                             onRestart();
                             setSearch("");
@@ -1746,16 +1788,16 @@ const CompleteDeckBuilderLayout = ({
                   </TooltipProvider>
                 </>
               ) : (
-                <div className="flex items-center gap-2 sm:gap-3 text-gray-500">
-                  <div className="w-[48px] h-[48px] sm:w-[45px] sm:h-[45px] lg:w-[50px] lg:h-[50px] rounded-lg sm:rounded-xl bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+                <div className="flex items-center gap-2.5 text-gray-500">
+                  <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Users className="h-5 w-5 text-gray-400" />
                   </div>
                   <div className="min-w-0 flex flex-col justify-center">
-                    <span className="font-semibold text-sm sm:text-sm leading-tight">
+                    <span className="font-semibold text-sm text-gray-700 leading-tight">
                       Select Leader
                     </span>
-                    <p className="text-xs sm:text-xs leading-tight">
-                      Choose leader
+                    <p className="text-xs text-gray-500 leading-tight">
+                      Choose your leader
                     </p>
                   </div>
                 </div>
@@ -1769,8 +1811,8 @@ const CompleteDeckBuilderLayout = ({
                   type="text"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  placeholder="Nombre del deck..."
-                  className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                  placeholder="Deck name..."
+                  className="w-full h-9 sm:h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                   maxLength={50}
                 />
                 {showShopFields && (
@@ -1780,7 +1822,7 @@ const CompleteDeckBuilderLayout = ({
                       value={shopSlugValue}
                       onChange={(e) => handleSlugInputChange(e.target.value)}
                       placeholder="Slug para la tienda (ej. super-deck)"
-                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                      className="w-full h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                       maxLength={60}
                     />
                     <Input
@@ -1788,14 +1830,14 @@ const CompleteDeckBuilderLayout = ({
                       value={shopUrlValue}
                       onChange={(e) => handleShopUrlChange(e.target.value)}
                       placeholder="URL de la tienda (https://...)"
-                      className="w-full h-9 sm:h-10 lg:h-12 text-center text-sm lg:text-base font-medium bg-white border-2 border-gray-300 focus:border-blue-500 rounded-lg sm:rounded-xl shadow-sm"
+                      className="w-full h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                     />
                     <div className="flex items-center justify-center gap-3 pt-1">
                       <Switch
                         checked={Boolean(isPublished)}
                         onCheckedChange={(checked) => setIsPublished?.(checked)}
                       />
-                      <span className="text-xs font-semibold text-gray-600">
+                      <span className="text-xs font-medium text-gray-600">
                         {isPublished ? "Publicado" : "Sin publicar"}
                       </span>
                     </div>
@@ -1810,97 +1852,103 @@ const CompleteDeckBuilderLayout = ({
             )}
 
             {/* Right Section - Stats & Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto justify-between sm:justify-start flex-wrap">
-              {/* Deck Stats */}
-              <div className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-3 shadow-md border border-gray-200">
-                <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-                  <div className="text-center">
-                    <div className="font-bold text-lg sm:text-xl text-blue-600 leading-none">
-                      {totalCards}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-gray-600 leading-tight mt-0.5">
-                      Total
-                    </div>
+            <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
+              {/* Deck Stats - Inline */}
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="text-center">
+                  <div className="text-lg sm:text-xl font-bold text-gray-900 leading-none">
+                    {totalCards}
                   </div>
-                  <div className="w-px h-8 sm:h-8 bg-gray-300"></div>
-                  <div className="text-center">
-                    <div className="font-bold text-lg sm:text-xl text-green-600 leading-none">
-                      {50 - totalCards}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-gray-600 leading-tight mt-0.5">
-                      Left
-                    </div>
+                  <div className="text-[10px] text-gray-500 font-medium leading-tight mt-0.5 uppercase tracking-wider">
+                    Total
                   </div>
                 </div>
-              </div>
+                <div className="w-px h-8 bg-gray-200"></div>
+                <div className="text-center">
+                  <div className={`text-lg sm:text-xl font-bold leading-none ${
+                    50 - totalCards <= 10 ? 'text-amber-600' : 50 - totalCards === 0 ? 'text-red-600' : 'text-emerald-600'
+                  }`}>
+                    {50 - totalCards}
+                  </div>
+                  <div className={`text-[10px] font-medium leading-tight mt-0.5 uppercase tracking-wider ${
+                    50 - totalCards <= 10 ? 'text-amber-600' : 50 - totalCards === 0 ? 'text-red-600' : 'text-emerald-600'
+                  }`}>
+                    Left
+                  </div>
+                </div>
 
-              {/* Deck Price - Separate Card */}
-              {totalDeckPrice > 0 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg sm:rounded-xl p-1.5 sm:p-3 shadow-md border-2 border-emerald-200 cursor-help hover:shadow-lg transition-all duration-200">
-                        <div className="text-center">
-                          <div className="font-bold text-lg sm:text-2xl text-emerald-600 leading-none">
-                            {formatCurrency(totalDeckPrice)}
+                {/* Deck Price - Inline */}
+                {totalDeckPrice > 0 && (
+                  <>
+                    <div className="w-px h-8 bg-gray-200"></div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="text-center cursor-help">
+                            <div className="text-lg sm:text-xl font-bold text-emerald-600 leading-none">
+                              {formatCurrency(totalDeckPrice)}
+                            </div>
+                            <div className="text-[10px] text-emerald-600 font-medium leading-tight mt-0.5 uppercase tracking-wider">
+                              Price
+                            </div>
                           </div>
-                          <div className="text-[10px] sm:text-xs text-emerald-700 font-semibold leading-tight mt-0.5">
-                            Deck Price
-                          </div>
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-white border-2 border-emerald-200">
-                      <div className="text-sm">
-                        <p className="font-bold text-emerald-700 mb-2">💰 Price Breakdown</p>
-                        <div className="space-y-1">
-                          <p className="flex justify-between gap-3">
-                            <span className="text-gray-600">Cards with price:</span>
-                            <span className="font-semibold text-emerald-600">{cardsWithPrice}</span>
-                          </p>
-                          {cardsWithoutPrice > 0 && (
-                            <p className="flex justify-between gap-3">
-                              <span className="text-gray-600">Cards without price:</span>
-                              <span className="font-semibold text-amber-600">{cardsWithoutPrice}</span>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-white border border-gray-200 shadow-lg">
+                          <div className="text-sm">
+                            <p className="font-semibold text-gray-900 mb-2 text-sm">
+                              Price Breakdown
                             </p>
-                          )}
-                          <div className="pt-2 mt-2 border-t border-gray-200">
-                            <p className="flex justify-between gap-3">
-                              <span className="text-gray-600">Average per card:</span>
-                              <span className="font-semibold text-emerald-600">
-                                {formatCurrency(totalDeckPrice / (cardsWithPrice || 1))}
-                              </span>
-                            </p>
+                            <div className="space-y-1">
+                              <p className="flex justify-between gap-3">
+                                <span className="text-gray-600">Cards with price:</span>
+                                <span className="font-medium text-gray-900">{cardsWithPrice}</span>
+                              </p>
+                              {cardsWithoutPrice > 0 && (
+                                <p className="flex justify-between gap-3">
+                                  <span className="text-gray-600">Cards without price:</span>
+                                  <span className="font-medium text-amber-600">{cardsWithoutPrice}</span>
+                                </p>
+                              )}
+                              <div className="pt-2 mt-2 border-t border-gray-200">
+                                <p className="flex justify-between gap-3">
+                                  <span className="text-gray-600">Average per card:</span>
+                                  <span className="font-medium text-emerald-600">
+                                    {formatCurrency(totalDeckPrice / (cardsWithPrice || 1))}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                )}
+              </div>
 
               {/* View Controls */}
-              <div className="flex gap-1 sm:gap-2">
-                {/* Stats */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        type="button"
-                        className="h-10 w-10 sm:h-10 sm:w-10 lg:h-12 lg:w-12 [&_svg]:size-4 sm:[&_svg]:size-4 lg:[&_svg]:size-5 shadow-md border-2 border-gray-300 hover:bg-gray-50 transition-all duration-200"
-                        onClick={() => setIsStatsOpen(!isStatsOpen)}
-                      >
-                        <ChartColumnBigIcon />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View Statistics</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      className={`h-9 w-9 sm:h-8 sm:w-8 [&_svg]:size-4 transition-colors rounded-lg ${
+                        isStatsOpen
+                          ? 'bg-gray-900 text-white hover:bg-gray-800'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                      onClick={() => setIsStatsOpen(!isStatsOpen)}
+                    >
+                      <ChartColumnBigIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-white border border-gray-200">
+                    <p className="font-medium text-sm">{isStatsOpen ? 'Hide' : 'View'} Statistics</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
@@ -2004,6 +2052,21 @@ const CompleteDeckBuilderLayout = ({
                                   >
                                     {card.code}
                                   </span>
+                                  {(() => {
+                                    const priceValue = getCardPriceValue(card);
+                                    if (priceValue !== null) {
+                                      return (
+                                        <span className="text-xs font-semibold text-emerald-600 mt-0.5">
+                                          {formatCurrency(priceValue)}
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-[10px] font-medium text-gray-400 mt-0.5">
+                                        No price
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -2016,7 +2079,7 @@ const CompleteDeckBuilderLayout = ({
                               <span className="mb-[2px]">{card.quantity}</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-2 w-full mt-2 p-2">
+                          <div className="flex items-center gap-2 w-full mt-2 px-2 pb-2">
                             <Button
                               onClick={() => {
                                 const newQuantity = Math.max(
@@ -2034,10 +2097,10 @@ const CompleteDeckBuilderLayout = ({
                               }}
                               disabled={card.quantity <= 0}
                               size="sm"
-                              variant="ghost"
-                              className="flex-1 h-12 bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 text-white font-semibold rounded-lg shadow-lg shadow-red-500/25 hover:shadow-red-500/40 disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-gray-300/25 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-none"
+                              variant="outline"
+                              className="flex-1 h-10 bg-white border-2 border-red-200 text-red-700 font-semibold hover:bg-red-50 hover:border-red-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 transition-all rounded-lg shadow-sm hover:shadow disabled:shadow-none"
                             >
-                              <Minus className="w-5 h-5" />
+                              <Minus className="w-4 h-4" />
                             </Button>
 
                             <Button
@@ -2055,10 +2118,10 @@ const CompleteDeckBuilderLayout = ({
                               }}
                               disabled={totalQuantityByCode >= 4}
                               size="sm"
-                              variant="ghost"
-                              className="flex-1 h-12 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold rounded-lg shadow-lg shadow-green-500/25 hover:shadow-green-500/40 disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-gray-300/25 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-none"
+                              variant="outline"
+                              className="flex-1 h-10 bg-white border-2 border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-50 hover:border-emerald-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 transition-all rounded-lg shadow-sm hover:shadow disabled:shadow-none"
                             >
-                              <Plus className="w-5 h-5" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>

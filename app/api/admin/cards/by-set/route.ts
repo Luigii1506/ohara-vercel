@@ -6,16 +6,20 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
-    const setCode = searchParams.get("setCode")?.toUpperCase();
+    const rawSetCode = searchParams.get("setCode");
     const firstEditionOnly = searchParams.get("firstEditionOnly") === "true";
     const baseCardsOnly = searchParams.get("baseCardsOnly") === "true";
 
-    if (!setCode) {
+    // setCode puede ser null (no enviado) o cadena vacía (cartas Promo)
+    if (rawSetCode === null) {
       return NextResponse.json(
         { error: "setCode is required" },
         { status: 400 }
       );
     }
+
+    // Convertir a mayúsculas solo si no está vacío (para cartas Promo)
+    const setCode = rawSetCode === "" ? "" : rawSetCode.toUpperCase();
 
     const whereCondition: any = {
       setCode: setCode,

@@ -16,6 +16,17 @@ export async function GET(request: NextRequest) {
         _count: {
           select: { cards: true },
         },
+        cards: {
+          include: {
+            card: {
+              select: {
+                id: true,
+                marketPrice: true,
+                priceCurrency: true,
+              },
+            },
+          },
+        },
       },
       orderBy: [
         { isCollection: "desc" }, // Colección primero
@@ -23,7 +34,42 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return NextResponse.json({ lists });
+    // Calcular el precio total de cada lista
+    const listsWithTotal = lists.map((list) => {
+      let totalValue = 0;
+      let currency = "USD";
+
+      list.cards.forEach((listCard) => {
+        const card = listCard.card;
+        const quantity = listCard.quantity || 1;
+
+        // Obtener precio de la carta
+        const getNumericPrice = (value: any) => {
+          if (value === null || value === undefined || value === "") return null;
+          const numberValue = typeof value === "number" ? value : Number(value);
+          return Number.isFinite(numberValue) ? numberValue : null;
+        };
+
+        const price = getNumericPrice(card.marketPrice);
+
+        if (price !== null) {
+          totalValue += price * quantity;
+          // Usar la moneda de la primera carta con precio
+          if (totalValue === price * quantity && card.priceCurrency) {
+            currency = card.priceCurrency;
+          }
+        }
+      });
+
+      return {
+        ...list,
+        totalValue,
+        currency,
+        cards: undefined, // No enviar las cartas completas al frontend
+      };
+    });
+
+    return NextResponse.json({ lists: listsWithTotal });
   } catch (error) {
     return handleAuthError(error);
   }

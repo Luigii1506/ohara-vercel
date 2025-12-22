@@ -122,18 +122,21 @@ const CompleteDeckBuilderLayout = ({
     return Number.isFinite(numberValue) ? numberValue : null;
   };
 
-  const getCardPriceValue = useCallback((card: CardWithCollectionData | DeckCard) => {
-    if ('marketPrice' in card) {
-      // Filtrar alternativas válidas antes de obtener el precio
-      const validAlternates = filterValidAlternates(card.alternates);
-      return (
-        getNumericPrice(card.marketPrice) ??
-        getNumericPrice(validAlternates[0]?.marketPrice) ??
-        null
-      );
-    }
-    return null;
-  }, []);
+  const getCardPriceValue = useCallback(
+    (card: CardWithCollectionData | DeckCard) => {
+      if ("marketPrice" in card) {
+        // Filtrar alternativas válidas antes de obtener el precio
+        const validAlternates = filterValidAlternates(card.alternates);
+        return (
+          getNumericPrice(card.marketPrice) ??
+          getNumericPrice(validAlternates[0]?.marketPrice) ??
+          null
+        );
+      }
+      return null;
+    },
+    []
+  );
 
   const formatCurrency = (value: number, currency?: string | null) =>
     new Intl.NumberFormat(undefined, {
@@ -143,7 +146,9 @@ const CompleteDeckBuilderLayout = ({
     }).format(value);
 
   // Helper function para filtrar alternativas excluidas
-  const filterValidAlternates = (alternates: CardWithCollectionData[] | undefined) => {
+  const filterValidAlternates = (
+    alternates: CardWithCollectionData[] | undefined
+  ) => {
     if (!alternates) return [];
     return alternates.filter(
       (alt) => !EXCLUDED_ALTERNATE_ARTS.includes(alt.alternateArt ?? "")
@@ -160,9 +165,7 @@ const CompleteDeckBuilderLayout = ({
     const priceValue = getCardPriceValue(card);
     if (priceValue === null) {
       return (
-        <div
-          className={`text-xs font-medium text-gray-400 ${className}`}
-        >
+        <div className={`text-xs font-medium text-gray-400 ${className}`}>
           N/A
         </div>
       );
@@ -173,9 +176,7 @@ const CompleteDeckBuilderLayout = ({
       card.priceCurrency ?? validAlternates[0]?.priceCurrency ?? "USD";
 
     return (
-      <div
-        className={`text-xs font-semibold text-emerald-600 ${className}`}
-      >
+      <div className={`text-xs font-semibold text-emerald-600 ${className}`}>
         {formatCurrency(priceValue, currency)}
       </div>
     );
@@ -392,7 +393,9 @@ const CompleteDeckBuilderLayout = ({
               .split(",")
               .map((code) => code.trim().toLowerCase())
               .filter(Boolean);
-            return altSetCodes.some((code) => normalizedSelectedSets.includes(code));
+            return altSetCodes.some((code) =>
+              normalizedSelectedSets.includes(code)
+            );
           }) ?? false;
 
         const matchesSets =
@@ -451,7 +454,10 @@ const CompleteDeckBuilderLayout = ({
             : card.triggerCard !== null;
 
         const matchedCode =
-          selectedCodes?.length === 0 || (card.setCode ?? "").split(",").some(code => selectedCodes.includes(code.trim()));
+          selectedCodes?.length === 0 ||
+          (card.setCode ?? "")
+            .split(",")
+            .some((code) => selectedCodes.includes(code.trim()));
 
         return (
           matchesSearch &&
@@ -478,10 +484,12 @@ const CompleteDeckBuilderLayout = ({
       .sort((a, b) => {
         // Primero ordenar por el sort seleccionado si existe
         if (selectedSort === "Most variants") {
-          const variantDiff = (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
+          const variantDiff =
+            (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
           if (variantDiff !== 0) return variantDiff;
         } else if (selectedSort === "Less variants") {
-          const variantDiff = (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
+          const variantDiff =
+            (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
           if (variantDiff !== 0) return variantDiff;
         }
 
@@ -642,7 +650,12 @@ const CompleteDeckBuilderLayout = ({
       cardsWithPrice: withPrice,
       cardsWithoutPrice: withoutPrice,
     };
-  }, [deckBuilder.deckCards, deckBuilder.selectedLeader, initialCards, getCardPriceValue]);
+  }, [
+    deckBuilder.deckCards,
+    deckBuilder.selectedLeader,
+    initialCards,
+    getCardPriceValue,
+  ]);
 
   const handleScrollToTop = () => {
     gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -952,7 +965,11 @@ const CompleteDeckBuilderLayout = ({
                       .split(",")
                       .map((code: string) => code.trim().toLowerCase())
                       .filter(Boolean);
-                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
+                    if (
+                      !baseSetCodes.some((code: string) =>
+                        normalizedSelectedSets.includes(code)
+                      )
+                    ) {
                       return false;
                     }
                   }
@@ -972,7 +989,11 @@ const CompleteDeckBuilderLayout = ({
                         .split(",")
                         .map((code) => code.trim().toLowerCase())
                         .filter(Boolean);
-                      if (!altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
+                      if (
+                        !altSetCodes.some((code) =>
+                          normalizedSelectedSets.includes(code)
+                        )
+                      ) {
                         return false;
                       }
                     }
@@ -1285,7 +1306,11 @@ const CompleteDeckBuilderLayout = ({
                       .split(",")
                       .map((code: string) => code.trim().toLowerCase())
                       .filter(Boolean);
-                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
+                    if (
+                      !baseSetCodes.some((code: string) =>
+                        normalizedSelectedSets.includes(code)
+                      )
+                    ) {
                       return false;
                     }
                   }
@@ -1306,7 +1331,11 @@ const CompleteDeckBuilderLayout = ({
                         .split(",")
                         .map((code) => code.trim().toLowerCase())
                         .filter(Boolean);
-                      if (!altSetCodes.some((code) => normalizedSelectedSets.includes(code))) {
+                      if (
+                        !altSetCodes.some((code) =>
+                          normalizedSelectedSets.includes(code)
+                        )
+                      ) {
                         return false;
                       }
                     }
@@ -1483,7 +1512,11 @@ const CompleteDeckBuilderLayout = ({
                       .split(",")
                       .map((code: string) => code.trim().toLowerCase())
                       .filter(Boolean);
-                    if (!baseSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
+                    if (
+                      !baseSetCodes.some((code: string) =>
+                        normalizedSelectedSets.includes(code)
+                      )
+                    ) {
                       return false;
                     }
                   }
@@ -1511,7 +1544,11 @@ const CompleteDeckBuilderLayout = ({
                       .split(",")
                       .map((code: string) => code.trim().toLowerCase())
                       .filter(Boolean);
-                    if (!altSetCodes.some((code: string) => normalizedSelectedSets.includes(code))) {
+                    if (
+                      !altSetCodes.some((code: string) =>
+                        normalizedSelectedSets.includes(code)
+                      )
+                    ) {
                       return false;
                     }
                   }
@@ -1744,7 +1781,9 @@ const CompleteDeckBuilderLayout = ({
                       {deckBuilder.selectedLeader.code}
                     </span>
                     {(() => {
-                      const priceValue = getCardPriceValue(deckBuilder.selectedLeader);
+                      const priceValue = getCardPriceValue(
+                        deckBuilder.selectedLeader
+                      );
                       if (priceValue !== null) {
                         return (
                           <span className="text-xs font-semibold text-emerald-600 leading-tight mt-0.5">
@@ -1869,14 +1908,26 @@ const CompleteDeckBuilderLayout = ({
                 </div>
                 <div className="w-px h-8 bg-gray-200"></div>
                 <div className="text-center">
-                  <div className={`text-lg sm:text-xl font-bold leading-none ${
-                    50 - totalCards <= 10 ? 'text-amber-600' : 50 - totalCards === 0 ? 'text-red-600' : 'text-emerald-600'
-                  }`}>
+                  <div
+                    className={`text-lg sm:text-xl font-bold leading-none ${
+                      50 - totalCards <= 10
+                        ? "text-amber-600"
+                        : 50 - totalCards === 0
+                        ? "text-red-600"
+                        : "text-emerald-600"
+                    }`}
+                  >
                     {50 - totalCards}
                   </div>
-                  <div className={`text-[10px] font-medium leading-tight mt-0.5 uppercase tracking-wider ${
-                    50 - totalCards <= 10 ? 'text-amber-600' : 50 - totalCards === 0 ? 'text-red-600' : 'text-emerald-600'
-                  }`}>
+                  <div
+                    className={`text-[10px] font-medium leading-tight mt-0.5 uppercase tracking-wider ${
+                      50 - totalCards <= 10
+                        ? "text-amber-600"
+                        : 50 - totalCards === 0
+                        ? "text-red-600"
+                        : "text-emerald-600"
+                    }`}
+                  >
                     Left
                   </div>
                 </div>
@@ -1904,20 +1955,32 @@ const CompleteDeckBuilderLayout = ({
                             </p>
                             <div className="space-y-1">
                               <p className="flex justify-between gap-3">
-                                <span className="text-gray-600">Cards with price:</span>
-                                <span className="font-medium text-gray-900">{cardsWithPrice}</span>
+                                <span className="text-gray-600">
+                                  Cards with price:
+                                </span>
+                                <span className="font-medium text-gray-900">
+                                  {cardsWithPrice}
+                                </span>
                               </p>
                               {cardsWithoutPrice > 0 && (
                                 <p className="flex justify-between gap-3">
-                                  <span className="text-gray-600">Cards without price:</span>
-                                  <span className="font-medium text-amber-600">{cardsWithoutPrice}</span>
+                                  <span className="text-gray-600">
+                                    Cards without price:
+                                  </span>
+                                  <span className="font-medium text-amber-600">
+                                    {cardsWithoutPrice}
+                                  </span>
                                 </p>
                               )}
                               <div className="pt-2 mt-2 border-t border-gray-200">
                                 <p className="flex justify-between gap-3">
-                                  <span className="text-gray-600">Average per card:</span>
+                                  <span className="text-gray-600">
+                                    Average per card:
+                                  </span>
                                   <span className="font-medium text-emerald-600">
-                                    {formatCurrency(totalDeckPrice / (cardsWithPrice || 1))}
+                                    {formatCurrency(
+                                      totalDeckPrice / (cardsWithPrice || 1)
+                                    )}
                                   </span>
                                 </p>
                               </div>
@@ -1940,8 +2003,8 @@ const CompleteDeckBuilderLayout = ({
                       type="button"
                       className={`h-9 w-9 sm:h-8 sm:w-8 [&_svg]:size-4 transition-colors rounded-lg ${
                         isStatsOpen
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          ? "bg-gray-900 text-white hover:bg-gray-800"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                       }`}
                       onClick={() => setIsStatsOpen(!isStatsOpen)}
                     >
@@ -1949,7 +2012,9 @@ const CompleteDeckBuilderLayout = ({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent className="bg-white border border-gray-200">
-                    <p className="font-medium text-sm">{isStatsOpen ? 'Hide' : 'View'} Statistics</p>
+                    <p className="font-medium text-sm">
+                      {isStatsOpen ? "Hide" : "View"} Statistics
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

@@ -994,6 +994,66 @@ const AddCardsPage = () => {
     selectedCodes?.length +
     selectedAltArts?.length;
 
+  // Helper functions for price handling
+  const getNumericPrice = (value: any) => {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const getCardPriceValue = (card: CardWithCollectionData) => {
+    return (
+      getNumericPrice(card.marketPrice) ??
+      getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+      null
+    );
+  };
+
+  const formatCurrency = (value: number, currency?: string | null) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+
+  // Calculate total value of the folder/list
+  const folderTotalValue = useMemo(() => {
+    let totalValue = 0;
+    let currency = "USD";
+
+    if (list?.isOrdered) {
+      // For ordered lists (folders)
+      Object.values(existingCards).forEach((listCard: any) => {
+        if (listCard?.card) {
+          const priceValue = getCardPriceValue(listCard.card);
+          const quantity = listCard.quantity || 1;
+          if (priceValue !== null) {
+            totalValue += priceValue * quantity;
+            if (listCard.card.priceCurrency) {
+              currency = listCard.card.priceCurrency;
+            }
+          }
+        }
+      });
+    } else {
+      // For simple lists
+      simpleListCards.forEach((simpleCard) => {
+        if (simpleCard?.card) {
+          const priceValue = getCardPriceValue(simpleCard.card);
+          const quantity = simpleCard.quantity || 1;
+          if (priceValue !== null) {
+            totalValue += priceValue * quantity;
+            if (simpleCard.card.priceCurrency) {
+              currency = simpleCard.card.priceCurrency;
+            }
+          }
+        }
+      });
+    }
+
+    return { totalValue, currency };
+  }, [existingCards, simpleListCards, list?.isOrdered]);
+
   const matchesCardCode = (code: string, search: string) => {
     const query = search.toLowerCase().trim();
     const fullCode = code.toLowerCase();
@@ -2373,7 +2433,22 @@ const AddCardsPage = () => {
                                       >
                                         {highlightText(card?.code, search)}
                                       </span>
-                                      <span className="text-center text-[13px] line-clamp-1">
+                                      {(() => {
+                                        const priceValue = getCardPriceValue(card);
+                                        if (priceValue !== null) {
+                                          return (
+                                            <span className="text-xs font-semibold text-emerald-600 mt-0.5">
+                                              {formatCurrency(priceValue)}
+                                            </span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="text-[10px] font-medium text-gray-400 mt-0.5">
+                                            No price
+                                          </span>
+                                        );
+                                      })()}
+                                      <span className="text-center text-[13px] line-clamp-1 mt-1">
                                         {highlightText(
                                           card?.sets?.[0]?.set?.title ||
                                             "Sin set",
@@ -2450,7 +2525,22 @@ const AddCardsPage = () => {
                                         >
                                           {highlightText(card?.code, search)}
                                         </span>
-                                        <span className="text-center text-[13px] line-clamp-1">
+                                        {(() => {
+                                          const priceValue = getCardPriceValue(alt);
+                                          if (priceValue !== null) {
+                                            return (
+                                              <span className="text-xs font-semibold text-emerald-600 mt-0.5">
+                                                {formatCurrency(priceValue)}
+                                              </span>
+                                            );
+                                          }
+                                          return (
+                                            <span className="text-[10px] font-medium text-gray-400 mt-0.5">
+                                              No price
+                                            </span>
+                                          );
+                                        })()}
+                                        <span className="text-center text-[13px] line-clamp-1 mt-1">
                                           {highlightText(
                                             alt?.sets?.[0]?.set?.title ||
                                               "Sin set",
@@ -2537,6 +2627,16 @@ const AddCardsPage = () => {
                       </Button>
                     </div>
 
+                    {/* Total Folder Value */}
+                    {folderTotalValue.totalValue > 0 && (
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs text-gray-500 font-medium">Valor Total</span>
+                        <span className="text-lg font-bold text-emerald-600">
+                          {formatCurrency(folderTotalValue.totalValue, folderTotalValue.currency)}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Botones de acción */}
                     <div className="flex items-center gap-2">
                       <Button
@@ -2611,6 +2711,12 @@ const AddCardsPage = () => {
                         <h1 className="font-bold text-gray-900 text-xl leading-tight">
                           {list?.name || "Cargando..."}
                         </h1>
+                        {/* Total Folder Value for mobile */}
+                        {folderTotalValue.totalValue > 0 && (
+                          <p className="text-sm font-bold text-emerald-600 mt-1">
+                            {formatCurrency(folderTotalValue.totalValue, folderTotalValue.currency)}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2731,6 +2837,12 @@ const AddCardsPage = () => {
                         <p className="text-slate-600 font-medium">
                           {simpleListCards.length} cartas en tu lista
                         </p>
+                        {/* Total Value for simple lists on desktop */}
+                        {folderTotalValue.totalValue > 0 && (
+                          <p className="text-lg font-bold text-emerald-600 mt-1">
+                            {formatCurrency(folderTotalValue.totalValue, folderTotalValue.currency)}
+                          </p>
+                        )}
                       </div>
 
                       {/* Botones de acción */}
@@ -2866,6 +2978,12 @@ const AddCardsPage = () => {
                         <p className="text-xs text-slate-600">
                           {simpleListCards.length} cartas en tu lista
                         </p>
+                        {/* Total Value for simple lists on mobile */}
+                        {folderTotalValue.totalValue > 0 && (
+                          <p className="text-sm font-bold text-emerald-600 mt-1">
+                            {formatCurrency(folderTotalValue.totalValue, folderTotalValue.currency)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2967,6 +3085,19 @@ const AddCardsPage = () => {
                                       .join(", ")}
                                   </p>
                                 )}
+
+                              {/* Price Display */}
+                              {(() => {
+                                const priceValue = getCardPriceValue(item.card);
+                                if (priceValue !== null) {
+                                  return (
+                                    <p className="text-sm font-bold text-emerald-600 mt-2">
+                                      {formatCurrency(priceValue, item.card.priceCurrency)}
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
 
                             {/* Quantity Controls */}

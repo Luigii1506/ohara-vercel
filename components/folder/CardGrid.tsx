@@ -136,10 +136,37 @@ export const CardGrid: React.FC<CardGridProps> = ({
 
                       {/* Quantity Badge - Only for viewing mode */}
                       {!isEditing && cell.quantity && cell.quantity > 1 && (
-                        <div className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white shadow-md">
+                        <div className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white shadow-md z-10">
                           <span className="text-sm">{cell.quantity}</span>
                         </div>
                       )}
+
+                      {/* Price Badge - Only for viewing mode */}
+                      {!isEditing && cell.card && (() => {
+                        const getNumericPrice = (value: any) => {
+                          if (value === null || value === undefined || value === "") return null;
+                          const numberValue = typeof value === "number" ? value : Number(value);
+                          return Number.isFinite(numberValue) ? numberValue : null;
+                        };
+
+                        const formatCurrency = (value: number, currency?: string | null) =>
+                          new Intl.NumberFormat(undefined, {
+                            style: "currency",
+                            currency: currency || "USD",
+                            minimumFractionDigits: 2,
+                          }).format(value);
+
+                        const priceValue = getNumericPrice(cell.card.marketPrice);
+
+                        if (priceValue !== null) {
+                          return (
+                            <div className="absolute -bottom-1 -left-1 bg-emerald-600 text-white rounded-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                              {formatCurrency(priceValue, cell.card.priceCurrency)}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {/* Status indicators for editing mode */}
                       {isEditing && (

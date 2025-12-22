@@ -55,6 +55,24 @@ const ListDetailPage = () => {
   const [currentPage, setCurrentPage] = useState(0); // Start at view 0 (interior cover + page 1)
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
 
+  // Helper functions for price handling
+  const getNumericPrice = (value: any) => {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const getCardPriceValue = (card: CardWithCollectionData) => {
+    return getNumericPrice(card.marketPrice) ?? null;
+  };
+
+  const formatCurrency = (value: number, currency?: string | null) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+
   // Navigation functions from BookFlipContainer
   const [navigationFunctions, setNavigationFunctions] = useState<{
     flipNext: () => void;
@@ -405,6 +423,21 @@ const ListDetailPage = () => {
                       <p className="text-xs text-slate-500 font-mono">
                         {listCard.card.code}
                       </p>
+                      {(() => {
+                        const priceValue = getCardPriceValue(listCard.card);
+                        if (priceValue !== null) {
+                          return (
+                            <p className="text-sm font-bold text-emerald-600 mt-1.5">
+                              {formatCurrency(priceValue, listCard.card.priceCurrency)}
+                            </p>
+                          );
+                        }
+                        return (
+                          <p className="text-xs text-gray-400 mt-1">
+                            No price
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -488,7 +521,7 @@ const ListDetailPage = () => {
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
                 src={selectedCard.src}
-                className="max-w-full max-h-[calc(100dvh-130px)] object-contain rounded-lg shadow-2xl"
+                className="max-w-full max-h-[calc(100dvh-200px)] object-contain rounded-lg shadow-2xl"
                 alt={selectedCard.name}
               />
               <div className="text-white text-lg font-[400] text-center px-5">
@@ -497,6 +530,20 @@ const ListDetailPage = () => {
                 </span>
                 <br />
                 <span>{selectedCard.set}</span>
+                {(() => {
+                  const priceValue = getCardPriceValue(selectedCard);
+                  if (priceValue !== null) {
+                    return (
+                      <>
+                        <br />
+                        <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
+                          {formatCurrency(priceValue, selectedCard.priceCurrency)}
+                        </span>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
           </div>

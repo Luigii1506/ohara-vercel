@@ -139,7 +139,7 @@ const EventsPage = () => {
       <div className="relative overflow-hidden border-b py-8">
         <div className="absolute inset-0">
           <Image
-            src="/assets/images/banner_events.png"
+            src="/assets/images/banner_2.png"
             alt="Events banner"
             fill
             priority

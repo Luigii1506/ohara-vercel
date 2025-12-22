@@ -72,11 +72,16 @@ const oswald = Oswald({
   weight: ["400", "500", "700"],
 });
 
-const sortOptions: Option[] = [
+const baseSortOptions: Option[] = [
   { value: "Most variants", label: "Most variants" },
   { value: "Less variants", label: "Less variant" },
   { value: "Ascending code", label: "Ascending code" },
   { value: "Descending code", label: "Descending code" },
+];
+
+const priceSortOptions: Option[] = [
+  { value: "Price high", label: "Price: high to low" },
+  { value: "Price low", label: "Price: low to high" },
 ];
 
 const NO_COUNTER_LABEL = "No counter";
@@ -358,6 +363,14 @@ const CardListClient = ({
     "grid" | "list" | "alternate" | "text"
   >((searchParams.get("view") as any) || "list");
 
+  // Opciones de ordenamiento dinámicas según la vista
+  const sortOptions = useMemo(() => {
+    if (viewSelected === "list") {
+      return [...baseSortOptions, ...priceSortOptions];
+    }
+    return baseSortOptions;
+  }, [viewSelected]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFab, setShowFab] = useState(false);
   const [isProVersion, setIsProVersion] = useState(false);
@@ -559,6 +572,28 @@ const CardListClient = ({
   const shouldApplyClientFilters =
     canUseLocalDataset || (!!allCardsData && !isFetchingAllCards);
 
+  // Helper functions for price handling
+  const getNumericPrice = (value: any) => {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const getCardPriceValue = (card: CardWithCollectionData) => {
+    return (
+      getNumericPrice(card.marketPrice) ??
+      getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+      null
+    );
+  };
+
+  const formatCurrency = (value: number, currency?: string | null) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+
   // ✅ Filtrado local cuando ya tenemos todas las cartas en memoria
   const filteredCards = useMemo(() => {
     if (!dataSource) return [];
@@ -580,6 +615,87 @@ const CardListClient = ({
       return card;
     });
 
+    // Para ordenamiento por precio, aplanar todas las cartas (base + alternativas)
+    // y ordenarlas individualmente por precio
+    if (selectedSort === "Price high" || selectedSort === "Price low") {
+      type FlatCard = {
+        card: CardWithCollectionData;
+        baseCard: CardWithCollectionData;
+        isAlternate: boolean;
+        price: number | null;
+      };
+
+      const flatCards: FlatCard[] = [];
+
+      normalizedCards.forEach((card) => {
+        const isBaseMatch = baseCardMatches(
+          card,
+          selectedSets,
+          selectedAltArts
+        );
+        const filteredAlts = getFilteredAlternates(
+          card,
+          selectedSets,
+          selectedAltArts
+        );
+
+        // Agregar carta base si coincide con filtros
+        if (isBaseMatch) {
+          flatCards.push({
+            card: card,
+            baseCard: card,
+            isAlternate: false,
+            price: getCardPriceValue(card),
+          });
+        }
+
+        // Agregar alternativas que coinciden con filtros
+        filteredAlts.forEach((alt) => {
+          flatCards.push({
+            card: alt,
+            baseCard: card,
+            isAlternate: true,
+            price: getCardPriceValue(alt),
+          });
+        });
+      });
+
+      // Ordenar todas las cartas (base + alternativas) por precio
+      flatCards.sort((a, b) => {
+        if (a.price === null && b.price === null) return 0;
+        if (a.price === null) return 1;
+        if (b.price === null) return -1;
+        return selectedSort === "Price high"
+          ? b.price - a.price
+          : a.price - b.price;
+      });
+
+      // Crear cartas "virtuales" que representan cada posición en el orden de precio
+      // Cada carta tendrá la información de la base para poder mostrar alternativas
+      return flatCards.map((item) => {
+        if (item.isAlternate) {
+          // Si es una alternativa, crear una carta "virtual" que tenga esta alterna
+          // como carta principal y preserve la información de la base
+          return {
+            ...item.card,
+            // Marcar esta carta como "primary" para que se muestre sola
+            alternates: [],
+            // Guardar referencia a la carta base original
+            _baseCardReference: item.baseCard,
+            _isVirtualAlternate: true,
+          } as CardWithCollectionData;
+        } else {
+          // Si es carta base, devolverla tal cual pero sin alternativas
+          // (las alternativas se mostrarán en sus posiciones individuales)
+          return {
+            ...item.card,
+            alternates: [],
+          };
+        }
+      });
+    }
+
+    // Para otros ordenamientos, usar la lógica original
     const sortedCards = [...normalizedCards];
 
     if (selectedSort === "Most variants") {
@@ -609,6 +725,36 @@ const CardListClient = ({
     selectedAltArts,
     search,
   ]);
+
+  const PriceTag = ({
+    card,
+    className = "",
+  }: {
+    card: CardWithCollectionData;
+    className?: string;
+  }) => {
+    const priceValue = getCardPriceValue(card);
+    if (priceValue === null) {
+      return (
+        <div
+          className={`mt-1 text-xs font-medium uppercase tracking-wide text-amber-600 ${className}`}
+        >
+          Precio no disponible
+        </div>
+      );
+    }
+
+    const currency =
+      card.priceCurrency ?? card.alternates?.[0]?.priceCurrency ?? "USD";
+
+    return (
+      <div
+        className={`mt-1 text-sm font-semibold text-emerald-600 ${className}`}
+      >
+        {formatCurrency(priceValue, currency)}
+      </div>
+    );
+  };
 
   // Calcular el total incluyendo alternativas
   const { totalVisibleCards, uniqueVisibleCards } = useMemo(() => {
@@ -653,6 +799,13 @@ const CardListClient = ({
       }
     );
   }, [filteredCards, selectedSets, selectedAltArts]);
+
+  // Resetear ordenamiento por precio cuando cambien de vista
+  useEffect(() => {
+    if (viewSelected !== "list" && (selectedSort === "Price high" || selectedSort === "Price low")) {
+      setSelectedSort("");
+    }
+  }, [viewSelected, selectedSort]);
 
   // Scroll to top y resetear visibleCount cuando cambien filtros
   useEffect(() => {
@@ -1122,6 +1275,7 @@ const CardListClient = ({
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                            <PriceTag card={card} />
                           </div>
                         </div>
                       )}
@@ -1189,6 +1343,7 @@ const CardListClient = ({
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+                              <PriceTag card={alt} />
                             </div>
                           </div>
                         );
@@ -1368,6 +1523,7 @@ const CardListClient = ({
                                   </p>
                                 ))}
                               </div>
+                              <PriceTag card={card} className="mt-2" />
                             </CardContent>
                           </Card>
                         )}
@@ -1422,6 +1578,7 @@ const CardListClient = ({
                                     </p>
                                   ))}
                                 </div>
+                                <PriceTag card={alt} className="mt-2" />
                               </CardContent>
                             </Card>
                           );

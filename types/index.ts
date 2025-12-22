@@ -259,6 +259,8 @@ export interface UserList {
   _count?: {
     cards: number;
   };
+  totalValue?: number;
+  currency?: string;
 }
 
 export interface UserListCard {

@@ -344,6 +344,14 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     });
   };
 
+  // Format currency
+  const formatCurrency = (value: number, currency?: string) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+
   // Get sort icon
   const getSortIcon = () => {
     if (sortBy.endsWith("-asc")) return <SortAsc className="w-4 h-4" />;
@@ -403,14 +411,26 @@ const ListsPage: React.FC<ListsPageProps> = () => {
               </div>
 
               {/* Stats */}
-              <div className="flex items-center justify-between mb-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <Package className="w-3 h-3" />
-                  <span>{list._count?.cards || 0} cartas</span>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Package className="w-3 h-3" />
+                    <span>{list._count?.cards || 0} cartas</span>
+                  </div>
+
+                  {list.isOrdered && (
+                    <div className="text-xs">{list.totalPages || 0} páginas</div>
+                  )}
                 </div>
 
-                {list.isOrdered && (
-                  <div className="text-xs">{list.totalPages || 0} páginas</div>
+                {/* Total Value */}
+                {list.totalValue !== undefined && list.totalValue > 0 && (
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-500 font-medium">Valor Total:</span>
+                    <span className="text-sm font-bold text-emerald-600">
+                      {formatCurrency(list.totalValue, list.currency)}
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -514,6 +534,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
             <TableHead>Visibilidad</TableHead>
             <TableHead>Cartas</TableHead>
             <TableHead>Páginas</TableHead>
+            <TableHead>Valor Total</TableHead>
             <TableHead>Creada</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -572,6 +593,15 @@ const ListsPage: React.FC<ListsPageProps> = () => {
               </TableCell>
               <TableCell>
                 {list.isOrdered ? list.totalPages || 0 : "-"}
+              </TableCell>
+              <TableCell>
+                {list.totalValue !== undefined && list.totalValue > 0 ? (
+                  <span className="font-semibold text-emerald-600">
+                    {formatCurrency(list.totalValue, list.currency)}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 text-sm">-</span>
+                )}
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1 text-sm text-gray-500">
@@ -715,6 +745,20 @@ const ListsPage: React.FC<ListsPageProps> = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Total Value */}
+                {list.totalValue !== undefined && list.totalValue > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-emerald-900">
+                        Valor Total de la Carpeta:
+                      </span>
+                      <span className="text-lg font-bold text-emerald-700">
+                        {formatCurrency(list.totalValue, list.currency)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">

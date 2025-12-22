@@ -1044,8 +1044,8 @@ export default function ApproveMissingSetPage() {
                       Este set no tiene cartas asociadas.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {selectedExistingSetCards.slice(0, 4).map((card) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-h-[32rem] overflow-y-auto pr-2">
+                      {selectedExistingSetCards.map((card) => (
                         <div
                           key={card.id}
                           className="space-y-2 rounded-lg border p-3 shadow-sm bg-card"
@@ -1065,18 +1065,6 @@ export default function ApproveMissingSetPage() {
                           </div>
                         </div>
                       ))}
-                      {selectedExistingSetCards.length > 4 && (
-                        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                          <p>
-                            +{selectedExistingSetCards.length - 4} cartas más en
-                            este set
-                          </p>
-                          <p className="text-xs">
-                            Usa el visualizador de sets para ver el listado
-                            completo.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </CardContent>

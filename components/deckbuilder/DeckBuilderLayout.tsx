@@ -7,6 +7,7 @@ import {
   MouseEvent,
   useEffect,
   useMemo,
+  useCallback,
   Fragment,
 } from "react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,61 @@ const CompleteDeckBuilderLayout = ({
   setIsPublished,
 }: CompleteDeckBuilderLayoutProps) => {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Helper functions for price handling
+  const getNumericPrice = (value: any) => {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const getCardPriceValue = useCallback((card: CardWithCollectionData | DeckCard) => {
+    if ('marketPrice' in card) {
+      return (
+        getNumericPrice(card.marketPrice) ??
+        getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+        null
+      );
+    }
+    return null;
+  }, []);
+
+  const formatCurrency = (value: number, currency?: string | null) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+
+  const PriceTag = ({
+    card,
+    className = "",
+  }: {
+    card: CardWithCollectionData;
+    className?: string;
+  }) => {
+    const priceValue = getCardPriceValue(card);
+    if (priceValue === null) {
+      return (
+        <div
+          className={`text-xs font-medium text-gray-400 ${className}`}
+        >
+          N/A
+        </div>
+      );
+    }
+
+    const currency =
+      card.priceCurrency ?? card.alternates?.[0]?.priceCurrency ?? "USD";
+
+    return (
+      <div
+        className={`text-xs font-semibold text-emerald-600 ${className}`}
+      >
+        {formatCurrency(priceValue, currency)}
+      </div>
+    );
+  };
 
   const [showLargeImage, setShowLargeImage] = useState<boolean>(false);
 
@@ -475,6 +531,91 @@ const CompleteDeckBuilderLayout = ({
     (total, card) => total + card.quantity,
     0
   );
+
+  // Calcular el precio total del deck
+  const { totalDeckPrice, cardsWithPrice, cardsWithoutPrice } = useMemo(() => {
+    let total = 0;
+    let withPrice = 0;
+    let withoutPrice = 0;
+
+    // Incluir el precio del leader si existe
+    if (deckBuilder.selectedLeader) {
+      // Buscar el leader en initialCards (puede ser base o alternativa)
+      let foundLeader: CardWithCollectionData | undefined;
+
+      // Primero buscar en las cartas base
+      foundLeader = initialCards.find(
+        (card) => Number(card.id) === Number(deckBuilder.selectedLeader?.id)
+      );
+
+      // Si no se encuentra en las bases, buscar en las alternativas
+      if (!foundLeader) {
+        for (const card of initialCards) {
+          const alternate = card.alternates?.find(
+            (alt) => Number(alt.id) === Number(deckBuilder.selectedLeader?.id)
+          );
+          if (alternate) {
+            foundLeader = alternate;
+            break;
+          }
+        }
+      }
+
+      if (foundLeader) {
+        const leaderPrice = getCardPriceValue(foundLeader);
+        if (leaderPrice !== null) {
+          total += leaderPrice;
+          withPrice++;
+        } else {
+          withoutPrice++;
+        }
+      } else {
+        withoutPrice++;
+      }
+    }
+
+    // Calcular precio de todas las cartas del deck
+    deckBuilder.deckCards.forEach((deckCard) => {
+      // Buscar la carta original en initialCards (puede ser base o alternativa)
+      let foundCard: CardWithCollectionData | undefined;
+
+      // Primero buscar en las cartas base
+      foundCard = initialCards.find(
+        (card) => Number(card.id) === deckCard.cardId
+      );
+
+      // Si no se encuentra en las bases, buscar en las alternativas
+      if (!foundCard) {
+        for (const card of initialCards) {
+          const alternate = card.alternates?.find(
+            (alt) => Number(alt.id) === deckCard.cardId
+          );
+          if (alternate) {
+            foundCard = alternate;
+            break;
+          }
+        }
+      }
+
+      if (foundCard) {
+        const cardPrice = getCardPriceValue(foundCard);
+        if (cardPrice !== null) {
+          total += cardPrice * deckCard.quantity;
+          withPrice += deckCard.quantity;
+        } else {
+          withoutPrice += deckCard.quantity;
+        }
+      } else {
+        withoutPrice += deckCard.quantity;
+      }
+    });
+
+    return {
+      totalDeckPrice: total,
+      cardsWithPrice: withPrice,
+      cardsWithoutPrice: withoutPrice,
+    };
+  }, [deckBuilder.deckCards, deckBuilder.selectedLeader, initialCards, getCardPriceValue]);
 
   const handleScrollToTop = () => {
     gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -1197,6 +1338,7 @@ const CompleteDeckBuilderLayout = ({
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
+                          <PriceTag card={card} className="mt-1" />
                           {(() => {
                             const baseCardInDeck = deckBuilder.deckCards.find(
                               (deckCard) => deckCard.cardId === Number(card.id)
@@ -1269,6 +1411,7 @@ const CompleteDeckBuilderLayout = ({
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+                              <PriceTag card={alt} className="mt-1" />
                               {alternateInDeck && (
                                 <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
                                   <span className="mb-[2px]">
@@ -1667,10 +1810,10 @@ const CompleteDeckBuilderLayout = ({
             )}
 
             {/* Right Section - Stats & Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto justify-between sm:justify-start flex-wrap">
               {/* Deck Stats */}
-              <div className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-3 shadow-md border border-gray-200 flex-1 sm:flex-initial">
-                <div className="flex items-center gap-3 sm:gap-3 justify-center sm:justify-start">
+              <div className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-3 shadow-md border border-gray-200">
+                <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start">
                   <div className="text-center">
                     <div className="font-bold text-lg sm:text-xl text-blue-600 leading-none">
                       {totalCards}
@@ -1690,6 +1833,51 @@ const CompleteDeckBuilderLayout = ({
                   </div>
                 </div>
               </div>
+
+              {/* Deck Price - Separate Card */}
+              {totalDeckPrice > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg sm:rounded-xl p-1.5 sm:p-3 shadow-md border-2 border-emerald-200 cursor-help hover:shadow-lg transition-all duration-200">
+                        <div className="text-center">
+                          <div className="font-bold text-lg sm:text-2xl text-emerald-600 leading-none">
+                            {formatCurrency(totalDeckPrice)}
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-emerald-700 font-semibold leading-tight mt-0.5">
+                            Deck Price
+                          </div>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-white border-2 border-emerald-200">
+                      <div className="text-sm">
+                        <p className="font-bold text-emerald-700 mb-2">💰 Price Breakdown</p>
+                        <div className="space-y-1">
+                          <p className="flex justify-between gap-3">
+                            <span className="text-gray-600">Cards with price:</span>
+                            <span className="font-semibold text-emerald-600">{cardsWithPrice}</span>
+                          </p>
+                          {cardsWithoutPrice > 0 && (
+                            <p className="flex justify-between gap-3">
+                              <span className="text-gray-600">Cards without price:</span>
+                              <span className="font-semibold text-amber-600">{cardsWithoutPrice}</span>
+                            </p>
+                          )}
+                          <div className="pt-2 mt-2 border-t border-gray-200">
+                            <p className="flex justify-between gap-3">
+                              <span className="text-gray-600">Average per card:</span>
+                              <span className="font-semibold text-emerald-600">
+                                {formatCurrency(totalDeckPrice / (cardsWithPrice || 1))}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
               {/* View Controls */}
               <div className="flex gap-1 sm:gap-2">

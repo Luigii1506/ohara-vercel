@@ -126,7 +126,17 @@ export async function POST(req: NextRequest) {
       texts: { text: string }[];
     }) | null = null;
 
-    if (providedBaseCardId) {
+    if (code) {
+      templateCard = await prisma.card.findFirst({
+        where: {
+          code,
+          isFirstEdition: true,
+        },
+        include: templateInclude,
+      });
+    }
+
+    if (!templateCard && providedBaseCardId) {
       templateCard = await prisma.card.findUnique({
         where: { id: providedBaseCardId },
         include: templateInclude,
@@ -137,14 +147,6 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-    } else if (code) {
-      templateCard = await prisma.card.findFirst({
-        where: {
-          code,
-          isFirstEdition: true,
-        },
-        include: templateInclude,
-      });
     }
 
     let newCard: Card;
@@ -194,6 +196,7 @@ export async function POST(req: NextRequest) {
         isFirstEdition: false,
         tcgUrl,
         tcgplayerProductId: null,
+        tcgplayerLinkStatus: null,
         marketPrice: null,
         lowPrice: null,
         highPrice: null,
@@ -263,6 +266,13 @@ export async function POST(req: NextRequest) {
         isFirstEdition,
         alias,
         imageKey: imageKey ?? null,
+        tcgplayerProductId: null,
+        tcgplayerLinkStatus: null,
+        marketPrice: null,
+        lowPrice: null,
+        highPrice: null,
+        priceCurrency: null,
+        priceUpdatedAt: null,
         conditions: conditions
           ? { create: conditions.map((condition: string) => ({ condition })) }
           : undefined,

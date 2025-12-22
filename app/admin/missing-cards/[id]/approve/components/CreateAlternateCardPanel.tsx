@@ -114,7 +114,7 @@ export default function CreateAlternateCardPanel({
       setOptions.map((option) => ({
         value: option.value,
         label: option.label,
-      })),
+     })),
     [setOptions]
   );
 
@@ -189,11 +189,11 @@ export default function CreateAlternateCardPanel({
         const response = await fetch("/api/admin/sets");
         if (!response.ok) throw new Error("Failed to fetch sets");
         const data = await response.json();
-        const normalized = Array.isArray(data) ? data : [];
-        setAvailableSets(normalized);
-      } catch (error) {
-        console.error("Error fetching sets:", error);
-        showErrorToast("Error al cargar sets");
+      const normalized = Array.isArray(data) ? data : [];
+      setAvailableSets(normalized);
+    } catch (error) {
+      console.error("Error fetching sets:", error);
+      showErrorToast("Error al cargar sets");
       } finally {
         setSetsLoading(false);
       }

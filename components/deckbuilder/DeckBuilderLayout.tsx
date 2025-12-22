@@ -662,6 +662,8 @@ const CompleteDeckBuilderLayout = ({
         ...card,
         src: alternate.src,
         id: Number(alternate.id),
+        marketPrice: alternate.marketPrice,
+        priceCurrency: alternate.priceCurrency,
       });
       setSearch("");
       setIsInputClear(true);
@@ -691,7 +693,9 @@ const CompleteDeckBuilderLayout = ({
         power: card.power ?? "",
         counter: card.counter ?? "",
         attribute: card.attribute ?? "",
-      });
+        marketPrice: alternate.marketPrice,
+        priceCurrency: alternate.priceCurrency,
+      } as any);
 
       // Scroll para que el card clickeado quede centrado
       // Scroll para que el card clickeado quede centrado solo si no se ve completamente

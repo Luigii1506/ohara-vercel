@@ -77,6 +77,8 @@ const sortOptions: Option[] = [
   { value: "Less variants", label: "Less variant" },
   { value: "Ascending code", label: "Ascending code" },
   { value: "Descending code", label: "Descending code" },
+  { value: "Price high", label: "Price: high to low" },
+  { value: "Price low", label: "Price: low to high" },
 ];
 
 const NO_COUNTER_LABEL = "No counter";
@@ -560,7 +562,7 @@ const CardListClient = ({
     canUseLocalDataset || (!!allCardsData && !isFetchingAllCards);
 
   // ✅ Filtrado local cuando ya tenemos todas las cartas en memoria
-  const filteredCards = useMemo(() => {
+const filteredCards = useMemo(() => {
     if (!dataSource) return [];
 
     const baseList = shouldApplyClientFilters
@@ -582,6 +584,12 @@ const CardListClient = ({
 
     const sortedCards = [...normalizedCards];
 
+    const getNumericPrice = (price: any) => {
+      if (price === null || price === undefined || price === "") return null;
+      const value = typeof price === "number" ? price : Number(price);
+      return Number.isFinite(value) ? value : null;
+    };
+
     if (selectedSort === "Most variants") {
       sortedCards.sort(
         (a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0)
@@ -594,6 +602,24 @@ const CardListClient = ({
       sortedCards.sort((a, b) => a.code.localeCompare(b.code));
     } else if (selectedSort === "Descending code") {
       sortedCards.sort((a, b) => b.code.localeCompare(a.code));
+    } else if (selectedSort === "Price high") {
+      sortedCards.sort((a, b) => {
+        const priceA = getNumericPrice(a.marketPrice ?? a.tcgplayerMarketPrice);
+        const priceB = getNumericPrice(b.marketPrice ?? b.tcgplayerMarketPrice);
+        if (priceA === null && priceB === null) return 0;
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+        return priceB - priceA;
+      });
+    } else if (selectedSort === "Price low") {
+      sortedCards.sort((a, b) => {
+        const priceA = getNumericPrice(a.marketPrice ?? a.tcgplayerMarketPrice);
+        const priceB = getNumericPrice(b.marketPrice ?? b.tcgplayerMarketPrice);
+        if (priceA === null && priceB === null) return 0;
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+        return priceA - priceB;
+      });
     } else {
       sortedCards.sort(sortByCollectionOrder);
     }

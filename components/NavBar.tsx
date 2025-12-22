@@ -184,6 +184,12 @@ const NavBar = () => {
           icon: RefreshCw,
           description: "Dry-run tools para scraping",
         },
+        {
+          href: "/admin/tcg-sync",
+          label: "TCG Sync",
+          icon: RefreshCw,
+          description: "Sincroniza catálogos con TCGplayer",
+        },
       ],
     },
     {

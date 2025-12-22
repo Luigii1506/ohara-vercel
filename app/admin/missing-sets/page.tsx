@@ -16,6 +16,7 @@ import {
   Trash2,
   Eye,
   ArrowUpRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -50,6 +51,7 @@ const AdminMissingSetsPage = () => {
   const [missingSets, setMissingSets] = useState<MissingSet[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
@@ -60,12 +62,12 @@ const AdminMissingSetsPage = () => {
 
   useEffect(() => {
     fetchMissingSets();
-  }, []);
+  }, [sortOrder]);
 
   const fetchMissingSets = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/missing-sets");
+      const response = await fetch(`/api/admin/missing-sets?order=${sortOrder}`);
       if (!response.ok) throw new Error("Failed to fetch missing sets");
       const data = await response.json();
       setMissingSets(data);
@@ -75,6 +77,10 @@ const AdminMissingSetsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
   };
 
   const startEditing = (missingSet: MissingSet) => {
@@ -186,6 +192,18 @@ const AdminMissingSetsPage = () => {
           />
         </div>
         <div className="flex gap-2 justify-end order-1 sm:order-2">
+          <Button
+            onClick={toggleSortOrder}
+            variant="outline"
+            size="icon"
+            title={
+              sortOrder === "desc"
+                ? "Ordenar: Más recientes primero"
+                : "Ordenar: Más antiguos primero"
+            }
+          >
+            <ArrowUpDown className="h-4 w-4" />
+          </Button>
           <Button onClick={fetchMissingSets} variant="outline" size="icon">
             <RefreshCw className="h-4 w-4" />
           </Button>

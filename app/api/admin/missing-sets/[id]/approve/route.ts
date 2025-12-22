@@ -321,6 +321,13 @@ async function createAlternatesFromCardImages(
       setCode: _setCode,
       alias: _alias,
       tcgUrl: _tcgUrl,
+      tcgplayerProductId: _tcgplayerProductId,
+      tcgplayerLinkStatus: _tcgplayerLinkStatus,
+      marketPrice: _marketPrice,
+      lowPrice: _lowPrice,
+      highPrice: _highPrice,
+      priceCurrency: _priceCurrency,
+      priceUpdatedAt: _priceUpdatedAt,
       ...otherData
     } = baseCard;
 
@@ -355,6 +362,13 @@ async function createAlternatesFromCardImages(
           baseCard.texts.length > 0
             ? { create: baseCard.texts.map((t) => ({ text: t.text })) }
             : undefined,
+        tcgplayerProductId: null,
+        tcgplayerLinkStatus: null,
+        marketPrice: null,
+        lowPrice: null,
+        highPrice: null,
+        priceCurrency: null,
+        priceUpdatedAt: null,
       },
     });
 
@@ -619,6 +633,13 @@ export async function POST(
           alias: _alias,
           tcgUrl: _tcgUrl,
           sets: _sets,
+          tcgplayerProductId: _tcgplayerProductId,
+          tcgplayerLinkStatus: _tcgplayerLinkStatus,
+          marketPrice: _marketPrice,
+          lowPrice: _lowPrice,
+          highPrice: _highPrice,
+          priceCurrency: _priceCurrency,
+          priceUpdatedAt: _priceUpdatedAt,
           ...otherData
         } = baseCard;
 
@@ -653,6 +674,13 @@ export async function POST(
               baseCard.texts.length > 0
                 ? { create: baseCard.texts.map((t) => ({ text: t.text })) }
                 : undefined,
+            tcgplayerProductId: null,
+            tcgplayerLinkStatus: null,
+            marketPrice: null,
+            lowPrice: null,
+            highPrice: null,
+            priceCurrency: null,
+            priceUpdatedAt: null,
           },
         });
 

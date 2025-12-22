@@ -40,6 +40,7 @@ function serializeMissingSet(entry: any) {
 export async function GET(req: NextRequest) {
   try {
     const approved = req.nextUrl.searchParams.get("approved");
+    const order = req.nextUrl.searchParams.get("order");
     const where: any = {};
 
     if (approved === "true") {
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
     } else if (approved === "false") {
       where.isApproved = false;
     }
+
+    // Determinar el orden de clasificación (por defecto: desc)
+    const sortOrder: "asc" | "desc" = order === "asc" ? "asc" : "desc";
 
     const missingSets = await prisma.missingSet.findMany({
       where,
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: sortOrder,
       },
     });
 

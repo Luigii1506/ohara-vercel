@@ -62,7 +62,7 @@ export const standarDecks = [
   "ST26",
   "ST27",
   "ST28",
-  "P-000",
+  "PROMO",
 ];
 
 export const setOptions = [
@@ -256,7 +256,7 @@ export const setOptions = [
   },
 ];
 export const setCodesOptions = [
-  { value: "P-000", label: "Promo" },
+  { value: "PROMO", label: "Promo" },
   { value: "OP01", label: "OP01" },
   { value: "OP02", label: "OP02" },
   { value: "OP03", label: "OP03" },
@@ -321,7 +321,7 @@ export const setCodeMetadata = setCodesOptions.reduce((acc, option) => {
   return acc;
 }, {});
 
-export const promotionalDecks = ["P-000"];
+export const promotionalDecks = ["PROMO"];
 
 export const effectOptions = [
   {

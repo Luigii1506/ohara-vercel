@@ -3936,7 +3936,7 @@ const AddCardsPage = () => {
       </Transition>
 
       {/* Large Image Modal */}
-      {showLargeImage && (
+      {showLargeImage && selectedCard && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[999999] px-5 overflow-auto"
           onClick={() => {
@@ -3947,27 +3947,35 @@ const AddCardsPage = () => {
           }}
         >
           <div className="w-full max-w-3xl">
-            <div className="text-white text-xl font-[400] text-center py-2 px-5">
+            <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
               Tap to close
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
-              <div className="max-w-full max-h-[calc(100dvh-130px)]">
-                <LazyImage
-                  key={selectedCard?.id}
-                  src={selectedCard?.src}
-                  fallbackSrc="/assets/images/backcard.webp"
-                  alt={selectedCard?.name || ""}
-                  className="w-full"
-                  priority={true}
-                  size="large"
-                />
-              </div>
+              <img
+                src={selectedCard.src}
+                className="max-w-full max-h-[calc(100dvh-200px)] object-contain rounded-lg shadow-2xl"
+                alt={selectedCard.name}
+              />
               <div className="text-white text-lg font-[400] text-center px-5">
                 <span className={`${oswald.className} font-[500]`}>
-                  {selectedCard?.code}
+                  {selectedCard.code}
                 </span>
                 <br />
-                <span>{selectedCard?.sets[0]?.set?.title}</span>
+                <span>{selectedCard.sets?.[0]?.set?.title || selectedCard.set}</span>
+                {(() => {
+                  const priceValue = getCardPriceValue(selectedCard);
+                  if (priceValue !== null) {
+                    return (
+                      <>
+                        <br />
+                        <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
+                          {formatCurrency(priceValue, selectedCard.priceCurrency)}
+                        </span>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
           </div>

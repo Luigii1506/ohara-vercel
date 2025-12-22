@@ -134,15 +134,15 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         />
                       </div>
 
-                      {/* Quantity Badge - Only for viewing mode */}
-                      {!isEditing && cell.quantity && cell.quantity > 1 && (
+                      {/* Quantity Badge - Shows in both viewing and editing modes */}
+                      {cell.quantity && cell.quantity > 1 && (
                         <div className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white shadow-md z-10">
                           <span className="text-sm">{cell.quantity}</span>
                         </div>
                       )}
 
-                      {/* Price Badge - Only for viewing mode */}
-                      {!isEditing && cell.card && (() => {
+                      {/* Price Badge - Shows in both viewing and editing modes */}
+                      {cell.card && (() => {
                         const getNumericPrice = (value: any) => {
                           if (value === null || value === undefined || value === "") return null;
                           const numberValue = typeof value === "number" ? value : Number(value);

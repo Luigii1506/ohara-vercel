@@ -19,6 +19,7 @@ import {
  *   }]
  * }
  */
+
 const authenticate = (request: NextRequest) => {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;

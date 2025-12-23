@@ -50,6 +50,7 @@ export type CardData = {
   price?: number;
   id: string;
   alias: string;
+  order?: string | null;
   tcgUrl?: string;
   tcgplayerProductId?: string | null;
   tcgplayerLinkStatus?: boolean | null;
@@ -59,6 +60,7 @@ export type CardData = {
   priceCurrency?: string | null;
   priceUpdatedAt?: string | Date | null;
   rulings?: CardRuling[]; // <-- Aquí agregamos los rulings
+  baseCardId?: number | null;
 };
 
 // Interfaces para tipar el deck
@@ -101,6 +103,7 @@ export interface DeckCard {
 export interface CardWithCollectionData extends CardData {
   isInCollection?: boolean | undefined;
   isSelectable?: boolean | undefined;
+  collectionOrder?: string | null;
   totalInCollection: {
     id: string; // ID de la carta en la colección
     quantity: number; // Cantidad de esa carta en la colección

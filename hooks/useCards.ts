@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   useQuery,
   useQueryClient,
@@ -114,17 +115,10 @@ type FetchCardsPageParams = {
 const normalizeList = (list?: string[]) =>
   list?.map((item) => item.trim()).filter(Boolean);
 
-const buildQueryString = (params: FetchCardsPageParams): string => {
+const buildQueryString = (
+  params: FetchCardsPageParams | { filters: CardsFilters }
+): string => {
   const searchParams = new URLSearchParams();
-
-  searchParams.set("includeRelations", "true");
-  searchParams.set("includeAlternates", "true");
-  searchParams.set("includeCounts", "true");
-  searchParams.set("limit", params.limit.toString());
-
-  if (params.cursor) {
-    searchParams.set("cursor", params.cursor.toString());
-  }
 
   const { filters } = params;
 
@@ -164,6 +158,17 @@ const buildQueryString = (params: FetchCardsPageParams): string => {
   }
   if (filters.trigger) {
     searchParams.set("trigger", filters.trigger);
+  }
+
+  if ("limit" in params) {
+    searchParams.set("includeRelations", "true");
+    searchParams.set("includeAlternates", "true");
+    searchParams.set("includeCounts", "true");
+    searchParams.set("limit", params.limit.toString());
+
+    if (params.cursor) {
+      searchParams.set("cursor", params.cursor.toString());
+    }
   }
 
   return searchParams.toString();
@@ -269,6 +274,7 @@ const fetchCardsPage = async (
       items: cards,
       nextCursor: lastId,
       hasMore: false,
+      totalCount: cards.length,
     };
   }
 
@@ -276,10 +282,25 @@ const fetchCardsPage = async (
     items: (data.items ?? []) as CardWithCollectionData[],
     nextCursor: typeof data.nextCursor === "number" ? data.nextCursor : null,
     hasMore: Boolean(data.hasMore),
+    totalCount:
+      typeof data.totalCount === "number"
+        ? data.totalCount
+        : (data.items ?? []).length || 0,
   };
 };
 
-const serializeFiltersForKey = (filters: CardsFilters) => {
+const fetchCardsCount = async (filters: CardsFilters): Promise<number> => {
+  const queryString = buildQueryString({ filters });
+  const url = queryString ? `/api/cards/count?${queryString}` : "/api/cards/count";
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Error al contar cartas");
+  }
+  const data = await res.json();
+  return typeof data.total === "number" ? data.total : 0;
+};
+
+export const serializeFiltersForKey = (filters: CardsFilters) => {
   const sortedEntries: Record<string, unknown> = {};
 
   Object.entries(filters).forEach(([key, value]) => {
@@ -327,7 +348,6 @@ export const usePaginatedCards = (
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     initialData: options?.initialData,
-    placeholderData: (previousData) => previousData,
     enabled: options?.enabled ?? true,
   });
 
@@ -346,13 +366,25 @@ export const usePaginatedCards = (
       cards.push(card);
     });
   });
+  const totalCount = query.data?.pages?.[0]?.totalCount ?? null;
 
   return {
     ...query,
     cards,
     totalFetched: cards.length,
+    totalCount,
     queryKey,
   };
+};
+
+export const useCardsCount = (filters: CardsFilters) => {
+  const serializedFilters = serializeFiltersForKey(filters);
+  return useQuery({
+    queryKey: ["cards-count", serializedFilters],
+    queryFn: () => fetchCardsCount(filters),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+  });
 };
 
 type UseAllCardsOptions = FetchAllCardsClientParams & {

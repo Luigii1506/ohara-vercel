@@ -154,12 +154,6 @@ interface EventDetail {
       code?: string | null;
       version?: string | null;
       image?: string | null;
-      attachments: Array<{
-        id: number;
-        imageUrl: string;
-        type: string;
-        order: number;
-      }>;
       cards?: Array<{
         id: number;
         cardId: number;
@@ -478,8 +472,10 @@ const EventDetailPage = () => {
               <div className="space-y-12">
                 {event.sets.map((eventSet) => {
                   const set = eventSet.set;
-                  const attachments = set.attachments || [];
-                  const hasImages = attachments.length > 0 || set.image;
+                  const setImages = set.image
+                    ? [resolveEventAssetUrl(set.image) ?? set.image]
+                    : [];
+                  const hasImages = setImages.length > 0;
 
                   const eventLinkedCards = event.cards.filter((eventCard) =>
                     eventCard.card.sets.some(
@@ -526,10 +522,8 @@ const EventDetailPage = () => {
                           <div className="flex flex-wrap gap-2">
                             {hasImages && (
                               <Badge variant="default" className="text-sm">
-                                {attachments.length > 0
-                                  ? attachments.length
-                                  : 1}{" "}
-                                {attachments.length === 1 ? "image" : "images"}
+                                {setImages.length}{" "}
+                                {setImages.length === 1 ? "image" : "images"}
                               </Badge>
                             )}
                             {setCards.length > 0 && (
@@ -546,26 +540,25 @@ const EventDetailPage = () => {
                         {hasImages && (
                           <div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 justify-items-center">
-                              {attachments.length === 0 && set.image && (
+                              {setImages.map((imageUrl, index) => (
                                 <div
+                                  key={`${set.id}-image-${index}`}
                                   className="w-full group relative overflow-hidden rounded-xl border-2 bg-muted transition-all hover:shadow-2xl hover:border-primary/50 cursor-pointer"
                                   onClick={() =>
                                     openImagePreview({
-                                      src:
-                                        resolveEventAssetUrl(set.image) ??
-                                        set.image!,
+                                      src: imageUrl,
                                       title: set.title,
-                                      subtitle: "Set cover",
+                                      subtitle:
+                                        setImages.length === 1
+                                          ? "Set cover"
+                                          : `Image ${index + 1}`,
                                     })
                                   }
                                 >
                                   <div className="relative aspect-[3/4]">
                                     <Image
-                                      src={
-                                        resolveEventAssetUrl(set.image) ||
-                                        set.image!
-                                      }
-                                      alt={set.title}
+                                      src={imageUrl}
+                                      alt={`${set.title} image`}
                                       fill
                                       className="object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
@@ -576,63 +569,13 @@ const EventDetailPage = () => {
                                       variant="secondary"
                                       className="backdrop-blur-sm"
                                     >
-                                      SET COVER
+                                      {setImages.length === 1
+                                        ? "SET COVER"
+                                        : `IMAGE ${index + 1}`}
                                     </Badge>
                                   </div>
                                 </div>
-                              )}
-
-                              {attachments.map((attachment) => {
-                                const isPlaymat = attachment.type === "PLAYMAT";
-                                const aspectClass = isPlaymat
-                                  ? "aspect-[16/9]"
-                                  : "aspect-[3/4]";
-                                const imageClass = isPlaymat
-                                  ? "object-contain"
-                                  : "object-cover";
-                                const attachmentUrl = resolveEventAssetUrl(
-                                  attachment.imageUrl
-                                );
-                                if (!attachmentUrl) {
-                                  return null;
-                                }
-
-                                return (
-                                  <div
-                                    key={attachment.id}
-                                    className={`w-full group relative overflow-hidden rounded-xl border-2 bg-muted transition-all hover:shadow-2xl hover:border-primary/50 cursor-pointer ${
-                                      isPlaymat
-                                        ? "sm:col-span-2 lg:col-span-3"
-                                        : ""
-                                    }`}
-                                    onClick={() =>
-                                      openImagePreview({
-                                        src: attachmentUrl,
-                                        title: set.title,
-                                        subtitle: attachment.type,
-                                      })
-                                    }
-                                  >
-                                    <div className={`relative ${aspectClass}`}>
-                                      <Image
-                                        src={attachmentUrl}
-                                        alt={`${set.title} - ${attachment.type}`}
-                                        fill
-                                        className={`${imageClass} transition-transform duration-500 group-hover:scale-110`}
-                                      />
-                                    </div>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
-                                      <Badge
-                                        variant="secondary"
-                                        className="backdrop-blur-sm"
-                                      >
-                                        {attachment.type}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                              ))}
                             </div>
                           </div>
                         )}
@@ -692,7 +635,7 @@ const EventDetailPage = () => {
 
                         {setCards.length === 0 &&
                           event.cards.length === 0 &&
-                          attachments.length === 0 && (
+                          !hasImages && (
                             <div className="text-center py-8 text-muted-foreground">
                               <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                               <p className="text-sm font-medium mb-1">
@@ -706,7 +649,7 @@ const EventDetailPage = () => {
                           )}
                         {setCards.length === 0 &&
                           event.cards.length > 0 &&
-                          attachments.length === 0 && (
+                          !hasImages && (
                             <div className="text-center py-8 text-muted-foreground">
                               <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                               <p className="text-sm">

@@ -100,13 +100,45 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
         continue;
       }
 
-      const market = pricing.marketPrice ?? pricing.midPrice ?? null;
-      const low = pricing.lowPrice ?? null;
-      const high = pricing.highPrice ?? pricing.directLowPrice ?? null;
+      const roundedMarket = roundedPrice(
+        pricing.marketPrice ?? pricing.midPrice ?? null
+      );
+      const roundedLow = roundedPrice(pricing.lowPrice ?? null);
+      const roundedHigh = roundedPrice(
+        pricing.highPrice ?? pricing.directLowPrice ?? null
+      );
 
-      const marketChanged = hasChanged(card.marketPrice, market);
-      const lowChanged = hasChanged(card.lowPrice, low);
-      const highChanged = hasChanged(card.highPrice, high);
+      const marketChanged = hasChanged(card.marketPrice, roundedMarket);
+      const lowChanged = hasChanged(card.lowPrice, roundedLow);
+      const highChanged = hasChanged(card.highPrice, roundedHigh);
+
+      if (roundedMarket !== null) {
+        logs.push({
+          cardId: card.id,
+          priceType: "MARKET",
+          price: toDecimalOrNull(roundedMarket)!,
+          collectedAt: now,
+          source: "TCGplayer",
+        });
+      }
+      if (roundedLow !== null) {
+        logs.push({
+          cardId: card.id,
+          priceType: "LOW",
+          price: toDecimalOrNull(roundedLow)!,
+          collectedAt: now,
+          source: "TCGplayer",
+        });
+      }
+      if (roundedHigh !== null) {
+        logs.push({
+          cardId: card.id,
+          priceType: "HIGH",
+          price: toDecimalOrNull(roundedHigh)!,
+          collectedAt: now,
+          source: "TCGplayer",
+        });
+      }
 
       if (!marketChanged && !lowChanged && !highChanged) {
         continue;
@@ -118,45 +150,18 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
       };
 
       if (marketChanged) {
-        const rounded = roundedPrice(market);
-        data.marketPrice = rounded !== null ? toDecimalOrNull(rounded) : null;
-        if (rounded !== null) {
-          logs.push({
-            cardId: card.id,
-            priceType: "MARKET",
-            price: toDecimalOrNull(rounded)!,
-            collectedAt: now,
-            source: "TCGplayer",
-          });
-        }
+        data.marketPrice =
+          roundedMarket !== null ? toDecimalOrNull(roundedMarket) : null;
       }
 
       if (lowChanged) {
-        const rounded = roundedPrice(low);
-        data.lowPrice = rounded !== null ? toDecimalOrNull(rounded) : null;
-        if (rounded !== null) {
-          logs.push({
-            cardId: card.id,
-            priceType: "LOW",
-            price: toDecimalOrNull(rounded)!,
-            collectedAt: now,
-            source: "TCGplayer",
-          });
-        }
+        data.lowPrice =
+          roundedLow !== null ? toDecimalOrNull(roundedLow) : null;
       }
 
       if (highChanged) {
-        const rounded = roundedPrice(high);
-        data.highPrice = rounded !== null ? toDecimalOrNull(rounded) : null;
-        if (rounded !== null) {
-          logs.push({
-            cardId: card.id,
-            priceType: "HIGH",
-            price: toDecimalOrNull(rounded)!,
-            collectedAt: now,
-            source: "TCGplayer",
-          });
-        }
+        data.highPrice =
+          roundedHigh !== null ? toDecimalOrNull(roundedHigh) : null;
       }
 
       cardsUpdated += 1;

@@ -11,6 +11,7 @@ import QueryProvider from "@/components/QueryProvider";
 import { DynamicThemeColor } from "@/components/DynamicThemeColor";
 import UnregisterSW from "@/components/UnregisterSW";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 // Definición de las fuentes con optimización de carga
 const inter = Inter({
   subsets: ["latin"],

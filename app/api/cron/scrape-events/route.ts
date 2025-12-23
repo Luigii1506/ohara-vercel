@@ -19,60 +19,56 @@ import {
  *   }]
  * }
  */
+const authenticate = (request: NextRequest) => {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    throw new Error("CRON_SECRET not configured");
+  }
+  const expectedAuth = `Bearer ${cronSecret}`;
+  if (authHeader !== expectedAuth) {
+    const error = new Error("Unauthorized");
+    (error as any).status = 401;
+    throw error;
+  }
+};
+
+async function runScrape(request: NextRequest) {
+  authenticate(request);
+
+  console.log("🤖 Cron job: Starting event scraper...");
+  const startTime = Date.now();
+
+  const result = await scrapeEvents({
+    sources: DEFAULT_EVENT_LIST_SOURCES.map((source) => ({ ...source })),
+  });
+
+  const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+  const response = {
+    success: result.success,
+    timestamp: new Date().toISOString(),
+    duration: `${duration}s`,
+    stats: {
+      eventsProcessed: result.eventsProcessed,
+      setsLinked: result.setsLinked,
+      errors: result.errors.length,
+    },
+    events: result.events,
+    errors: result.errors,
+  };
+
+  console.log("✅ Cron job completed:", response.stats);
+
+  return NextResponse.json(response, { status: 200 });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // 1. Validar autenticación
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret) {
-      console.error("⚠️  CRON_SECRET not configured");
-      return NextResponse.json(
-        { success: false, error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    const expectedAuth = `Bearer ${cronSecret}`;
-
-    if (authHeader !== expectedAuth) {
-      console.error("❌ Unauthorized cron attempt");
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // 2. Ejecutar scraper
-    console.log("🤖 Cron job: Starting event scraper...");
-    const startTime = Date.now();
-
-    const result = await scrapeEvents({
-      // Solo usamos fuentes de eventos actuales por defecto
-      sources: DEFAULT_EVENT_LIST_SOURCES.map((source) => ({ ...source })),
-    });
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-
-    // 3. Preparar respuesta
-    const response = {
-      success: result.success,
-      timestamp: new Date().toISOString(),
-      duration: `${duration}s`,
-      stats: {
-        eventsProcessed: result.eventsProcessed,
-        setsLinked: result.setsLinked,
-        errors: result.errors.length,
-      },
-      events: result.events,
-      errors: result.errors,
-    };
-
-    console.log("✅ Cron job completed:", response.stats);
-
-    return NextResponse.json(response, { status: 200 });
+    return await runScrape(request);
   } catch (error) {
     const err = error as Error;
+    const status = (err as any)?.status ?? 500;
     console.error("❌ Cron job failed:", err);
 
     return NextResponse.json(
@@ -81,22 +77,24 @@ export async function POST(request: NextRequest) {
         error: err.message,
         timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status }
     );
   }
 }
 
-/**
- * GET endpoint para verificar que la ruta está activa
- */
-export async function GET() {
-  return NextResponse.json(
-    {
-      message: "Event scraper cron endpoint",
-      method: "POST",
-      auth: "Required: Authorization: Bearer CRON_SECRET",
-      status: "active",
-    },
-    { status: 200 }
-  );
+export async function GET(request: NextRequest) {
+  const hasAuth = Boolean(request.headers.get("authorization"));
+  if (!hasAuth) {
+    return NextResponse.json(
+      {
+        message: "Event scraper cron endpoint",
+        method: "POST or GET with Authorization header",
+        auth: "Required: Authorization: Bearer CRON_SECRET",
+        status: "active",
+      },
+      { status: 200 }
+    );
+  }
+
+  return POST(request);
 }

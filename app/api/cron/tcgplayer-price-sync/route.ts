@@ -15,30 +15,33 @@ const authenticate = (request: NextRequest) => {
   }
 };
 
+async function runPriceSync(request: NextRequest) {
+  authenticate(request);
+  const watchlistOnly = request.nextUrl.searchParams.get("watchlist") === "true";
+
+  console.log(
+    `🔄 Starting TCGplayer price sync (watchlistOnly=${watchlistOnly})`
+  );
+  const started = Date.now();
+  const result = await syncTcgplayerPrices({
+    onlyWatchlisted: watchlistOnly,
+  });
+  const duration = ((Date.now() - started) / 1000).toFixed(2);
+
+  console.log("✅ Price sync completed", { ...result, duration });
+  return NextResponse.json(
+    {
+      success: true,
+      duration,
+      ...result,
+    },
+    { status: 200 }
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
-    authenticate(request);
-    const watchlistOnly =
-      request.nextUrl.searchParams.get("watchlist") === "true";
-
-    console.log(
-      `🔄 Starting TCGplayer price sync (watchlistOnly=${watchlistOnly})`
-    );
-    const started = Date.now();
-    const result = await syncTcgplayerPrices({
-      onlyWatchlisted: watchlistOnly,
-    });
-    const duration = ((Date.now() - started) / 1000).toFixed(2);
-
-    console.log("✅ Price sync completed", { ...result, duration });
-    return NextResponse.json(
-      {
-        success: true,
-        duration,
-        ...result,
-      },
-      { status: 200 }
-    );
+    return await runPriceSync(request);
   } catch (error) {
     const status = (error as any)?.status ?? 500;
     console.error("❌ Price sync cron failed:", error);
@@ -49,13 +52,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      status: "active",
-      description:
-        "POST with Authorization header to sync TCGplayer prices. Optional query: watchlist=true",
-    },
-    { status: 200 }
-  );
+export async function GET(request: NextRequest) {
+  const hasAuth = Boolean(request.headers.get("authorization"));
+  if (!hasAuth) {
+    return NextResponse.json(
+      {
+        status: "active",
+        description:
+          "Provide Authorization header to trigger the sync. Optional query: watchlist=true",
+      },
+      { status: 200 }
+    );
+  }
+
+  return POST(request);
 }

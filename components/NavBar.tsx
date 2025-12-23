@@ -363,8 +363,8 @@ const NavBar = () => {
 
   return (
     <>
-      <header className="flex w-full flex-wrap items-center gap-3 px-4 md:px-6 py-3 shadow-md relative text-[#FAF9F3] bg-black z-50 min-h-[68px] md:min-h-[88px] transition-[min-height] duration-300">
-        <div className="flex items-center gap-4 w-full">
+      <header className="flex w-full items-center px-4 md:px-6 h-[70px] md:h-[88px] shadow-md relative text-[#FAF9F3] bg-black z-50">
+        <div className="flex flex-wrap items-center gap-4 w-full">
           {/* Logo y menú desktop */}
           <div className="flex items-center gap-4 justify-between flex-1 min-w-0">
             <div className="flex items-center gap-4 min-w-0">
@@ -404,34 +404,34 @@ const NavBar = () => {
                   </Link>
                 ))}
 
-                {(loading || showPrivateMenus) && (
-                  <div className="flex items-center gap-4 min-w-[200px]">
-                    {loading && (
-                      <div className="flex items-center gap-4">
-                        {privateDesktopMenuItems.map((item) => (
-                          <span
-                            key={`private-skeleton-${item.href}`}
-                            className="h-5 w-24 rounded bg-white/10 animate-pulse block"
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {showPrivateMenus &&
-                      privateDesktopMenuItems.map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline whitespace-nowrap ${
-                            pathname.join("/").startsWith(item.href.slice(1))
-                              ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
-                              : ""
-                          }`}
-                        >
-                          {item.label}
-                        </Link>
-                      ))}
-                  </div>
-                )}
+                <div className="flex items-center gap-4 min-w-[240px] flex-shrink-0">
+                  {privateDesktopMenuItems.map((item) => {
+                    const isActive = pathname
+                      .join("/")
+                      .startsWith(item.href.slice(1));
+                    const hidden = !showPrivateMenus || loading;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        tabIndex={hidden ? -1 : undefined}
+                        aria-hidden={hidden}
+                        className={`relative font-medium !no-underline whitespace-nowrap transition-colors ${
+                          hidden
+                            ? "text-transparent pointer-events-none select-none"
+                            : "text-white hover:text-gray-300"
+                        } ${
+                          !hidden && isActive
+                            ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
+                            : ""
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
 
                 <div className="flex items-center min-w-[140px] justify-end">
                   {loading ? (

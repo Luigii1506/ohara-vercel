@@ -197,6 +197,7 @@ export default function RootLayout({
             </UserProvider>
           </NextAuthProvider>
         </QueryProvider>
+        <Analytics />
       </body>
     </html>
   );

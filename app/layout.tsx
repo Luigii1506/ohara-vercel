@@ -193,6 +193,8 @@ export default function RootLayout({
               <ClientLayout>
                 {children}
                 <ToastContainer />
+                <Analytics />
+                <SpeedInsights />
               </ClientLayout>
             </UserProvider>
           </NextAuthProvider>

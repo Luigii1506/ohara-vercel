@@ -40,11 +40,14 @@ const ShopDeckBuilder = () => {
 
   const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
 
-  const { data: allCardsData, isFetching: isFetchingAllCards } = useAllCards(fullQueryFilters, {
-    includeRelations: true,
-    includeAlternates: true,
-    includeCounts: true,
-  });
+  const { data: allCardsData, isFetching: isFetchingAllCards } = useAllCards(
+    fullQueryFilters,
+    {
+      includeRelations: true,
+      includeAlternates: true,
+      includeCounts: true,
+    }
+  );
 
   useEffect(() => {
     if (!allCardsData) return;
@@ -159,9 +162,7 @@ const ShopDeckBuilder = () => {
     ];
 
     const baseName =
-      deckName.trim() ||
-      deckBuilder.selectedLeader?.name ||
-      "Mi Deck";
+      deckName.trim() || deckBuilder.selectedLeader?.name || "Mi Deck";
 
     deckBuilder.setIsSaving(true);
     try {
@@ -180,7 +181,9 @@ const ShopDeckBuilder = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "No se pudo crear el deck de tienda");
+        throw new Error(
+          errorData.error || "No se pudo crear el deck de tienda"
+        );
       }
 
       showSuccessToast("Deck de tienda creado correctamente");

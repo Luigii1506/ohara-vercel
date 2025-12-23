@@ -159,6 +159,9 @@ const buildQueryString = (
   if (filters.trigger) {
     searchParams.set("trigger", filters.trigger);
   }
+  if (filters.sortBy) {
+    searchParams.set("sortBy", filters.sortBy);
+  }
 
   if ("limit" in params) {
     searchParams.set("includeRelations", "true");
@@ -242,6 +245,9 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
   }
   if (filters.trigger) {
     searchParams.set("trigger", filters.trigger);
+  }
+  if (filters.sortBy) {
+    searchParams.set("sortBy", filters.sortBy);
   }
 
   return searchParams.toString();

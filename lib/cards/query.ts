@@ -102,6 +102,11 @@ const splitParam = (value: string | null | undefined) =>
 export const buildFiltersFromSearchParams = (
   params: URLSearchParams
 ): CardsFilters => {
+  const sortByParam = params.get("sortBy");
+  const sortBy = sortByParam === "price_high" || sortByParam === "price_low"
+    ? sortByParam
+    : undefined;
+
   return {
     search: params.get("search") ?? undefined,
     sets: splitParam(params.get("sets")),
@@ -118,6 +123,7 @@ export const buildFiltersFromSearchParams = (
     region: params.get("region") ?? undefined,
     counter: params.get("counter") ?? undefined,
     trigger: params.get("trigger") ?? undefined,
+    sortBy,
   };
 };
 
@@ -133,9 +139,13 @@ const buildInsensitiveListCondition = (
   };
 };
 
-const buildWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+const buildWhere = (
+  filters: CardsFilters,
+  includeAlternates: boolean = false
+): Prisma.CardWhereInput => {
   const where: Prisma.CardWhereInput = {
-    baseCardId: null,
+    // Solo filtrar por baseCardId: null si NO incluimos alternativas
+    ...(includeAlternates ? {} : { baseCardId: null }),
     AND: [],
   };
 
@@ -487,6 +497,113 @@ export const mapCard = (
   return mapped;
 };
 
+// Función especial para ordenamiento por precio (incluye base + alternativas)
+const fetchCardsPageByPrice = async (
+  options: FetchCardsPageOptions
+): Promise<CardsPage> => {
+  const {
+    filters,
+    limit,
+    cursor = null,
+    includeRelations = false,
+    includeAlternates = true,
+    includeCounts = false,
+  } = options;
+
+  // Construir where INCLUYENDO alternativas
+  const priceWhere = buildWhere(filters, true);
+  const take = Math.min(Math.max(limit, 1), 200);
+
+  // Ordenar por precio
+  const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
+  if (filters.sortBy === "price_high") {
+    orderBy.push({ marketPrice: { sort: "desc", nulls: "last" } });
+  } else if (filters.sortBy === "price_low") {
+    orderBy.push({ marketPrice: { sort: "asc", nulls: "last" } });
+  }
+  orderBy.push({ id: "asc" }); // Desempate por ID
+
+  const args: Prisma.CardFindManyArgs = {
+    where: priceWhere,
+    orderBy,
+    include: {
+      // Para ordenamiento por precio, NO incluir alternateCards
+      // porque traemos todo en un solo nivel
+      ...(includeRelations && {
+        types: { select: { id: true, type: true } },
+        colors: { select: { id: true, color: true } },
+        effects: { select: { id: true, effect: true } },
+        conditions: { select: { id: true, condition: true } },
+        texts: { select: { id: true, text: true } },
+        sets: {
+          select: {
+            set: {
+              select: {
+                id: true,
+                title: true,
+                code: true,
+              },
+            },
+          },
+        },
+        rulings: {
+          select: {
+            id: true,
+            question: true,
+            answer: true,
+          },
+        },
+      }),
+      // Incluir la referencia a la carta base para mantener la relación
+      baseCard: includeAlternates ? {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          src: true,
+          category: true,
+          rarity: true,
+        }
+      } : false,
+    },
+  };
+
+  if (take) {
+    args.take = take + 1;
+  }
+
+  if (cursor) {
+    args.cursor = { id: cursor };
+    args.skip = 1;
+  }
+
+  const [allCards, totalCount] = await Promise.all([
+    prisma.card.findMany(args),
+    prisma.card.count({ where: priceWhere }),
+  ]);
+
+  const hasMore = allCards.length > take;
+  const trimmed = hasMore ? allCards.slice(0, take) : allCards;
+
+  // Mapear las cartas - en este caso cada carta es independiente
+  // Las alternativas se mostrarán como cartas individuales
+  const mapped = trimmed.map((card) => ({
+    ...card,
+    alternates: [], // Sin alternativas anidadas en modo precio
+    numOfVariations: 0,
+  })) as unknown as CardWithCollectionData[];
+
+  const nextCursor =
+    hasMore && trimmed.length ? trimmed[trimmed.length - 1].id : null;
+
+  return {
+    items: mapped,
+    nextCursor,
+    hasMore,
+    totalCount,
+  };
+};
+
 export const fetchCardsPageFromDb = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
@@ -499,18 +616,32 @@ export const fetchCardsPageFromDb = async (
     includeCounts = false,
   } = options;
 
+  const isPriceSorting = filters.sortBy === "price_high" || filters.sortBy === "price_low";
+
+  // Para ordenamiento por precio, necesitamos traer base + alternativas juntas
+  if (isPriceSorting) {
+    return fetchCardsPageByPrice(options);
+  }
+
+  // Ordenamiento normal (solo cartas base)
   const where = buildWhere(filters);
   const include = buildInclude(includeRelations, includeAlternates);
 
   const take = Math.min(Math.max(limit, 1), 200);
 
+  // Build orderBy based on sortBy filter
+  const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
+
+  // Add default sorting
+  orderBy.push(
+    { collectionOrder: "asc" },
+    { code: "asc" },
+    { id: "asc" }
+  );
+
   const args: Prisma.CardFindManyArgs = {
     where,
-    orderBy: [
-      { collectionOrder: "asc" },
-      { code: "asc" },
-      { id: "asc" },
-    ],
+    orderBy,
     include,
   };
 

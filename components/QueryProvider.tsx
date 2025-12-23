@@ -2,10 +2,19 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { createIDBPersister } from '@/lib/idbPersister';
 import { clearOldCache } from '@/lib/clearOldCache';
+
+// ✅ Dynamic import para excluir devtools de producción
+const ReactQueryDevtools =
+  process.env.NODE_ENV === 'development'
+    ? lazy(() =>
+        import('@tanstack/react-query-devtools').then((m) => ({
+          default: m.ReactQueryDevtools,
+        }))
+      )
+    : () => null;
 
 export default function QueryProvider({
   children,
@@ -65,10 +74,12 @@ export default function QueryProvider({
       <QueryClientProvider client={queryClient}>
         {children}
         {process.env.NODE_ENV === "development" && (
-          <ReactQueryDevtools
-            initialIsOpen={false}
-            buttonPosition="bottom-left"
-          />
+          <Suspense fallback={null}>
+            <ReactQueryDevtools
+              initialIsOpen={false}
+              buttonPosition="bottom-left"
+            />
+          </Suspense>
         )}
       </QueryClientProvider>
     );
@@ -95,12 +106,14 @@ export default function QueryProvider({
     >
       {children}
 
-      {/* 🛠️ DevTools - Solo en desarrollo */}
+      {/* 🛠️ DevTools - Solo en desarrollo con lazy loading */}
       {process.env.NODE_ENV === "development" && (
-        <ReactQueryDevtools
-          initialIsOpen={false}
-          buttonPosition="bottom-left"
-        />
+        <Suspense fallback={null}>
+          <ReactQueryDevtools
+            initialIsOpen={false}
+            buttonPosition="bottom-left"
+          />
+        </Suspense>
       )}
     </PersistQueryClientProvider>
   );

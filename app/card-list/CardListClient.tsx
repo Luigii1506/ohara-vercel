@@ -196,6 +196,14 @@ const CardListClient = ({
 
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
   const filters = useMemo<CardsFilters>(() => {
+    // Map selected sort to backend sortBy format
+    let sortBy: "price_high" | "price_low" | undefined = undefined;
+    if (selectedSort === "Price high") {
+      sortBy = "price_high";
+    } else if (selectedSort === "Price low") {
+      sortBy = "price_low";
+    }
+
     return {
       search: search.trim() || undefined,
       sets: selectedSets.length > 0 ? selectedSets : undefined,
@@ -220,6 +228,7 @@ const CardListClient = ({
         selectedTrigger && selectedTrigger !== NO_TRIGGER_LABEL
           ? selectedTrigger
           : undefined,
+      sortBy,
     };
   }, [
     search,
@@ -237,6 +246,7 @@ const CardListClient = ({
     selectedRegion,
     selectedCounter,
     selectedTrigger,
+    selectedSort,
   ]);
 
   const filtersSignature = useMemo(
@@ -290,7 +300,13 @@ const CardListClient = ({
   const { data: countData, isFetching: isCounting } = useCardsCount(filters);
 
   useEffect(() => {
+    // Solo prefetch en desktop (mobile tiene datos limitados)
+    const isDesktop = typeof window !== 'undefined'
+      ? window.matchMedia('(min-width: 768px)').matches
+      : false;
+
     if (
+      isDesktop &&
       hasNextPage &&
       !isFetchingNextPage &&
       !isFetching &&
@@ -411,84 +427,10 @@ const CardListClient = ({
       return card;
     });
 
-    // Para ordenamiento por precio, aplanar todas las cartas (base + alternativas)
-    // y ordenarlas individualmente por precio
+    // Para ordenamiento por precio, el backend ya devuelve las cartas ordenadas
+    // Solo retornamos las cartas sin aplicar ordenamiento adicional
     if (selectedSort === "Price high" || selectedSort === "Price low") {
-      type FlatCard = {
-        card: CardWithCollectionData;
-        baseCard: CardWithCollectionData;
-        isAlternate: boolean;
-        price: number | null;
-      };
-
-      const flatCards: FlatCard[] = [];
-
-      normalizedCards.forEach((card) => {
-        const isBaseMatch = baseCardMatches(
-          card,
-          selectedSets,
-          selectedAltArts
-        );
-        const filteredAlts = getFilteredAlternates(
-          card,
-          selectedSets,
-          selectedAltArts
-        );
-
-        // Agregar carta base si coincide con filtros
-        if (isBaseMatch) {
-          flatCards.push({
-            card: card,
-            baseCard: card,
-            isAlternate: false,
-            price: getCardPriceValue(card),
-          });
-        }
-
-        // Agregar alternativas que coinciden con filtros
-        filteredAlts.forEach((alt) => {
-          flatCards.push({
-            card: alt,
-            baseCard: card,
-            isAlternate: true,
-            price: getCardPriceValue(alt),
-          });
-        });
-      });
-
-      // Ordenar todas las cartas (base + alternativas) por precio
-      flatCards.sort((a, b) => {
-        if (a.price === null && b.price === null) return 0;
-        if (a.price === null) return 1;
-        if (b.price === null) return -1;
-        return selectedSort === "Price high"
-          ? b.price - a.price
-          : a.price - b.price;
-      });
-
-      // Crear cartas "virtuales" que representan cada posición en el orden de precio
-      // Cada carta tendrá la información de la base para poder mostrar alternativas
-      return flatCards.map((item) => {
-        if (item.isAlternate) {
-          // Si es una alternativa, crear una carta "virtual" que tenga esta alterna
-          // como carta principal y preserve la información de la base
-          return {
-            ...item.card,
-            // Marcar esta carta como "primary" para que se muestre sola
-            alternates: [],
-            // Guardar referencia a la carta base original
-            _baseCardReference: item.baseCard,
-            _isVirtualAlternate: true,
-          } as CardWithCollectionData;
-        } else {
-          // Si es carta base, devolverla tal cual pero sin alternativas
-          // (las alternativas se mostrarán en sus posiciones individuales)
-          return {
-            ...item.card,
-            alternates: [],
-          };
-        }
-      });
+      return normalizedCards;
     }
 
     // Para otros ordenamientos, usar la lógica original
@@ -511,7 +453,7 @@ const CardListClient = ({
     }
 
     return sortedCards;
-  }, [dataSource, isProVersion, selectedSort, selectedSets, selectedAltArts]);
+  }, [dataSource, isProVersion, selectedSort]);
 
   const PriceTag = ({
     card,
@@ -1074,7 +1016,7 @@ const CardListClient = ({
                                     fallbackSrc="/assets/images/backcard.webp"
                                     alt={card.name}
                                     className="w-full"
-                                    priority={baseCardIndex < 20}
+                                    priority={baseCardIndex < 6}
                                     size="small"
                                   />
                                   <TooltipProvider>
@@ -1150,7 +1092,7 @@ const CardListClient = ({
                                       fallbackSrc="/assets/images/backcard.webp"
                                       alt={alt.name}
                                       className="w-full"
-                                      priority={altGlobalIndex < 20}
+                                      priority={altGlobalIndex < 6}
                                       size="small"
                                     />
                                     <TooltipProvider>
@@ -1362,7 +1304,7 @@ const CardListClient = ({
                                         fallbackSrc="/assets/images/backcard.webp"
                                         alt={card?.name}
                                         className="w-[80%] m-auto"
-                                        priority={baseCardIndex < 20}
+                                        priority={baseCardIndex < 6}
                                         size="small"
                                       />
                                     </div>
@@ -1418,7 +1360,7 @@ const CardListClient = ({
                                           fallbackSrc="/assets/images/backcard.webp"
                                           alt={alt?.name}
                                           className="w-[80%] m-auto"
-                                          priority={altGlobalIndex < 20}
+                                          priority={altGlobalIndex < 6}
                                           size="small"
                                         />
                                       </div>

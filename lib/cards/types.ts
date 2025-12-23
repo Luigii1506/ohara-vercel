@@ -16,6 +16,7 @@ export type CardsFilters = {
   region?: string;
   counter?: string;
   trigger?: string;
+  sortBy?: "price_high" | "price_low";
 };
 
 export type CardsPage = {

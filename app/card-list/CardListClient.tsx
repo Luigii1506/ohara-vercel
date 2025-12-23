@@ -194,6 +194,35 @@ const CardListClient = ({
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Detectar viewport para optimizaciones
+  const [priorityLimit, setPriorityLimit] = useState(6);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const updateViewport = () => {
+      const width = window.innerWidth;
+      const desktop = width >= 768;
+      setIsDesktop(desktop);
+
+      // Calcular cuántas cartas caben en el viewport
+      if (width >= 1536) {
+        setPriorityLimit(24); // 2xl: 8 cols × 3 rows
+      } else if (width >= 1280) {
+        setPriorityLimit(21); // xl: 7 cols × 3 rows
+      } else if (width >= 1024) {
+        setPriorityLimit(18); // lg: 6 cols × 3 rows
+      } else if (width >= 768) {
+        setPriorityLimit(15); // md: 5 cols × 3 rows
+      } else {
+        setPriorityLimit(6); // mobile: 3-4 cols × 2 rows
+      }
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
   const filters = useMemo<CardsFilters>(() => {
     // Map selected sort to backend sortBy format
@@ -300,11 +329,6 @@ const CardListClient = ({
   const { data: countData, isFetching: isCounting } = useCardsCount(filters);
 
   useEffect(() => {
-    // Solo prefetch en desktop (mobile tiene datos limitados)
-    const isDesktop = typeof window !== 'undefined'
-      ? window.matchMedia('(min-width: 768px)').matches
-      : false;
-
     if (
       isDesktop &&
       hasNextPage &&
@@ -320,6 +344,7 @@ const CardListClient = ({
       });
     }
   }, [
+    isDesktop,
     hasNextPage,
     isFetchingNextPage,
     isFetching,
@@ -1016,7 +1041,7 @@ const CardListClient = ({
                                     fallbackSrc="/assets/images/backcard.webp"
                                     alt={card.name}
                                     className="w-full"
-                                    priority={baseCardIndex < 6}
+                                    priority={baseCardIndex < priorityLimit}
                                     size="small"
                                   />
                                   <TooltipProvider>
@@ -1092,7 +1117,7 @@ const CardListClient = ({
                                       fallbackSrc="/assets/images/backcard.webp"
                                       alt={alt.name}
                                       className="w-full"
-                                      priority={altGlobalIndex < 6}
+                                      priority={altGlobalIndex < priorityLimit}
                                       size="small"
                                     />
                                     <TooltipProvider>
@@ -1304,7 +1329,7 @@ const CardListClient = ({
                                         fallbackSrc="/assets/images/backcard.webp"
                                         alt={card?.name}
                                         className="w-[80%] m-auto"
-                                        priority={baseCardIndex < 6}
+                                        priority={baseCardIndex < priorityLimit}
                                         size="small"
                                       />
                                     </div>
@@ -1360,7 +1385,7 @@ const CardListClient = ({
                                           fallbackSrc="/assets/images/backcard.webp"
                                           alt={alt?.name}
                                           className="w-[80%] m-auto"
-                                          priority={altGlobalIndex < 6}
+                                          priority={altGlobalIndex < priorityLimit}
                                           size="small"
                                         />
                                       </div>

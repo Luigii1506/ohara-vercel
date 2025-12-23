@@ -78,10 +78,6 @@ export interface CardListing {
     id: number;
     name: string;
     email: string;
-    sellerProfile?: {
-      storeName?: string;
-      rating?: number;
-    };
   };
 
   // Información de venta

@@ -93,12 +93,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             id: true,
             name: true,
             email: true,
-            sellerProfile: {
-              select: {
-                storeName: true,
-                rating: true,
-              },
-            },
           },
         },
       },

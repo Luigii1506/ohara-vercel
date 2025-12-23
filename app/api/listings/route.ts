@@ -80,13 +80,6 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             image: true,
-            sellerProfile: {
-              select: {
-                storeName: true,
-                rating: true,
-                reviewsCount: true,
-              },
-            },
           },
         },
       },
@@ -120,9 +113,6 @@ export async function GET(request: NextRequest) {
             id: listing.seller.id,
             name: listing.seller.name,
             image: listing.seller.image,
-            store_name: listing.seller.sellerProfile?.storeName,
-            rating: listing.seller.sellerProfile?.rating,
-            reviews_count: listing.seller.sellerProfile?.reviewsCount,
           }
         : null,
       card: {

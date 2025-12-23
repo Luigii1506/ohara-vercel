@@ -93,12 +93,6 @@ export async function createCardListing(
             id: true,
             name: true,
             email: true,
-            sellerProfile: {
-              select: {
-                storeName: true,
-                rating: true,
-              },
-            },
           },
         },
       },
@@ -129,13 +123,6 @@ export async function createCardListing(
               id: listing.seller.id,
               name: listing.seller.name,
               email: listing.seller.email,
-              sellerProfile: listing.seller.sellerProfile
-                ? {
-                    storeName:
-                      listing.seller.sellerProfile.storeName || undefined,
-                    rating: listing.seller.sellerProfile.rating || undefined,
-                  }
-                : undefined,
             }
           : undefined,
         price: listing.price.toNumber(),
@@ -237,12 +224,6 @@ export async function getSellerCardListings(
             id: true,
             name: true,
             email: true,
-            sellerProfile: {
-              select: {
-                storeName: true,
-                rating: true,
-              },
-            },
           },
         },
       },
@@ -273,13 +254,6 @@ export async function getSellerCardListings(
             id: listing.seller.id,
             name: listing.seller.name,
             email: listing.seller.email,
-            sellerProfile: listing.seller.sellerProfile
-              ? {
-                  storeName:
-                    listing.seller.sellerProfile.storeName || undefined,
-                  rating: listing.seller.sellerProfile.rating || undefined,
-                }
-              : undefined,
           }
         : undefined,
       price: listing.price.toNumber(),
@@ -352,12 +326,6 @@ export async function updateCardListing(
             id: true,
             name: true,
             email: true,
-            sellerProfile: {
-              select: {
-                storeName: true,
-                rating: true,
-              },
-            },
           },
         },
       },
@@ -388,15 +356,6 @@ export async function updateCardListing(
               id: updatedListing.seller.id,
               name: updatedListing.seller.name,
               email: updatedListing.seller.email,
-              sellerProfile: updatedListing.seller.sellerProfile
-                ? {
-                    storeName:
-                      updatedListing.seller.sellerProfile.storeName ||
-                      undefined,
-                    rating:
-                      updatedListing.seller.sellerProfile.rating || undefined,
-                  }
-                : undefined,
             }
           : undefined,
         price: updatedListing.price.toNumber(),

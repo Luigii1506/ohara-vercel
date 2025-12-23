@@ -101,6 +101,7 @@ export interface DeckCard {
 export interface CardWithCollectionData extends CardData {
   isInCollection?: boolean | undefined;
   isSelectable?: boolean | undefined;
+  collectionOrder?: string | null;
   totalInCollection: {
     id: string; // ID de la carta en la colección
     quantity: number; // Cantidad de esa carta en la colección

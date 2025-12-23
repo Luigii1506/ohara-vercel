@@ -4,6 +4,7 @@ import { CardWithCollectionData } from "@/types";
  * Cache para mejorar performance del ordenamiento
  */
 const prefixIndexCache: Record<string, number> = {};
+const sortKeyCache: Record<number | string, string> = {};
 
 /**
  * Obtiene el índice de prioridad basado en el prefijo del código de carta
@@ -61,16 +62,9 @@ export const sortByCollectionOrder = (
   a: CardWithCollectionData,
   b: CardWithCollectionData
 ): number => {
-  const codeA = a.code || a.setCode || "";
-  const codeB = b.code || b.setCode || "";
-  const idxA = getPrefixIndex(codeA, a.category);
-  const idxB = getPrefixIndex(codeB, b.category);
-
-  // Si tienen diferente prefijo, ordenar por prioridad de prefijo
-  if (idxA !== idxB) return idxA - idxB;
-
-  // Mismo prefijo, ordenar alfabéticamente por código
-  return codeA.localeCompare(codeB);
+  const keyA = getCollectionOrderKey(a);
+  const keyB = getCollectionOrderKey(b);
+  return keyA.localeCompare(keyB);
 };
 
 /**
@@ -89,4 +83,55 @@ export const sortCards = (
   cards: CardWithCollectionData[]
 ): CardWithCollectionData[] => {
   return [...cards].sort(sortByCollectionOrder);
+};
+
+const digitsRegex = /\d+/g;
+
+const normalizeCodeSegment = (value: string) =>
+  value
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9-]/g, "")
+    .replace(digitsRegex, (match) => match.padStart(4, "0"));
+
+const normalizeAlternateOrder = (value?: string | null) => {
+  if (!value) return "zzzz";
+  const trimmed = value.trim();
+  if (!trimmed) return "zzzz";
+  const numeric = trimmed.match(/^\d+/);
+  if (numeric) {
+    return numeric[0].padStart(4, "0");
+  }
+  return trimmed.padStart(4, "0");
+};
+
+export const getCollectionOrderKey = (
+  card: CardWithCollectionData
+): string => {
+  const cacheKey = card.id ?? card.code;
+  if (cacheKey && sortKeyCache[cacheKey]) {
+    return sortKeyCache[cacheKey];
+  }
+
+  if (card.collectionOrder && card.collectionOrder.length) {
+    if (cacheKey) sortKeyCache[cacheKey] = card.collectionOrder;
+    return card.collectionOrder;
+  }
+
+  const code = card.code || card.setCode || "";
+  const prefixIndex = getPrefixIndex(code, card.category);
+  const normalizedCode = normalizeCodeSegment(code);
+  const isBaseCard =
+    card.baseCardId === null || card.baseCardId === undefined;
+  const suffix = isBaseCard
+    ? "00"
+    : `10_${normalizeAlternateOrder(card.order)}`;
+  const fallbackKey = `${prefixIndex
+    .toString()
+    .padStart(2, "0")}_${normalizedCode}_${suffix}`;
+
+  if (cacheKey) {
+    sortKeyCache[cacheKey] = fallbackKey;
+  }
+  return fallbackKey;
 };

@@ -1,12 +1,12 @@
 import CardListClient from "./CardListClient";
 import {
   buildFiltersFromSearchParams,
-  fetchAllCardsFromDb,
+  fetchCardsPageFromDb,
 } from "@/lib/cards/query";
-import type { CardsFilters, CardsPage } from "@/lib/cards/types";
+import type { CardsPage } from "@/lib/cards/types";
 import { mergeFiltersWithSetCode } from "@/lib/cards/types";
 
-const DEFAULT_LIMIT = 200;
+const INITIAL_LIMIT = 60;
 
 type PageProps = {
   searchParams: Record<string, string | string[] | undefined>;
@@ -43,35 +43,13 @@ export default async function CardListPage({ searchParams }: PageProps) {
     setCode
   );
 
-  const allCards = await fetchAllCardsFromDb({
+  const initialData: CardsPage = await fetchCardsPageFromDb({
     filters: initialFilters,
     includeRelations: true,
     includeAlternates: true,
     includeCounts: true,
+    limit: INITIAL_LIMIT,
   });
-
-  const initialItems = allCards.slice(0, DEFAULT_LIMIT);
-  const nextCursor =
-    allCards.length > DEFAULT_LIMIT
-      ? (() => {
-          const lastItem = initialItems[initialItems.length - 1];
-          if (!lastItem?.id && lastItem?.isFirstEdition && lastItem?.code) {
-            return null;
-          }
-          const idValue = lastItem?.id;
-          if (typeof idValue === "number") return idValue;
-          if (typeof idValue === "string" && !Number.isNaN(Number(idValue))) {
-            return Number(idValue);
-          }
-          return null;
-        })()
-      : null;
-
-  const initialData: CardsPage = {
-    items: initialItems,
-    nextCursor,
-    hasMore: allCards.length > DEFAULT_LIMIT,
-  };
 
   return (
     <CardListClient initialData={initialData} initialFilters={initialFilters} />

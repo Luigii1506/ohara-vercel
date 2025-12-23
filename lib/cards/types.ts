@@ -22,6 +22,7 @@ export type CardsPage = {
   items: CardWithCollectionData[];
   nextCursor: number | null;
   hasMore: boolean;
+  totalCount: number;
 };
 
 export const mergeFiltersWithSetCode = (

@@ -222,11 +222,7 @@ const NavBar = () => {
     },
   ];
 
-  // Flatten para mantener compatibilidad con mobile
-  const adminMenuItems = adminMenuCategories.flatMap((cat) => cat.items);
-
-  // Menú completo para desktop
-  const desktopMenuItems = [
+  const publicDesktopMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
     { href: "/events", label: "Events", icon: Calendar },
@@ -234,43 +230,29 @@ const NavBar = () => {
     { href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
-  if (userId) {
-    desktopMenuItems.push({
-      href: "/lists",
-      label: "My Lists",
-      icon: FolderOpen,
-    });
-    desktopMenuItems.push({
-      href: "/decks",
-      label: "My decks",
-      icon: FolderOpen,
-    });
-    desktopMenuItems.push({
-      href: "/logs",
-      label: "Game Logs",
-      icon: FileText,
-    });
-  }
+  const privateDesktopMenuItems = [
+    { href: "/lists", label: "My Lists", icon: FolderOpen },
+    { href: "/decks", label: "My decks", icon: FolderOpen },
+    { href: "/logs", label: "Game Logs", icon: FileText },
+  ];
 
-  // Menú mobile sin Proxies
-  const mobileMenuItems = [
+  const publicMobileMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 
-  if (userId) {
-    mobileMenuItems.push({
-      href: "/lists",
-      label: "My Lists",
-      icon: FolderOpen,
-    });
-    mobileMenuItems.push({
-      href: "/decks",
-      label: "My decks",
-      icon: FolderOpen,
-    });
-  }
+  const privateMobileMenuItems = [
+    { href: "/lists", label: "My Lists", icon: FolderOpen },
+    { href: "/decks", label: "My decks", icon: FolderOpen },
+    { href: "/logs", label: "Game Logs", icon: FileText },
+  ];
+
+  const showPrivateMenus = Boolean(userId);
+  const showAdminMenu = role === "ADMIN";
+  const mobileMenuItems = showPrivateMenus
+    ? [...publicMobileMenuItems, ...privateMobileMenuItems]
+    : publicMobileMenuItems;
 
   const renderSocialIcon = (path: string, label: string) => (
     <svg
@@ -313,53 +295,148 @@ const NavBar = () => {
     },
   ];
 
+  const renderDesktopAuth = () => {
+    if (loading) {
+      return (
+        <div className="h-10 w-28 rounded-md border border-white/20 bg-white/5 animate-pulse" />
+      );
+    }
+    if (userId) {
+      return (
+        <Button
+          variant="outline"
+          className="h-10 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
+          onClick={() => signOut({ callbackUrl: "/?from=logout" })}
+        >
+          <LogOutIcon size={18} />
+          <span>Sign Out</span>
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        onClick={() => setIsOpen(true)}
+        variant="outline"
+        className="h-10 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
+      >
+        <UserIcon size={18} />
+        <span>Sign In</span>
+      </Button>
+    );
+  };
+
+  const renderMobileAuth = () => {
+    if (loading) {
+      return (
+        <div className="w-full h-11 rounded-md border border-white/20 bg-white/5 animate-pulse" />
+      );
+    }
+
+    if (userId) {
+      return (
+        <Button
+          variant="outline"
+          className="w-full h-11 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
+          onClick={() => signOut({ callbackUrl: "/?from=logout" })}
+        >
+          <LogOutIcon size={18} className="text-white" />
+          <span className="text-white">Sign Out</span>
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        onClick={() => {
+          setIsMobileMenuOpen(false);
+          setIsOpen(true);
+        }}
+        variant="outline"
+        className="w-full h-11 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
+      >
+        <UserIcon size={18} />
+        <span>Sign In</span>
+      </Button>
+    );
+  };
+
   return (
     <>
-      <header className="flex w-full flex-wrap items-center gap-3 px-4 md:px-6 py-3 shadow-md relative text-[#FAF9F3] bg-black z-50">
-        {!loading && (
-          <div className="flex items-center gap-4 w-full">
-            {/* Logo y menú desktop */}
-            <div className="flex items-center gap-4 justify-between flex-1 min-w-0">
-              <div className="flex items-center gap-4 min-w-0">
-                {/* Logo */}
-                <Link
-                  href="/"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.href = "/";
-                  }}
-                  className="flex items-center"
-                >
-                  <Image
-                    src={Logo}
-                    height={120}
-                    width={120}
-                    alt="logo"
-                    className="invert w-[100px] md:w-[120px] h-auto"
-                  />
-                </Link>
+      <header className="flex w-full flex-wrap items-center gap-3 px-4 md:px-6 py-3 shadow-md relative text-[#FAF9F3] bg-black z-50 min-h-[68px] md:min-h-[88px] transition-[min-height] duration-300">
+        <div className="flex items-center gap-4 w-full">
+          {/* Logo y menú desktop */}
+          <div className="flex items-center gap-4 justify-between flex-1 min-w-0">
+            <div className="flex items-center gap-4 min-w-0">
+              {/* Logo */}
+              <Link
+                href="/"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = "/";
+                }}
+                className="flex items-center"
+              >
+                <Image
+                  src={Logo}
+                  height={120}
+                  width={120}
+                  alt="logo"
+                  className="invert w-[100px] md:w-[120px] h-auto"
+                />
+              </Link>
 
-                {/* Menú Desktop */}
-                <nav className="hidden md:flex flex-wrap lg:flex-nowrap items-center gap-4 text-sm">
-                  <span className="text-gray-600 flex-shrink-0">|</span>
-                  {desktopMenuItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline  ${
-                        (item.href === "/" && pathname.length === 0) ||
-                        (item.href !== "/" &&
-                          pathname[0] === item.href.slice(1))
-                          ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
-                          : ""
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+              {/* Menú Desktop */}
+              <nav className="hidden md:flex flex-wrap lg:flex-nowrap items-center gap-4 text-sm">
+                <span className="text-gray-600 flex-shrink-0">|</span>
+                {publicDesktopMenuItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline  ${
+                      (item.href === "/" && pathname.length === 0) ||
+                      (item.href !== "/" && pathname[0] === item.href.slice(1))
+                        ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
+                        : ""
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
 
-                  {/* Admin Dropdown Menu Desktop */}
-                  {role === "ADMIN" && (
+                {(loading || showPrivateMenus) && (
+                  <div className="flex items-center gap-4 min-w-[200px]">
+                    {loading && (
+                      <div className="flex items-center gap-4">
+                        {privateDesktopMenuItems.map((item) => (
+                          <span
+                            key={`private-skeleton-${item.href}`}
+                            className="h-5 w-24 rounded bg-white/10 animate-pulse block"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {showPrivateMenus &&
+                      privateDesktopMenuItems.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline whitespace-nowrap ${
+                            pathname.join("/").startsWith(item.href.slice(1))
+                              ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
+                              : ""
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                  </div>
+                )}
+
+                <div className="flex items-center min-w-[140px] justify-end">
+                  {loading ? (
+                    <div className="h-8 w-24 rounded-md bg-white/10 animate-pulse" />
+                  ) : showAdminMenu ? (
                     <>
                       <span className="text-gray-600 flex-shrink-0">|</span>
                       <div className="relative" ref={adminMenuRef}>
@@ -381,7 +458,6 @@ const NavBar = () => {
                           />
                         </button>
 
-                        {/* Dropdown Menu - Modern Grid Layout */}
                         {isAdminMenuOpen && (
                           <div className="absolute top-full mt-2 right-0 w-[600px] max-w-[90vw] bg-gray-900 border border-gray-800 rounded-lg shadow-xl overflow-hidden z-50">
                             <div className="p-3 border-b border-gray-800 bg-gray-900/50">
@@ -408,9 +484,7 @@ const NavBar = () => {
                                       <Link
                                         key={item.href}
                                         href={item.href}
-                                        onClick={() =>
-                                          setIsAdminMenuOpen(false)
-                                        }
+                                        onClick={() => setIsAdminMenuOpen(false)}
                                         className={`flex items-start gap-2.5 px-3 py-2 rounded-md transition-all duration-200 group no-underline ${
                                           isActive
                                             ? "bg-red-500/20 text-white shadow-sm"
@@ -455,65 +529,49 @@ const NavBar = () => {
                         )}
                       </div>
                     </>
+                  ) : (
+                    <span className="h-8 w-24 rounded-md opacity-0 pointer-events-none" />
                   )}
-                </nav>
-              </div>
-
-              {/* Redes sociales + botones de autenticación desktop */}
-              <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-                <div className="flex items-center gap-2 pr-2">
-                  {socialLinks.map(({ href, label, iconPath }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors"
-                      aria-label={label}
-                    >
-                      {renderSocialIcon(iconPath, label)}
-                    </Link>
-                  ))}
                 </div>
-                {userId ? (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
-                    onClick={() => signOut({ callbackUrl: "/?from=logout" })}
-                  >
-                    <LogOutIcon size={18} />
-                    <span>Sign Out</span>
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => setIsOpen(true)}
-                    variant="outline"
-                    className="bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
-                  >
-                    <UserIcon size={18} />
-                    <span>Sign In</span>
-                  </Button>
-                )}
-              </div>
-
-              {/* Botón de menú móvil */}
-              <button
-                className="mobile-menu-button md:hidden p-2 rounded-md hover:bg-white/10 transition-colors relative z-50 ml-auto"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMobileMenuOpen(!isMobileMenuOpen);
-                }}
-                aria-label="Toggle mobile menu"
-              >
-                {isMobileMenuOpen ? (
-                  <X size={24} className="text-white" />
-                ) : (
-                  <Menu size={24} className="text-white" />
-                )}
-              </button>
+              </nav>
             </div>
+
+            {/* Redes sociales + botones de autenticación desktop */}
+            <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 pr-2">
+                {socialLinks.map(({ href, label, iconPath }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-full bg-white/5 hover:bg-white/15 transition-colors"
+                    aria-label={label}
+                  >
+                    {renderSocialIcon(iconPath, label)}
+                  </Link>
+                ))}
+              </div>
+              {renderDesktopAuth()}
+            </div>
+
+            {/* Botón de menú móvil */}
+            <button
+              className="mobile-menu-button md:hidden p-2 rounded-md hover:bg-white/10 transition-colors relative z-50 ml-auto"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMobileMenuOpen(!isMobileMenuOpen);
+              }}
+              aria-label="Toggle mobile menu"
+            >
+              {isMobileMenuOpen ? (
+                <X size={24} className="text-white" />
+              ) : (
+                <Menu size={24} className="text-white" />
+              )}
+            </button>
           </div>
-        )}
+        </div>
 
         <LoginModal
           isOpen={isOpen}
@@ -524,157 +582,128 @@ const NavBar = () => {
       </header>
 
       {/* Menú móvil overlay */}
-      {!loading && (
-        <div
-          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
-            isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      <div
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
+          isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
 
       {/* Menú móvil panel */}
-      {!loading && (
-        <div
-          ref={mobileMenuRef}
-          className={`fixed top-[60px] right-0 bottom-0 w-[300px] bg-gray-900 border-l border-gray-800 shadow-2xl z-50 md:hidden transform transition-transform duration-300 ease-out ${
-            isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          <div className="flex flex-col h-full">
-            {/* Enlaces principales */}
-            <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-              <div className="space-y-1">
-                {mobileMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive =
-                    (item.href === "/" && pathname.length === 0) ||
-                    (item.href !== "/" && pathname[0] === item.href.slice(1));
+      <div
+        ref={mobileMenuRef}
+        className={`fixed top-[60px] right-0 bottom-0 w-[300px] bg-gray-900 border-l border-gray-800 shadow-2xl z-50 md:hidden transform transition-transform duration-300 ease-out ${
+          isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          {/* Enlaces principales */}
+          <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div className="space-y-1">
+              {mobileMenuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  (item.href === "/" && pathname.length === 0) ||
+                  (item.href !== "/" && pathname[0] === item.href.slice(1));
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
-                        isActive
-                          ? "bg-white/10 text-white"
-                          : "text-gray-300 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      <Icon
-                        size={20}
-                        className={isActive ? "text-white" : "text-white"}
-                      />
-                      <span className="font-medium text-white">
-                        {item.label}
-                      </span>
-                      {isActive && (
-                        <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
+                      isActive
+                        ? "bg-white/10 text-white"
+                        : "text-gray-300 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <Icon
+                      size={20}
+                      className={isActive ? "text-white" : "text-white"}
+                    />
+                    <span className="font-medium text-white">{item.label}</span>
+                    {isActive && (
+                      <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
 
-              {/* Sección Admin en móvil con categorías */}
-              {role === "ADMIN" && (
-                <div className="pt-6 border-t border-gray-800">
-                  <p className="text-xs text-white font-medium px-4 mb-3">
-                    ADMIN TOOLS
-                  </p>
-                  <div className="space-y-4">
-                    {adminMenuCategories.map((category) => (
-                      <div key={category.category} className="space-y-1">
-                        <p className="text-[10px] text-white font-semibold px-4 mb-2 uppercase tracking-wider">
-                          {category.category}
-                        </p>
-                        {category.items.map((item) => {
-                          const Icon = item.icon;
-                          const isActive = pathname
-                            .join("/")
-                            .includes(item.href.slice(1));
-
-                          return (
-                            <Link
-                              key={item.href}
-                              href={item.href}
-                              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 no-underline ${
-                                isActive
-                                  ? "bg-red-500/20 text-white"
-                                  : "text-gray-300 hover:bg-white/5 hover:text-white"
-                              }`}
-                            >
-                              <Icon
-                                size={18}
-                                className={
-                                  isActive ? "text-white" : "text-white"
-                                }
-                              />
-                              <span className="font-medium text-sm text-white">
-                                {item.label}
-                              </span>
-                              {isActive && (
-                                <div className="ml-auto w-2 h-2 bg-red-400 rounded-full"></div>
-                              )}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Redes sociales mobile */}
-              <div className="mt-8">
-                <p className="text-xs text-gray-400 font-medium px-1 mb-3">
-                  FOLLOW US
+            {/* Sección Admin en móvil con categorías */}
+            {role === "ADMIN" && (
+              <div className="pt-6 border-t border-gray-800">
+                <p className="text-xs text-white font-medium px-4 mb-3">
+                  ADMIN TOOLS
                 </p>
-                <div className="flex flex-wrap gap-3">
-                  {socialLinks.map(({ href, label, iconPath }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 min-w-[48px] flex items-center justify-center p-3 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
-                    >
-                      {renderSocialIcon(iconPath, label)}
-                      <span className="sr-only">{label}</span>
-                    </Link>
+                <div className="space-y-4">
+                  {adminMenuCategories.map((category) => (
+                    <div key={category.category} className="space-y-1">
+                      <p className="text-[10px] text-white font-semibold px-4 mb-2 uppercase tracking-wider">
+                        {category.category}
+                      </p>
+                      {category.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname
+                          .join("/")
+                          .includes(item.href.slice(1));
+
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 no-underline ${
+                              isActive
+                                ? "bg-red-500/20 text-white"
+                                : "text-gray-300 hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            <Icon
+                              size={18}
+                              className={isActive ? "text-white" : "text-white"}
+                            />
+                            <span className="font-medium text-sm text-white">
+                              {item.label}
+                            </span>
+                            {isActive && (
+                              <div className="ml-auto w-2 h-2 bg-red-400 rounded-full"></div>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
                   ))}
                 </div>
               </div>
-            </nav>
+            )}
 
-            {/* Botón de autenticación móvil */}
-            <div className="p-4 border-t border-gray-800">
-              {userId ? (
-                <Button
-                  variant="outline"
-                  className="w-full bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
-                  onClick={() => signOut({ callbackUrl: "/?from=logout" })}
-                >
-                  <LogOutIcon size={18} className="text-white" />
-                  <span className="text-white">Sign Out</span>
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsOpen(true);
-                  }}
-                  variant="outline"
-                  className="w-full bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
-                >
-                  <UserIcon size={18} />
-                  <span>Sign In</span>
-                </Button>
-              )}
+            {/* Redes sociales mobile */}
+            <div className="mt-8">
+              <p className="text-xs text-gray-400 font-medium px-1 mb-3">
+                FOLLOW US
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {socialLinks.map(({ href, label, iconPath }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-[48px] flex items-center justify-center p-3 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
+                  >
+                    {renderSocialIcon(iconPath, label)}
+                    <span className="sr-only">{label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
+          </nav>
+
+          {/* Botón de autenticación móvil */}
+          <div className="p-4 border-t border-gray-800">
+            {renderMobileAuth()}
           </div>
         </div>
-      )}
+      </div>
     </>
   );
 };

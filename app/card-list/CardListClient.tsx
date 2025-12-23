@@ -8,7 +8,6 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { CardWithCollectionData } from "@/types";
 import {
@@ -17,7 +16,6 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
-import { CardListPageSkeleton } from "@/components/skeletons";
 import SearchFilters from "@/components/home/SearchFilters";
 import CardModal from "@/components/CardModal";
 import DonModal from "@/components/DonModal";
@@ -45,8 +43,12 @@ import {
 } from "@/components/ui/tooltip";
 import { highlightText } from "@/helpers/functions";
 import { ProToggleButton } from "@/components/shared/ProToggleButton";
-import { useCardStore } from "@/store/cardStore";
-import { useCardsSyncStatus, useAllCards } from "@/hooks/useCards";
+import {
+  useCardsSyncStatus,
+  usePaginatedCards,
+  useCardsCount,
+  serializeFiltersForKey,
+} from "@/hooks/useCards";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { RefreshCw, WifiOff } from "lucide-react";
 import ClearFiltersButton from "@/components/ClearFiltersButton";
@@ -84,203 +86,10 @@ const priceSortOptions: Option[] = [
   { value: "Price low", label: "Price: low to high" },
 ];
 
+const PAGE_SIZE = 60;
+
 const NO_COUNTER_LABEL = "No counter";
 const NO_TRIGGER_LABEL = "No trigger";
-
-const toLower = (value: string | null | undefined) =>
-  value?.toLowerCase().trim() ?? "";
-
-const matchesCardFilters = (
-  card: CardWithCollectionData,
-  filters: CardsFilters
-) => {
-  if (!card) return false;
-
-  const {
-    search,
-    sets,
-    setCodes,
-    colors,
-    rarities,
-    categories,
-    costs,
-    power,
-    attributes,
-    types,
-    effects,
-    altArts,
-    region,
-    counter,
-    trigger,
-  } = filters;
-
-  if (search) {
-    const normalized = search.toLowerCase().trim();
-    const codeMatch = matchesCardCode(card.code, search);
-    const nameMatch = toLower(card.name).includes(normalized);
-    const aliasMatch = toLower(card.alias).includes(normalized);
-    const effectMatch =
-      card.effects?.some((entry) =>
-        toLower(entry.effect).includes(normalized)
-      ) ?? false;
-    const textMatch =
-      card.texts?.some((entry) => toLower(entry.text).includes(normalized)) ??
-      false;
-    const setMatch =
-      card.sets?.some((entry) =>
-        toLower(entry.set.title).includes(normalized)
-      ) ?? false;
-
-    if (
-      !codeMatch &&
-      !nameMatch &&
-      !aliasMatch &&
-      !effectMatch &&
-      !textMatch &&
-      !setMatch
-    ) {
-      return false;
-    }
-  }
-
-  if (sets?.length) {
-    const normalizedSets = sets.map((value) => value.toLowerCase());
-
-    // Dividir setCode por comas y verificar si alguno coincide
-    const baseSetCodes = (card.setCode ?? "")
-      .split(",")
-      .map((code) => code.trim().toLowerCase())
-      .filter(Boolean);
-    const matchesBase = baseSetCodes.some((code) =>
-      normalizedSets.includes(code)
-    );
-
-    const matchesAlternate =
-      card.alternates?.some((alt) => {
-        const altSetCodes = (alt.setCode ?? "")
-          .split(",")
-          .map((code) => code.trim().toLowerCase())
-          .filter(Boolean);
-        return altSetCodes.some((code) => normalizedSets.includes(code));
-      }) ?? false;
-
-    if (!matchesBase && !matchesAlternate) {
-      return false;
-    }
-  }
-
-  if (setCodes?.length) {
-    const matchesSelectedCode = setCodes.some((selectedCode) =>
-      matchesCardCode(card.code, selectedCode)
-    );
-    if (!matchesSelectedCode) {
-      return false;
-    }
-  }
-
-  if (colors?.length) {
-    const normalizedSelected = colors.map((color) => color.toLowerCase());
-    const cardColors =
-      card.colors?.map((entry) => toLower(entry.color)).filter(Boolean) ?? [];
-    if (!cardColors.some((color) => normalizedSelected.includes(color))) {
-      return false;
-    }
-  }
-
-  if (rarities?.length) {
-    const normalized = rarities.map((value) => value.toLowerCase());
-    if (!card.rarity || !normalized.includes(toLower(card.rarity))) {
-      return false;
-    }
-  }
-
-  if (categories?.length) {
-    const normalized = categories.map((value) => value.toLowerCase());
-    if (!normalized.includes(toLower(card.category))) {
-      return false;
-    }
-  }
-
-  if (costs?.length) {
-    if (!card.cost || !costs.includes(card.cost)) {
-      return false;
-    }
-  }
-
-  if (power?.length) {
-    if (!card.power || !power.includes(card.power)) {
-      return false;
-    }
-  }
-
-  if (attributes?.length) {
-    const normalized = attributes.map((value) => value.toLowerCase());
-    if (!normalized.includes(toLower(card.attribute))) {
-      return false;
-    }
-  }
-
-  if (types?.length) {
-    const normalized = types.map((value) => value.toLowerCase());
-    const cardTypes =
-      card.types?.map((entry) => toLower(entry.type)).filter(Boolean) ?? [];
-    if (!cardTypes.some((type) => normalized.includes(type))) {
-      return false;
-    }
-  }
-
-  if (effects?.length) {
-    const normalized = effects.map((value) => value.toLowerCase());
-    const cardEffects =
-      card.effects?.map((entry) => toLower(entry.effect)).filter(Boolean) ?? [];
-    if (!cardEffects.some((effect) => normalized.includes(effect))) {
-      return false;
-    }
-  }
-
-  if (altArts?.length) {
-    // La carta debe coincidir si su alternateArt está en el filtro
-    // O si alguna de sus alternativas tiene ese alternateArt
-    const baseMatches =
-      card.alternateArt && altArts.includes(card.alternateArt);
-    const hasMatchingAlternate =
-      card.alternates?.some(
-        (alt) => alt.alternateArt && altArts.includes(alt.alternateArt)
-      ) ?? false;
-
-    if (!baseMatches && !hasMatchingAlternate) {
-      return false;
-    }
-  }
-
-  if (region) {
-    if (toLower(card.region) !== toLower(region)) {
-      return false;
-    }
-  }
-
-  if (counter) {
-    if (
-      counter === NO_COUNTER_LABEL
-        ? Boolean(card.counter && card.counter.trim().length)
-        : !toLower(card.counter).includes(toLower(counter))
-    ) {
-      return false;
-    }
-  }
-
-  if (trigger) {
-    if (
-      trigger === NO_TRIGGER_LABEL
-        ? Boolean(card.triggerCard && card.triggerCard.trim().length)
-        : toLower(card.triggerCard) !== toLower(trigger)
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-};
 
 type CardListClientProps = {
   initialData: CardsPage;
@@ -308,7 +117,6 @@ const CardListClient = ({
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const allCardsSignatureRef = useRef<string | null>(null);
 
   // Leer estado desde URL params
   const [search, setSearch] = useState(
@@ -382,18 +190,8 @@ const CardListClient = ({
 
   const { data: session } = useSession();
 
-  // ✅ UI state desde Zustand
-  const isFiltersCollapsed = useCardStore((state) => state.isFiltersCollapsed);
-  const setIsFiltersCollapsed = useCardStore(
-    (state) => state.setIsFiltersCollapsed
-  );
-  const cachedCards = useCardStore((state) => state.allCards);
-  const setAllCards = useCardStore((state) => state.setAllCards);
-  const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
-  const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
-  const [hasCompletedOnce, setHasCompletedOnce] = useState(() => isFullyLoaded);
+  const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
 
-  // Estado local para animación de refresh
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
@@ -415,11 +213,11 @@ const CardListClient = ({
       altArts: selectedAltArts.length > 0 ? selectedAltArts : undefined,
       region: selectedRegion || undefined,
       counter:
-        selectedCounter && selectedCounter !== "No counter"
+        selectedCounter && selectedCounter !== NO_COUNTER_LABEL
           ? selectedCounter
           : undefined,
       trigger:
-        selectedTrigger && selectedTrigger !== "No trigger"
+        selectedTrigger && selectedTrigger !== NO_TRIGGER_LABEL
           ? selectedTrigger
           : undefined,
     };
@@ -441,79 +239,90 @@ const CardListClient = ({
     selectedTrigger,
   ]);
 
+  const filtersSignature = useMemo(
+    () => serializeFiltersForKey(filters),
+    [filters]
+  );
+  const initialFiltersSignatureRef = useRef<string | null>(null);
+  if (initialFiltersSignatureRef.current === null) {
+    initialFiltersSignatureRef.current = filtersSignature;
+  }
+  const matchesInitialFilters =
+    initialFiltersSignatureRef.current === filtersSignature;
+  const prefetchedInitialNextPageRef = useRef(false);
+
+  useEffect(() => {
+    prefetchedInitialNextPageRef.current = false;
+  }, [filtersSignature]);
+
   const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
-  const initialItems = useMemo(() => initialData?.items ?? [], [initialData]);
+
+  const initialQueryData = useMemo(() => {
+    if (!initialData || !matchesInitialFilters) return undefined;
+    return {
+      pages: [initialData],
+      pageParams: [null],
+    };
+  }, [initialData, matchesInitialFilters]);
 
   const {
-    data: allCardsData,
-    isLoading: isLoadingAllCards,
-    isFetching: isFetchingAllCards,
-    error: allCardsError,
-    refetch: refetchAllCards,
-    queryKey: allCardsQueryKey,
-  } = useAllCards(fullQueryFilters, {
-    includeRelations: true,
-    includeAlternates: true,
-    includeCounts: true,
+    cards,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+    isLoading,
+    error: cardsError,
+    refetch,
+    queryKey: paginatedQueryKey,
+    totalCount,
+  } = usePaginatedCards(filters, {
+    limit: PAGE_SIZE,
+    initialData: initialQueryData,
   });
 
   useEffect(() => {
-    if (allCardsError) {
-      console.error("Error al cargar todas las cartas:", allCardsError);
+    if (cardsError) {
+      console.error("Error al cargar cartas paginadas:", cardsError);
     }
-  }, [allCardsError]);
+  }, [cardsError]);
+
+  const { data: countData, isFetching: isCounting } = useCardsCount(filters);
 
   useEffect(() => {
-    if (!allCardsData) return;
-
-    if (!allCardsData.length) {
-      if (allCardsSignatureRef.current !== "empty") {
-        allCardsSignatureRef.current = "empty";
-        setAllCards([]);
-      }
-      return;
+    if (
+      hasNextPage &&
+      !isFetchingNextPage &&
+      !isFetching &&
+      !prefetchedInitialNextPageRef.current &&
+      cards?.length &&
+      cards.length <= PAGE_SIZE
+    ) {
+      prefetchedInitialNextPageRef.current = true;
+      fetchNextPage().catch(() => {
+        prefetchedInitialNextPageRef.current = false;
+      });
     }
+  }, [
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+    fetchNextPage,
+    cards?.length,
+  ]);
 
-    const firstCard = allCardsData[0];
-    const lastCard = allCardsData[allCardsData.length - 1];
-
-    const normalizeTimestamp = (value: Date | string | undefined) => {
-      if (!value) return "";
-      if (value instanceof Date) return value.getTime().toString();
-      const parsed = Date.parse(value);
-      return Number.isNaN(parsed) ? String(value) : parsed.toString();
-    };
-
-    const signature = [
-      allCardsData.length,
-      firstCard?.id ?? "",
-      lastCard?.id ?? "",
-      normalizeTimestamp(firstCard?.updatedAt),
-      normalizeTimestamp(lastCard?.updatedAt),
-    ].join("-");
-
-    if (allCardsSignatureRef.current !== signature) {
-      allCardsSignatureRef.current = signature;
-      setAllCards(allCardsData);
-    }
-
-    if (!isFetchingAllCards) {
-      setIsFullyLoaded(true);
-      setHasCompletedOnce(true);
-    }
-  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
-
-  const { isSyncing, lastUpdated } = useCardsSyncStatus(allCardsQueryKey);
+  const { isSyncing, lastUpdated } = useCardsSyncStatus(paginatedQueryKey);
   const isOnline = useOnlineStatus();
 
   // ✅ Datos ahora vienen de TanStack Query (arriba)
 
-  const BATCH_SIZE = 200;
+  const BATCH_SIZE = PAGE_SIZE;
   const LOAD_THRESHOLD_PX = 10000;
   const DEFAULT_VISIBLE_COUNT = BATCH_SIZE;
   const SCROLL_RESET_COUNT = BATCH_SIZE;
   const [visibleCount, setVisibleCount] = useState(DEFAULT_VISIBLE_COUNT);
   const isLoadingMoreRef = useRef(false);
+  const queuedVisibleCountRef = useRef<number | null>(null);
 
   const handleScrollToTop = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -554,23 +363,15 @@ const CardListClient = ({
     ]
   );
 
-  const canUseLocalDataset =
-    (hasCompletedOnce || isFullyLoaded) && cachedCards.length > 0;
-
   const dataSource = useMemo(() => {
-    if (canUseLocalDataset && cachedCards.length) {
-      return cachedCards;
+    if (cards?.length) {
+      return cards;
     }
-
-    if (allCardsData && allCardsData.length) {
-      return allCardsData;
+    if (matchesInitialFilters) {
+      return initialData?.items ?? [];
     }
-
-    return initialItems;
-  }, [canUseLocalDataset, cachedCards, allCardsData, initialItems]);
-
-  const shouldApplyClientFilters =
-    canUseLocalDataset || (!!allCardsData && !isFetchingAllCards);
+    return [];
+  }, [cards, initialData, matchesInitialFilters]);
 
   // Helper functions for price handling
   const getNumericPrice = (value: any) => {
@@ -594,15 +395,10 @@ const CardListClient = ({
       minimumFractionDigits: 2,
     }).format(value);
 
-  // ✅ Filtrado local cuando ya tenemos todas las cartas en memoria
   const filteredCards = useMemo(() => {
-    if (!dataSource) return [];
+    if (!dataSource?.length) return [];
 
-    const baseList = shouldApplyClientFilters
-      ? dataSource.filter((card) => matchesCardFilters(card, filters))
-      : dataSource;
-
-    const normalizedCards = baseList.map((card) => {
+    const normalizedCards = dataSource.map((card) => {
       // Filtrar alternates pro (client-side porque es específico del usuario)
       if (!isProVersion && card.alternates && card.alternates.length > 0) {
         const filteredAlts = card.alternates.filter(
@@ -715,16 +511,7 @@ const CardListClient = ({
     }
 
     return sortedCards;
-  }, [
-    dataSource,
-    isProVersion,
-    selectedSort,
-    shouldApplyClientFilters,
-    filters,
-    selectedSets,
-    selectedAltArts,
-    search,
-  ]);
+  }, [dataSource, isProVersion, selectedSort, selectedSets, selectedAltArts]);
 
   const PriceTag = ({
     card,
@@ -757,52 +544,12 @@ const CardListClient = ({
   };
 
   // Calcular el total incluyendo alternativas
-  const { totalVisibleCards, uniqueVisibleCards } = useMemo(() => {
-    if (!filteredCards.length) {
-      return {
-        totalVisibleCards: 0,
-        uniqueVisibleCards: 0,
-      };
-    }
-
-    return filteredCards.reduce(
-      (acc, card) => {
-        const baseVisible = baseCardMatches(
-          card,
-          selectedSets,
-          selectedAltArts
-        );
-        const filteredAlternates = getFilteredAlternates(
-          card,
-          selectedSets,
-          selectedAltArts
-        );
-        const alternatesVisible = filteredAlternates.length;
-
-        if (baseVisible) {
-          acc.totalVisibleCards += 1;
-        }
-
-        if (alternatesVisible > 0) {
-          acc.totalVisibleCards += alternatesVisible;
-        }
-
-        if (baseVisible || alternatesVisible > 0) {
-          acc.uniqueVisibleCards += 1;
-        }
-
-        return acc;
-      },
-      {
-        totalVisibleCards: 0,
-        uniqueVisibleCards: 0,
-      }
-    );
-  }, [filteredCards, selectedSets, selectedAltArts]);
-
   // Resetear ordenamiento por precio cuando cambien de vista
   useEffect(() => {
-    if (viewSelected !== "list" && (selectedSort === "Price high" || selectedSort === "Price low")) {
+    if (
+      viewSelected !== "list" &&
+      (selectedSort === "Price high" || selectedSort === "Price low")
+    ) {
       setSelectedSort("");
     }
   }, [viewSelected, selectedSort]);
@@ -812,6 +559,7 @@ const CardListClient = ({
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     setVisibleCount(SCROLL_RESET_COUNT);
     isLoadingMoreRef.current = false;
+    queuedVisibleCountRef.current = null;
   }, [
     viewSelected,
     search,
@@ -834,33 +582,73 @@ const CardListClient = ({
 
   useEffect(() => {
     if (filteredCards.length === 0) {
-      setVisibleCount(0);
+      if (!isLoading && !isFetching) {
+        setVisibleCount(0);
+      }
       isLoadingMoreRef.current = false;
+      queuedVisibleCountRef.current = null;
+      return;
+    }
+
+    if (visibleCount === 0) {
+      setVisibleCount(Math.min(BATCH_SIZE, filteredCards.length));
+      isLoadingMoreRef.current = false;
+      queuedVisibleCountRef.current = null;
       return;
     }
 
     if (visibleCount > filteredCards.length) {
       setVisibleCount(filteredCards.length);
+      queuedVisibleCountRef.current = null;
+      isLoadingMoreRef.current = false;
+      return;
     }
+
+    const queuedTarget = queuedVisibleCountRef.current;
+    if (
+      queuedTarget !== null &&
+      (filteredCards.length >= queuedTarget ||
+        (!hasNextPage && !isFetchingNextPage))
+    ) {
+      queuedVisibleCountRef.current = null;
+      setVisibleCount(Math.min(queuedTarget, filteredCards.length));
+      isLoadingMoreRef.current = false;
+      return;
+    }
+
     isLoadingMoreRef.current = false;
-  }, [filteredCards.length, visibleCount]);
+  }, [
+    filteredCards.length,
+    visibleCount,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isFetching,
+  ]);
 
-  const shouldShowSkeleton =
-    !canUseLocalDataset && !dataSource.length && isLoadingAllCards;
+  const totalResults =
+    countData ??
+    totalCount ??
+    (matchesInitialFilters ? initialData?.totalCount : undefined) ??
+    filteredCards.length;
+  const displayResultCount = filteredCards.length;
 
-  if (shouldShowSkeleton) {
-    return <CardListPageSkeleton />;
-  }
+  const showInitialOverlay =
+    dataSource.length === 0 && (isLoading || isFetching);
 
   // Mostrar error si falla la carga
-  if (allCardsError) {
+  if (cardsError) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <h2 className="text-xl font-bold text-red-600 mb-2">
             Error al cargar cartas
           </h2>
-          <p className="text-gray-600">{allCardsError.message}</p>
+          <p className="text-gray-600">
+            {cardsError instanceof Error
+              ? cardsError.message
+              : "Unexpected error"}
+          </p>
         </div>
       </div>
     );
@@ -1056,9 +844,10 @@ const CardListClient = ({
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">
         <div className="flex items-center gap-3">
           <SearchResults
-            count={totalVisibleCards}
-            uniqueCount={uniqueVisibleCards}
-            showResult={isFullyLoaded || hasCompletedOnce}
+            count={displayResultCount}
+            uniqueCount={undefined}
+            showResult={!isLoading}
+            totalCount={totalResults}
           />
 
           {/* Botón para colapsar/expandir filtros - Solo visible en desktop */}
@@ -1094,13 +883,8 @@ const CardListClient = ({
           <button
             onClick={async () => {
               setIsRefreshing(true);
-              if (canUseLocalDataset) {
-                setIsFullyLoaded(false);
-              }
-              allCardsSignatureRef.current = null;
-
               try {
-                await refetchAllCards();
+                await refetch();
               } finally {
                 setTimeout(() => setIsRefreshing(false), 500);
               }
@@ -1168,7 +952,7 @@ const CardListClient = ({
       </div>
 
       <div
-        className="p-3 md:p-5 overflow-y-scroll flex-1"
+        className="p-3 md:p-5 overflow-y-scroll flex-1 relative"
         ref={scrollContainerRef}
         onScroll={(e) => {
           const target = e.target as HTMLDivElement;
@@ -1176,420 +960,501 @@ const CardListClient = ({
           setShowFab(scrollTop > 100);
 
           const remaining = scrollHeight - (scrollTop + clientHeight);
-          if (
-            remaining <= LOAD_THRESHOLD_PX &&
-            !isLoadingMoreRef.current &&
-            visibleCount < filteredCards.length
-          ) {
-            isLoadingMoreRef.current = true;
-            setVisibleCount((prev) =>
-              Math.min(prev + BATCH_SIZE, filteredCards.length)
-            );
+          if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMoreRef.current) {
+            if (visibleCount < filteredCards.length) {
+              isLoadingMoreRef.current = true;
+              setVisibleCount((prev) =>
+                Math.min(prev + BATCH_SIZE, filteredCards.length)
+              );
+              requestAnimationFrame(() => {
+                isLoadingMoreRef.current = false;
+              });
+            } else if (hasNextPage && !isFetchingNextPage) {
+              isLoadingMoreRef.current = true;
+              queuedVisibleCountRef.current = visibleCount + BATCH_SIZE;
+              fetchNextPage()
+                .catch(() => {
+                  queuedVisibleCountRef.current = null;
+                })
+                .finally(() => {
+                  isLoadingMoreRef.current = false;
+                });
+            }
           }
         }}
       >
-        {showFab && <FAB onClick={handleScrollToTop} />}
+        {showInitialOverlay && (
+          <div className="absolute inset-0 z-10 bg-[#f2eede] p-5">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+              {Array.from({ length: BATCH_SIZE }).map((_, index) => (
+                <div
+                  key={`skeleton-card-${index}`}
+                  className="w-full max-w-[450px] border rounded-lg shadow p-3 bg-white animate-pulse"
+                >
+                  <div className="w-full aspect-[2.5/3.5] rounded bg-gray-200 mb-3" />
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {viewSelected === "list" && (
-          <div className="grid gap-2 md:gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
-            {(() => {
-              let globalIndex = 0; // Contador global incluyendo alternativas
+        <div
+          className={
+            showInitialOverlay
+              ? "opacity-0 pointer-events-none select-none"
+              : ""
+          }
+        >
+          {showFab && <FAB onClick={handleScrollToTop} />}
 
-              return filteredCards
-                ?.slice(0, visibleCount)
-                .map((card, index) => {
-                  const filteredAlts = getFilteredAlternates(
-                    card,
-                    selectedSets,
-                    selectedAltArts
-                  );
+          {!showInitialOverlay && filteredCards.length === 0 ? (
+            <div className="flex items-center justify-center text-center text-muted-foreground h-full">
+              No cards match your filters. Try adjusting the selection.
+            </div>
+          ) : (
+            <>
+              {viewSelected === "list" && (
+                <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
+                  {(() => {
+                    let globalIndex = 0; // Contador global incluyendo alternativas
 
-                  const isBaseMatch = baseCardMatches(
-                    card,
-                    selectedSets,
-                    selectedAltArts
-                  );
+                    return filteredCards
+                      ?.slice(0, visibleCount)
+                      .map((card, index) => {
+                        const filteredAlts = getFilteredAlternates(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
 
-                  if (!isBaseMatch && filteredAlts.length === 0) return null;
+                        const isBaseMatch = baseCardMatches(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
 
-                  const baseCardIndex = globalIndex;
-                  if (isBaseMatch) globalIndex++; // Incrementar si mostramos la base
+                        if (!isBaseMatch && filteredAlts.length === 0)
+                          return null;
 
-                  return (
-                    <Fragment key={card._id || card.id}>
-                      {isBaseMatch && (
-                        <div
-                          onClick={() => {
-                            const cardIndex = filteredCards.findIndex(
-                              (c) => (c._id || c.id) === (card._id || card.id)
-                            );
-                            setCurrentCardIndex(cardIndex);
-                            setSelectedCard(card);
-                            setBaseCard(card);
-                            setAlternatesCards(card.alternates);
-                            setIsOpen(true);
-                          }}
-                          onMouseEnter={() =>
-                            card.src && smartPrefetch(card.src, "large", true)
-                          }
-                          onTouchStart={() =>
-                            card.src && smartPrefetch(card.src, "large", true)
-                          }
-                          className="w-full cursor-pointer max-w-[450px]"
-                        >
-                          <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
-                            <LazyImage
-                              src={card.src}
-                              fallbackSrc="/assets/images/backcard.webp"
-                              alt={card.name}
-                              className="w-full"
-                              priority={baseCardIndex < 20}
-                              size="small"
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex justify-center items-center w-full flex-col">
-                                    <span
-                                      className={`${oswald.className} text-[13px] font-bold mt-2`}
-                                    >
-                                      {card.code
-                                        ? highlightText(card?.code, search)
-                                        : highlightText(card?.name, search)}
-                                    </span>
-                                    <span className="text-center text-[13px] line-clamp-1">
-                                      {highlightText(
-                                        card?.sets?.[0]?.set?.title ?? "",
-                                        search
-                                      )}
-                                    </span>
+                        const baseCardIndex = globalIndex;
+                        if (isBaseMatch) globalIndex++; // Incrementar si mostramos la base
+
+                        return (
+                          <Fragment key={card._id || card.id}>
+                            {isBaseMatch && (
+                              <div
+                                onClick={() => {
+                                  const cardIndex = filteredCards.findIndex(
+                                    (c) =>
+                                      (c._id || c.id) === (card._id || card.id)
+                                  );
+                                  setCurrentCardIndex(cardIndex);
+                                  setSelectedCard(card);
+                                  setBaseCard(card);
+                                  setAlternatesCards(card.alternates);
+                                  setIsOpen(true);
+                                }}
+                                onMouseEnter={() =>
+                                  card.src &&
+                                  smartPrefetch(card.src, "large", true)
+                                }
+                                onTouchStart={() =>
+                                  card.src &&
+                                  smartPrefetch(card.src, "large", true)
+                                }
+                                className="w-full cursor-pointer max-w-[450px]"
+                              >
+                                <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
+                                  <LazyImage
+                                    src={card.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={card.name}
+                                    className="w-full"
+                                    priority={baseCardIndex < 20}
+                                    size="small"
+                                  />
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="flex justify-center items-center w-full flex-col">
+                                          <span
+                                            className={`${oswald.className} text-[13px] font-bold mt-2`}
+                                          >
+                                            {card.code
+                                              ? highlightText(
+                                                  card?.code,
+                                                  search
+                                                )
+                                              : highlightText(
+                                                  card?.name,
+                                                  search
+                                                )}
+                                          </span>
+                                          <span className="text-center text-[13px] line-clamp-1">
+                                            {highlightText(
+                                              card?.sets?.[0]?.set?.title ?? "",
+                                              search
+                                            )}
+                                          </span>
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>
+                                          {highlightText(
+                                            card?.sets?.[0]?.set?.title ?? "",
+                                            search
+                                          )}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <PriceTag card={card} />
+                                </div>
+                              </div>
+                            )}
+
+                            {filteredAlts.map((alt, altIndex) => {
+                              const altGlobalIndex = globalIndex++;
+                              return (
+                                <div
+                                  key={alt._id || alt.id}
+                                  onClick={() => {
+                                    const cardIndex = filteredCards.findIndex(
+                                      (c) =>
+                                        (c._id || c.id) ===
+                                        (card._id || card.id)
+                                    );
+                                    setCurrentCardIndex(cardIndex);
+                                    setSelectedCard(alt);
+                                    setBaseCard(card);
+                                    setAlternatesCards(card.alternates);
+                                    setIsOpen(true);
+                                  }}
+                                  onMouseEnter={() =>
+                                    alt.src &&
+                                    smartPrefetch(alt.src, "large", true)
+                                  }
+                                  onTouchStart={() =>
+                                    alt.src &&
+                                    smartPrefetch(alt.src, "large", true)
+                                  }
+                                  className="w-full cursor-pointer max-w-[450px]"
+                                >
+                                  <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
+                                    <LazyImage
+                                      src={alt.src}
+                                      fallbackSrc="/assets/images/backcard.webp"
+                                      alt={alt.name}
+                                      className="w-full"
+                                      priority={altGlobalIndex < 20}
+                                      size="small"
+                                    />
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex justify-center items-center w-full flex-col">
+                                            <span
+                                              className={`${oswald.className} text-[13px] font-bold mt-2`}
+                                            >
+                                              {card.code
+                                                ? highlightText(
+                                                    card?.code,
+                                                    search
+                                                  )
+                                                : alt.alias
+                                                ? highlightText(
+                                                    alt?.alias,
+                                                    search
+                                                  )
+                                                : highlightText(
+                                                    alt?.name,
+                                                    search
+                                                  )}
+                                            </span>
+                                            <span className="text-center text-[13px] line-clamp-1">
+                                              {highlightText(
+                                                alt?.sets?.[0]?.set?.title ??
+                                                  "",
+                                                search
+                                              )}
+                                            </span>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>
+                                            {highlightText(
+                                              alt?.sets?.[0]?.set?.title ?? "",
+                                              search
+                                            )}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    <PriceTag card={alt} />
                                   </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>
-                                    {highlightText(
-                                      card?.sets?.[0]?.set?.title ?? "",
-                                      search
-                                    )}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <PriceTag card={card} />
-                          </div>
-                        </div>
-                      )}
+                                </div>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      });
+                  })()}
+                </div>
+              )}
 
-                      {filteredAlts.map((alt, altIndex) => {
-                        const altGlobalIndex = globalIndex++;
+              {viewSelected === "text" && (
+                <div className="grid gap-3 lg:gap-5 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 3xl:grid-cols-[repeat(auto-fit,_minmax(350px,_1fr))] justify-items-center">
+                  {filteredCards?.slice(0, visibleCount).map((card, index) => {
+                    const handleCardClick = () => {
+                      const cardIndex = filteredCards.findIndex(
+                        (c) => (c._id || c.id) === (card._id || card.id)
+                      );
+                      setCurrentCardIndex(cardIndex);
+                      setSelectedCard(card);
+                      setBaseCard(card);
+                      setAlternatesCards(card.alternates);
+                      setIsOpen(true);
+                    };
+
+                    return (
+                      <div key={card._id || card.id} onClick={handleCardClick}>
+                        <StoreCard
+                          card={card}
+                          searchTerm={search}
+                          viewSelected={viewSelected}
+                          selectedRarities={selectedAltArts}
+                          selectedSets={selectedSets}
+                          setSelectedCard={setSelectedCard}
+                          setBaseCard={setBaseCard}
+                          setAlternatesCards={setAlternatesCards}
+                          setIsOpen={setIsOpen}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {viewSelected === "alternate" && (
+                <div className="flex flex-col lg:px-5 lg:py-5 gap-5">
+                  {(() => {
+                    let globalIndex = 0;
+
+                    return filteredCards
+                      ?.slice(0, visibleCount)
+                      .map((card, cardIndex) => {
+                        const filteredAlts = getFilteredAlternates(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
+                        const isBaseMatch = baseCardMatches(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
+
+                        if (!isBaseMatch && filteredAlts.length === 0)
+                          return null;
+
+                        const baseCardIndex = globalIndex;
+                        if (isBaseMatch) globalIndex++;
+
                         return (
                           <div
-                            key={alt._id || alt.id}
-                            onClick={() => {
-                              const cardIndex = filteredCards.findIndex(
-                                (c) => (c._id || c.id) === (card._id || card.id)
-                              );
-                              setCurrentCardIndex(cardIndex);
-                              setSelectedCard(alt);
-                              setBaseCard(card);
-                              setAlternatesCards(card.alternates);
-                              setIsOpen(true);
-                            }}
-                            onMouseEnter={() =>
-                              alt.src && smartPrefetch(alt.src, "large", true)
-                            }
-                            onTouchStart={() =>
-                              alt.src && smartPrefetch(alt.src, "large", true)
-                            }
-                            className="w-full cursor-pointer max-w-[450px]"
+                            key={card._id || card.id}
+                            className="flex flex-col gap-5"
                           >
-                            <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
-                              <LazyImage
-                                src={alt.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt.name}
-                                className="w-full"
-                                priority={altGlobalIndex < 20}
-                                size="small"
-                              />
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex justify-center items-center w-full flex-col">
-                                      <span
-                                        className={`${oswald.className} text-[13px] font-bold mt-2`}
+                            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,250px))] mb-3">
+                              <Card>
+                                <CardContent className="p-5 h-full bg-black rounded-lg text-white justify-start">
+                                  <div className="h-full flex flex-col justify-around items-center relative">
+                                    <div className="flex items-center justify-between flex-col mt-4">
+                                      <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
+                                        {highlightText(card?.name, search)}
+                                      </h2>
+                                      <p
+                                        className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
                                       >
-                                        {card.code
-                                          ? highlightText(card?.code, search)
-                                          : alt.alias
-                                          ? highlightText(alt?.alias, search)
-                                          : highlightText(alt?.name, search)}
-                                      </span>
-                                      <span className="text-center text-[13px] line-clamp-1">
-                                        {highlightText(
-                                          alt?.sets?.[0]?.set?.title ?? "",
-                                          search
-                                        )}
-                                      </span>
+                                        {card.category === "DON"
+                                          ? card.sets?.[0]?.set?.title
+                                          : highlightText(card?.code, search)}
+                                      </p>
+                                      <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
+                                        >
+                                          <span className="text-center w-full font-black leading-[16px] mb-[2px]">
+                                            {card?.rarity
+                                              ? rarityFormatter(card.rarity)
+                                              : card.category === "DON"
+                                              ? "DON!!"
+                                              : ""}
+                                          </span>
+                                        </Badge>
+                                      </div>
+                                      <div className="flex flex-col mt-2">
+                                        {card?.types.map((type) => (
+                                          <span
+                                            key={type.type}
+                                            className="text-[13px] leading-[15px] font-[200] text-center"
+                                          >
+                                            {highlightText(type.type, search)}
+                                          </span>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>
-                                      {highlightText(
-                                        alt?.sets?.[0]?.set?.title ?? "",
-                                        search
-                                      )}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <PriceTag card={alt} />
+
+                                    <div className="flex items-center gap-1 mt-3">
+                                      <img
+                                        src={AlternatesWhite.src}
+                                        alt="eye"
+                                        className="w-[35px] h-[35px] mt-1"
+                                      />
+                                      <div className="flex items-center flex-col">
+                                        <span className="font-bold text-2xl text-white leading-[30px]">
+                                          {(card?.alternates?.length ?? 0) + 1}
+                                        </span>
+                                        <span className="text-sm text-white leading-[13px]">
+                                          {card?.alternates?.length === 0
+                                            ? "variant"
+                                            : "variants"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {isBaseMatch && (
+                                <Card
+                                  onClick={() => {
+                                    const cardIndex = filteredCards.findIndex(
+                                      (c) =>
+                                        (c._id || c.id) ===
+                                        (card._id || card.id)
+                                    );
+                                    setCurrentCardIndex(cardIndex);
+                                    setSelectedCard(card);
+                                    setBaseCard(card);
+                                    setAlternatesCards(card.alternates);
+                                    setIsOpen(true);
+                                  }}
+                                  onMouseEnter={() =>
+                                    card.src &&
+                                    smartPrefetch(card.src, "large", true)
+                                  }
+                                  onTouchStart={() =>
+                                    card.src &&
+                                    smartPrefetch(card.src, "large", true)
+                                  }
+                                  className="cursor-pointer"
+                                >
+                                  <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
+                                    <div className="flex justify-center items-center w-full">
+                                      <LazyImage
+                                        src={card?.src}
+                                        fallbackSrc="/assets/images/backcard.webp"
+                                        alt={card?.name}
+                                        className="w-[80%] m-auto"
+                                        priority={baseCardIndex < 20}
+                                        size="small"
+                                      />
+                                    </div>
+                                    <div>
+                                      <div className="text-center font-bold mt-2">
+                                        Base
+                                      </div>
+                                      {card.sets?.map((set) => (
+                                        <p
+                                          key={set.set.title}
+                                          className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                        >
+                                          {highlightText(set.set.title, search)}
+                                        </p>
+                                      ))}
+                                    </div>
+                                    <PriceTag card={card} className="mt-2" />
+                                  </CardContent>
+                                </Card>
+                              )}
+
+                              {filteredAlts.map((alt) => {
+                                const altGlobalIndex = globalIndex++;
+                                return (
+                                  <Card
+                                    key={alt._id || alt.id}
+                                    onClick={() => {
+                                      const cardIndex = filteredCards.findIndex(
+                                        (c) =>
+                                          (c._id || c.id) ===
+                                          (card._id || card.id)
+                                      );
+                                      setCurrentCardIndex(cardIndex);
+                                      setSelectedCard(alt);
+                                      setBaseCard(card);
+                                      setAlternatesCards(card.alternates);
+                                      setIsOpen(true);
+                                    }}
+                                    onMouseEnter={() =>
+                                      alt.src &&
+                                      smartPrefetch(alt.src, "large", true)
+                                    }
+                                    onTouchStart={() =>
+                                      alt.src &&
+                                      smartPrefetch(alt.src, "large", true)
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
+                                      <div className="flex justify-center items-center w-full">
+                                        <LazyImage
+                                          src={alt?.src}
+                                          fallbackSrc="/assets/images/backcard.webp"
+                                          alt={alt?.name}
+                                          className="w-[80%] m-auto"
+                                          priority={altGlobalIndex < 20}
+                                          size="small"
+                                        />
+                                      </div>
+                                      <div>
+                                        <div className="text-center font-bold mt-2">
+                                          {card.category === "DON"
+                                            ? alt?.alias
+                                            : alt?.alternateArt}
+                                        </div>
+                                        {alt?.sets?.map((set) => (
+                                          <p
+                                            key={set.set.title}
+                                            className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                          >
+                                            {highlightText(
+                                              set.set.title,
+                                              search
+                                            )}
+                                          </p>
+                                        ))}
+                                      </div>
+                                      <PriceTag card={alt} className="mt-2" />
+                                    </CardContent>
+                                  </Card>
+                                );
+                              })}
                             </div>
                           </div>
                         );
-                      })}
-                    </Fragment>
-                  );
-                });
-            })()}
-          </div>
-        )}
-
-        {viewSelected === "text" && (
-          <div className="grid gap-3 lg:gap-5 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 3xl:grid-cols-[repeat(auto-fit,_minmax(350px,_1fr))] justify-items-center">
-            {filteredCards?.slice(0, visibleCount).map((card, index) => {
-              const handleCardClick = () => {
-                const cardIndex = filteredCards.findIndex(
-                  (c) => (c._id || c.id) === (card._id || card.id)
-                );
-                setCurrentCardIndex(cardIndex);
-                setSelectedCard(card);
-                setBaseCard(card);
-                setAlternatesCards(card.alternates);
-                setIsOpen(true);
-              };
-
-              return (
-                <div key={card._id || card.id} onClick={handleCardClick}>
-                  <StoreCard
-                    card={card}
-                    searchTerm={search}
-                    viewSelected={viewSelected}
-                    selectedRarities={selectedAltArts}
-                    selectedSets={selectedSets}
-                    setSelectedCard={setSelectedCard}
-                    setBaseCard={setBaseCard}
-                    setAlternatesCards={setAlternatesCards}
-                    setIsOpen={setIsOpen}
-                  />
+                      });
+                  })()}
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {viewSelected === "alternate" && (
-          <div className="flex flex-col lg:px-5 lg:py-5 gap-5">
-            {(() => {
-              let globalIndex = 0;
-
-              return filteredCards
-                ?.slice(0, visibleCount)
-                .map((card, cardIndex) => {
-                  const filteredAlts = getFilteredAlternates(
-                    card,
-                    selectedSets,
-                    selectedAltArts
-                  );
-                  const isBaseMatch = baseCardMatches(
-                    card,
-                    selectedSets,
-                    selectedAltArts
-                  );
-
-                  if (!isBaseMatch && filteredAlts.length === 0) return null;
-
-                  const baseCardIndex = globalIndex;
-                  if (isBaseMatch) globalIndex++;
-
-                  return (
-                    <div
-                      key={card._id || card.id}
-                      className="flex flex-col gap-5"
-                    >
-                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,250px))] mb-3">
-                        <Card>
-                          <CardContent className="p-5 h-full bg-black rounded-lg text-white justify-start">
-                            <div className="h-full flex flex-col justify-around items-center relative">
-                              <div className="flex items-center justify-between flex-col mt-4">
-                                <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
-                                  {highlightText(card?.name, search)}
-                                </h2>
-                                <p
-                                  className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
-                                >
-                                  {card.category === "DON"
-                                    ? card.sets?.[0]?.set?.title
-                                    : highlightText(card?.code, search)}
-                                </p>
-                                <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
-                                  >
-                                    <span className="text-center w-full font-black leading-[16px] mb-[2px]">
-                                      {card?.rarity
-                                        ? rarityFormatter(card.rarity)
-                                        : card.category === "DON"
-                                        ? "DON!!"
-                                        : ""}
-                                    </span>
-                                  </Badge>
-                                </div>
-                                <div className="flex flex-col mt-2">
-                                  {card?.types.map((type) => (
-                                    <span
-                                      key={type.type}
-                                      className="text-[13px] leading-[15px] font-[200] text-center"
-                                    >
-                                      {highlightText(type.type, search)}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1 mt-3">
-                                <img
-                                  src={AlternatesWhite.src}
-                                  alt="eye"
-                                  className="w-[35px] h-[35px] mt-1"
-                                />
-                                <div className="flex items-center flex-col">
-                                  <span className="font-bold text-2xl text-white leading-[30px]">
-                                    {(card?.alternates?.length ?? 0) + 1}
-                                  </span>
-                                  <span className="text-sm text-white leading-[13px]">
-                                    {card?.alternates?.length === 0
-                                      ? "variant"
-                                      : "variants"}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        {isBaseMatch && (
-                          <Card
-                            onClick={() => {
-                              const cardIndex = filteredCards.findIndex(
-                                (c) => (c._id || c.id) === (card._id || card.id)
-                              );
-                              setCurrentCardIndex(cardIndex);
-                              setSelectedCard(card);
-                              setBaseCard(card);
-                              setAlternatesCards(card.alternates);
-                              setIsOpen(true);
-                            }}
-                            onMouseEnter={() =>
-                              card.src && smartPrefetch(card.src, "large", true)
-                            }
-                            onTouchStart={() =>
-                              card.src && smartPrefetch(card.src, "large", true)
-                            }
-                            className="cursor-pointer"
-                          >
-                            <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
-                              <div className="flex justify-center items-center w-full">
-                                <LazyImage
-                                  src={card?.src}
-                                  fallbackSrc="/assets/images/backcard.webp"
-                                  alt={card?.name}
-                                  className="w-[80%] m-auto"
-                                  priority={baseCardIndex < 20}
-                                  size="small"
-                                />
-                              </div>
-                              <div>
-                                <div className="text-center font-bold mt-2">
-                                  Base
-                                </div>
-                                {card.sets?.map((set) => (
-                                  <p
-                                    key={set.set.title}
-                                    className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                                  >
-                                    {highlightText(set.set.title, search)}
-                                  </p>
-                                ))}
-                              </div>
-                              <PriceTag card={card} className="mt-2" />
-                            </CardContent>
-                          </Card>
-                        )}
-
-                        {filteredAlts.map((alt) => {
-                          const altGlobalIndex = globalIndex++;
-                          return (
-                            <Card
-                              key={alt._id || alt.id}
-                              onClick={() => {
-                                const cardIndex = filteredCards.findIndex(
-                                  (c) =>
-                                    (c._id || c.id) === (card._id || card.id)
-                                );
-                                setCurrentCardIndex(cardIndex);
-                                setSelectedCard(alt);
-                                setBaseCard(card);
-                                setAlternatesCards(card.alternates);
-                                setIsOpen(true);
-                              }}
-                              onMouseEnter={() =>
-                                alt.src && smartPrefetch(alt.src, "large", true)
-                              }
-                              onTouchStart={() =>
-                                alt.src && smartPrefetch(alt.src, "large", true)
-                              }
-                              className="cursor-pointer"
-                            >
-                              <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
-                                <div className="flex justify-center items-center w-full">
-                                  <LazyImage
-                                    src={alt?.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={alt?.name}
-                                    className="w-[80%] m-auto"
-                                    priority={altGlobalIndex < 20}
-                                    size="small"
-                                  />
-                                </div>
-                                <div>
-                                  <div className="text-center font-bold mt-2">
-                                    {card.category === "DON"
-                                      ? alt?.alias
-                                      : alt?.alternateArt}
-                                  </div>
-                                  {alt?.sets?.map((set) => (
-                                    <p
-                                      key={set.set.title}
-                                      className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                                    >
-                                      {highlightText(set.set.title, search)}
-                                    </p>
-                                  ))}
-                                </div>
-                                <PriceTag card={alt} className="mt-2" />
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                });
-            })()}
-          </div>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Modales... */}

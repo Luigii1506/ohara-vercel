@@ -33,7 +33,8 @@
     "migrate:op13-json": "ts-node scripts/migrate-op01-from-json.ts op13.json",
     "sync:sequences": "node scripts/sync-sequences.js",
     "reset:events": "ts-node scripts/reset-events.ts",
-    "sync:tcg-catalog": "ts-node --project tsconfig.scripts.json scripts/sync-tcg-catalog.ts"
+    "sync:tcg-catalog": "ts-node --project tsconfig.scripts.json scripts/sync-tcg-catalog.ts",
+    "cards:update-order": "ts-node --project tsconfig.scripts.json scripts/update-collection-order.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",

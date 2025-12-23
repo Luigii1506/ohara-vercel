@@ -363,7 +363,7 @@ const NavBar = () => {
 
   return (
     <>
-      <header className="flex w-full items-center px-4 md:px-6 h-[70px] md:h-[88px] shadow-md relative text-[#FAF9F3] bg-black z-50">
+      <header className="flex w-full items-center px-4 md:px-6 h-[70px] md:h-[70px] shadow-md relative text-[#FAF9F3] bg-black z-50">
         <div className="flex flex-wrap items-center gap-4 w-full">
           {/* Logo y menú desktop */}
           <div className="flex items-center gap-4 justify-between flex-1 min-w-0">
@@ -484,7 +484,9 @@ const NavBar = () => {
                                       <Link
                                         key={item.href}
                                         href={item.href}
-                                        onClick={() => setIsAdminMenuOpen(false)}
+                                        onClick={() =>
+                                          setIsAdminMenuOpen(false)
+                                        }
                                         className={`flex items-start gap-2.5 px-3 py-2 rounded-md transition-all duration-200 group no-underline ${
                                           isActive
                                             ? "bg-red-500/20 text-white shadow-sm"

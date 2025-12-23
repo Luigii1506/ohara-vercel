@@ -194,28 +194,36 @@ const CardListClient = ({
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Detectar viewport para optimizaciones
-  const [priorityLimit, setPriorityLimit] = useState(6);
-  const [isDesktop, setIsDesktop] = useState(false);
+  // Función para calcular priority limit según ancho
+  const calculatePriorityLimit = (width: number) => {
+    if (width >= 1536) return 24; // 2xl: 8 cols × 3 rows
+    if (width >= 1280) return 21; // xl: 7 cols × 3 rows
+    if (width >= 1024) return 18; // lg: 6 cols × 3 rows
+    if (width >= 768) return 15; // md: 5 cols × 3 rows
+    return 6; // mobile: 3-4 cols × 2 rows
+  };
+
+  // Detectar viewport para optimizaciones - inicializar con valor correcto
+  const [priorityLimit, setPriorityLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return calculatePriorityLimit(window.innerWidth);
+    }
+    return 6; // SSR fallback
+  });
+
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return false; // SSR fallback
+  });
 
   useEffect(() => {
     const updateViewport = () => {
       const width = window.innerWidth;
       const desktop = width >= 768;
       setIsDesktop(desktop);
-
-      // Calcular cuántas cartas caben en el viewport
-      if (width >= 1536) {
-        setPriorityLimit(24); // 2xl: 8 cols × 3 rows
-      } else if (width >= 1280) {
-        setPriorityLimit(21); // xl: 7 cols × 3 rows
-      } else if (width >= 1024) {
-        setPriorityLimit(18); // lg: 6 cols × 3 rows
-      } else if (width >= 768) {
-        setPriorityLimit(15); // md: 5 cols × 3 rows
-      } else {
-        setPriorityLimit(6); // mobile: 3-4 cols × 2 rows
-      }
+      setPriorityLimit(calculatePriorityLimit(width));
     };
 
     updateViewport();

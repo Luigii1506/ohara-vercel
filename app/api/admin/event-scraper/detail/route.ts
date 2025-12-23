@@ -92,10 +92,6 @@ export async function POST(req: NextRequest) {
     const matchedSetDetails = await prisma.set.findMany({
       where: { id: { in: matchedSets.map((set) => set.id) } },
       include: {
-        attachments: {
-          select: { imageUrl: true },
-          orderBy: { id: "asc" },
-        },
         cards: {
           include: {
             card: {
@@ -116,11 +112,6 @@ export async function POST(req: NextRequest) {
       const detail = matchedSetDetails.find((item) => item.id === set.id);
       const images: string[] = [];
       if (detail?.image) images.push(detail.image);
-      if (detail?.attachments) {
-        detail.attachments.forEach((attachment) => {
-          if (attachment.imageUrl) images.push(attachment.imageUrl);
-        });
-      }
       const cards =
         detail?.cards?.map((setCard) => ({
           id: setCard.card.id,

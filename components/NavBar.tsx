@@ -250,9 +250,6 @@ const NavBar = () => {
 
   const showPrivateMenus = Boolean(userId);
   const showAdminMenu = role === "ADMIN";
-  const mobileMenuItems = showPrivateMenus
-    ? [...publicMobileMenuItems, ...privateMobileMenuItems]
-    : publicMobileMenuItems;
 
   const renderSocialIcon = (path: string, label: string) => (
     <svg
@@ -602,7 +599,7 @@ const NavBar = () => {
           {/* Enlaces principales */}
           <nav className="flex-1 overflow-y-auto p-4 space-y-6">
             <div className="space-y-1">
-              {mobileMenuItems.map((item) => {
+              {publicMobileMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive =
                   (item.href === "/" && pathname.length === 0) ||
@@ -618,10 +615,7 @@ const NavBar = () => {
                         : "text-gray-300 hover:bg-white/5 hover:text-white"
                     }`}
                   >
-                    <Icon
-                      size={20}
-                      className={isActive ? "text-white" : "text-white"}
-                    />
+                    <Icon size={20} className="text-white" />
                     <span className="font-medium text-white">{item.label}</span>
                     {isActive && (
                       <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
@@ -629,10 +623,62 @@ const NavBar = () => {
                   </Link>
                 );
               })}
+
+              {loading && !showPrivateMenus
+                ? privateMobileMenuItems.slice(0, 2).map((_, index) => (
+                    <div
+                      key={`mobile-placeholder-${index}`}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/10 bg-white/5 animate-pulse"
+                    >
+                      <div className="h-5 w-5 rounded-full bg-white/10" />
+                      <div className="h-3 w-24 rounded bg-white/15" />
+                    </div>
+                  ))
+                : null}
+
+              {showPrivateMenus &&
+                privateMobileMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    (item.href === "/" && pathname.length === 0) ||
+                    (item.href !== "/" && pathname[0] === item.href.slice(1));
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
+                        isActive
+                          ? "bg-white/10 text-white"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <Icon size={20} className="text-white" />
+                      <span className="font-medium text-white">
+                        {item.label}
+                      </span>
+                      {isActive && (
+                        <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
+                      )}
+                    </Link>
+                  );
+                })}
             </div>
 
             {/* Sección Admin en móvil con categorías */}
-            {role === "ADMIN" && (
+            {loading ? (
+              <div className="pt-6 border-t border-gray-800 space-y-3">
+                <div className="h-3 w-24 bg-white/10 rounded animate-pulse" />
+                <div className="space-y-2">
+                  {[0, 1].map((index) => (
+                    <div
+                      key={`admin-placeholder-${index}`}
+                      className="h-10 rounded-lg bg-white/5 border border-white/10 animate-pulse"
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : showAdminMenu ? (
               <div className="pt-6 border-t border-gray-800">
                 <p className="text-xs text-white font-medium px-4 mb-3">
                   ADMIN TOOLS
@@ -659,10 +705,7 @@ const NavBar = () => {
                                 : "text-gray-300 hover:bg-white/5 hover:text-white"
                             }`}
                           >
-                            <Icon
-                              size={18}
-                              className={isActive ? "text-white" : "text-white"}
-                            />
+                            <Icon size={18} className="text-white" />
                             <span className="font-medium text-sm text-white">
                               {item.label}
                             </span>
@@ -676,7 +719,7 @@ const NavBar = () => {
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Redes sociales mobile */}
             <div className="mt-8">

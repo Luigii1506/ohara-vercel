@@ -20,11 +20,6 @@ export async function GET(
           include: {
             set: {
               include: {
-                attachments: {
-                  orderBy: {
-                    id: "asc",
-                  },
-                },
                 cards: {
                   include: {
                     card: true,

@@ -205,69 +205,6 @@ async function linkEventsToSet(
   }
 }
 
-async function processAttachmentsForSet(
-  imageClassifications: Record<string, ImageClassificationData>,
-  missingSetData: any,
-  setId: number
-) {
-  const attachments = Object.entries(imageClassifications).filter(
-    ([_, data]) =>
-      data.type === "UNCUT_SHEET" ||
-      data.type === "PLAYMAT" ||
-      data.type === "SLEEVE"
-  );
-  let created = 0;
-
-  for (const [imageUrl, data] of attachments) {
-    let folderName = "";
-    let filePrefix = "";
-
-    switch (data.type) {
-      case "UNCUT_SHEET":
-        folderName = "uncut-sheets";
-        filePrefix = "uncut-sheet";
-        break;
-      case "PLAYMAT":
-        folderName = "playmats";
-        filePrefix = "playmat";
-        break;
-      case "SLEEVE":
-        folderName = "sleeves";
-        filePrefix = "sleeve";
-        break;
-    }
-
-    const timestamp = Date.now();
-    const baseTitle = sanitizeForFilename(
-      missingSetData.translatedTitle || missingSetData.title
-    );
-    const filename = `${filePrefix}-${baseTitle}-${timestamp}`;
-
-    let attachmentImageUrl = imageUrl;
-    try {
-      attachmentImageUrl = await uploadImageToR2(
-        imageUrl,
-        filename,
-        folderName
-      );
-    } catch (error) {
-      console.error(`❌ Error uploading ${data.type} image:`, error);
-    }
-
-    await prisma.setAttachment.create({
-      data: {
-        setId,
-        type: data.type as "UNCUT_SHEET" | "PLAYMAT" | "SLEEVE",
-        title: `${missingSetData.translatedTitle || missingSetData.title} - ${data.type.replace(/_/g, " ")}`,
-        imageUrl: attachmentImageUrl,
-        releaseDate: new Date(),
-      },
-    });
-    created++;
-  }
-
-  return created;
-}
 
 async function createAlternatesFromCardImages(
   imageClassifications: Record<string, ImageClassificationData>,
@@ -529,12 +466,6 @@ export async function POST(
       }
 
       await linkEventsToSet(missingSet.events, existingSet.id);
-      const attachmentsCount = await processAttachmentsForSet(
-        imageClassifications,
-        missingSetData,
-        existingSet.id
-      );
-
       await finalizeMissingSet(missingSetData.id);
 
       return NextResponse.json({
@@ -542,7 +473,6 @@ export async function POST(
         mode: "linkExisting",
         setId: existingSet.id,
         setTitle: finalTitle,
-        attachmentsCount,
       });
     }
 
@@ -761,12 +691,6 @@ export async function POST(
 
     await linkEventsToSet(missingSet.events, newSet.id);
 
-    const attachmentsCount = await processAttachmentsForSet(
-      imageClassifications,
-      missingSetData,
-      newSet.id
-    );
-
     if (action === "createAndReassign") {
       const reassignedCards = await reassignCardsToSet(
         reassignCardIds,
@@ -782,7 +706,6 @@ export async function POST(
         setId: newSet.id,
         setTitle: newSet.title,
         coverImageUrl,
-        attachmentsCount,
         reassignedCards,
       });
     }
@@ -803,7 +726,6 @@ export async function POST(
       setId: newSet.id,
       setTitle: newSet.title,
       coverImageUrl,
-      attachmentsCount,
       alternatesCount: createdAlternatesCount,
     });
   } catch (error) {

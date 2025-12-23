@@ -69,10 +69,6 @@ export async function GET(req: NextRequest) {
                 title: true,
                 code: true,
                 image: true,
-                attachments: {
-                  select: { imageUrl: true },
-                  orderBy: { id: "asc" },
-                },
                 cards: {
                   include: {
                     card: {
@@ -120,11 +116,6 @@ export async function GET(req: NextRequest) {
           const set = entry.set!;
           const images: string[] = [];
           if (set.image) images.push(set.image);
-          set.attachments?.forEach((attachment) => {
-            if (attachment.imageUrl) {
-              images.push(attachment.imageUrl);
-            }
-          });
           const cards =
             set.cards?.map((setCard) => ({
               id: setCard.card.id,

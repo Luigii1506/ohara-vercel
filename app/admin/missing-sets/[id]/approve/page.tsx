@@ -82,13 +82,6 @@ interface EventCardOption extends CardData {
   }>;
 }
 
-interface AttachmentData {
-  id: number;
-  title: string;
-  type: string;
-  imageUrl?: string | null;
-}
-
 interface CardSelection {
   setCode: string;
   cardId: number | null;
@@ -160,10 +153,6 @@ export default function ApproveMissingSetPage() {
   const [selectedExistingSetCards, setSelectedExistingSetCards] = useState<
     CardData[]
   >([]);
-  const [selectedExistingSetAttachments, setSelectedExistingSetAttachments] =
-    useState<AttachmentData[]>([]);
-  const [loadingExistingSetAttachments, setLoadingExistingSetAttachments] =
-    useState(false);
   const [loadingExistingSetCards, setLoadingExistingSetCards] = useState(false);
   const [variantOptions, setVariantOptions] = useState<
     Record<string, CardData[]>
@@ -257,7 +246,6 @@ export default function ApproveMissingSetPage() {
       setCustomSetCode("");
       setSelectedExistingSetId(null);
       setSelectedExistingSetCards([]);
-      setSelectedExistingSetAttachments([]);
       setVariantOptions({});
       setVariantLoading({});
       setEventCardImageUrl(null);
@@ -564,38 +552,25 @@ export default function ApproveMissingSetPage() {
   const handleExistingSetSelect = async (value: string) => {
     setSelectedExistingSetId(value || null);
     setSelectedExistingSetCards([]);
-    setSelectedExistingSetAttachments([]);
     if (!value) return;
     const numericId = Number(value);
     if (!Number.isFinite(numericId)) return;
     try {
       setLoadingExistingSetCards(true);
-      setLoadingExistingSetAttachments(true);
-      const [cardsResponse, setDetailResponse] = await Promise.all([
-        fetch(`/api/admin/cards/by-set-id/${numericId}`),
-        fetch(`/api/admin/sets/${numericId}`),
-      ]);
+      const cardsResponse = await fetch(
+        `/api/admin/cards/by-set-id/${numericId}`
+      );
 
       if (!cardsResponse.ok) {
         throw new Error("No se pudieron cargar las cartas del set");
       }
       const cards = (await cardsResponse.json()) as CardData[];
       setSelectedExistingSetCards(cards);
-
-      if (setDetailResponse.ok) {
-        const setDetail = await setDetailResponse.json();
-        setSelectedExistingSetAttachments(
-          Array.isArray(setDetail.attachments) ? setDetail.attachments : []
-        );
-      } else {
-        setSelectedExistingSetAttachments([]);
-      }
     } catch (error) {
       console.error(error);
       showErrorToast("Error al cargar datos del set existente");
     } finally {
       setLoadingExistingSetCards(false);
-      setLoadingExistingSetAttachments(false);
     }
   };
 
@@ -780,9 +755,7 @@ export default function ApproveMissingSetPage() {
       showSuccessToast(
         `Set "${result.setTitle}" creado exitosamente! ${
           result.alternatesCount ?? 0
-        } cartas alternas y ${
-          result.attachmentsCount ?? 0
-        } attachments agregados.`
+        } cartas alternas agregadas.`
       );
     }
 
@@ -1062,70 +1035,6 @@ export default function ApproveMissingSetPage() {
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {card.name}
                             </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {approvalMode === "linkExisting" && (
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col">
-                    <CardTitle>Attachments del set seleccionado</CardTitle>
-                    {selectedExistingSet && (
-                      <p className="text-sm font-semibold mt-1">
-                        {selectedExistingSet.title}
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Algunos productos oficiales sólo incluyen playmats, sleeves
-                    u otros extras.
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  {!selectedExistingSet ? (
-                    <div className="py-6 text-center text-muted-foreground">
-                      Selecciona un set para mostrar sus attachments.
-                    </div>
-                  ) : loadingExistingSetAttachments ? (
-                    <div className="flex items-center justify-center py-10 text-muted-foreground gap-2">
-                      <RefreshCw className="h-5 w-5 animate-spin" />
-                      Cargando attachments de {selectedExistingSet.title}...
-                    </div>
-                  ) : selectedExistingSetAttachments.length === 0 ? (
-                    <div className="py-6 text-center text-muted-foreground">
-                      Este set no tiene attachments registrados.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {selectedExistingSetAttachments.map((attachment) => (
-                        <div
-                          key={attachment.id}
-                          className="space-y-2 rounded-lg border p-3 bg-card"
-                        >
-                          <div className="aspect-[3/2] rounded-md overflow-hidden border bg-muted">
-                            {attachment.imageUrl ? (
-                              <img
-                                src={attachment.imageUrl}
-                                alt={attachment.title}
-                                className="h-full w-full object-contain"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                                Sin imagen
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-1 text-sm">
-                            <p className="font-semibold">{attachment.title}</p>
-                            <Badge variant="secondary">
-                              {attachment.type.replace(/_/g, " ")}
-                            </Badge>
                           </div>
                         </div>
                       ))}

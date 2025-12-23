@@ -59,6 +59,7 @@ export type CardData = {
   priceCurrency?: string | null;
   priceUpdatedAt?: string | Date | null;
   rulings?: CardRuling[]; // <-- Aquí agregamos los rulings
+  baseCardId?: number | null;
 };
 
 // Interfaces para tipar el deck

@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { scrapeEvents } from '@/lib/services/scraper/eventScraper';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  scrapeEvents,
+  DEFAULT_EVENT_LIST_SOURCES,
+} from "@/lib/services/scraper/eventScraper";
 
 /**
  * API Route para scraping de eventos mediante Cron Job
@@ -10,7 +13,7 @@ import { scrapeEvents } from '@/lib/services/scraper/eventScraper';
  *
  * En Vercel Cron (vercel.json):
  * {
- *   "crons": [{
+ *   "crons": [{que hace
  *     "path": "/api/cron/scrape-events",
  *     "schedule": "0 0 * * 0"  // Cada domingo a medianoche
  *   }]
@@ -19,13 +22,13 @@ import { scrapeEvents } from '@/lib/services/scraper/eventScraper';
 export async function POST(request: NextRequest) {
   try {
     // 1. Validar autenticación
-    const authHeader = request.headers.get('authorization');
+    const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
-      console.error('⚠️  CRON_SECRET not configured');
+      console.error("⚠️  CRON_SECRET not configured");
       return NextResponse.json(
-        { success: false, error: 'Server configuration error' },
+        { success: false, error: "Server configuration error" },
         { status: 500 }
       );
     }
@@ -33,18 +36,21 @@ export async function POST(request: NextRequest) {
     const expectedAuth = `Bearer ${cronSecret}`;
 
     if (authHeader !== expectedAuth) {
-      console.error('❌ Unauthorized cron attempt');
+      console.error("❌ Unauthorized cron attempt");
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, error: "Unauthorized" },
         { status: 401 }
       );
     }
 
     // 2. Ejecutar scraper
-    console.log('🤖 Cron job: Starting event scraper...');
+    console.log("🤖 Cron job: Starting event scraper...");
     const startTime = Date.now();
 
-    const result = await scrapeEvents();
+    const result = await scrapeEvents({
+      // Solo usamos fuentes de eventos actuales por defecto
+      sources: DEFAULT_EVENT_LIST_SOURCES.map((source) => ({ ...source })),
+    });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -62,13 +68,12 @@ export async function POST(request: NextRequest) {
       errors: result.errors,
     };
 
-    console.log('✅ Cron job completed:', response.stats);
+    console.log("✅ Cron job completed:", response.stats);
 
     return NextResponse.json(response, { status: 200 });
-
   } catch (error) {
     const err = error as Error;
-    console.error('❌ Cron job failed:', err);
+    console.error("❌ Cron job failed:", err);
 
     return NextResponse.json(
       {
@@ -87,10 +92,10 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json(
     {
-      message: 'Event scraper cron endpoint',
-      method: 'POST',
-      auth: 'Required: Authorization: Bearer CRON_SECRET',
-      status: 'active',
+      message: "Event scraper cron endpoint",
+      method: "POST",
+      auth: "Required: Authorization: Bearer CRON_SECRET",
+      status: "active",
     },
     { status: 200 }
   );

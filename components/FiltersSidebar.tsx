@@ -144,6 +144,28 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
             />
 
             <MultiSelect
+              options={altArtOptions}
+              selected={selectedAltArts}
+              setSelected={setSelectedAltArts}
+              displaySelectedAs={(selected) =>
+                selected.length === 1 ? selected[0] : "Alt arts"
+              }
+              searchPlaceholder="Search alt arts..."
+              isSolid={true}
+            />
+
+            <MultiSelect
+              options={rarityOptions}
+              selected={selectedRarities}
+              setSelected={setSelectedRarities}
+              displaySelectedAs={(selected) =>
+                selected.length === 1 ? selected[0] : "Rarity"
+              }
+              searchPlaceholder="Search rarity..."
+              isSolid={true}
+            />
+
+            <MultiSelect
               options={categoryOptions}
               selected={selectedCategories}
               setSelected={setSelectedCategories}
@@ -218,27 +240,6 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
               setSelected={setSelectedTrigger}
               buttonLabel="Trigger"
               isColor={false}
-              isSolid={true}
-            />
-            <MultiSelect
-              options={rarityOptions}
-              selected={selectedRarities}
-              setSelected={setSelectedRarities}
-              displaySelectedAs={(selected) =>
-                selected.length === 1 ? selected[0] : "Rarity"
-              }
-              searchPlaceholder="Search rarity..."
-              isSolid={true}
-            />
-
-            <MultiSelect
-              options={altArtOptions}
-              selected={selectedAltArts}
-              setSelected={setSelectedAltArts}
-              displaySelectedAs={(selected) =>
-                selected.length === 1 ? selected[0] : "Alt arts"
-              }
-              searchPlaceholder="Search alt arts..."
               isSolid={true}
             />
 

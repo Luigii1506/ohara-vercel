@@ -14,6 +14,54 @@ import Link from "next/link";
 import { useCartStore, CartItem } from "@/store/cartStore";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
+/**
+ * Intenta abrir TCGplayer app si está instalada, sino abre en navegador
+ * @param webUrl - URL web de TCGplayer
+ */
+const openTcgplayer = (webUrl: string) => {
+  // Extraer el ID del producto de la URL si es posible
+  // Ejemplo URL: https://www.tcgplayer.com/product/12345/...
+  const productIdMatch = webUrl.match(/\/product\/(\d+)/);
+
+  if (productIdMatch && productIdMatch[1]) {
+    const productId = productIdMatch[1];
+    // Deep link para TCGplayer app (Android/iOS)
+    const appUrl = `tcgplayer://product/${productId}`;
+
+    // Detectar si estamos en mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // En mobile: intentar abrir app primero
+      let appOpened = false;
+
+      // Detectar si la app se abrió monitoreando blur/visibility
+      const handleBlur = () => {
+        appOpened = true;
+      };
+
+      window.addEventListener('blur', handleBlur);
+
+      // Intentar abrir la app
+      window.location.href = appUrl;
+
+      // Fallback al navegador después de 1.5s si la app no se abrió
+      setTimeout(() => {
+        window.removeEventListener('blur', handleBlur);
+        if (!appOpened) {
+          window.open(webUrl, '_blank', 'noopener,noreferrer');
+        }
+      }, 1500);
+    } else {
+      // En desktop: abrir directamente en navegador
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
+    }
+  } else {
+    // Si no podemos extraer el ID, abrir directamente en navegador
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
+  }
+};
+
 const toNumericValue = (value?: number | string | null) => {
   if (value === null || value === undefined) {
     return null;
@@ -357,9 +405,10 @@ const CardModal: React.FC<CardModalProps> = ({
                   <div className="flex justify-center items-center flex-col gap-1">
                     {renderPriceSummary()}
 
-                    <Link
-                      href={
-                        selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const tcgUrl = selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
                           ? selectedCard.tcgUrl
                           : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
                               baseCard.name
@@ -369,17 +418,14 @@ const CardModal: React.FC<CardModalProps> = ({
                               baseCard.colors?.[0].color ?? ""
                             )}&CardType=${encodeURIComponent(
                               baseCard.category ?? ""
-                            )}`
-                      }
-                      target="_blank"
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors mt-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                            )}`;
+                        openTcgplayer(tcgUrl);
                       }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors mt-2 cursor-pointer"
                     >
                       <TcgplayerLogo className="h-5 w-12 text-white" />
                       <span>View on TCGplayer</span>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -411,9 +457,10 @@ const CardModal: React.FC<CardModalProps> = ({
 
                   {renderPriceSummary()}
 
-                  <Link
-                    href={
-                      selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const tcgUrl = selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
                         ? selectedCard.tcgUrl
                         : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
                             baseCard.name
@@ -423,17 +470,14 @@ const CardModal: React.FC<CardModalProps> = ({
                             baseCard.colors?.[0].color ?? ""
                           )}&CardType=${encodeURIComponent(
                             baseCard.category ?? ""
-                          )}`
-                    }
-                    target="_blank"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                          )}`;
+                      openTcgplayer(tcgUrl);
                     }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors cursor-pointer"
                   >
                     <TcgplayerLogo className="h-5 w-12 text-white" />
                     <span className="text-xs">View on TCGplayer</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
 

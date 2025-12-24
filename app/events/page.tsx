@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,9 @@ const EventsPage = () => {
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Detectar si es mobile para cambiar imagen del hero
+  const isMobile = !useMediaQuery("(min-width: 768px)", false);
 
   useEffect(() => {
     fetchEvents();
@@ -139,7 +143,7 @@ const EventsPage = () => {
       <div className="relative overflow-hidden border-b py-8">
         <div className="absolute inset-0">
           <Image
-            src="/assets/images/banner_2.jpg"
+            src={isMobile ? "/assets/images/Onepiecebanner_30x192.jpg" : "/assets/images/banner_2.jpg"}
             alt="Events banner"
             fill
             priority

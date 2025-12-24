@@ -227,7 +227,7 @@ const NavBar = () => {
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
     { href: "/events", label: "Events", icon: Calendar },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
-    { href: "/proxies", label: "Proxies", icon: Copy },
+    //{ href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
   const privateDesktopMenuItems = [
@@ -239,6 +239,8 @@ const NavBar = () => {
   const publicMobileMenuItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
+    { href: "/events", label: "Events", icon: Calendar },
+    { href: "/proxies", label: "Proxies", icon: Copy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 
@@ -352,8 +354,8 @@ const NavBar = () => {
         variant="outline"
         className="w-full h-11 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
       >
-        <UserIcon size={18} />
-        <span>Sign In</span>
+        <UserIcon size={18} className="text-white" />
+        <span className="text-white">Sign In</span>
       </Button>
     );
   };

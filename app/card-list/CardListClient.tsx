@@ -1055,12 +1055,13 @@ const CardListClient = ({
                                   card.src &&
                                   smartPrefetch(card.src, "large", true)
                                 }
-                                onTouchStart={() => {
+                                onTouchStart={(e) => {
                                   card.src && smartPrefetch(card.src, "large", true);
                                   setTouchedCardId(card.id);
                                 }}
                                 onTouchEnd={() => setTouchedCardId(null)}
                                 onTouchCancel={() => setTouchedCardId(null)}
+                                onContextMenu={(e) => e.preventDefault()}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
                                 <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
@@ -1125,12 +1126,13 @@ const CardListClient = ({
                                     alt.src &&
                                     smartPrefetch(alt.src, "large", true)
                                   }
-                                  onTouchStart={() => {
+                                  onTouchStart={(e) => {
                                     alt.src && smartPrefetch(alt.src, "large", true);
                                     setTouchedCardId(alt.id);
                                   }}
                                   onTouchEnd={() => setTouchedCardId(null)}
                                   onTouchCancel={() => setTouchedCardId(null)}
+                                  onContextMenu={(e) => e.preventDefault()}
                                   className="w-full cursor-pointer max-w-[450px]"
                                 >
                                   <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">

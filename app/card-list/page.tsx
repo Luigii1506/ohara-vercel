@@ -5,8 +5,11 @@ import {
 } from "@/lib/cards/query";
 import type { CardsPage } from "@/lib/cards/types";
 import { mergeFiltersWithSetCode } from "@/lib/cards/types";
+import { headers } from "next/headers";
 
-const INITIAL_LIMIT = 60;
+// Carga inicial diferenciada: 60 en desktop, 40 en mobile
+const INITIAL_LIMIT_DESKTOP = 60;
+const INITIAL_LIMIT_MOBILE = 40;
 
 type PageProps = {
   searchParams: Record<string, string | string[] | undefined>;
@@ -43,12 +46,19 @@ export default async function CardListPage({ searchParams }: PageProps) {
     setCode
   );
 
+  // Detectar dispositivo móvil desde headers
+  const headersList = headers();
+  const userAgent = headersList.get("user-agent") || "";
+  const isMobile = /Mobile|Android|iPhone/i.test(userAgent);
+
+  const initialLimit = isMobile ? INITIAL_LIMIT_MOBILE : INITIAL_LIMIT_DESKTOP;
+
   const initialData: CardsPage = await fetchCardsPageFromDb({
     filters: initialFilters,
     includeRelations: true,
     includeAlternates: true,
     includeCounts: true,
-    limit: INITIAL_LIMIT,
+    limit: initialLimit,
   });
 
   return (

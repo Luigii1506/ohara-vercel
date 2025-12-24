@@ -179,8 +179,10 @@ export default function RootLayout({
         {/* Resource hints para rendimiento */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        {/* Preconnect a tu CDN de imágenes */}
-        <link rel="preconnect" href="https://bez3ta.com" />
+        {/* Preconnect a tu CDN de imágenes - CRÍTICO PARA LCP */}
+        <link rel="preconnect" href="https://images.oharatcg.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://oharatcg-21eab.kxcdn.com" />
+        <link rel="dns-prefetch" href="https://bez3ta.com" />
         <link rel="dns-prefetch" href="https://static.dotgg.gg" />
       </head>
       {/* Aquí se aplica Noto Sans JP globalmente */}

@@ -195,7 +195,7 @@ const CardListClient = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
-  const [touchedCardId, setTouchedCardId] = useState<number | null>(null);
+  const [touchedCardId, setTouchedCardId] = useState<number | string | null>(null);
 
   // Función para calcular priority limit según ancho
   const calculatePriorityLimit = (width: number) => {

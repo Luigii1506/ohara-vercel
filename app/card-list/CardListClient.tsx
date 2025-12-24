@@ -203,6 +203,13 @@ const CardListClient = ({
     return 6; // mobile: 3-4 cols × 2 rows
   };
 
+  // Función para determinar tamaño de imagen según viewport
+  const getImageSize = (width: number): "thumb" | "small" => {
+    // Mobile usa "thumb" (200x280) para reducir ~40% de bytes vs "small" (300x420)
+    // Desktop usa "small" para mejor calidad
+    return width < 768 ? "thumb" : "small";
+  };
+
   // Detectar viewport para optimizaciones - inicializar con valor correcto
   const [priorityLimit, setPriorityLimit] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -218,12 +225,20 @@ const CardListClient = ({
     return false; // SSR fallback
   });
 
+  const [imageSize, setImageSize] = useState<"thumb" | "small">(() => {
+    if (typeof window !== 'undefined') {
+      return getImageSize(window.innerWidth);
+    }
+    return "thumb"; // SSR fallback - mobile-first
+  });
+
   useEffect(() => {
     const updateViewport = () => {
       const width = window.innerWidth;
       const desktop = width >= 768;
       setIsDesktop(desktop);
       setPriorityLimit(calculatePriorityLimit(width));
+      setImageSize(getImageSize(width));
     };
 
     updateViewport();
@@ -1050,7 +1065,7 @@ const CardListClient = ({
                                     alt={card.name}
                                     className="w-full"
                                     priority={baseCardIndex < priorityLimit}
-                                    size="small"
+                                    size={imageSize}
                                   />
                                   <TooltipProvider>
                                     <Tooltip>
@@ -1126,7 +1141,7 @@ const CardListClient = ({
                                       alt={alt.name}
                                       className="w-full"
                                       priority={altGlobalIndex < priorityLimit}
-                                      size="small"
+                                      size={imageSize}
                                     />
                                     <TooltipProvider>
                                       <Tooltip>
@@ -1338,7 +1353,7 @@ const CardListClient = ({
                                         alt={card?.name}
                                         className="w-[80%] m-auto"
                                         priority={baseCardIndex < priorityLimit}
-                                        size="small"
+                                        size={imageSize}
                                       />
                                     </div>
                                     <div>
@@ -1394,7 +1409,7 @@ const CardListClient = ({
                                           alt={alt?.name}
                                           className="w-[80%] m-auto"
                                           priority={altGlobalIndex < priorityLimit}
-                                          size="small"
+                                          size={imageSize}
                                         />
                                       </div>
                                       <div>

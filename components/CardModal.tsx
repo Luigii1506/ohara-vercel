@@ -15,51 +15,14 @@ import { useCartStore, CartItem } from "@/store/cartStore";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
 /**
- * Intenta abrir TCGplayer app si está instalada, sino abre en navegador
+ * Abre TCGplayer usando Universal Links (iOS) / App Links (Android)
+ * Si la app está instalada, se abre automáticamente. Si no, abre en navegador.
  * @param webUrl - URL web de TCGplayer
  */
 const openTcgplayer = (webUrl: string) => {
-  // Extraer el ID del producto de la URL si es posible
-  // Ejemplo URL: https://www.tcgplayer.com/product/12345/...
-  const productIdMatch = webUrl.match(/\/product\/(\d+)/);
-
-  if (productIdMatch && productIdMatch[1]) {
-    const productId = productIdMatch[1];
-    // Deep link para TCGplayer app (Android/iOS)
-    const appUrl = `tcgplayer://product/${productId}`;
-
-    // Detectar si estamos en mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // En mobile: intentar abrir app primero
-      let appOpened = false;
-
-      // Detectar si la app se abrió monitoreando blur/visibility
-      const handleBlur = () => {
-        appOpened = true;
-      };
-
-      window.addEventListener('blur', handleBlur);
-
-      // Intentar abrir la app
-      window.location.href = appUrl;
-
-      // Fallback al navegador después de 1.5s si la app no se abrió
-      setTimeout(() => {
-        window.removeEventListener('blur', handleBlur);
-        if (!appOpened) {
-          window.open(webUrl, '_blank', 'noopener,noreferrer');
-        }
-      }, 1500);
-    } else {
-      // En desktop: abrir directamente en navegador
-      window.open(webUrl, '_blank', 'noopener,noreferrer');
-    }
-  } else {
-    // Si no podemos extraer el ID, abrir directamente en navegador
-    window.open(webUrl, '_blank', 'noopener,noreferrer');
-  }
+  // TCGplayer usa Universal Links y App Links, así que simplemente
+  // abrimos la URL web normal y el OS decide si abrir la app o el navegador
+  window.open(webUrl, '_blank', 'noopener,noreferrer');
 };
 
 const toNumericValue = (value?: number | string | null) => {

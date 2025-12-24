@@ -194,6 +194,9 @@ const CardListClient = ({
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
+  const [touchedCardId, setTouchedCardId] = useState<number | null>(null);
+
   // Función para calcular priority limit según ancho
   const calculatePriorityLimit = (width: number) => {
     if (width >= 1536) return 24; // 2xl: 8 cols × 3 rows
@@ -212,21 +215,21 @@ const CardListClient = ({
 
   // Detectar viewport para optimizaciones - inicializar con valor correcto
   const [priorityLimit, setPriorityLimit] = useState(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       return calculatePriorityLimit(window.innerWidth);
     }
     return 6; // SSR fallback
   });
 
   const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       return window.innerWidth >= 768;
     }
     return false; // SSR fallback
   });
 
   const [imageSize, setImageSize] = useState<"thumb" | "small">(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       return getImageSize(window.innerWidth);
     }
     return "thumb"; // SSR fallback - mobile-first
@@ -242,8 +245,8 @@ const CardListClient = ({
     };
 
     updateViewport();
-    window.addEventListener('resize', updateViewport);
-    return () => window.removeEventListener('resize', updateViewport);
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
@@ -1052,13 +1055,15 @@ const CardListClient = ({
                                   card.src &&
                                   smartPrefetch(card.src, "large", true)
                                 }
-                                onTouchStart={() =>
-                                  card.src &&
-                                  smartPrefetch(card.src, "large", true)
-                                }
+                                onTouchStart={() => {
+                                  card.src && smartPrefetch(card.src, "large", true);
+                                  setTouchedCardId(card.id);
+                                }}
+                                onTouchEnd={() => setTouchedCardId(null)}
+                                onTouchCancel={() => setTouchedCardId(null)}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
-                                <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
                                   <LazyImage
                                     src={card.src}
                                     fallbackSrc="/assets/images/backcard.webp"
@@ -1067,42 +1072,34 @@ const CardListClient = ({
                                     priority={baseCardIndex < priorityLimit}
                                     size={imageSize}
                                   />
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className="flex justify-center items-center w-full flex-col">
-                                          <span
-                                            className={`${oswald.className} text-[13px] font-bold mt-2`}
-                                          >
-                                            {card.code
-                                              ? highlightText(
-                                                  card?.code,
-                                                  search
-                                                )
-                                              : highlightText(
-                                                  card?.name,
-                                                  search
-                                                )}
-                                          </span>
-                                          <span className="text-center text-[13px] line-clamp-1">
-                                            {highlightText(
-                                              card?.sets?.[0]?.set?.title ?? "",
-                                              search
-                                            )}
-                                          </span>
+
+                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                                  {card.code && (
+                                    <div
+                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                        isDesktop
+                                          ? 'opacity-100 translate-y-0'
+                                          : touchedCardId === card.id
+                                            ? 'opacity-100 translate-y-0'
+                                            : 'opacity-0 -translate-y-2 pointer-events-none'
+                                      }`}
+                                    >
+                                      {card.code}
+                                    </div>
+                                  )}
+
+                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                                  {(() => {
+                                    const priceValue = getCardPriceValue(card);
+                                    if (priceValue !== null) {
+                                      return (
+                                        <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                          {formatCurrency(priceValue, card.priceCurrency)}
                                         </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>
-                                          {highlightText(
-                                            card?.sets?.[0]?.set?.title ?? "",
-                                            search
-                                          )}
-                                        </p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <PriceTag card={card} />
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                               </div>
                             )}
@@ -1128,13 +1125,15 @@ const CardListClient = ({
                                     alt.src &&
                                     smartPrefetch(alt.src, "large", true)
                                   }
-                                  onTouchStart={() =>
-                                    alt.src &&
-                                    smartPrefetch(alt.src, "large", true)
-                                  }
+                                  onTouchStart={() => {
+                                    alt.src && smartPrefetch(alt.src, "large", true);
+                                    setTouchedCardId(alt.id);
+                                  }}
+                                  onTouchEnd={() => setTouchedCardId(null)}
+                                  onTouchCancel={() => setTouchedCardId(null)}
                                   className="w-full cursor-pointer max-w-[450px]"
                                 >
-                                  <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col">
+                                  <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
                                     <LazyImage
                                       src={alt.src}
                                       fallbackSrc="/assets/images/backcard.webp"
@@ -1143,48 +1142,34 @@ const CardListClient = ({
                                       priority={altGlobalIndex < priorityLimit}
                                       size={imageSize}
                                     />
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <div className="flex justify-center items-center w-full flex-col">
-                                            <span
-                                              className={`${oswald.className} text-[13px] font-bold mt-2`}
-                                            >
-                                              {card.code
-                                                ? highlightText(
-                                                    card?.code,
-                                                    search
-                                                  )
-                                                : alt.alias
-                                                ? highlightText(
-                                                    alt?.alias,
-                                                    search
-                                                  )
-                                                : highlightText(
-                                                    alt?.name,
-                                                    search
-                                                  )}
-                                            </span>
-                                            <span className="text-center text-[13px] line-clamp-1">
-                                              {highlightText(
-                                                alt?.sets?.[0]?.set?.title ??
-                                                  "",
-                                                search
-                                              )}
-                                            </span>
+
+                                    {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                                    {card.code && (
+                                      <div
+                                        className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                          isDesktop
+                                            ? 'opacity-100 translate-y-0'
+                                            : touchedCardId === alt.id
+                                              ? 'opacity-100 translate-y-0'
+                                              : 'opacity-0 -translate-y-2 pointer-events-none'
+                                        }`}
+                                      >
+                                        {card.code}
+                                      </div>
+                                    )}
+
+                                    {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                                    {(() => {
+                                      const priceValue = getCardPriceValue(alt);
+                                      if (priceValue !== null) {
+                                        return (
+                                          <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                            {formatCurrency(priceValue, alt.priceCurrency)}
                                           </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>
-                                            {highlightText(
-                                              alt?.sets?.[0]?.set?.title ?? "",
-                                              search
-                                            )}
-                                          </p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    <PriceTag card={alt} />
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                   </div>
                                 </div>
                               );
@@ -1408,7 +1393,9 @@ const CardListClient = ({
                                           fallbackSrc="/assets/images/backcard.webp"
                                           alt={alt?.name}
                                           className="w-[80%] m-auto"
-                                          priority={altGlobalIndex < priorityLimit}
+                                          priority={
+                                            altGlobalIndex < priorityLimit
+                                          }
                                           size={imageSize}
                                         />
                                       </div>

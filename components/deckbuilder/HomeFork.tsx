@@ -44,7 +44,7 @@ const ForkDeckBuilder = () => {
     const deckName = "Fork de Deck";
     deckBuilder.setIsSaving(true);
     try {
-      const response = await fetch(`/api/admin/decks/${uniqueUrl}/fork`, {
+      const response = await fetch(`/api/decks/${uniqueUrl}/fork`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: deckName, cards: payloadCards }),

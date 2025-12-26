@@ -23,12 +23,12 @@ export default function ClientLayout({
 
   return (
     <>
-      <main className={"h-[100dvh] w-screen flex flex-col min-h-0"}>
+      <main className={"h-[100dvh] w-full flex flex-col min-h-0"}>
         <NavBar />
 
         <section className="min-h-0 flex-1 flex flex-col-reverse md:flex-1 md:h-0 md:flex md:flex-row w-full">
           {/* <SideNav /> */}
-          <section className="overflow-auto flex-1 flex min-h-0 w-full bg-[#f0ecdc]">
+          <section className="overflow-auto flex-1 flex min-h-0 w-full min-w-0 bg-[#f0ecdc]">
             {children}
           </section>
         </section>

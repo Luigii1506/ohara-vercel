@@ -16,17 +16,13 @@ export async function POST(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const deckId = parseInt(params.id);
-    if (isNaN(deckId)) {
-      return NextResponse.json(
-        { error: "ID de deck inválido" },
-        { status: 400 }
-      );
-    }
+    const { id } = params;
+    const deckId = parseInt(id, 10);
+    const isNumericId = !isNaN(deckId);
 
     // Obtener el deck original con sus cartas
     const originalDeck = await prisma.deck.findUnique({
-      where: { id: deckId },
+      where: isNumericId ? { id: deckId } : { uniqueUrl: id },
       include: {
         deckCards: {
           include: {

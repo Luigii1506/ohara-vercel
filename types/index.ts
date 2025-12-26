@@ -98,6 +98,8 @@ export interface DeckCard {
   card?: Card;
   colors: { color: string }[];
   id: number;
+  marketPrice?: number | string | null;
+  priceCurrency?: string | null;
 }
 
 export interface CardWithCollectionData extends CardData {

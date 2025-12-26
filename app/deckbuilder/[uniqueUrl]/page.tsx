@@ -811,7 +811,7 @@ const DeckBuilderUniqueUrl = () => {
   useEffect(() => {
     const fetchDeck = async () => {
       try {
-        const res = await fetch(`/api/admin/decks/${uniqueUrl}`);
+        const res = await fetch(`/api/decks/${uniqueUrl}`);
         if (!res.ok) throw new Error("Deck no encontrado");
         const data = await res.json();
         setDeckData(data);

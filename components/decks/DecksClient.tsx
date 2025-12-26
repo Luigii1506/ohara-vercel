@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Plus, ChartColumnBigIcon, Loader2 } from "lucide-react";
+import { Plus, ChartColumnBigIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showErrorToast } from "@/lib/toastify";
 import { Deck, GroupedDecks } from "@/types";
@@ -15,10 +15,11 @@ import DeckDetailPanel from "./DeckDetailPanel";
 const DecksClient = () => {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isFetchingDecks, setIsFetchingDecks] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const userId = session?.user?.id;
   const pathname = usePathname();
   const currentPath = pathname ?? "";
@@ -80,16 +81,21 @@ const DecksClient = () => {
       );
     } finally {
       setIsFetchingDecks(false);
+      setHasFetched(true);
     }
   };
 
   useEffect(() => {
+    // Wait for session to be determined before deciding what to do
+    if (sessionStatus === "loading") return;
+
     if (isShopView || userId) {
       fetchDecks();
     } else {
       setIsFetchingDecks(false);
+      setHasFetched(true);
     }
-  }, [session, userId, isShopView]);
+  }, [sessionStatus, userId, isShopView]);
 
   const handleSelectDeck = (deck: Deck) => {
     setSelectedDeck(deck);
@@ -114,17 +120,59 @@ const DecksClient = () => {
     ? "shop"
     : "user";
 
-  // Loading state
-  if (isFetchingDecks) {
+  // Loading state - Skeleton matching page structure
+  // Show skeleton while: fetching decks, session is loading, or haven't fetched yet
+  if (isFetchingDecks || sessionStatus === "loading" || !hasFetched) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center bg-gradient-to-b from-[#fbf6ef] to-[#f2e2c7] w-full">
-        <div className="text-center space-y-4">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-amber-600" />
-          <p className="text-sm font-semibold tracking-wide text-amber-700">
-            {isShopView
-              ? "Consultando decks disponibles..."
-              : "Cargando tus decks..."}
-          </p>
+      <div className="flex h-screen w-full min-w-0 flex-col bg-[#f2eede] lg:flex-row overflow-hidden">
+        {/* Sidebar Skeleton */}
+        <div className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-full lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r">
+          {/* Header Skeleton */}
+          <div className="border-b border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-32 bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="h-9 w-20 bg-gray-200 rounded-xl animate-pulse" />
+            </div>
+          </div>
+
+          {/* Deck List Skeleton */}
+          <div className="flex-1 overflow-y-auto p-3 lg:p-4">
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={`deck-skeleton-${index}`}
+                  className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Leader image skeleton */}
+                    <div className="w-16 h-[88px] bg-gray-200 rounded-lg animate-pulse flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse" />
+                      <div className="h-4 w-1/2 bg-gray-200 rounded animate-pulse" />
+                      <div className="flex gap-2 mt-2">
+                        <div className="h-6 w-16 bg-gray-200 rounded-full animate-pulse" />
+                        <div className="h-6 w-12 bg-gray-200 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Skeleton - Desktop Only */}
+        <div className="hidden flex-1 lg:flex lg:flex-col bg-slate-50">
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="h-16 w-16 bg-gray-200 rounded-full animate-pulse mx-auto" />
+              <div className="h-5 w-48 bg-gray-200 rounded animate-pulse mx-auto" />
+              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mx-auto" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -197,9 +245,9 @@ const DecksClient = () => {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f2eede] lg:flex-row">
+    <div className="flex min-h-screen w-full min-w-0 flex-col bg-[#f2eede] lg:flex-row">
       {/* Sidebar - Deck List */}
-      <div className="flex flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
+      <div className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between">

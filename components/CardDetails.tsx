@@ -23,6 +23,11 @@ const CardDetails: React.FC<CardInfoProps> = ({
   isModal,
   isTextOnly = true,
 }) => {
+  // Use texts if available, otherwise fallback to effects
+  const hasTexts = (card?.texts?.length ?? 0) > 0;
+  const hasEffects = (card?.effects?.length ?? 0) > 0;
+  const hasEffectContent = hasTexts || hasEffects;
+
   return (
     <Card className="w-full max-w-2xl mx-auto border rounded-lg shadow  py-4 h-full">
       <CardContent className="h-full flex justify-between flex-col relative pb-1 px-4 md:px-6">
@@ -72,7 +77,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
             )}
           </div>
 
-          {card?.counter && isTextOnly && (card.texts?.length ?? 0) > 0 && (
+          {card?.counter && isTextOnly && hasEffectContent && (
             <Separator />
           )}
 
@@ -137,23 +142,34 @@ const CardDetails: React.FC<CardInfoProps> = ({
                 </div>
               </div>
 
-              {(card?.texts?.length ?? 0) > 0 && <Separator />}
+              {hasEffectContent && <Separator />}
             </>
           )}
 
-          {(card?.texts?.length ?? 0) > 0 && (
+          {hasEffectContent && (
             <div className="relative">
               <h3 className="text-sm font-semibold mb-2">Effect</h3>
               <div className="space-y-1 text-[13px] text-black font-[200]">
-                {card?.texts?.map((text, index) => (
-                  <p key={index} className="text-justify whitespace-pre-line">
-                    {highlightText(
-                      text.text.replace(/\\n/g, "\n"), // Reemplaza literal "\n" por un salto de línea real
-                      searchTerm,
-                      card?.conditions
-                    )}
-                  </p>
-                ))}
+                {/* Prefer texts, fallback to effects */}
+                {hasTexts
+                  ? card?.texts?.map((text, index) => (
+                      <p key={index} className="text-justify whitespace-pre-line">
+                        {highlightText(
+                          text.text.replace(/\\n/g, "\n"),
+                          searchTerm,
+                          card?.conditions
+                        )}
+                      </p>
+                    ))
+                  : card?.effects?.map((effect, index) => (
+                      <p key={index} className="text-justify whitespace-pre-line">
+                        {highlightText(
+                          effect.effect.replace(/\\n/g, "\n"),
+                          searchTerm,
+                          card?.conditions
+                        )}
+                      </p>
+                    ))}
               </div>
             </div>
           )}

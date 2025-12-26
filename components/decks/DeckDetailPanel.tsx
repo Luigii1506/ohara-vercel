@@ -267,7 +267,7 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
     try {
       const endpoint = isShopView
         ? `/api/admin/shop-decks/${deck.id}`
-        : `/api/admin/deck/${deck.id}`;
+        : `/api/decks/${deck.id}`;
       const res = await fetch(endpoint, { method: "DELETE" });
 
       if (!res.ok) {

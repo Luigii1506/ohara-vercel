@@ -25,7 +25,28 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { updatedAt: "desc" },
       include: {
-        deckCards: { include: { card: true } },
+        deckCards: {
+          include: {
+            card: {
+              include: {
+                colors: true,
+                types: true,
+                texts: true,
+                effects: true,
+                conditions: true,
+                sets: {
+                  select: {
+                    set: {
+                      select: {
+                        title: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         user: {
           select: { id: true, name: true },
         },

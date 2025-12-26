@@ -10,7 +10,6 @@ const EditDeckBuilder = () => {
   const router = useRouter();
   const params = useParams();
 
-  console.log("params", params);
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const deckBuilder = useDeckBuilder(id);
@@ -40,7 +39,7 @@ const EditDeckBuilder = () => {
 
     deckBuilder.setIsSaving(true);
     try {
-      const response = await fetch(`/api/admin/deck/${id}`, {
+      const response = await fetch(`/api/decks/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +77,6 @@ const EditDeckBuilder = () => {
       onRestart={handleRestart}
       initialCards={[] as CardWithCollectionData[]}
       useServerCards
-      isFork={true}
       deckName={deckBuilder.deckName}
       setDeckName={deckBuilder.setDeckName}
     />

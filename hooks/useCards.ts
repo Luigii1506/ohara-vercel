@@ -257,12 +257,15 @@ const fetchCardsPage = async (
   params: FetchCardsPageParams
 ): Promise<CardsPage> => {
   const queryString = buildQueryString(params);
+  const url = `/api/cards?${queryString}`;
 
-  const res = await fetch(`/api/cards?${queryString}`, {
+  const res = await fetch(url, {
     cache: "no-store",
   });
 
   if (!res.ok) {
+    const errorText = await res.text();
+    console.error("[fetchCardsPage] Error response:", errorText);
     throw new Error("Error al obtener cartas");
   }
 
@@ -335,6 +338,7 @@ export const usePaginatedCards = (
 ) => {
   const limit = options?.limit ?? 60;
   const serializedFilters = serializeFiltersForKey(filters);
+  const enabled = options?.enabled ?? true;
 
   const queryKey: QueryKey = ["cards-paginated", serializedFilters, limit];
 
@@ -343,18 +347,19 @@ export const usePaginatedCards = (
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) =>
       lastPage.nextCursor !== null ? lastPage.nextCursor : undefined,
-    queryFn: ({ pageParam }) =>
-      fetchCardsPage({
+    queryFn: ({ pageParam }) => {
+      return fetchCardsPage({
         cursor: pageParam,
         limit,
         filters,
-      }),
+      });
+    },
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     initialData: options?.initialData,
-    enabled: options?.enabled ?? true,
+    enabled,
   });
 
   const cards: CardWithCollectionData[] = [];

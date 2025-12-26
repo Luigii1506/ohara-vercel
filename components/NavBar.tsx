@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   Calendar,
   RefreshCw,
+  Trophy,
 } from "lucide-react";
 import {
   siInstagram,
@@ -165,6 +166,12 @@ const NavBar = () => {
           label: "Events",
           icon: Calendar,
           description: "Aprueba y edita eventos",
+        },
+        {
+          href: "/admin/tournaments",
+          label: "Tournament Insights",
+          icon: Trophy,
+          description: "Resultados y decklists sincronizados",
         },
         {
           href: "/admin/missing-sets",

@@ -5,10 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
-import { useCards } from "@/hooks/useCards";
 
 const EditDeckBuilder = () => {
-  const { data: cards = [], isLoading } = useCards();
   const router = useRouter();
   const params = useParams();
 
@@ -78,7 +76,8 @@ const EditDeckBuilder = () => {
       deckBuilder={deckBuilder}
       onSave={handleEdit}
       onRestart={handleRestart}
-      initialCards={cards as CardWithCollectionData[]}
+      initialCards={[] as CardWithCollectionData[]}
+      useServerCards
       isFork={true}
       deckName={deckBuilder.deckName}
       setDeckName={deckBuilder.setDeckName}

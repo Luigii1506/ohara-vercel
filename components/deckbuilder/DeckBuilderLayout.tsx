@@ -55,6 +55,8 @@ import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
 import ClearFiltersButton from "../ClearFiltersButton";
+import type { CardsFilters } from "@/lib/cards/types";
+import { usePaginatedCards } from "@/hooks/useCards";
 
 import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
 
@@ -82,7 +84,8 @@ interface CompleteDeckBuilderLayoutProps {
   onSave: () => void;
   onRestart: () => void;
   deckBuilder: ReturnType<typeof useDeckBuilder>;
-  initialCards: CardWithCollectionData[];
+  initialCards?: CardWithCollectionData[];
+  useServerCards?: boolean;
   isFork?: boolean;
   deckName?: string;
   setDeckName?: (name: string) => void;
@@ -100,7 +103,8 @@ const CompleteDeckBuilderLayout = ({
   onSave,
   onRestart,
   deckBuilder,
-  initialCards,
+  initialCards = [],
+  useServerCards = false,
   isFork = false,
   deckName,
   setDeckName,
@@ -217,6 +221,65 @@ const CompleteDeckBuilderLayout = ({
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
+
+  const cardsFilters = useMemo<CardsFilters>(
+    () => ({
+      sortBy:
+        selectedSort === "Price high"
+          ? "price_high"
+          : selectedSort === "Price low"
+          ? "price_low"
+          : undefined,
+      search: search.trim() || undefined,
+      colors: selectedColors.length ? selectedColors : undefined,
+      sets: selectedSets.length ? selectedSets : undefined,
+      setCodes: selectedCodes.length ? selectedCodes : undefined,
+      rarities: selectedRarities.length ? selectedRarities : undefined,
+      costs: selectedCosts.length ? selectedCosts : undefined,
+      power: selectedPower.length ? selectedPower : undefined,
+      attributes: selectedAttributes.length ? selectedAttributes : undefined,
+      categories: deckBuilder.selectedLeader
+        ? selectedCategories.length
+          ? selectedCategories
+          : undefined
+        : ["Leader"],
+      effects: selectedEffects.length ? selectedEffects : undefined,
+      types: selectedTypes.length ? selectedTypes : undefined,
+      altArts: selectedAltArts.length ? selectedAltArts : undefined,
+      counter: selectedCounter || undefined,
+      trigger: selectedTrigger || undefined,
+    }),
+    [
+      search,
+      selectedColors,
+      selectedSets,
+      selectedCodes,
+      selectedRarities,
+      selectedCosts,
+      selectedPower,
+      selectedAttributes,
+      selectedCategories,
+      selectedEffects,
+      selectedTypes,
+      selectedAltArts,
+      selectedCounter,
+      selectedTrigger,
+      selectedSort,
+      deckBuilder.selectedLeader,
+    ]
+  );
+
+  const {
+    cards: serverCards,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePaginatedCards(cardsFilters, {
+    limit: 60,
+    enabled: useServerCards,
+  });
+
+  const cardsSource = useServerCards ? serverCards : initialCards;
 
   const [visibleCount, setVisibleCount] = useState(50);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
@@ -350,9 +413,9 @@ const CompleteDeckBuilderLayout = ({
   };
 
   const filteredCards = useMemo(() => {
-    if (!initialCards || initialCards.length === 0) return [];
+    if (!cardsSource || cardsSource.length === 0) return [];
 
-    return initialCards
+    return cardsSource
       .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
@@ -497,7 +560,7 @@ const CompleteDeckBuilderLayout = ({
         return sortByCollectionOrder(a, b);
       });
   }, [
-    initialCards,
+    cardsSource,
     search,
     selectedColors,
     selectedRarities,
@@ -515,7 +578,7 @@ const CompleteDeckBuilderLayout = ({
     selectedCodes,
   ]);
 
-  console.log("initial", initialCards);
+  console.log("initial", cardsSource);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInputClear, setIsInputClear] = useState(false);
@@ -575,17 +638,17 @@ const CompleteDeckBuilderLayout = ({
 
     // Incluir el precio del leader si existe
     if (deckBuilder.selectedLeader) {
-      // Buscar el leader en initialCards (puede ser base o alternativa)
+      // Buscar el leader en cardsSource (puede ser base o alternativa)
       let foundLeader: CardWithCollectionData | undefined;
 
       // Primero buscar en las cartas base
-      foundLeader = initialCards.find(
+      foundLeader = cardsSource.find(
         (card) => Number(card.id) === Number(deckBuilder.selectedLeader?.id)
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundLeader) {
-        for (const card of initialCards) {
+        for (const card of cardsSource) {
           const alternate = card.alternates?.find(
             (alt) => Number(alt.id) === Number(deckBuilder.selectedLeader?.id)
           );
@@ -611,17 +674,17 @@ const CompleteDeckBuilderLayout = ({
 
     // Calcular precio de todas las cartas del deck
     deckBuilder.deckCards.forEach((deckCard) => {
-      // Buscar la carta original en initialCards (puede ser base o alternativa)
+      // Buscar la carta original en cardsSource (puede ser base o alternativa)
       let foundCard: CardWithCollectionData | undefined;
 
       // Primero buscar en las cartas base
-      foundCard = initialCards.find(
+      foundCard = cardsSource.find(
         (card) => Number(card.id) === deckCard.cardId
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundCard) {
-        for (const card of initialCards) {
+        for (const card of cardsSource) {
           const alternate = card.alternates?.find(
             (alt) => Number(alt.id) === deckCard.cardId
           );
@@ -653,13 +716,21 @@ const CompleteDeckBuilderLayout = ({
   }, [
     deckBuilder.deckCards,
     deckBuilder.selectedLeader,
-    initialCards,
+    cardsSource,
     getCardPriceValue,
   ]);
 
   const handleScrollToTop = () => {
     gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    setVisibleCount(50);
+    if (!useServerCards) {
+      setVisibleCount(50);
+    }
+  };
+
+  const resetVisibleCount = () => {
+    if (!useServerCards) {
+      setVisibleCount(50);
+    }
   };
 
   // Handler para el click en cada carta
@@ -795,24 +866,50 @@ const CompleteDeckBuilderLayout = ({
       const { scrollTop, clientHeight, scrollHeight } = container;
       const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      if (
-        remaining <= LOAD_THRESHOLD_PX &&
-        !isLoadingMoreRef.current &&
-        visibleCount < (filteredByLeader?.length ?? 0)
-      ) {
-        isLoadingMoreRef.current = true;
+      if (remaining > LOAD_THRESHOLD_PX || isLoadingMoreRef.current) {
+        return;
+      }
+
+      isLoadingMoreRef.current = true;
+
+      if (useServerCards) {
+        if (hasNextPage && !isFetchingNextPage) {
+          fetchNextPage().finally(() => {
+            isLoadingMoreRef.current = false;
+          });
+        } else {
+          isLoadingMoreRef.current = false;
+        }
+        return;
+      }
+
+      if (visibleCount < (filteredByLeader?.length ?? 0)) {
         setVisibleCount((prev) =>
           Math.min(prev + BATCH_SIZE, filteredByLeader?.length ?? 0)
         );
-        setTimeout(() => {
-          isLoadingMoreRef.current = false;
-        }, 100);
       }
+
+      setTimeout(() => {
+        isLoadingMoreRef.current = false;
+      }, 100);
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [visibleCount, filteredByLeader?.length]);
+  }, [
+    visibleCount,
+    filteredByLeader?.length,
+    useServerCards,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
+
+  useEffect(() => {
+    if (useServerCards) {
+      setVisibleCount(filteredByLeader?.length ?? 0);
+    }
+  }, [useServerCards, filteredByLeader?.length]);
 
   useEffect(() => {
     if (deckBuilder.deckCards.length > 0 || !isFork) {
@@ -1812,7 +1909,7 @@ const CompleteDeckBuilderLayout = ({
                             onRestart();
                             setSearch("");
                             setIsInputClear(true);
-                            setVisibleCount(50);
+                            resetVisibleCount();
                             setTimeout(() => {
                               gridRef.current?.scrollTo({
                                 top: 0,
@@ -2217,7 +2314,7 @@ const CompleteDeckBuilderLayout = ({
                   onRestart();
                   setSearch("");
                   setIsInputClear(true);
-                  setVisibleCount(50);
+                  resetVisibleCount();
                   setTimeout(() => {
                     gridRef.current?.scrollTo({
                       top: 0,

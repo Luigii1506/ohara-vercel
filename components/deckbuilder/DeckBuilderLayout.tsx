@@ -72,6 +72,7 @@ import { getOptimizedImageUrl, smartPrefetch } from "@/lib/imageOptimization";
 import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
+import BaseCardsToggle from "../BaseCardsToggle";
 
 // AlternateArt types que NO deben mostrarse en el deckbuilder
 const EXCLUDED_ALTERNATE_ARTS = [
@@ -1170,41 +1171,11 @@ const CompleteDeckBuilderLayout = ({
               />
             </div>
 
-            {/* Base Cards Toggle - Hermoso toggle nativo */}
-            <button
-              type="button"
-              onClick={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
-              className={`
-                relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium text-xs
-                transition-all duration-200 ease-out
-                ${
-                  showOnlyBaseCards
-                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-orange-200"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }
-              `}
-            >
-              <div
-                className={`
-                relative w-8 h-4 rounded-full transition-colors duration-200
-                ${showOnlyBaseCards ? "bg-white/30" : "bg-gray-300"}
-              `}
-              >
-                <div
-                  className={`
-                  absolute top-0.5 w-3 h-3 rounded-full shadow-sm transition-all duration-200 ease-out
-                  ${
-                    showOnlyBaseCards
-                      ? "left-[18px] bg-white"
-                      : "left-0.5 bg-white"
-                  }
-                `}
-                />
-              </div>
-              <span className="hidden sm:inline whitespace-nowrap">
-                {showOnlyBaseCards ? "Base" : "All"}
-              </span>
-            </button>
+            {/* Base Cards Toggle */}
+            <BaseCardsToggle
+              isActive={showOnlyBaseCards}
+              onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
+            />
 
             <div className="flex justify-center items-center gap-2">
               <ViewSwitch

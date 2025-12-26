@@ -26,7 +26,8 @@ import { sortByCollectionOrder } from "@/lib/cards/sort";
 import LazyImage from "@/components/LazyImage";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { DeckCard } from "@/types";
-import ViewSwitch from "../ViewSwitch";
+import SortSelect, { SortOption } from "../SortSelect";
+import BaseCardsToggle from "../BaseCardsToggle";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
 import ProxyFiltersDrawer from "./ProxyFiltersDrawer";
 import ProxiesDrawer from "./ProxiesDrawer";
@@ -40,6 +41,30 @@ import {
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 const PAGE_SIZE = 60;
+
+const SORT_OPTIONS: SortOption[] = [
+  {
+    value: "collection",
+    label: "Collection order",
+    description: "Default order by set",
+  },
+  {
+    value: "code_asc",
+    label: "Code A-Z",
+    description: "Ascending by card code",
+  },
+  {
+    value: "code_desc",
+    label: "Code Z-A",
+    description: "Descending by card code",
+  },
+  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
+  {
+    value: "name_desc",
+    label: "Name Z-A",
+    description: "Reverse alphabetical",
+  },
+];
 
 interface ProxiesBuilderProps {
   initialData: CardsPage;
@@ -73,9 +98,8 @@ const ProxiesBuilder = ({
     [selectedSets]
   );
 
-  const [viewSelected, setViewSelected] = useState<
-    "grid" | "list" | "alternate" | "text"
-  >("list");
+  const [selectedSort, setSelectedSort] = useState<string>("");
+  const [showOnlyBaseCards, setShowOnlyBaseCards] = useState(false);
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -87,15 +111,23 @@ const ProxiesBuilder = ({
       setCodes: selectedCodes.length > 0 ? selectedCodes : undefined,
       colors: selectedColors.length > 0 ? selectedColors : undefined,
       rarities: selectedRarities.length > 0 ? selectedRarities : undefined,
-      categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+      categories:
+        selectedCategories.length > 0 ? selectedCategories : undefined,
       costs: selectedCosts.length > 0 ? selectedCosts : undefined,
       power: selectedPower.length > 0 ? selectedPower : undefined,
-      attributes: selectedAttributes.length > 0 ? selectedAttributes : undefined,
+      attributes:
+        selectedAttributes.length > 0 ? selectedAttributes : undefined,
       types: selectedTypes.length > 0 ? selectedTypes : undefined,
       effects: selectedEffects.length > 0 ? selectedEffects : undefined,
       altArts: selectedAltArts.length > 0 ? selectedAltArts : undefined,
-      counter: selectedCounter && selectedCounter !== "No counter" ? selectedCounter : undefined,
-      trigger: selectedTrigger && selectedTrigger !== "No trigger" ? selectedTrigger : undefined,
+      counter:
+        selectedCounter && selectedCounter !== "No counter"
+          ? selectedCounter
+          : undefined,
+      trigger:
+        selectedTrigger && selectedTrigger !== "No trigger"
+          ? selectedTrigger
+          : undefined,
     };
   }, [
     search,
@@ -115,12 +147,16 @@ const ProxiesBuilder = ({
   ]);
 
   // Check if current filters match initial filters for using SSR data
-  const filtersSignature = useMemo(() => serializeFiltersForKey(filters), [filters]);
+  const filtersSignature = useMemo(
+    () => serializeFiltersForKey(filters),
+    [filters]
+  );
   const initialFiltersSignatureRef = useRef<string | null>(null);
   if (initialFiltersSignatureRef.current === null) {
     initialFiltersSignatureRef.current = filtersSignature;
   }
-  const matchesInitialFilters = initialFiltersSignatureRef.current === filtersSignature;
+  const matchesInitialFilters =
+    initialFiltersSignatureRef.current === filtersSignature;
 
   // Prepare initial data for the hook
   const initialQueryData = useMemo(() => {
@@ -823,11 +859,33 @@ const ProxiesBuilder = ({
     }
   };
 
-  // Filtered cards - server handles filtering, we just sort here
+  // Filtered cards - server handles filtering, we sort here based on selectedSort
   const filteredCards = useMemo(() => {
     if (!allCards || allCards.length === 0) return [];
-    return [...allCards].sort((a, b) => sortByCollectionOrder(a, b));
-  }, [allCards]);
+
+    const sorted = [...allCards];
+
+    switch (selectedSort) {
+      case "code_asc":
+        sorted.sort((a, b) => a.code.localeCompare(b.code));
+        break;
+      case "code_desc":
+        sorted.sort((a, b) => b.code.localeCompare(a.code));
+        break;
+      case "name_asc":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name_desc":
+        sorted.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "collection":
+      default:
+        sorted.sort((a, b) => sortByCollectionOrder(a, b));
+        break;
+    }
+
+    return sorted;
+  }, [allCards, selectedSort]);
 
   // Total results - prefer count from API, fallback to pagination count, then initial data
   const totalResults =
@@ -908,7 +966,9 @@ const ProxiesBuilder = ({
       // First, show more of already fetched cards
       if (visibleCount < filteredCards.length) {
         isLoadingMoreRef.current = true;
-        setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filteredCards.length));
+        setVisibleCount((prev) =>
+          Math.min(prev + PAGE_SIZE, filteredCards.length)
+        );
         requestAnimationFrame(() => {
           isLoadingMoreRef.current = false;
         });
@@ -948,7 +1008,7 @@ const ProxiesBuilder = ({
       </div>
 
       {/* Cards Panel (Left on desktop, full on mobile) */}
-      <div className="bg-white flex w-full md:w-[320px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col">
+      <div className="bg-white flex w-full md:w-[320px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col h-full">
         {/* Search + Filters Header */}
         <div className="p-3 border-b border-slate-100 space-y-3">
           {/* Search Input */}
@@ -970,38 +1030,47 @@ const ProxiesBuilder = ({
             )}
           </div>
 
-          {/* Filter Button + View Switch */}
-          <div className="flex items-center justify-between gap-2">
+          {/* Filter Button + Sort Select */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setIsFilterDrawerOpen(true)}
-              className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition ${
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
                 totalFilters > 0
-                  ? "border-purple-200 bg-purple-50 text-purple-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "border-purple-300 bg-purple-50 text-purple-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal className="h-4 w-4" />
               <span>Filters</span>
               {totalFilters > 0 && (
-                <Badge className="ml-1 bg-purple-600 text-white text-xs px-1.5">
-                  {totalFilters}
-                </Badge>
+                <>
+                  <span className="bg-purple-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                    {totalFilters}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearFilters();
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-purple-200 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
               )}
             </button>
 
-            {totalFilters > 0 && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-purple-600 font-medium hover:underline"
-              >
-                Clear all
-              </button>
-            )}
+            <BaseCardsToggle
+              isActive={showOnlyBaseCards}
+              onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
+            />
 
             <div className="ml-auto">
-              <ViewSwitch
-                viewSelected={viewSelected}
-                setViewSelected={setViewSelected}
+              <SortSelect
+                options={SORT_OPTIONS}
+                selected={selectedSort}
+                setSelected={setSelectedSort}
+                buttonLabel="Sort"
               />
             </div>
           </div>
@@ -1034,11 +1103,13 @@ const ProxiesBuilder = ({
           {/* Empty state */}
           {!isLoading && filteredCards.length === 0 && (
             <div className="flex items-center justify-center py-12">
-              <p className="text-sm text-slate-500">No cards match your filters.</p>
+              <p className="text-sm text-slate-500">
+                No cards match your filters.
+              </p>
             </div>
           )}
 
-          {viewSelected === "list" && filteredCards.length > 0 && (
+          {filteredCards.length > 0 && (
             <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-3">
               {filteredCards?.slice(0, visibleCount).map((card, index) => {
                 const baseCardMatches = (): boolean => {
@@ -1063,6 +1134,8 @@ const ProxiesBuilder = ({
                 };
 
                 const getFilteredAlternates = () => {
+                  // If showOnlyBaseCards is active, hide all alternates
+                  if (showOnlyBaseCards) return [];
                   if (!card?.alternates) return [];
                   return card.alternates.filter((alt) => {
                     if (normalizedSelectedSets.length > 0) {
@@ -1097,7 +1170,7 @@ const ProxiesBuilder = ({
                         onClick={(e) => handleCardClick(e, card, card)}
                         className="cursor-pointer transition-all duration-200 active:scale-95"
                       >
-                        <div className="rounded-lg shadow-sm bg-white overflow-hidden p-1.5">
+                        <div className="rounded-lg shadow-sm overflow-hidden">
                           <div className="relative">
                             <LazyImage
                               src={card.src}
@@ -1236,198 +1309,6 @@ const ProxiesBuilder = ({
               })}
             </div>
           )}
-
-          {viewSelected === "grid" && filteredCards.length > 0 && (
-            <div className="grid gap-2 grid-cols-1">
-              {filteredCards?.slice(0, visibleCount).map((card, index) => {
-                const baseCardMatches = (c: any): boolean => {
-                  if (!c) return false;
-                  if (
-                    [
-                      "Demo Version",
-                      "Not for Sale",
-                      "Pre-Errata",
-                      "Pre-Release",
-                    ].includes(c.alternateArt ?? "")
-                  ) {
-                    return false;
-                  }
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (c.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(c?.alternateArt ?? "");
-                  }
-                  return true;
-                };
-
-                if (!baseCardMatches(card)) return null;
-
-                const baseCardInProxies = proxies.find(
-                  (proxyCard) => proxyCard.cardId === Number(card.id)
-                );
-
-                return (
-                  <div
-                    key={card.id}
-                    onClick={(e) => handleCardClick(e, card, card)}
-                    className="cursor-pointer transition-all duration-200 active:scale-95"
-                  >
-                    <div className="rounded-xl shadow-sm bg-white p-2 relative flex gap-3">
-                      <div className="w-20 flex-shrink-0">
-                        <LazyImage
-                          src={card.src ?? "/assets/images/backcard.webp"}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={card?.name}
-                          priority={index < 20}
-                          size="small"
-                          className="w-full rounded-lg"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0 py-1">
-                        <p
-                          className={`${oswald.className} text-xs font-medium text-slate-500`}
-                        >
-                          {card.code}
-                        </p>
-                        <h3 className="font-semibold text-sm text-slate-900 line-clamp-1">
-                          {card.name}
-                        </h3>
-                        <p className="text-xs text-slate-500 line-clamp-1">
-                          {card.sets?.[0]?.set?.title}
-                        </p>
-                        <div className="flex gap-2 mt-1">
-                          {card.cost && (
-                            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded font-medium">
-                              Cost: {card.cost}
-                            </span>
-                          )}
-                          {card.power && (
-                            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded font-medium">
-                              Power: {card.power}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {baseCardInProxies && (
-                        <div className="absolute top-1 right-1">
-                          <div className="flex items-center gap-1 bg-gray-900 text-white rounded-lg px-1.5 py-0.5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(
-                                  baseCardInProxies.cardId,
-                                  baseCardInProxies.quantity - 1
-                                );
-                              }}
-                              className="h-6 w-6 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="text-white font-bold text-sm min-w-[16px] text-center">
-                              {baseCardInProxies.quantity}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(
-                                  baseCardInProxies.cardId,
-                                  baseCardInProxies.quantity + 1
-                                );
-                              }}
-                              className="h-6 w-6 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {(viewSelected === "alternate" || viewSelected === "text") && filteredCards.length > 0 && (
-            <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-3">
-              {filteredCards?.slice(0, visibleCount).map((card, index) => {
-                const baseCardInProxies = proxies.find(
-                  (proxyCard) => proxyCard.cardId === Number(card.id)
-                );
-
-                return (
-                  <div
-                    key={card.id}
-                    onClick={(e) => handleCardClick(e, card, card)}
-                    className="cursor-pointer transition-all duration-200 active:scale-95"
-                  >
-                    <div className="rounded-lg shadow-sm bg-white overflow-hidden relative">
-                      <LazyImage
-                        src={card.src}
-                        fallbackSrc="/assets/images/backcard.webp"
-                        alt={card.name}
-                        priority={index < 20}
-                        size="small"
-                        className="w-full"
-                      />
-                      {/* <div className="p-1.5 text-center">
-                        <span
-                          className={`${oswald.className} text-[11px] font-medium text-slate-700`}
-                        >
-                          {card.code}
-                        </span>
-                      </div> */}
-                      {baseCardInProxies && (
-                        <div className="absolute bottom-0 left-0 right-0 p-1">
-                          <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-1.5 py-0.5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(
-                                  baseCardInProxies.cardId,
-                                  baseCardInProxies.quantity - 1
-                                );
-                              }}
-                              className="h-6 w-6 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="text-white font-bold text-sm">
-                              {baseCardInProxies.quantity}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(
-                                  baseCardInProxies.cardId,
-                                  baseCardInProxies.quantity + 1
-                                );
-                              }}
-                              className="h-6 w-6 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
         </div>
       </div>
 

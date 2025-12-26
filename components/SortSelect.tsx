@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ArrowUpDown, Check, ChevronDown, X } from "lucide-react";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 export interface SortOption {
   value: string;
@@ -30,6 +31,8 @@ export default function SortSelect({
 
   const currentOption = options.find((o) => o.value === selected);
 
+  const wasOpenRef = useRef(false);
+
   // Handle menu open/close with animations
   useEffect(() => {
     if (isMenuOpen) {
@@ -37,22 +40,36 @@ export default function SortSelect({
       timeoutRef.current = setTimeout(() => {
         setIsVisible(true);
       }, 10);
-      document.body.style.overflow = "hidden";
+      if (!wasOpenRef.current) {
+        lockBodyScroll();
+        wasOpenRef.current = true;
+      }
     } else {
       setIsVisible(false);
       timeoutRef.current = setTimeout(() => {
         setShouldRender(false);
       }, 300);
-      document.body.style.overflow = "unset";
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+        wasOpenRef.current = false;
+      }
     }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      document.body.style.overflow = "unset";
     };
   }, [isMenuOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
 
   const handleSelect = useCallback(
     (value: string) => {
@@ -173,7 +190,7 @@ export default function SortSelect({
               </div>
 
               {/* Title */}
-              <div className="px-5 pb-3 sm:pt-5">
+              <div className="px-5 pb-3 sm:pt-5 flex flex-col">
                 <h3 className="text-lg font-semibold text-slate-900">
                   Sort Cards
                 </h3>
@@ -211,7 +228,7 @@ export default function SortSelect({
                     </div>
 
                     {/* Text */}
-                    <div className="flex-1 text-left">
+                    <div className="flex-1 text-left flex flex-col">
                       <p
                         className={cn(
                           "font-semibold",

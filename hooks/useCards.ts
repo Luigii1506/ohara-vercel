@@ -132,6 +132,7 @@ const buildQueryString = (
     ["colors", "colors"],
     ["rarities", "rarities"],
     ["categories", "categories"],
+    ["excludeCategories", "excludeCategories"],
     ["costs", "costs"],
     ["power", "power"],
     ["attributes", "attributes"],
@@ -219,6 +220,7 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
     ["colors", "colors"],
     ["rarities", "rarities"],
     ["categories", "categories"],
+    ["excludeCategories", "excludeCategories"],
     ["costs", "costs"],
     ["power", "power"],
     ["attributes", "attributes"],
@@ -388,13 +390,17 @@ export const usePaginatedCards = (
   };
 };
 
-export const useCardsCount = (filters: CardsFilters) => {
+export const useCardsCount = (
+  filters: CardsFilters,
+  options?: { enabled?: boolean }
+) => {
   const serializedFilters = serializeFiltersForKey(filters);
   return useQuery({
     queryKey: ["cards-count", serializedFilters],
     queryFn: () => fetchCardsCount(filters),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
+    enabled: options?.enabled ?? true,
   });
 };
 

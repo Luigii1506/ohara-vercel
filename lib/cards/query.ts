@@ -99,12 +99,22 @@ const splitParam = (value: string | null | undefined) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
+const VALID_SORT_VALUES = [
+  "price_high",
+  "price_low",
+  "code_asc",
+  "code_desc",
+  "name_asc",
+  "name_desc",
+  "collection",
+] as const;
+
 export const buildFiltersFromSearchParams = (
   params: URLSearchParams
 ): CardsFilters => {
   const sortByParam = params.get("sortBy");
-  const sortBy = sortByParam === "price_high" || sortByParam === "price_low"
-    ? sortByParam
+  const sortBy = VALID_SORT_VALUES.includes(sortByParam as any)
+    ? (sortByParam as CardsFilters["sortBy"])
     : undefined;
 
   return {
@@ -114,6 +124,7 @@ export const buildFiltersFromSearchParams = (
     colors: splitParam(params.get("colors")),
     rarities: splitParam(params.get("rarities")),
     categories: splitParam(params.get("categories")),
+    excludeCategories: splitParam(params.get("excludeCategories")),
     costs: splitParam(params.get("costs")),
     power: splitParam(params.get("power")),
     attributes: splitParam(params.get("attributes")),
@@ -370,6 +381,15 @@ const buildWhere = (
     }
   }
 
+  // Exclude categories (e.g., DON cards)
+  if (filters.excludeCategories?.length) {
+    andConditions.push({
+      NOT: {
+        category: { in: filters.excludeCategories },
+      },
+    });
+  }
+
   if (Array.isArray(where.AND) && where.AND.length === 0) {
     delete where.AND;
   }
@@ -498,6 +518,7 @@ export const mapCard = (
 };
 
 // Función especial para ordenamiento por precio (incluye base + alternativas)
+// Muestra TODAS las cartas (base y alternativas) como items individuales, ordenadas por precio
 const fetchCardsPageByPrice = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
@@ -507,18 +528,18 @@ const fetchCardsPageByPrice = async (
     cursor = null,
     includeRelations = false,
     includeAlternates = true,
-    includeCounts = false,
   } = options;
 
   // Construir where INCLUYENDO alternativas
   const priceWhere = buildWhere(filters, true);
   const take = Math.min(Math.max(limit, 1), 200);
+  const isHighToLow = filters.sortBy === "price_high";
 
-  // Ordenar por precio
+  // Ordenar por precio directamente en la consulta
   const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
-  if (filters.sortBy === "price_high") {
+  if (isHighToLow) {
     orderBy.push({ marketPrice: { sort: "desc", nulls: "last" } });
-  } else if (filters.sortBy === "price_low") {
+  } else {
     orderBy.push({ marketPrice: { sort: "asc", nulls: "last" } });
   }
   orderBy.push({ id: "asc" }); // Desempate por ID
@@ -527,8 +548,6 @@ const fetchCardsPageByPrice = async (
     where: priceWhere,
     orderBy,
     include: {
-      // Para ordenamiento por precio, NO incluir alternateCards
-      // porque traemos todo en un solo nivel
       ...(includeRelations && {
         types: { select: { id: true, type: true } },
         colors: { select: { id: true, color: true } },
@@ -554,17 +573,26 @@ const fetchCardsPageByPrice = async (
           },
         },
       }),
-      // Incluir la referencia a la carta base para mantener la relación
-      baseCard: includeAlternates ? {
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          src: true,
-          category: true,
-          rarity: true,
-        }
-      } : false,
+      // Incluir la referencia a la carta base para alternativas
+      baseCard: includeAlternates
+        ? {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              src: true,
+              category: true,
+              rarity: true,
+              marketPrice: true,
+              lowPrice: true,
+              highPrice: true,
+              priceCurrency: true,
+              tcgUrl: true,
+              tcgplayerProductId: true,
+              tcgplayerLinkStatus: true,
+            },
+          }
+        : false,
     },
   };
 
@@ -585,8 +613,7 @@ const fetchCardsPageByPrice = async (
   const hasMore = allCards.length > take;
   const trimmed = hasMore ? allCards.slice(0, take) : allCards;
 
-  // Mapear las cartas - en este caso cada carta es independiente
-  // Las alternativas se mostrarán como cartas individuales
+  // Mapear las cartas - cada carta es independiente (base o alternativa)
   const mapped = trimmed.map((card) => ({
     ...card,
     alternates: [], // Sin alternativas anidadas en modo precio
@@ -632,12 +659,29 @@ export const fetchCardsPageFromDb = async (
   // Build orderBy based on sortBy filter
   const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
 
-  // Add default sorting
-  orderBy.push(
-    { collectionOrder: "asc" },
-    { code: "asc" },
-    { id: "asc" }
-  );
+  switch (filters.sortBy) {
+    case "code_asc":
+      orderBy.push({ code: "asc" }, { id: "asc" });
+      break;
+    case "code_desc":
+      orderBy.push({ code: "desc" }, { id: "desc" });
+      break;
+    case "name_asc":
+      orderBy.push({ name: "asc" }, { id: "asc" });
+      break;
+    case "name_desc":
+      orderBy.push({ name: "desc" }, { id: "desc" });
+      break;
+    case "collection":
+    default:
+      // Default: collection order
+      orderBy.push(
+        { collectionOrder: "asc" },
+        { code: "asc" },
+        { id: "asc" }
+      );
+      break;
+  }
 
   const args: Prisma.CardFindManyArgs = {
     where,
@@ -713,20 +757,168 @@ export const fetchAllCardsFromDb = async (
   return mapped as unknown as CardWithCollectionData[];
 };
 
+// Build WHERE conditions for direct matching (without the "withAlternates" OR logic)
+// Used for counting individual cards that match filters
+const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+  const where: Prisma.CardWhereInput = {
+    AND: [],
+  };
+
+  const andConditions = where.AND as Prisma.CardWhereInput[];
+
+  const buildSearchCondition = (search: string): Prisma.CardWhereInput => ({
+    OR: [
+      { name: { contains: search, mode: "insensitive" } },
+      { code: { contains: search, mode: "insensitive" } },
+      { alias: { contains: search, mode: "insensitive" } },
+      {
+        effects: {
+          some: { effect: { contains: search, mode: "insensitive" } },
+        },
+      },
+      {
+        texts: {
+          some: { text: { contains: search, mode: "insensitive" } },
+        },
+      },
+      {
+        sets: {
+          some: {
+            set: { title: { contains: search, mode: "insensitive" } },
+          },
+        },
+      },
+    ],
+  });
+
+  if (filters.search) {
+    const search = filters.search.trim();
+    if (search.length) {
+      andConditions.push(buildSearchCondition(search));
+    }
+  }
+
+  if (filters.sets?.length) {
+    andConditions.push({
+      OR: [
+        { setCode: { in: filters.sets } },
+        {
+          sets: {
+            some: { set: { code: { in: filters.sets } } },
+          },
+        },
+      ],
+    });
+  }
+
+  if (filters.setCodes?.length) {
+    andConditions.push({
+      OR: filters.setCodes.map((code) => ({
+        code: { contains: code, mode: "insensitive" as const },
+      })),
+    });
+  }
+
+  if (filters.colors?.length) {
+    andConditions.push({
+      OR: filters.colors.map((value) => ({
+        colors: {
+          some: { color: { equals: value, mode: "insensitive" as const } },
+        },
+      })),
+    });
+  }
+
+  if (filters.rarities?.length) {
+    andConditions.push({
+      OR: filters.rarities.map((value) => ({
+        rarity: { equals: value, mode: "insensitive" as const },
+      })),
+    });
+  }
+
+  if (filters.categories?.length) {
+    andConditions.push({
+      OR: filters.categories.map((value) => ({
+        category: { equals: value, mode: "insensitive" as const },
+      })),
+    });
+  }
+
+  if (filters.costs?.length) {
+    andConditions.push({ cost: { in: filters.costs } });
+  }
+
+  if (filters.power?.length) {
+    andConditions.push({ power: { in: filters.power } });
+  }
+
+  if (filters.attributes?.length) {
+    andConditions.push({ attribute: { in: filters.attributes } });
+  }
+
+  if (filters.types?.length) {
+    andConditions.push({
+      types: { some: { type: { in: filters.types } } },
+    });
+  }
+
+  if (filters.effects?.length) {
+    andConditions.push({
+      effects: { some: { effect: { in: filters.effects } } },
+    });
+  }
+
+  if (filters.altArts?.length) {
+    andConditions.push({
+      OR: filters.altArts.map((value) => ({
+        alternateArt: { equals: value, mode: "insensitive" as const },
+      })),
+    });
+  }
+
+  if (filters.region) {
+    andConditions.push({ region: filters.region });
+  }
+
+  if (filters.counter) {
+    if (filters.counter === "No counter") {
+      andConditions.push({ counter: null });
+    } else {
+      andConditions.push({ counter: { contains: filters.counter } });
+    }
+  }
+
+  if (filters.trigger) {
+    if (filters.trigger === "No trigger") {
+      andConditions.push({ triggerCard: null });
+    } else {
+      andConditions.push({ triggerCard: filters.trigger });
+    }
+  }
+
+  // Exclude categories (e.g., DON cards)
+  if (filters.excludeCategories?.length) {
+    andConditions.push({
+      NOT: {
+        category: { in: filters.excludeCategories },
+      },
+    });
+  }
+
+  if (Array.isArray(where.AND) && where.AND.length === 0) {
+    delete where.AND;
+  }
+
+  return where;
+};
+
 export const countCardsByFilters = async (
   filters: CardsFilters
 ): Promise<number> => {
-  const baseWhere = buildWhere(filters);
+  // Count cards that directly match the filters (both base and alternates individually)
+  // This avoids the "withAlternates" OR pattern that counts base cards when only alternates match
+  const directWhere = buildDirectWhere(filters);
 
-  const [baseCount, alternateCount] = await Promise.all([
-    prisma.card.count({ where: baseWhere }),
-    prisma.card.count({
-      where: {
-        ...baseWhere,
-        baseCardId: { not: null },
-      },
-    }),
-  ]);
-
-  return baseCount + alternateCount;
+  return prisma.card.count({ where: directWhere });
 };

@@ -23,6 +23,7 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import MobileDeckStats from "./MobileDeckStats";
 import CardWithBadges from "@/components/CardWithBadges";
 import CardPreviewDialog from "./CardPreviewDialog";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -165,17 +166,30 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
     );
   };
 
+  const wasOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen) {
       setIsAnimating(true);
-      document.body.style.overflow = "hidden";
+      if (!wasOpenRef.current) {
+        lockBodyScroll();
+        wasOpenRef.current = true;
+      }
     } else {
-      document.body.style.overflow = "unset";
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+        wasOpenRef.current = false;
+      }
     }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
   }, [isOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
 
   if (!isOpen && !isAnimating) return null;
 

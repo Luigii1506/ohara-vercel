@@ -6,7 +6,6 @@ import {
   Layers,
   Minus,
   Plus,
-  Search,
   SlidersHorizontal,
   X,
   Printer,
@@ -22,12 +21,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { sortByCollectionOrder } from "@/lib/cards/sort";
 import LazyImage from "@/components/LazyImage";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { DeckCard } from "@/types";
 import SortSelect, { SortOption } from "../SortSelect";
 import BaseCardsToggle from "../BaseCardsToggle";
+import DropdownSearch from "../DropdownSearch";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
 import ProxyFiltersDrawer from "./ProxyFiltersDrawer";
 import ProxiesDrawer from "./ProxiesDrawer";
@@ -43,11 +42,6 @@ const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 const PAGE_SIZE = 60;
 
 const SORT_OPTIONS: SortOption[] = [
-  {
-    value: "collection",
-    label: "Collection order",
-    description: "Default order by set",
-  },
   {
     value: "code_asc",
     label: "Code A-Z",
@@ -105,6 +99,14 @@ const ProxiesBuilder = ({
 
   // Build filters for the paginated API
   const filters = useMemo<CardsFilters>(() => {
+    // Map selectedSort to backend sortBy format
+    const sortBy = selectedSort
+      ? (selectedSort as CardsFilters["sortBy"])
+      : undefined;
+
+    // Exclude DON cards when sorting is applied (unless user explicitly filters by DON category)
+    const shouldExcludeDON = sortBy && selectedCategories.length === 0;
+
     return {
       search: search.trim() || undefined,
       sets: selectedSets.length > 0 ? selectedSets : undefined,
@@ -113,6 +115,7 @@ const ProxiesBuilder = ({
       rarities: selectedRarities.length > 0 ? selectedRarities : undefined,
       categories:
         selectedCategories.length > 0 ? selectedCategories : undefined,
+      excludeCategories: shouldExcludeDON ? ["DON"] : undefined,
       costs: selectedCosts.length > 0 ? selectedCosts : undefined,
       power: selectedPower.length > 0 ? selectedPower : undefined,
       attributes:
@@ -128,6 +131,7 @@ const ProxiesBuilder = ({
         selectedTrigger && selectedTrigger !== "No trigger"
           ? selectedTrigger
           : undefined,
+      sortBy,
     };
   }, [
     search,
@@ -144,6 +148,7 @@ const ProxiesBuilder = ({
     selectedAltArts,
     selectedCounter,
     selectedTrigger,
+    selectedSort,
   ]);
 
   // Check if current filters match initial filters for using SSR data
@@ -198,6 +203,8 @@ const ProxiesBuilder = ({
   // Drawer states
   const [selectedCard, setSelectedCard] = useState<DeckCard | null>(null);
   const [selectedFullCard, setSelectedFullCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [selectedBaseCard, setSelectedBaseCard] =
     useState<CardWithCollectionData | null>(null);
   const [isCardDrawerOpen, setIsCardDrawerOpen] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -287,12 +294,15 @@ const ProxiesBuilder = ({
   // Open card preview drawer
   const handleProxyCardClick = (
     proxy: DeckCard,
-    fullCard?: CardWithCollectionData
+    fullCard?: CardWithCollectionData,
+    baseCard?: CardWithCollectionData
   ) => {
     setSelectedCard(proxy);
     // Find the full card data from allCards or alternates
     if (fullCard) {
       setSelectedFullCard(fullCard);
+      // If baseCard is provided, use it; otherwise fullCard is the base
+      setSelectedBaseCard(baseCard || fullCard);
     } else {
       const foundCard = allCards.find(
         (c) =>
@@ -300,6 +310,9 @@ const ProxiesBuilder = ({
           c.alternates?.some((alt) => Number(alt.id) === proxy.cardId)
       );
       if (foundCard) {
+        // foundCard is always the base card
+        setSelectedBaseCard(foundCard);
+
         if (Number(foundCard.id) === proxy.cardId) {
           setSelectedFullCard(foundCard);
         } else {
@@ -310,6 +323,7 @@ const ProxiesBuilder = ({
         }
       } else {
         setSelectedFullCard(null);
+        setSelectedBaseCard(null);
       }
     }
     setIsCardDrawerOpen(true);
@@ -341,6 +355,8 @@ const ProxiesBuilder = ({
     };
     setSelectedCard(tempDeckCard);
     setSelectedFullCard(displayCard);
+    // Always use baseCard for rulings and card info
+    setSelectedBaseCard(baseCard);
     setIsCardDrawerOpen(true);
   };
 
@@ -859,33 +875,11 @@ const ProxiesBuilder = ({
     }
   };
 
-  // Filtered cards - server handles filtering, we sort here based on selectedSort
+  // Filtered cards - server handles filtering AND sorting via sortBy parameter
   const filteredCards = useMemo(() => {
     if (!allCards || allCards.length === 0) return [];
-
-    const sorted = [...allCards];
-
-    switch (selectedSort) {
-      case "code_asc":
-        sorted.sort((a, b) => a.code.localeCompare(b.code));
-        break;
-      case "code_desc":
-        sorted.sort((a, b) => b.code.localeCompare(a.code));
-        break;
-      case "name_asc":
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "name_desc":
-        sorted.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case "collection":
-      default:
-        sorted.sort((a, b) => sortByCollectionOrder(a, b));
-        break;
-    }
-
-    return sorted;
-  }, [allCards, selectedSort]);
+    return allCards;
+  }, [allCards]);
 
   // Total results - prefer count from API, fallback to pagination count, then initial data
   const totalResults =
@@ -1012,23 +1006,11 @@ const ProxiesBuilder = ({
         {/* Search + Filters Header */}
         <div className="p-3 border-b border-slate-100 space-y-3">
           {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search cards..."
-              className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-10 py-2.5 text-sm text-slate-800 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+          <DropdownSearch
+            search={search}
+            setSearch={setSearch}
+            placeholder="Search..."
+          />
 
           {/* Filter Button + Sort Select */}
           <div className="flex items-center gap-2">
@@ -1077,7 +1059,7 @@ const ProxiesBuilder = ({
 
           {/* Results count */}
           <p className="text-xs text-slate-500">
-            {totalResults} cards found
+            {totalResults?.toLocaleString()} cards found
             {(isFetching || isFetchingNextPage || isCounting) && (
               <span className="ml-2 text-purple-600">Loading...</span>
             )}
@@ -1465,6 +1447,7 @@ const ProxiesBuilder = ({
         onClose={() => setIsCardDrawerOpen(false)}
         card={selectedCard}
         fullCard={selectedFullCard}
+        baseCard={selectedBaseCard}
         onQuantityChange={handleQuantityChange}
         onRemove={removeCard}
       />

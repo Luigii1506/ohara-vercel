@@ -60,6 +60,26 @@ input::-webkit-inner-spin-button {
   }
 }
 
+/* Floating card animation - subtle and elegant */
+@keyframes cardFloat {
+  0%, 100% {
+    transform: translateY(0px) rotateX(0deg) rotateY(0deg);
+  }
+  25% {
+    transform: translateY(-6px) rotateX(1deg) rotateY(-1deg);
+  }
+  50% {
+    transform: translateY(-3px) rotateX(-0.5deg) rotateY(1deg);
+  }
+  75% {
+    transform: translateY(-8px) rotateX(0.5deg) rotateY(-0.5deg);
+  }
+}
+
+.animate-card-float {
+  animation: cardFloat 4s ease-in-out infinite;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }

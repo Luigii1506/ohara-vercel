@@ -26,6 +26,7 @@ import {
   Minus,
   Plus,
   Download,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
@@ -54,9 +55,8 @@ import { allColors, categoryOptions } from "@/helpers/constants";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
-import ClearFiltersButton from "../ClearFiltersButton";
 import type { CardsFilters } from "@/lib/cards/types";
-import { usePaginatedCards } from "@/hooks/useCards";
+import { usePaginatedCards, useCardsCount } from "@/hooks/useCards";
 
 import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
 import DeckBuilderDrawer from "./DeckBuilderDrawer";
@@ -73,6 +73,7 @@ import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
 import BaseCardsToggle from "../BaseCardsToggle";
+import SortSelect, { SortOption } from "../SortSelect";
 
 // AlternateArt types que NO deben mostrarse en el deckbuilder
 const EXCLUDED_ALTERNATE_ARTS = [
@@ -83,6 +84,35 @@ const EXCLUDED_ALTERNATE_ARTS = [
   "2nd Anniversary",
   "3rd Anniversary",
   "Not for sale",
+];
+
+const SORT_OPTIONS: SortOption[] = [
+  {
+    value: "code_asc",
+    label: "Code A-Z",
+    description: "Ascending by card code",
+  },
+  {
+    value: "code_desc",
+    label: "Code Z-A",
+    description: "Descending by card code",
+  },
+  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
+  {
+    value: "name_desc",
+    label: "Name Z-A",
+    description: "Reverse alphabetical",
+  },
+  {
+    value: "price_high",
+    label: "Price: High to Low",
+    description: "Most expensive first",
+  },
+  {
+    value: "price_low",
+    label: "Price: Low to High",
+    description: "Cheapest first",
+  },
 ];
 
 interface CompleteDeckBuilderLayoutProps {
@@ -272,16 +302,22 @@ const CompleteDeckBuilderLayout = ({
   }, []);
 
   // Card preview dialog state
-  const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(null);
-  const [previewBaseCard, setPreviewBaseCard] = useState<CardWithCollectionData | null>(null);
+  const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(
+    null
+  );
+  const [previewBaseCard, setPreviewBaseCard] =
+    useState<CardWithCollectionData | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Open card preview
-  const openCardPreview = useCallback((card: CardWithCollectionData, baseCard?: CardWithCollectionData) => {
-    setPreviewCard(card);
-    setPreviewBaseCard(baseCard || card);
-    setIsPreviewOpen(true);
-  }, []);
+  const openCardPreview = useCallback(
+    (card: CardWithCollectionData, baseCard?: CardWithCollectionData) => {
+      setPreviewCard(card);
+      setPreviewBaseCard(baseCard || card);
+      setIsPreviewOpen(true);
+    },
+    []
+  );
 
   // Close card preview
   const closeCardPreview = useCallback(() => {
@@ -293,17 +329,25 @@ const CompleteDeckBuilderLayout = ({
   }, []);
 
   // Get quantity of a specific card in the deck
-  const getCardQuantityInDeck = useCallback((cardId: number | string) => {
-    const card = deckBuilder.deckCards.find((c) => c.cardId === Number(cardId));
-    return card?.quantity || 0;
-  }, [deckBuilder.deckCards]);
+  const getCardQuantityInDeck = useCallback(
+    (cardId: number | string) => {
+      const card = deckBuilder.deckCards.find(
+        (c) => c.cardId === Number(cardId)
+      );
+      return card?.quantity || 0;
+    },
+    [deckBuilder.deckCards]
+  );
 
   // Get total quantity by code in deck
-  const getTotalQuantityByCode = useCallback((code: string) => {
-    return deckBuilder.deckCards
-      .filter((c) => c.code === code)
-      .reduce((sum, c) => sum + c.quantity, 0);
-  }, [deckBuilder.deckCards]);
+  const getTotalQuantityByCode = useCallback(
+    (code: string) => {
+      return deckBuilder.deckCards
+        .filter((c) => c.code === code)
+        .reduce((sum, c) => sum + c.quantity, 0);
+    },
+    [deckBuilder.deckCards]
+  );
 
   const getMaxQuantityForCode = useCallback((code?: string) => {
     return code === "OP08-072" || code === "OP01-075" ? 50 : 4;
@@ -316,14 +360,15 @@ const CompleteDeckBuilderLayout = ({
     const rawColors = Array.isArray(card.colors) ? card.colors : [];
     const tokens = rawColors
       .flatMap((c: { color?: string } | string) =>
-        String(typeof c === "string" ? c : c?.color || "")
-          .split(/[\\/,+]/)
+        String(typeof c === "string" ? c : c?.color || "").split(/[\\/,+]/)
       )
       .map((color) => color.toLowerCase().trim())
       .filter(Boolean);
     if (tokens.length > 0) return tokens;
     const fallback = (card as any).color;
-    const normalizedFallback = String(fallback || "").toLowerCase().trim();
+    const normalizedFallback = String(fallback || "")
+      .toLowerCase()
+      .trim();
     return normalizedFallback ? [normalizedFallback] : [];
   }, []);
 
@@ -347,14 +392,17 @@ const CompleteDeckBuilderLayout = ({
     return fallback ? [fallback] : [];
   }, [deckBuilder.selectedLeader]);
 
-  const cardsFilters = useMemo<CardsFilters>(
-    () => ({
-      sortBy:
-        selectedSort === "Price high"
-          ? "price_high"
-          : selectedSort === "Price low"
-          ? "price_low"
-          : undefined,
+  const cardsFilters = useMemo<CardsFilters>(() => {
+    // Map selectedSort to backend sortBy format
+    const sortBy = selectedSort
+      ? (selectedSort as CardsFilters["sortBy"])
+      : undefined;
+
+    // Exclude DON cards when sorting is applied (unless user explicitly filters by DON category)
+    const shouldExcludeDON = sortBy && selectedCategories.length === 0;
+
+    return {
+      sortBy,
       search: search.trim() || undefined,
       colors:
         selectedColors.length > 0
@@ -373,37 +421,41 @@ const CompleteDeckBuilderLayout = ({
           ? selectedCategories
           : nonLeaderCategories
         : ["Leader"],
+      excludeCategories: shouldExcludeDON ? ["DON"] : undefined,
       effects: selectedEffects.length ? selectedEffects : undefined,
       types: selectedTypes.length ? selectedTypes : undefined,
       altArts: selectedAltArts.length ? selectedAltArts : undefined,
       counter: selectedCounter || undefined,
       trigger: selectedTrigger || undefined,
-    }),
-    [
-      search,
-      selectedColors,
-      selectedSets,
-      selectedCodes,
-      selectedRarities,
-      selectedCosts,
-      selectedPower,
-      selectedAttributes,
-      selectedCategories,
-      selectedEffects,
-      selectedTypes,
-      selectedAltArts,
-      selectedCounter,
-      selectedTrigger,
-      selectedSort,
-      deckBuilder.selectedLeader,
-      leaderColors,
-      nonLeaderCategories,
-    ]
-  );
+    };
+  }, [
+    search,
+    selectedColors,
+    selectedSets,
+    selectedCodes,
+    selectedRarities,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedCategories,
+    selectedEffects,
+    selectedTypes,
+    selectedAltArts,
+    selectedCounter,
+    selectedTrigger,
+    selectedSort,
+    deckBuilder.selectedLeader,
+    leaderColors,
+    nonLeaderCategories,
+  ]);
 
   // When editing/forking a deck, wait for the deck AND leader to load before fetching cards
   // This ensures selectedLeader is set and filters are correct (categories will be non-Leader)
-  const shouldFetchCards = useServerCards && (isFork ? (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader !== null) : true);
+  const shouldFetchCards =
+    useServerCards &&
+    (isFork
+      ? deckBuilder.isDeckLoaded && deckBuilder.selectedLeader !== null
+      : true);
 
   const {
     cards: serverCards,
@@ -412,13 +464,22 @@ const CompleteDeckBuilderLayout = ({
     isFetchingNextPage,
     isLoading: isLoadingCards,
     isFetching: isFetchingCards,
+    totalCount,
   } = usePaginatedCards(cardsFilters, {
     limit: 60,
     enabled: shouldFetchCards,
     initialData: initialQueryData,
   });
 
+  // Get total count from database with filters
+  const { data: countData, isFetching: isCounting } = useCardsCount(cardsFilters, {
+    enabled: shouldFetchCards,
+  });
+
   const cardsSource = useServerCards ? serverCards : initialCards;
+
+  // Total results - prefer count from API, fallback to pagination count
+  const totalResults = countData ?? totalCount ?? cardsSource.length;
 
   const [visibleCount, setVisibleCount] = useState(50);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
@@ -1114,76 +1175,73 @@ const CompleteDeckBuilderLayout = ({
             placeholder="Search..."
           />
 
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex gap-2 justify-center items-center">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className={`
-              inline-flex items-center gap-2 h-10 px-4 text-sm font-bold border rounded-xl shadow-sm transition-colors
-              ${
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
                 totalFilters > 0
-                  ? "bg-[#2463eb] text-white border-[#2463eb]"
-                  : "bg-gray-100 text-gray-900 border-gray-200"
-              }
-                `}
-              >
-                <Layers className="h-4 w-4" />
-                <span>Filters</span>
-                {totalFilters > 0 && (
-                  <Badge className="ml-1 !bg-white !text-[#2463eb] font-bold">
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>Filters</span>
+              {totalFilters > 0 && (
+                <>
+                  <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                     {totalFilters}
-                  </Badge>
-                )}
-              </button>
-              <ClearFiltersButton
-                isTouchable={
-                  selectedColors.length > 0 ||
-                  selectedRarities.length > 0 ||
-                  selectedCategories.length > 0 ||
-                  selectedCounter !== "" ||
-                  selectedTrigger !== "" ||
-                  selectedEffects.length > 0 ||
-                  selectedTypes.length > 0 ||
-                  selectedSets.length > 0 ||
-                  selectedCosts.length > 0 ||
-                  selectedPower.length > 0 ||
-                  selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0 ||
-                  selectedAltArts.length > 0
-                }
-                clearFilters={() => {
-                  setSelectedColors([]);
-                  setSelectedRarities([]);
-                  setSelectedCategories([]);
-                  setSelectedCounter("");
-                  setSelectedTrigger("");
-                  setSelectedEffects([]);
-                  setSelectedTypes([]);
-                  setSelectedSets([]);
-                  setSelectedCosts([]);
-                  setSelectedPower([]);
-                  setSelectedAttributes([]);
-                  setSelectedCodes([]);
-                  setSelectedAltArts([]);
-                }}
-                isMobile={true}
-              />
-            </div>
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedColors([]);
+                      setSelectedRarities([]);
+                      setSelectedCategories([]);
+                      setSelectedCounter("");
+                      setSelectedTrigger("");
+                      setSelectedEffects([]);
+                      setSelectedTypes([]);
+                      setSelectedSets([]);
+                      setSelectedCosts([]);
+                      setSelectedPower([]);
+                      setSelectedAttributes([]);
+                      setSelectedCodes([]);
+                      setSelectedAltArts([]);
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-blue-200 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </button>
 
-            {/* Base Cards Toggle */}
             <BaseCardsToggle
               isActive={showOnlyBaseCards}
               onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
             />
 
-            <div className="flex justify-center items-center gap-2">
-              <ViewSwitch
+            <div className="ml-auto flex items-center gap-2">
+              <SortSelect
+                options={SORT_OPTIONS}
+                selected={selectedSort}
+                setSelected={setSelectedSort}
+                buttonLabel="Sort"
+              />
+              {/* <ViewSwitch
                 viewSelected={viewSelected}
                 setViewSelected={setViewSelected}
-              />
+              /> */}
             </div>
           </div>
+
+          {/* Results count */}
+          <p className="text-xs text-slate-500">
+            {totalResults?.toLocaleString()} cards found
+            {(isFetchingCards || isFetchingNextPage || isCounting) && (
+              <span className="ml-2 text-blue-600">Loading...</span>
+            )}
+          </p>
         </div>
 
         {/* Lista de cartas disponibles */}
@@ -1204,7 +1262,7 @@ const CompleteDeckBuilderLayout = ({
                     Select your Leader
                   </h3>
                   <p className="text-slate-400 text-sm mt-0.5 leading-snug">
-                    Tap on a Leader card to start building your deck
+                    Tap on a Leader card to start
                   </p>
                 </div>
               </div>
@@ -1213,7 +1271,8 @@ const CompleteDeckBuilderLayout = ({
 
           {/* Skeleton de carga - Mobile first (matching DeckDetailView style) */}
           {(isLoadingCards ||
-            (isFork && (!deckBuilder.isDeckLoaded || !deckBuilder.selectedLeader)) ||
+            (isFork &&
+              (!deckBuilder.isDeckLoaded || !deckBuilder.selectedLeader)) ||
             (isFetchingCards && cardsSource.length === 0)) && (
             <div className="grid gap-1.5 sm:gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 12 }).map((_, index) => (
@@ -1226,7 +1285,8 @@ const CompleteDeckBuilderLayout = ({
           )}
 
           {!isLoadingCards &&
-            (!isFork || (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
             !(isFetchingCards && cardsSource.length === 0) &&
             viewSelected === "alternate" && (
               <div className="flex flex-col gap-5">
@@ -1353,8 +1413,9 @@ const CompleteDeckBuilderLayout = ({
                             const baseMaxQuantity = getMaxQuantityForCode(
                               card.code
                             );
-                            const baseTotalByCode =
-                              getTotalQuantityByCode(card.code);
+                            const baseTotalByCode = getTotalQuantityByCode(
+                              card.code
+                            );
                             const canAddMore =
                               baseTotalByCode < baseMaxQuantity;
                             const showQuantityControls = true;
@@ -1538,8 +1599,9 @@ const CompleteDeckBuilderLayout = ({
                           const alternateMaxQuantity = getMaxQuantityForCode(
                             card.code
                           );
-                          const alternateTotalByCode =
-                            getTotalQuantityByCode(card.code);
+                          const alternateTotalByCode = getTotalQuantityByCode(
+                            card.code
+                          );
                           const canAddMore =
                             alternateTotalByCode < alternateMaxQuantity;
                           const showQuantityControls = true;
@@ -1574,134 +1636,134 @@ const CompleteDeckBuilderLayout = ({
                                   ? "opacity-70 grayscale"
                                   : "hover:shadow-md"
                               }`}
-                          >
-                            <div className="flex justify-center items-center w-full relative">
-                              <LazyImage
-                                src={alt?.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt?.name}
-                                priority={index < 20}
-                                size="small"
-                                className="w-[80%] m-auto"
-                              />
-                              {/* Code Badge */}
-                              {card.code && (
-                                <div
-                                  className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                    isDesktop || touchedCardId === alt.id
-                                      ? "opacity-100 translate-y-0"
-                                      : "opacity-0 -translate-y-2 pointer-events-none"
-                                  }`}
+                            >
+                              <div className="flex justify-center items-center w-full relative">
+                                <LazyImage
+                                  src={alt?.src}
+                                  fallbackSrc="/assets/images/backcard.webp"
+                                  alt={alt?.name}
+                                  priority={index < 20}
+                                  size="small"
+                                  className="w-[80%] m-auto"
+                                />
+                                {/* Code Badge */}
+                                {card.code && (
+                                  <div
+                                    className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                      isDesktop || touchedCardId === alt.id
+                                        ? "opacity-100 translate-y-0"
+                                        : "opacity-0 -translate-y-2 pointer-events-none"
+                                    }`}
+                                  >
+                                    {card.code}
+                                  </div>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openCardPreview(alt, card);
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    openCardPreview(alt, card);
+                                  }}
+                                  className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                                  aria-label="View card details"
                                 >
-                                  {card.code}
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Price Badge */}
+                                {(() => {
+                                  const priceValue = getCardPriceValue(alt);
+                                  if (priceValue !== null) {
+                                    return (
+                                      <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                        {formatCurrency(
+                                          priceValue,
+                                          alt.priceCurrency
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                              {showQuantityControls && (
+                                <div className="w-full mt-2 px-1">
+                                  <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (alternateQuantity > 0) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity - 1
+                                          );
+                                        }
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.stopPropagation();
+                                        if (alternateQuantity > 0) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity - 1
+                                          );
+                                        }
+                                      }}
+                                      disabled={alternateQuantity <= 0}
+                                      className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
+                                      aria-label="Remove one"
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </button>
+                                    <div className="flex items-center justify-center">
+                                      <span className="text-white font-bold text-base">
+                                        {alternateQuantity}
+                                      </span>
+                                      <span className="text-white/60 text-xs ml-1">
+                                        /{alternateMaxQuantity}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (canAddMore) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity + 1
+                                          );
+                                        } else {
+                                          showWarningToast(
+                                            `Max ${alternateMaxQuantity} cards reached.`
+                                          );
+                                        }
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.stopPropagation();
+                                        if (canAddMore) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity + 1
+                                          );
+                                        } else {
+                                          showWarningToast(
+                                            `Max ${alternateMaxQuantity} cards reached.`
+                                          );
+                                        }
+                                      }}
+                                      disabled={!canAddMore}
+                                      className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
+                                        canAddMore
+                                          ? "bg-white/15 text-white hover:bg-white/25"
+                                          : "bg-white/5 text-white/30 cursor-not-allowed"
+                                      }`}
+                                      aria-label="Add one"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </button>
+                                  </div>
                                 </div>
                               )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openCardPreview(alt, card);
-                                }}
-                                onTouchEnd={(e) => {
-                                  e.stopPropagation();
-                                  openCardPreview(alt, card);
-                                }}
-                                className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
-                                aria-label="View card details"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </button>
-                              {/* Price Badge */}
-                              {(() => {
-                                const priceValue = getCardPriceValue(alt);
-                                if (priceValue !== null) {
-                                  return (
-                                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                      {formatCurrency(
-                                        priceValue,
-                                        alt.priceCurrency
-                                      )}
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
-                            </div>
-                            {showQuantityControls && (
-                              <div className="w-full mt-2 px-1">
-                                <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (alternateQuantity > 0) {
-                                        deckBuilder.updateDeckCardQuantity(
-                                          Number(alt.id),
-                                          alternateQuantity - 1
-                                        );
-                                      }
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      e.stopPropagation();
-                                      if (alternateQuantity > 0) {
-                                        deckBuilder.updateDeckCardQuantity(
-                                          Number(alt.id),
-                                          alternateQuantity - 1
-                                        );
-                                      }
-                                    }}
-                                    disabled={alternateQuantity <= 0}
-                                    className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
-                                    aria-label="Remove one"
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </button>
-                                  <div className="flex items-center justify-center">
-                                    <span className="text-white font-bold text-base">
-                                      {alternateQuantity}
-                                    </span>
-                                    <span className="text-white/60 text-xs ml-1">
-                                      /{alternateMaxQuantity}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (canAddMore) {
-                                        deckBuilder.updateDeckCardQuantity(
-                                          Number(alt.id),
-                                          alternateQuantity + 1
-                                        );
-                                      } else {
-                                        showWarningToast(
-                                          `Max ${alternateMaxQuantity} cards reached.`
-                                        );
-                                      }
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      e.stopPropagation();
-                                      if (canAddMore) {
-                                        deckBuilder.updateDeckCardQuantity(
-                                          Number(alt.id),
-                                          alternateQuantity + 1
-                                        );
-                                      } else {
-                                        showWarningToast(
-                                          `Max ${alternateMaxQuantity} cards reached.`
-                                        );
-                                      }
-                                    }}
-                                    disabled={!canAddMore}
-                                    className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
-                                      canAddMore
-                                        ? "bg-white/15 text-white hover:bg-white/25"
-                                        : "bg-white/5 text-white/30 cursor-not-allowed"
-                                    }`}
-                                    aria-label="Add one"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                               <div>
                                 <div className="text-center font-bold mt-2">
                                   {alt?.alternateArt}
@@ -1726,7 +1788,8 @@ const CompleteDeckBuilderLayout = ({
             )}
 
           {!isLoadingCards &&
-            (!isFork || (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
             !(isFetchingCards && cardsSource.length === 0) &&
             viewSelected === "text" && (
               <div className="grid gap-3 grid-cols-1 justify-items-center">
@@ -1835,7 +1898,8 @@ const CompleteDeckBuilderLayout = ({
             )}
 
           {!isLoadingCards &&
-            (!isFork || (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
             !(isFetchingCards && cardsSource.length === 0) &&
             viewSelected === "list" && (
               <div className="grid gap-3 grid-cols-3 justify-items-center">
@@ -1922,14 +1986,21 @@ const CompleteDeckBuilderLayout = ({
                           onRemove={() => {
                             const qty = baseCardInDeck?.quantity || 0;
                             if (qty > 0) {
-                              deckBuilder.updateDeckCardQuantity(Number(card.id), qty - 1);
+                              deckBuilder.updateDeckCardQuantity(
+                                Number(card.id),
+                                qty - 1
+                              );
                             }
                           }}
                           priority={index < 20}
                           size="small"
                           disabled={totalQuantityBase >= 4}
                           quantityInDeck={baseCardInDeck?.quantity || 0}
-                          maxQuantity={card.code === "OP08-072" || card.code === "OP01-075" ? 50 : 4}
+                          maxQuantity={
+                            card.code === "OP08-072" || card.code === "OP01-075"
+                              ? 50
+                              : 4
+                          }
                           touchedCardId={touchedCardId}
                           onTouchStart={(id) => setTouchedCardId(id)}
                           onTouchEnd={() => setTouchedCardId(null)}
@@ -1971,14 +2042,22 @@ const CompleteDeckBuilderLayout = ({
                               onRemove={() => {
                                 const qty = alternateInDeck?.quantity || 0;
                                 if (qty > 0) {
-                                  deckBuilder.updateDeckCardQuantity(Number(alt.id), qty - 1);
+                                  deckBuilder.updateDeckCardQuantity(
+                                    Number(alt.id),
+                                    qty - 1
+                                  );
                                 }
                               }}
                               priority={index < 20}
                               size="small"
                               disabled={totalQuantity >= 4}
                               quantityInDeck={alternateInDeck?.quantity || 0}
-                              maxQuantity={card.code === "OP08-072" || card.code === "OP01-075" ? 50 : 4}
+                              maxQuantity={
+                                card.code === "OP08-072" ||
+                                card.code === "OP01-075"
+                                  ? 50
+                                  : 4
+                              }
                               touchedCardId={touchedCardId}
                               onTouchStart={(id) => setTouchedCardId(id)}
                               onTouchEnd={() => setTouchedCardId(null)}
@@ -1993,7 +2072,8 @@ const CompleteDeckBuilderLayout = ({
             )}
 
           {!isLoadingCards &&
-            (!isFork || (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
             !(isFetchingCards && cardsSource.length === 0) &&
             viewSelected === "grid" && (
               <div className="grid gap-3 grid-cols-1 justify-items-center">
@@ -2106,7 +2186,7 @@ const CompleteDeckBuilderLayout = ({
                             alt={card?.name}
                             priority={index < 20}
                             size="small"
-                          className={`
+                            className={`
                         w-full
                         ${
                           totalQuantityBase >= maxQuantityByCode
@@ -2229,7 +2309,8 @@ const CompleteDeckBuilderLayout = ({
                         const alternateInDeck = deckBuilder.deckCards.find(
                           (deckCard) => deckCard.cardId === Number(alt.id)
                         );
-                        const alternateQuantity = alternateInDeck?.quantity || 0;
+                        const alternateQuantity =
+                          alternateInDeck?.quantity || 0;
                         const showAltControls = true;
 
                         return (
@@ -3278,18 +3359,37 @@ const CompleteDeckBuilderLayout = ({
         onClose={closeCardPreview}
         card={previewCard}
         baseCard={previewBaseCard}
-        currentQuantity={previewCard ? getCardQuantityInDeck(previewCard.id) : 0}
-        maxQuantity={previewCard?.code === "OP08-072" || previewCard?.code === "OP01-075" ? 50 : 4}
+        currentQuantity={
+          previewCard ? getCardQuantityInDeck(previewCard.id) : 0
+        }
+        maxQuantity={
+          previewCard?.code === "OP08-072" || previewCard?.code === "OP01-075"
+            ? 50
+            : 4
+        }
         canAdd={
           deckBuilder.selectedLeader !== null &&
           totalCards < 50 &&
-          (previewCard ? getTotalQuantityByCode(previewCard.code || "") < (previewCard.code === "OP08-072" || previewCard.code === "OP01-075" ? 50 : 4) : false)
+          (previewCard
+            ? getTotalQuantityByCode(previewCard.code || "") <
+              (previewCard.code === "OP08-072" ||
+              previewCard.code === "OP01-075"
+                ? 50
+                : 4)
+            : false)
         }
-        canRemove={previewCard ? getCardQuantityInDeck(previewCard.id) > 0 : false}
-        isLeaderSelection={!deckBuilder.selectedLeader && previewCard?.category === "Leader"}
+        canRemove={
+          previewCard ? getCardQuantityInDeck(previewCard.id) > 0 : false
+        }
+        isLeaderSelection={
+          !deckBuilder.selectedLeader && previewCard?.category === "Leader"
+        }
         onAddCard={() => {
           if (previewCard && previewBaseCard) {
-            if (!deckBuilder.selectedLeader && previewCard.category === "Leader") {
+            if (
+              !deckBuilder.selectedLeader &&
+              previewCard.category === "Leader"
+            ) {
               // Select as leader
               deckBuilder.setSelectedLeader({
                 ...previewBaseCard,
@@ -3310,7 +3410,9 @@ const CompleteDeckBuilderLayout = ({
                 src: previewCard.src,
                 quantity: 1,
                 code: previewBaseCard.code,
-                color: previewBaseCard.colors.length ? previewBaseCard.colors[0].color : "gray",
+                color: previewBaseCard.colors.length
+                  ? previewBaseCard.colors[0].color
+                  : "gray",
                 colors: previewBaseCard.colors,
                 cost: previewBaseCard.cost ?? "",
                 category: previewBaseCard.category,
@@ -3328,7 +3430,10 @@ const CompleteDeckBuilderLayout = ({
           if (previewCard) {
             const currentQty = getCardQuantityInDeck(previewCard.id);
             if (currentQty > 0) {
-              deckBuilder.updateDeckCardQuantity(Number(previewCard.id), currentQty - 1);
+              deckBuilder.updateDeckCardQuantity(
+                Number(previewCard.id),
+                currentQty - 1
+              );
             }
           }
         }}

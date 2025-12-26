@@ -6,6 +6,7 @@ import AllIcon from "@/components/Icons/AllIcon";
 import SquareAltIcon from "@/components/Icons/SquareAltIcon";
 import TextIcon from "@/components/Icons/TextIcon";
 import { ChevronDown, Check } from "lucide-react";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 import {
   Tooltip,
@@ -69,7 +70,9 @@ export default function ViewSwitcher({
     return true;
   });
 
-  const currentOption = availableOptions.find((o) => o.id === viewSelected) || availableOptions[0];
+  const currentOption =
+    availableOptions.find((o) => o.id === viewSelected) || availableOptions[0];
+  const wasOpenRef = useRef(false);
 
   // Handle menu open/close with animations
   useEffect(() => {
@@ -78,27 +81,44 @@ export default function ViewSwitcher({
       timeoutRef.current = setTimeout(() => {
         setIsVisible(true);
       }, 10);
-      document.body.style.overflow = "hidden";
+      if (!wasOpenRef.current) {
+        lockBodyScroll();
+        wasOpenRef.current = true;
+      }
     } else {
       setIsVisible(false);
       timeoutRef.current = setTimeout(() => {
         setShouldRender(false);
       }, 300);
-      document.body.style.overflow = "unset";
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+        wasOpenRef.current = false;
+      }
     }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      document.body.style.overflow = "unset";
     };
   }, [isMenuOpen]);
 
-  const handleSelect = useCallback((view: ViewType) => {
-    setViewSelected(view);
-    setIsMenuOpen(false);
-  }, [setViewSelected]);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
+
+  const handleSelect = useCallback(
+    (view: ViewType) => {
+      setViewSelected(view);
+      setIsMenuOpen(false);
+    },
+    [setViewSelected]
+  );
 
   const handleBackdropClick = useCallback(() => {
     setIsMenuOpen(false);
@@ -230,9 +250,13 @@ export default function ViewSwitcher({
               </div>
 
               {/* Title */}
-              <div className="px-5 pb-3">
-                <h3 className="text-lg font-semibold text-slate-900">Select View</h3>
-                <p className="text-sm text-slate-500">Choose how to display cards</p>
+              <div className="px-5 pb-3 flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Select View
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Choose how to display cards
+                </p>
               </div>
 
               {/* Options */}
@@ -260,20 +284,26 @@ export default function ViewSwitcher({
                           : "bg-white text-slate-600 shadow-sm"
                       )}
                     >
-                      {option.icon(viewSelected === option.id ? "white" : "currentColor")}
+                      {option.icon(
+                        viewSelected === option.id ? "white" : "currentColor"
+                      )}
                     </div>
 
                     {/* Text */}
-                    <div className="flex-1 text-left">
+                    <div className="flex-1 text-left flex flex-col">
                       <p
                         className={cn(
                           "font-semibold",
-                          viewSelected === option.id ? "text-blue-700" : "text-slate-900"
+                          viewSelected === option.id
+                            ? "text-blue-700"
+                            : "text-slate-900"
                         )}
                       >
                         {option.label}
                       </p>
-                      <p className="text-sm text-slate-500">{option.description}</p>
+                      <p className="text-sm text-slate-500">
+                        {option.description}
+                      </p>
                     </div>
 
                     {/* Checkmark */}

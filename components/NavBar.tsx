@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 import { useUser } from "@/app/context/UserContext";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -111,15 +112,19 @@ const NavBar = () => {
   }, [isMobileMenuOpen]);
 
   // Prevenir scroll cuando el menú móvil está abierto
+  const wasMenuOpenRef = useRef(false);
   useEffect(() => {
     if (isMobileMenuOpen) {
-      document.body.style.overflow = "hidden";
+      if (!wasMenuOpenRef.current) {
+        lockBodyScroll();
+        wasMenuOpenRef.current = true;
+      }
     } else {
-      document.body.style.overflow = "unset";
+      if (wasMenuOpenRef.current) {
+        unlockBodyScroll();
+        wasMenuOpenRef.current = false;
+      }
     }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
   }, [isMobileMenuOpen]);
 
   const adminMenuCategories = [

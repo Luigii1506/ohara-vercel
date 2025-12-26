@@ -143,11 +143,11 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   // Filter configurations
   const filters: FilterConfig[] = [
     {
-      id: "colors",
-      label: "Color",
-      options: colorOptions,
+      id: "codes",
+      label: "Codes",
+      options: setCodesOptions,
       isMulti: true,
-      isColor: true,
+      isSearchable: true,
     },
     {
       id: "sets",
@@ -156,20 +156,29 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       isMulti: true,
       isSearchable: true,
     },
+
     {
-      id: "codes",
-      label: "Codes",
-      options: setCodesOptions,
+      id: "altArts",
+      label: "Alt Arts",
+      options: altArtOptions,
       isMulti: true,
       isSearchable: true,
     },
-    { id: "rarity", label: "Rarity", options: rarityOptions, isMulti: true },
     {
       id: "categories",
       label: "Type",
       options: categoryOptions,
       isMulti: true,
     },
+    {
+      id: "colors",
+      label: "Color",
+      options: colorOptions,
+      isMulti: true,
+      isColor: true,
+    },
+    { id: "rarity", label: "Rarity", options: rarityOptions, isMulti: true },
+
     { id: "costs", label: "Cost", options: costOptions, isMulti: true },
     {
       id: "power",
@@ -179,24 +188,26 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       isSearchable: true,
     },
     {
-      id: "counter",
-      label: "Counter",
-      options: counterOptions,
-      isMulti: false,
-    },
-    {
-      id: "trigger",
-      label: "Trigger",
-      options: triggerOptions,
-      isMulti: false,
-    },
-    {
       id: "effects",
       label: "Effects",
       options: effectsOptions,
       isMulti: true,
       isSearchable: true,
     },
+    {
+      id: "counter",
+      label: "Counter",
+      options: counterOptions,
+      isMulti: false,
+    },
+
+    {
+      id: "trigger",
+      label: "Trigger",
+      options: triggerOptions,
+      isMulti: false,
+    },
+
     {
       id: "types",
       label: "Family",
@@ -210,7 +221,6 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       options: atributeOptions,
       isMulti: true,
     },
-    { id: "altArts", label: "Alt Arts", options: altArtOptions, isMulti: true },
   ];
 
   const getSelectedValues = (filterId: string): string[] => {
@@ -465,10 +475,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
               const hasSelection = selected.length > 0;
 
               return (
-                <div
-                  key={filter.id}
-                  className="border-b border-slate-100"
-                >
+                <div key={filter.id} className="border-b border-slate-100">
                   {/* Filter row - clickable to open detail */}
                   <button
                     onClick={() => setActiveFilter(filter.id)}
@@ -506,7 +513,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                                 style={{ backgroundColor: getColors(value) }}
                               />
                             )}
-                            <span className="max-w-[100px] truncate">{value}</span>
+                            <span className="max-w-[100px] truncate">
+                              {value}
+                            </span>
                             <X className="h-3 w-3 flex-shrink-0" />
                           </button>
                         ))}
@@ -648,9 +657,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                 const isSelected = getSelectedValues(activeFilter).includes(
                   option.value
                 );
-                const isDisabled = getDisabledOptions(
-                  activeFilter
-                ).includes(option.value);
+                const isDisabled = getDisabledOptions(activeFilter).includes(
+                  option.value
+                );
 
                 return (
                   <button

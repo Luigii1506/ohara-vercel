@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -40,6 +41,8 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [selectedCard, setSelectedCard] = useState<DeckCard | null>(null);
   const [selectedFullCard, setSelectedFullCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [selectedBaseCard, setSelectedBaseCard] =
     useState<CardWithCollectionData | null>(null);
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,9 +82,14 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
         c.alternates?.some((alt) => Number(alt.id) === card.cardId)
     );
     if (foundCard) {
+      // foundCard is always the base card (parent)
+      setSelectedBaseCard(foundCard);
+
       if (Number(foundCard.id) === card.cardId) {
+        // This is the base card itself
         setSelectedFullCard(foundCard);
       } else {
+        // This is an alternate - use alt for image but base for info/rulings
         const altCard = foundCard.alternates?.find(
           (alt) => Number(alt.id) === card.cardId
         );
@@ -89,21 +97,35 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
       }
     } else {
       setSelectedFullCard(null);
+      setSelectedBaseCard(null);
     }
     setIsCardPreviewOpen(true);
   };
 
+  const wasOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen) {
       setIsAnimating(true);
-      document.body.style.overflow = "hidden";
+      if (!wasOpenRef.current) {
+        lockBodyScroll();
+        wasOpenRef.current = true;
+      }
     } else {
-      document.body.style.overflow = "unset";
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+        wasOpenRef.current = false;
+      }
     }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
   }, [isOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
 
   if (!isOpen && !isAnimating) return null;
 
@@ -335,6 +357,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
         onClose={() => setIsCardPreviewOpen(false)}
         card={selectedCard}
         fullCard={selectedFullCard}
+        baseCard={selectedBaseCard}
         onQuantityChange={handleQuantityChange}
         onRemove={removeCard}
       />

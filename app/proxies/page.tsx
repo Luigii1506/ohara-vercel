@@ -8,7 +8,7 @@ const INITIAL_LIMIT_DESKTOP = 60;
 const INITIAL_LIMIT_MOBILE = 40;
 
 export default async function ProxiesPage() {
-  // Filtros vacíos para la carga inicial (todas las cartas)
+  // Filtros iniciales: sin exclusión de DON (solo se excluyen al aplicar sort)
   const initialFilters: CardsFilters = {};
 
   // Detectar dispositivo móvil desde headers

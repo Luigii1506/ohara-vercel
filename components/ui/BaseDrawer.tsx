@@ -2,6 +2,23 @@
 
 import { useEffect, useState, ReactNode, useCallback, useRef } from "react";
 
+// Global counter to track open drawers/modals
+let openDrawerCount = 0;
+
+export const lockBodyScroll = () => {
+  openDrawerCount++;
+  if (openDrawerCount === 1) {
+    document.body.style.overflow = "hidden";
+  }
+};
+
+export const unlockBodyScroll = () => {
+  openDrawerCount = Math.max(0, openDrawerCount - 1);
+  if (openDrawerCount === 0) {
+    document.body.style.overflow = "";
+  }
+};
+
 interface BaseDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +47,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   const [shouldRender, setShouldRender] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,23 +57,37 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       timeoutRef.current = setTimeout(() => {
         setIsVisible(true);
       }, 10);
-      document.body.style.overflow = "hidden";
+      if (!wasOpenRef.current) {
+        lockBodyScroll();
+        wasOpenRef.current = true;
+      }
     } else {
       // Closing: animate out first, then unmount
       setIsVisible(false);
       timeoutRef.current = setTimeout(() => {
         setShouldRender(false);
       }, 300);
-      document.body.style.overflow = "unset";
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+        wasOpenRef.current = false;
+      }
     }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      document.body.style.overflow = "unset";
     };
   }, [isOpen]);
+
+  // Cleanup on unmount if drawer was open
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
 
   const handleBackdropClick = useCallback(() => {
     if (preventClose) return;

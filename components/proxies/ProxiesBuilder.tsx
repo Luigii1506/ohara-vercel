@@ -132,6 +132,8 @@ const ProxiesBuilder = ({
           ? selectedTrigger
           : undefined,
       sortBy,
+      // When sorting by price and showOnlyBaseCards is active, filter on server
+      baseOnly: sortBy && showOnlyBaseCards ? true : undefined,
     };
   }, [
     search,
@@ -149,6 +151,7 @@ const ProxiesBuilder = ({
     selectedCounter,
     selectedTrigger,
     selectedSort,
+    showOnlyBaseCards,
   ]);
 
   // Check if current filters match initial filters for using SSR data
@@ -1004,7 +1007,7 @@ const ProxiesBuilder = ({
       {/* Cards Panel (Left on desktop, full on mobile) */}
       <div className="bg-white flex w-full md:w-[320px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col h-full">
         {/* Search + Filters Header */}
-        <div className="p-3 border-b border-slate-100 space-y-3">
+        <div className="p-3 border-b border-slate-100 space-y-3 flex flex-col gap-3">
           {/* Search Input */}
           <DropdownSearch
             search={search}
@@ -1013,7 +1016,7 @@ const ProxiesBuilder = ({
           />
 
           {/* Filter Button + Sort Select */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 !mt-0">
             <button
               onClick={() => setIsFilterDrawerOpen(true)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
@@ -1058,7 +1061,7 @@ const ProxiesBuilder = ({
           </div>
 
           {/* Results count */}
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 !mt-0">
             {totalResults?.toLocaleString()} cards found
             {(isFetching || isFetchingNextPage || isCounting) && (
               <span className="ml-2 text-purple-600">Loading...</span>
@@ -1072,13 +1075,16 @@ const ProxiesBuilder = ({
           ref={gridRef}
           onScroll={handleScroll}
         >
-          {/* Initial loading state */}
+          {/* Initial loading state - Skeleton grid */}
           {isLoading && filteredCards.length === 0 && (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-3 border-purple-600 border-t-transparent" />
-                <p className="text-sm text-slate-500">Loading cards...</p>
-              </div>
+            <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-3">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <div key={index} className="animate-pulse">
+                  <div className="rounded-lg overflow-hidden">
+                    <div className="aspect-[63/88] bg-slate-200 rounded-md" />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

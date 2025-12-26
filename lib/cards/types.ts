@@ -27,6 +27,7 @@ export type CardsFilters = {
   counter?: string;
   trigger?: string;
   sortBy?: CardsSortBy;
+  baseOnly?: boolean; // When true, only return base cards (no alternates)
 };
 
 export type CardsPage = {

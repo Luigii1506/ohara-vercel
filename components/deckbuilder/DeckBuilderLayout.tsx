@@ -267,6 +267,8 @@ const CompleteDeckBuilderLayout = ({
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
+  const isPriceSort =
+    selectedSort === "price_high" || selectedSort === "price_low";
 
   const nonLeaderCategories = useMemo(
     () =>
@@ -427,6 +429,8 @@ const CompleteDeckBuilderLayout = ({
       altArts: selectedAltArts.length ? selectedAltArts : undefined,
       counter: selectedCounter || undefined,
       trigger: selectedTrigger || undefined,
+      // When sorting by price and showOnlyBaseCards is active, filter on server
+      baseOnly: sortBy && showOnlyBaseCards ? true : undefined,
     };
   }, [
     search,
@@ -444,10 +448,13 @@ const CompleteDeckBuilderLayout = ({
     selectedCounter,
     selectedTrigger,
     selectedSort,
+    showOnlyBaseCards,
     deckBuilder.selectedLeader,
     leaderColors,
     nonLeaderCategories,
   ]);
+
+  const isBackendSort = Boolean(cardsFilters.sortBy);
 
   // When editing/forking a deck, wait for the deck AND leader to load before fetching cards
   // This ensures selectedLeader is set and filters are correct (categories will be non-Leader)
@@ -472,9 +479,12 @@ const CompleteDeckBuilderLayout = ({
   });
 
   // Get total count from database with filters
-  const { data: countData, isFetching: isCounting } = useCardsCount(cardsFilters, {
-    enabled: shouldFetchCards,
-  });
+  const { data: countData, isFetching: isCounting } = useCardsCount(
+    cardsFilters,
+    {
+      enabled: shouldFetchCards,
+    }
+  );
 
   const cardsSource = useServerCards ? serverCards : initialCards;
 
@@ -615,7 +625,7 @@ const CompleteDeckBuilderLayout = ({
   const filteredCards = useMemo(() => {
     if (!cardsSource || cardsSource.length === 0) return [];
 
-    return cardsSource
+    const mapped = cardsSource
       .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
@@ -743,22 +753,27 @@ const CompleteDeckBuilderLayout = ({
         ...card,
         // Filtrar alternativas excluidas (ocultar todas si showOnlyBaseCards está activo)
         alternates: filterValidAlternates(card.alternates, showOnlyBaseCards),
-      }))
-      .sort((a, b) => {
-        // Primero ordenar por el sort seleccionado si existe
-        if (selectedSort === "Most variants") {
-          const variantDiff =
-            (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        } else if (selectedSort === "Less variants") {
-          const variantDiff =
-            (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        }
+      }));
 
-        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
-        return sortByCollectionOrder(a, b);
-      });
+    if (isBackendSort) {
+      return mapped;
+    }
+
+    return mapped.sort((a, b) => {
+      // Primero ordenar por el sort seleccionado si existe
+      if (selectedSort === "Most variants") {
+        const variantDiff =
+          (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
+        if (variantDiff !== 0) return variantDiff;
+      } else if (selectedSort === "Less variants") {
+        const variantDiff =
+          (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
+        if (variantDiff !== 0) return variantDiff;
+      }
+
+      // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
+      return sortByCollectionOrder(a, b);
+    });
   }, [
     cardsSource,
     search,
@@ -777,6 +792,7 @@ const CompleteDeckBuilderLayout = ({
     selectedAltArts,
     selectedCodes,
     showOnlyBaseCards,
+    isBackendSort,
   ]);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -813,9 +829,13 @@ const CompleteDeckBuilderLayout = ({
         })
       : filteredCards.filter((card) => isLeaderCategory(card.category));
 
+    if (isBackendSort) {
+      return filtered;
+    }
+
     // Las cartas ya vienen ordenadas de filteredCards, pero aseguramos el orden
     return filtered.sort(sortByCollectionOrder);
-  }, [filteredCards, deckBuilder.selectedLeader, leaderColors]);
+  }, [filteredCards, deckBuilder.selectedLeader, leaderColors, isBackendSort]);
 
   // Calcula el total de cartas agregadas en el deck
   const totalCards = deckBuilder.deckCards.reduce(
@@ -1902,7 +1922,7 @@ const CompleteDeckBuilderLayout = ({
               (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
             !(isFetchingCards && cardsSource.length === 0) &&
             viewSelected === "list" && (
-              <div className="grid gap-3 grid-cols-3 justify-items-center">
+              <div className="grid gap-1.5 grid-cols-3 justify-items-center">
                 {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
                   // Función que determina si la carta base coincide con los filtros
                   const baseCardMatches = (): boolean => {

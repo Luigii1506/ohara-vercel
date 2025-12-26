@@ -135,6 +135,7 @@ export const buildFiltersFromSearchParams = (
     counter: params.get("counter") ?? undefined,
     trigger: params.get("trigger") ?? undefined,
     sortBy,
+    baseOnly: params.get("baseOnly") === "true" ? true : undefined,
   };
 };
 
@@ -390,6 +391,13 @@ const buildWhere = (
     });
   }
 
+  // Base cards only (exclude alternates)
+  if (filters.baseOnly) {
+    andConditions.push({
+      baseCardId: null, // Base cards have null baseCardId
+    });
+  }
+
   if (Array.isArray(where.AND) && where.AND.length === 0) {
     delete where.AND;
   }
@@ -519,34 +527,46 @@ export const mapCard = (
 
 // Función especial para ordenamiento por precio (incluye base + alternativas)
 // Muestra TODAS las cartas (base y alternativas) como items individuales, ordenadas por precio
+// Usa offset-based pagination porque cursor-based no funciona correctamente con orderBy precio
 const fetchCardsPageByPrice = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
   const {
     filters,
     limit,
-    cursor = null,
+    cursor = null, // En este caso, cursor actúa como offset (número de items a saltar)
     includeRelations = false,
     includeAlternates = true,
   } = options;
 
-  // Construir where INCLUYENDO alternativas
-  const priceWhere = buildWhere(filters, true);
+  // Para ordenamiento por precio, usamos buildDirectWhere que NO usa withAlternates
+  // Esto asegura que solo traemos cartas que coinciden directamente con los filtros
+  // (ej: solo Leaders, no cartas cuyas alternativas sean Leaders)
+  const priceWhere = buildDirectWhere(filters);
   const take = Math.min(Math.max(limit, 1), 200);
   const isHighToLow = filters.sortBy === "price_high";
 
   // Ordenar por precio directamente en la consulta
+  // Para ambos casos (high to low y low to high), los nulls van al final
   const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
   if (isHighToLow) {
+    // High to low: precio más alto primero, nulls al final
     orderBy.push({ marketPrice: { sort: "desc", nulls: "last" } });
   } else {
+    // Low to high: precio más bajo primero, nulls al final
+    // Usamos nulls: "last" para que las cartas sin precio no aparezcan primero
     orderBy.push({ marketPrice: { sort: "asc", nulls: "last" } });
   }
   orderBy.push({ id: "asc" }); // Desempate por ID
 
+  // Calcular offset: cursor representa cuántos items ya se han cargado
+  const offset = cursor ? cursor : 0;
+
   const args: Prisma.CardFindManyArgs = {
     where: priceWhere,
     orderBy,
+    take: take + 1, // +1 para saber si hay más páginas
+    skip: offset,
     include: {
       ...(includeRelations && {
         types: { select: { id: true, type: true } },
@@ -596,19 +616,28 @@ const fetchCardsPageByPrice = async (
     },
   };
 
-  if (take) {
-    args.take = take + 1;
-  }
-
-  if (cursor) {
-    args.cursor = { id: cursor };
-    args.skip = 1;
-  }
+  // Debug log para verificar query
+  console.log("[fetchCardsPageByPrice] filters:", {
+    sortBy: filters.sortBy,
+    categories: filters.categories,
+    baseOnly: filters.baseOnly,
+  });
+  console.log("[fetchCardsPageByPrice] orderBy:", JSON.stringify(orderBy));
 
   const [allCards, totalCount] = await Promise.all([
     prisma.card.findMany(args),
     prisma.card.count({ where: priceWhere }),
   ]);
+
+  // Debug: ver los primeros 5 resultados con sus precios
+  console.log("[fetchCardsPageByPrice] first 5 results:",
+    allCards.slice(0, 5).map((c: any) => ({
+      name: c.name,
+      code: c.code,
+      marketPrice: c.marketPrice,
+      category: c.category,
+    }))
+  );
 
   const hasMore = allCards.length > take;
   const trimmed = hasMore ? allCards.slice(0, take) : allCards;
@@ -620,8 +649,8 @@ const fetchCardsPageByPrice = async (
     numOfVariations: 0,
   })) as unknown as CardWithCollectionData[];
 
-  const nextCursor =
-    hasMore && trimmed.length ? trimmed[trimmed.length - 1].id : null;
+  // El siguiente "cursor" es el nuevo offset (items actuales + nuevos)
+  const nextCursor = hasMore ? offset + take : null;
 
   return {
     items: mapped,
@@ -903,6 +932,13 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
       NOT: {
         category: { in: filters.excludeCategories },
       },
+    });
+  }
+
+  // Base cards only (exclude alternates)
+  if (filters.baseOnly) {
+    andConditions.push({
+      baseCardId: null, // Base cards have null baseCardId
     });
   }
 

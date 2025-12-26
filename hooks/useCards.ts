@@ -163,6 +163,9 @@ const buildQueryString = (
   if (filters.sortBy) {
     searchParams.set("sortBy", filters.sortBy);
   }
+  if (filters.baseOnly) {
+    searchParams.set("baseOnly", "true");
+  }
 
   if ("limit" in params) {
     searchParams.set("includeRelations", "true");
@@ -250,6 +253,9 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
   }
   if (filters.sortBy) {
     searchParams.set("sortBy", filters.sortBy);
+  }
+  if (filters.baseOnly) {
+    searchParams.set("baseOnly", "true");
   }
 
   return searchParams.toString();

@@ -77,44 +77,6 @@ const oswald = Oswald({
   weight: ["400", "500", "700"],
 });
 
-const SORT_OPTIONS: SortOption[] = [
-  {
-    value: "code_asc",
-    label: "Code A-Z",
-    description: "Ascending by card code",
-  },
-  {
-    value: "code_desc",
-    label: "Code Z-A",
-    description: "Descending by card code",
-  },
-  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
-  {
-    value: "name_desc",
-    label: "Name Z-A",
-    description: "Reverse alphabetical",
-  },
-  {
-    value: "price_high",
-    label: "Price: High to Low",
-    description: "Most expensive first",
-  },
-  {
-    value: "price_low",
-    label: "Price: Low to High",
-    description: "Cheapest first",
-  },
-  {
-    value: "most_variants",
-    label: "Most variants",
-    description: "Most variants first",
-  },
-  {
-    value: "less_variants",
-    label: "Less variants",
-    description: "Least variants first",
-  },
-];
 
 const PAGE_SIZE = 60;
 
@@ -188,6 +150,51 @@ const CardListClient = ({
 }: CardListClientProps) => {
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const sortOptions = useMemo<SortOption[]>(
+    () => [
+      {
+        value: "code_asc",
+        label: t("sort.codeAsc"),
+        description: t("sort.codeAscDesc"),
+      },
+      {
+        value: "code_desc",
+        label: t("sort.codeDesc"),
+        description: t("sort.codeDescDesc"),
+      },
+      {
+        value: "name_asc",
+        label: t("sort.nameAsc"),
+        description: t("sort.nameAscDesc"),
+      },
+      {
+        value: "name_desc",
+        label: t("sort.nameDesc"),
+        description: t("sort.nameDescDesc"),
+      },
+      {
+        value: "price_high",
+        label: t("sort.priceHigh"),
+        description: t("sort.priceHighDesc"),
+      },
+      {
+        value: "price_low",
+        label: t("sort.priceLow"),
+        description: t("sort.priceLowDesc"),
+      },
+      {
+        value: "most_variants",
+        label: t("sort.mostVariants"),
+        description: t("sort.mostVariantsDesc"),
+      },
+      {
+        value: "less_variants",
+        label: t("sort.lessVariants"),
+        description: t("sort.lessVariantsDesc"),
+      },
+    ],
+    [t]
+  );
   const getArrayParam = useCallback(
     (key: string, fallback: string[] = []) =>
       searchParams.get(key)?.split(",").filter(Boolean) ?? fallback,
@@ -1209,7 +1216,7 @@ const CardListClient = ({
             onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
           /> */}
           <SortSelect
-            options={SORT_OPTIONS}
+            options={sortOptions}
             selected={selectedSort}
             setSelected={setSelectedSort}
             buttonLabel={t("common.sort")}

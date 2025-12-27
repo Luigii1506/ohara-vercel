@@ -280,7 +280,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
 
               <Button
                 onClick={() => {
-                  handleClose();
+                  onClose();
                   setTimeout(onGeneratePDF, 350);
                 }}
                 disabled={proxies.length === 0}

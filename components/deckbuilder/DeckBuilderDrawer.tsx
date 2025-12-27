@@ -241,7 +241,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                 </div>
               </div>
               <button
-                onClick={handleClose}
+                onClick={onClose}
                 className="flex-shrink-0 rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
               >
                 <X className="h-5 w-5" />
@@ -507,7 +507,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   className="flex-1 h-12 text-red-600 border-2 border-red-300 hover:bg-red-50 font-semibold rounded-xl"
                   onClick={() => {
                     onRestart();
-                    handleClose();
+                    onClose();
                   }}
                 >
                   <RotateCcw className="h-4 w-4 mr-1.5" />

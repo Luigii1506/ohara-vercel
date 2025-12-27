@@ -507,7 +507,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   className="flex-1 h-12 text-red-600 border-2 border-red-300 hover:bg-red-50 font-semibold rounded-xl"
                   onClick={() => {
                     onRestart();
-                    handleClose();
+                    onClose();
                   }}
                 >
                   <RotateCcw className="h-4 w-4 mr-1.5" />

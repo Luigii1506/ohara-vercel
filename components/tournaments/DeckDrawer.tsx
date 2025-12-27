@@ -101,7 +101,9 @@ const DeckDrawer: React.FC<DeckDrawerProps> = ({
       // Redirigir a la página de edición del deck copiado
       router.push(`/decks/edit/${data.id}`);
     } catch (error) {
-      setForkError(error instanceof Error ? error.message : "Error al importar");
+      setForkError(
+        error instanceof Error ? error.message : "Error al importar"
+      );
       setIsForking(false);
     }
   };
@@ -243,14 +245,14 @@ const DeckDrawer: React.FC<DeckDrawerProps> = ({
             {forkError && (
               <p className="text-center text-xs text-red-500">{forkError}</p>
             )}
-            {deck && (
+            {/* {deck && (
               <Link
                 href={`/deckbuilder/${deck.uniqueUrl}`}
                 className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.98] sm:px-4 sm:py-3"
               >
                 Ver Deck Original
               </Link>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -360,10 +362,7 @@ const DeckDrawer: React.FC<DeckDrawerProps> = ({
                 <div>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:mb-3 sm:text-sm">
                     Otras (
-                    {organizedCards.other.reduce(
-                      (s, dc) => s + dc.quantity,
-                      0
-                    )}
+                    {organizedCards.other.reduce((s, dc) => s + dc.quantity, 0)}
                     )
                   </h3>
                   <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2 lg:grid-cols-5">

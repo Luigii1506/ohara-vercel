@@ -183,22 +183,10 @@ const buildWhere = (
     OR: [
       { name: { contains: search, mode: "insensitive" } },
       { code: { contains: search, mode: "insensitive" } },
-      { alias: { contains: search, mode: "insensitive" } },
+      { rarity: { contains: search, mode: "insensitive" } },
       {
         effects: {
           some: { effect: { contains: search, mode: "insensitive" } },
-        },
-      },
-      {
-        texts: {
-          some: { text: { contains: search, mode: "insensitive" } },
-        },
-      },
-      {
-        sets: {
-          some: {
-            set: { title: { contains: search, mode: "insensitive" } },
-          },
         },
       },
     ],
@@ -801,22 +789,10 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
     OR: [
       { name: { contains: search, mode: "insensitive" } },
       { code: { contains: search, mode: "insensitive" } },
-      { alias: { contains: search, mode: "insensitive" } },
+      { rarity: { contains: search, mode: "insensitive" } },
       {
         effects: {
           some: { effect: { contains: search, mode: "insensitive" } },
-        },
-      },
-      {
-        texts: {
-          some: { text: { contains: search, mode: "insensitive" } },
-        },
-      },
-      {
-        sets: {
-          some: {
-            set: { title: { contains: search, mode: "insensitive" } },
-          },
         },
       },
     ],

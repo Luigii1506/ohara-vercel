@@ -23,6 +23,8 @@ export type MessageKey =
   | "cardList.noResults"
   | "cardList.newsLabel"
   | "cardList.refresh"
+  | "proxies.cardsFound"
+  | "proxies.loading"
   | "news.deckbuilder.title"
   | "news.deckbuilder.description"
   | "news.deckbuilder.cta"
@@ -53,6 +55,10 @@ export type MessageKey =
   | "sort.priceHighDesc"
   | "sort.priceLow"
   | "sort.priceLowDesc"
+  | "sort.mostVariants"
+  | "sort.mostVariantsDesc"
+  | "sort.lessVariants"
+  | "sort.lessVariantsDesc"
   | "view.title"
   | "view.subtitle"
   | "view.images"
@@ -228,6 +234,8 @@ export const messages: Record<SupportedLanguage, Messages> = {
       "No hay cartas con esos filtros. Ajusta tu seleccion.",
     "cardList.newsLabel": "Novedades",
     "cardList.refresh": "Actualizar",
+    "proxies.cardsFound": "{count} cartas",
+    "proxies.loading": "Cargando...",
     "news.deckbuilder.title": "DeckBuilder nuevo",
     "news.deckbuilder.description":
       "Crea decks mas rapido con previews, stats y filtros mobile.",
@@ -261,6 +269,10 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "sort.priceHighDesc": "Mas caro primero",
     "sort.priceLow": "Precio: menor a mayor",
     "sort.priceLowDesc": "Mas barato primero",
+    "sort.mostVariants": "Mas variantes",
+    "sort.mostVariantsDesc": "Con mas variantes primero",
+    "sort.lessVariants": "Menos variantes",
+    "sort.lessVariantsDesc": "Con menos variantes primero",
     "view.title": "Selecciona vista",
     "view.subtitle": "Elige como mostrar las cartas",
     "view.images": "Imagenes",
@@ -440,6 +452,8 @@ export const messages: Record<SupportedLanguage, Messages> = {
       "No cards match your filters. Try adjusting the selection.",
     "cardList.newsLabel": "News",
     "cardList.refresh": "Refresh",
+    "proxies.cardsFound": "{count} cards",
+    "proxies.loading": "Loading...",
     "news.deckbuilder.title": "New DeckBuilder",
     "news.deckbuilder.description":
       "Build decks faster with previews, stats, and mobile filters.",
@@ -473,6 +487,10 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "sort.priceHighDesc": "Most expensive first",
     "sort.priceLow": "Price: Low to High",
     "sort.priceLowDesc": "Cheapest first",
+    "sort.mostVariants": "Most variants",
+    "sort.mostVariantsDesc": "Most variants first",
+    "sort.lessVariants": "Less variants",
+    "sort.lessVariantsDesc": "Least variants first",
     "view.title": "Select View",
     "view.subtitle": "Choose how to display cards",
     "view.images": "Images",

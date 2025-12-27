@@ -36,29 +36,12 @@ import {
   useCardsCount,
   serializeFiltersForKey,
 } from "@/hooks/useCards";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 const PAGE_SIZE = 60;
 
-const SORT_OPTIONS: SortOption[] = [
-  {
-    value: "code_asc",
-    label: "Code A-Z",
-    description: "Ascending by card code",
-  },
-  {
-    value: "code_desc",
-    label: "Code Z-A",
-    description: "Descending by card code",
-  },
-  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
-  {
-    value: "name_desc",
-    label: "Name Z-A",
-    description: "Reverse alphabetical",
-  },
-];
 
 interface ProxiesBuilderProps {
   initialData: CardsPage;
@@ -69,6 +52,7 @@ const ProxiesBuilder = ({
   initialData,
   initialFilters,
 }: ProxiesBuilderProps) => {
+  const { t } = useI18n();
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [proxies, setProxies] = useState<DeckCard[]>([]);
@@ -94,6 +78,32 @@ const ProxiesBuilder = ({
 
   const [selectedSort, setSelectedSort] = useState<string>("");
   const [showOnlyBaseCards, setShowOnlyBaseCards] = useState(false);
+
+  const sortOptions = useMemo<SortOption[]>(
+    () => [
+      {
+        value: "code_asc",
+        label: t("sort.codeAsc"),
+        description: t("sort.codeAscDesc"),
+      },
+      {
+        value: "code_desc",
+        label: t("sort.codeDesc"),
+        description: t("sort.codeDescDesc"),
+      },
+      {
+        value: "name_asc",
+        label: t("sort.nameAsc"),
+        description: t("sort.nameAscDesc"),
+      },
+      {
+        value: "name_desc",
+        label: t("sort.nameDesc"),
+        description: t("sort.nameDescDesc"),
+      },
+    ],
+    [t]
+  );
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -1052,19 +1062,23 @@ const ProxiesBuilder = ({
 
             <div className="ml-auto">
               <SortSelect
-                options={SORT_OPTIONS}
+                options={sortOptions}
                 selected={selectedSort}
                 setSelected={setSelectedSort}
-                buttonLabel="Sort"
+                buttonLabel={t("common.sort")}
               />
             </div>
           </div>
 
           {/* Results count */}
           <p className="text-xs text-slate-500 !mt-0">
-            {totalResults?.toLocaleString()} cards found
+            {t("proxies.cardsFound", {
+              count: totalResults?.toLocaleString() ?? "0",
+            })}
             {(isFetching || isFetchingNextPage || isCounting) && (
-              <span className="ml-2 text-purple-600">Loading...</span>
+              <span className="ml-2 text-purple-600">
+                {t("proxies.loading")}
+              </span>
             )}
           </p>
         </div>

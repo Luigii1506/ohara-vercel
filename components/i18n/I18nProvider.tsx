@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { Messages, MessageKey, SupportedLanguage } from "./messages";
 import { messages } from "./messages";
 
@@ -10,7 +17,7 @@ type LanguageOption = {
 };
 
 const LANGUAGE_OPTIONS: LanguageOption[] = [
-  { code: "es", label: "Espanol" },
+  { code: "es", label: "Español" },
   { code: "en", label: "English" },
 ];
 

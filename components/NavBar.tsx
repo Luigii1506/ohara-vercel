@@ -253,7 +253,6 @@ const NavBar = () => {
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
     { href: "/events", label: "Events", icon: Calendar },
     { href: "/tournaments", label: "Tournaments", icon: Trophy },
-    { href: "/proxies", label: "Proxies", icon: Copy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 

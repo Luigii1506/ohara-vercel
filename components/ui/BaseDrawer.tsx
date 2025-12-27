@@ -57,6 +57,10 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wasOpenRef = useRef(false);
   const dragStartRef = useRef<number | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const isAtTopRef = useRef(true);
 
   useEffect(() => {
     if (isOpen) {
@@ -141,6 +145,58 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
     }
   }, [dragOffset, isDragging, onClose, preventClose]);
 
+  // Touch handlers for overscroll-to-dismiss behavior
+  const handleTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (preventClose || !isMobileViewport) return;
+      const scrollContainer = contentRef.current;
+      // Check if we're at the top of scroll
+      isAtTopRef.current = !scrollContainer || scrollContainer.scrollTop <= 0;
+      touchStartYRef.current = event.touches[0].clientY;
+    },
+    [preventClose, isMobileViewport]
+  );
+
+  const handleTouchMove = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (preventClose || !isMobileViewport || touchStartYRef.current === null) return;
+
+      const scrollContainer = contentRef.current;
+      const currentY = event.touches[0].clientY;
+      const deltaY = currentY - touchStartYRef.current;
+
+      // Only trigger drag if:
+      // 1. We started at the top of scroll
+      // 2. User is pulling down (deltaY > 0)
+      // 3. We're currently at top or already dragging
+      const isCurrentlyAtTop = !scrollContainer || scrollContainer.scrollTop <= 0;
+
+      if (isAtTopRef.current && deltaY > 0 && isCurrentlyAtTop) {
+        // Prevent default scroll and start dragging
+        event.preventDefault();
+        setIsDragging(true);
+        // Apply resistance to make it feel more natural
+        const resistance = 0.5;
+        setDragOffset(deltaY * resistance);
+      }
+    },
+    [preventClose, isMobileViewport]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobileViewport) return;
+    touchStartYRef.current = null;
+
+    if (isDragging) {
+      const shouldClose = dragOffset > 100;
+      setIsDragging(false);
+      setDragOffset(0);
+      if (shouldClose && !preventClose) {
+        onClose();
+      }
+    }
+  }, [dragOffset, isDragging, onClose, preventClose, isMobileViewport]);
+
   const drawerTransform = isVisible
     ? `translateY(${dragOffset}px)`
     : "translateY(100%)";
@@ -166,6 +222,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
           className="fixed inset-0 z-50 flex items-end lg:items-center lg:justify-center pointer-events-none"
         >
           <div
+            ref={drawerRef}
             className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
               isDragging ? "transition-none" : "transition-all duration-300"
             } ease-out lg:max-h-[85vh] lg:${desktopMaxWidth} lg:rounded-3xl ${
@@ -177,6 +234,10 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
               maxHeight: `min(${maxHeight}, 90vh)`,
               ...drawerStyle,
             }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
           >
             {/* Handle - mobile only */}
             {showHandle && (
@@ -192,8 +253,10 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
               </div>
             )}
 
-            {/* Content */}
-            {children}
+            {/* Content wrapper with ref for scroll detection */}
+            <div ref={contentRef} className="overflow-y-auto h-full">
+              {children}
+            </div>
           </div>
         </div>
       </>
@@ -217,12 +280,17 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
         className="fixed inset-0 z-50 flex items-end pointer-events-none"
       >
         <div
+          ref={drawerRef}
           className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
             isDragging ? "transition-none" : "transition-all duration-300"
           } ease-out ${
             isVisible ? "translate-y-0" : "translate-y-full"
           } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
           style={{ maxHeight, ...drawerStyle }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
           {/* Handle for mobile */}
           {showHandle && (
@@ -238,8 +306,10 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
             </div>
           )}
 
-          {/* Content */}
-          {children}
+          {/* Content wrapper with ref for scroll detection */}
+          <div ref={contentRef} className="overflow-y-auto h-full">
+            {children}
+          </div>
         </div>
       </div>
     </>

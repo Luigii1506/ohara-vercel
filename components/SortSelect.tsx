@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ArrowUpDown, Check, ChevronDown, X } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 export interface SortOption {
   value: string;
@@ -22,8 +23,9 @@ export default function SortSelect({
   options,
   selected,
   setSelected,
-  buttonLabel = "Sort by",
+  buttonLabel = "",
 }: SortSelectProps) {
+  const { t } = useI18n();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const currentOption = options.find((o) => o.value === selected);
 
@@ -65,7 +67,7 @@ export default function SortSelect({
           {currentOption ? (
             <span className="max-w-[80px] truncate">{currentOption.label}</span>
           ) : (
-            <span>{buttonLabel}</span>
+            <span>{buttonLabel || t("common.sort")}</span>
           )}
           {selected && (
             <button
@@ -91,7 +93,7 @@ export default function SortSelect({
           )}
         >
           <ArrowUpDown className="h-4 w-4" />
-          <span>{currentOption?.label || buttonLabel}</span>
+          <span>{currentOption?.label || buttonLabel || t("common.sort")}</span>
           {selected ? (
             <button
               onClick={handleClear}
@@ -113,10 +115,10 @@ export default function SortSelect({
         <div className="flex flex-col max-h-[80vh] min-h-0">
           {/* Title */}
           <div className="px-5 pb-3 sm:pt-5 flex flex-col">
-            <h3 className="text-lg font-semibold text-slate-900">Sort Cards</h3>
-            <p className="text-sm text-slate-500">
-              Choose how to order results
-            </p>
+            <h3 className="text-lg font-semibold text-slate-900">
+              {t("sort.title")}
+            </h3>
+            <p className="text-sm text-slate-500">{t("sort.subtitle")}</p>
           </div>
 
           {/* Options */}
@@ -186,7 +188,7 @@ export default function SortSelect({
                 }}
                 className="w-full rounded-xl border-2 border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 active:scale-[0.98]"
               >
-                Clear sorting
+                {t("sort.clear")}
               </button>
             </div>
           )}

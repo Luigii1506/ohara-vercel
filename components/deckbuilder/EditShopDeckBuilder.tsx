@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CardWithCollectionData, DeckCard } from "@/types";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 import { useUser } from "@/app/context/UserContext";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface EditShopDeckBuilderProps {
   deckId: string;
@@ -44,6 +45,7 @@ const convertDeckCard = (deckCard: any): DeckCard => {
 };
 
 const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
+  const { t } = useI18n();
   const router = useRouter();
   const deckBuilder = useDeckBuilder();
   const {
@@ -120,7 +122,7 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
         const res = await fetch(`/api/admin/shop-decks/${deckId}`);
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.error || "No se pudo cargar el deck");
+          throw new Error(errorData.error || t("deckbuilder.shopLoadError"));
         }
         const deck = await res.json();
         setDeckName(deck.name ?? "");
@@ -145,7 +147,7 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
         showErrorToast(
           error instanceof Error
             ? error.message
-            : "Error cargando el deck de tienda"
+            : t("deckbuilder.shopLoadErrorGeneric")
         );
         router.push("/admin/shop-decks");
       } finally {
@@ -177,17 +179,17 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
   const handleSave = async () => {
     if (deckBuilder.isSaving) return;
     if (!deckBuilder.selectedLeader) {
-      showErrorToast("Selecciona un líder para el deck.");
+      showErrorToast(t("deckbuilder.shopSelectLeader"));
       return;
     }
     if (totalCards !== 50) {
-      showErrorToast("El deck debe tener 50 cartas (sin contar el líder).");
+      showErrorToast(t("deckbuilder.shopNeedFifty"));
       return;
     }
 
     const normalizedSlug = slugify(shopSlug);
     if (!normalizedSlug) {
-      showErrorToast("Define un slug válido para la tienda.");
+      showErrorToast(t("deckbuilder.shopSlugInvalid"));
       return;
     }
 
@@ -195,7 +197,7 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
     try {
       new URL(urlToSave);
     } catch {
-      showErrorToast("Ingresa una URL de tienda válida (https://...).");
+      showErrorToast(t("deckbuilder.shopUrlInvalid"));
       return;
     }
 
@@ -223,17 +225,17 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "No se pudo actualizar el deck");
+        throw new Error(errorData.error || t("deckbuilder.shopUpdateError"));
       }
 
-      showSuccessToast("Deck actualizado correctamente");
+      showSuccessToast(t("deckbuilder.shopUpdated"));
       router.push("/admin/shop-decks");
     } catch (error) {
       console.error("Error actualizando deck:", error);
       showErrorToast(
         error instanceof Error
           ? error.message
-          : "Error actualizando el deck de tienda"
+          : t("deckbuilder.shopUpdateErrorGeneric")
       );
     } finally {
       deckBuilder.setIsSaving(false);
@@ -259,7 +261,7 @@ const EditShopDeckBuilder = ({ deckId }: EditShopDeckBuilderProps) => {
       <div className="flex items-center justify-center h-[80vh] w-full">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-600">Cargando deck...</p>
+          <p className="text-gray-600">{t("deckbuilder.loadingDeck")}</p>
         </div>
       </div>
     );

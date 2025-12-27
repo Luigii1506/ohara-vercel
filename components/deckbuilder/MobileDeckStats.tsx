@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { DeckCard } from "@/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface MobileDeckStatsProps {
   deck: DeckCard[];
@@ -95,6 +96,7 @@ const StatSection = ({
 };
 
 const MobileDeckStats: React.FC<MobileDeckStatsProps> = ({ deck }) => {
+  const { t } = useI18n();
   const stats = useMemo(() => {
     const costCurve: Record<number, number> = {};
     const powerCurve: Record<number, number> = {};
@@ -159,7 +161,7 @@ const MobileDeckStats: React.FC<MobileDeckStatsProps> = ({ deck }) => {
   if (totalCards === 0) {
     return (
       <div className="p-6 text-center">
-        <p className="text-slate-400 text-sm">Add cards to see stats</p>
+        <p className="text-slate-400 text-sm">{t("deckStats.empty")}</p>
       </div>
     );
   }
@@ -169,18 +171,34 @@ const MobileDeckStats: React.FC<MobileDeckStatsProps> = ({ deck }) => {
       {/* Single-column layout for clearer charts */}
       <div className="grid grid-cols-1 gap-2">
         {/* Cost Curve */}
-        <StatSection title="Cost" data={stats.cost} color="#ef4444" />
+        <StatSection
+          title={t("deckStats.costLabel")}
+          data={stats.cost}
+          color="#ef4444"
+        />
 
         {/* Power Curve */}
-        <StatSection title="Power" data={stats.power} color="#8b5cf6" />
+        <StatSection
+          title={t("deckStats.powerLabel")}
+          data={stats.power}
+          color="#8b5cf6"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-2">
         {/* Counter Curve */}
-        <StatSection title="Counter" data={stats.counter} color="#0ea5e9" />
+        <StatSection
+          title={t("deckStats.counterLabel")}
+          data={stats.counter}
+          color="#0ea5e9"
+        />
 
         {/* Category */}
-        <StatSection title="Type" data={stats.category} color="#f59e0b" />
+        <StatSection
+          title={t("deckStats.typeLabel")}
+          data={stats.category}
+          color="#f59e0b"
+        />
       </div>
     </div>
   );

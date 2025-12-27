@@ -2,6 +2,7 @@ import { Oswald } from "next/font/google";
 import { getColors } from "@/helpers/functions";
 import { rarityFormatter } from "@/helpers/formatters";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface CardPreviewStaticProps {
   name: string;
@@ -31,6 +32,7 @@ export default function CardPreviewStatic({
   color,
   cost,
 }: CardPreviewStaticProps) {
+  const { t } = useI18n();
   const [showLargeImage, setShowLargeImage] = useState(false);
 
   return (
@@ -94,7 +96,7 @@ export default function CardPreviewStatic({
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img

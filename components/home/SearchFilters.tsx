@@ -23,6 +23,7 @@ import {
 
 import ClearFiltersButton from "../ClearFiltersButton";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface SearchFiltersProps {
   search: string;
@@ -97,6 +98,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
   setSelectedRegion,
   isProVersion,
 }) => {
+  const { t } = useI18n();
   // Detectar si es desktop (1024px+) para habilitar búsqueda
   // En tablets/iPads (< 1024px) se deshabilita para evitar el teclado
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -123,7 +125,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               <DropdownSearch
                 search={search}
                 setSearch={setSearch}
-                placeholder="Search..."
+                placeholder={t("common.searchPlaceholder")}
                 isInputClear={isInputClear}
                 setIsInputClear={setIsInputClear}
               />

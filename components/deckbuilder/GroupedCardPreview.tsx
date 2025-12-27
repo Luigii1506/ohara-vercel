@@ -16,6 +16,7 @@ import EightCostIcon from "@/components/Icons/EightCostIcon";
 import NineCostIcon from "@/components/Icons/NineCostIcon";
 import TenCostIcon from "../Icons/TenCostIcon";
 import { DeckCard } from "@/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function GroupedCardPreview({
   index,
   length,
 }: GroupedCardPreviewProps) {
+  const { t } = useI18n();
   // Suponemos que todas comparten datos comunes
   const { code, name, rarity, color, cost } = group[0];
   const [showLargeImage, setShowLargeImage] = useState<number | null>(null);
@@ -164,7 +166,7 @@ export default function GroupedCardPreview({
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
 
             {group

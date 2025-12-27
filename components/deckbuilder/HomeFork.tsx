@@ -6,8 +6,10 @@ import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
 import { useCards } from "@/hooks/useCards";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const ForkDeckBuilder = () => {
+  const { t } = useI18n();
   const { data: cards = [], isLoading } = useCards();
   const router = useRouter();
   const params = useParams();
@@ -41,7 +43,7 @@ const ForkDeckBuilder = () => {
       })),
     ];
 
-    const deckName = "Fork de Deck";
+    const deckName = t("deckbuilder.forkDeckName");
     deckBuilder.setIsSaving(true);
     try {
       const response = await fetch(`/api/decks/${uniqueUrl}/fork`, {
@@ -100,7 +102,7 @@ const ForkDeckBuilder = () => {
     ];
 
     if (expandedCards.length === 0) {
-      alert("No hay cartas en el deck para imprimir");
+      alert(t("deckbuilder.noCardsToPrint"));
       return;
     }
 
@@ -276,27 +278,29 @@ const ForkDeckBuilder = () => {
 
       <div class="print-modal-content">
         <div class="print-modal-header">
-          <h2>Generar PDF de Proxies</h2>
+          <h2>${t("deckbuilder.printPdfTitle")}</h2>
           <div class="print-modal-actions">
             <button id="print-btn" class="print-modal-btn print-modal-btn-primary" disabled>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/>
               </svg>
-              Imprimir PDF
+              ${t("deckbuilder.printPdf")}
             </button>
             <button class="print-modal-btn print-modal-btn-close" id="close-modal-btn">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
-              Cerrar
+              ${t("deckbuilder.close")}
             </button>
           </div>
         </div>
         <div class="print-preview-container">
           <div class="loading-container">
             <div class="loading-spinner"></div>
-            <div class="loading-text">Generando PDF...</div>
-            <div class="loading-progress">Preparando imágenes</div>
+            <div class="loading-text">${t("deckbuilder.generatingPdf")}</div>
+            <div class="loading-progress">${t(
+              "deckbuilder.preparingImages"
+            )}</div>
           </div>
         </div>
       </div>
@@ -539,11 +543,17 @@ const ForkDeckBuilder = () => {
 
         if (previewContainer) {
           const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
+            error instanceof Error
+              ? error.message
+              : t("deckbuilder.unknownError");
           previewContainer.innerHTML = `
             <div class="loading-container">
-              <div style="color: #f44336; font-size: 18px;">Error al generar el PDF</div>
-              <div style="color: #666; margin-top: 10px;">Por favor, intenta de nuevo</div>
+              <div style="color: #f44336; font-size: 18px;">${t(
+                "deckbuilder.pdfErrorTitle"
+              )}</div>
+              <div style="color: #666; margin-top: 10px;">${t(
+                "deckbuilder.pdfErrorSubtitle"
+              )}</div>
               <div style="color: #999; margin-top: 5px; font-size: 12px;">${errorMessage}</div>
             </div>
           `;
@@ -561,7 +571,7 @@ const ForkDeckBuilder = () => {
 
         const timeout = setTimeout(() => {
           img.src = "";
-          reject(new Error("Timeout cargando imagen"));
+          reject(new Error(t("deckbuilder.imageTimeout")));
         }, 15000);
 
         img.onload = function () {
@@ -579,7 +589,7 @@ const ForkDeckBuilder = () => {
 
               resolve(canvas.toDataURL("image/jpeg", 0.9));
             } else {
-              reject(new Error("No se pudo obtener el contexto del canvas"));
+              reject(new Error(t("deckbuilder.canvasError")));
             }
           } catch (error) {
             clearTimeout(timeout);
@@ -589,7 +599,7 @@ const ForkDeckBuilder = () => {
 
         img.onerror = function () {
           clearTimeout(timeout);
-          reject(new Error("Error cargando imagen"));
+          reject(new Error(t("deckbuilder.imageLoadError")));
         };
 
         img.src = url;

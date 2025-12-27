@@ -9,6 +9,7 @@ import RangedIcons from "@/components/Icons/RangedIcons";
 import WisdomIcons from "@/components/Icons/WisdomIcons";
 import SlashIcon from "@/components/Icons/SlashIcon";
 import StrikeIcon from "@/components/Icons/StrikeIcon";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface CardInfoProps {
   card: CardWithCollectionData | undefined;
@@ -23,6 +24,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
   isModal,
   isTextOnly = true,
 }) => {
+  const { t } = useI18n();
   // Use texts if available, otherwise fallback to effects
   const hasTexts = (card?.texts?.length ?? 0) > 0;
   const hasEffects = (card?.effects?.length ?? 0) > 0;
@@ -39,7 +41,9 @@ const CardDetails: React.FC<CardInfoProps> = ({
           {isModal && (
             <>
               <div>
-                <h3 className="text-sm font-bold mb-2">Family type</h3>
+                <h3 className="text-sm font-bold mb-2">
+                  {t("cardDetails.familyType")}
+                </h3>
                 <div className="text-[13px] font-[200]">
                   {card?.types?.map((type, index) => (
                     <p key={index} className="text-justify">
@@ -56,12 +60,12 @@ const CardDetails: React.FC<CardInfoProps> = ({
             {!isTextOnly && (
               <>
                 <InfoItem
-                  title="Cost"
+                  title={t("cardDetails.cost")}
                   value={card?.cost?.replace("Cost", "") || "-"}
                   searchTerm={searchTerm}
                 />
                 <InfoItem
-                  title="Power"
+                  title={t("cardDetails.power")}
                   value={card?.power?.replace("Power", "") || "-"}
                   searchTerm={searchTerm}
                 />
@@ -70,7 +74,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
 
             {card?.counter && (
               <InfoItem
-                title="Counter"
+                title={t("cardDetails.counter")}
                 value={card?.counter?.replace("Counter", "") || "-"}
                 searchTerm={searchTerm}
               />
@@ -86,7 +90,9 @@ const CardDetails: React.FC<CardInfoProps> = ({
               <Separator />
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-bold mb-2">Colors</h3>
+                  <h3 className="text-sm font-bold mb-2">
+                    {t("cardDetails.colors")}
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {card?.colors.map((color, index) => (
                       <Badge
@@ -106,7 +112,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
 
                 <div>
                   <h3 className="text-sm font-bold mb-2 text-right">
-                    Attribute
+                    {t("cardDetails.attribute")}
                   </h3>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {card?.attribute ? (
@@ -148,7 +154,9 @@ const CardDetails: React.FC<CardInfoProps> = ({
 
           {hasEffectContent && (
             <div className="relative">
-              <h3 className="text-sm font-semibold mb-2">Effect</h3>
+              <h3 className="text-sm font-semibold mb-2">
+                {t("cardDetails.effect")}
+              </h3>
               <div className="space-y-1 text-[13px] text-black font-[200]">
                 {/* Prefer texts, fallback to effects */}
                 {hasTexts
@@ -184,7 +192,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
                   clipPath: "polygon(0 0, 100% 0%, 80% 100%, 0% 100%)",
                 }}
               >
-                Trigger
+                {t("cardDetails.trigger")}
               </div>
               <div className="relative bg-black w-full text-white  flex flex-row justify-start items-start">
                 <p className="text-[13px] leading-[16px] font-[200]  px-2 py-3 text-white">

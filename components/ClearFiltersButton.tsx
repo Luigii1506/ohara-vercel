@@ -6,6 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface ClearFiltersButtonProps {
   clearFilters: () => void;
@@ -18,6 +19,7 @@ export default function ClearFiltersButton({
   isTouchable,
   isMobile,
 }: ClearFiltersButtonProps) {
+  const { t } = useI18n();
   return (
     <TooltipProvider>
       <Tooltip>
@@ -39,11 +41,11 @@ export default function ClearFiltersButton({
             }}
           >
             <FilterX className="h-4 w-4" />
-            {!isMobile && <span>Clear filters</span>}
+            {!isMobile && <span>{t("filters.clear")}</span>}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Remove all active filters</p>
+          <p>{t("filters.clearHint")}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

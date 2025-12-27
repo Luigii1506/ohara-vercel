@@ -9,6 +9,7 @@ import { getColors } from "@/helpers/functions";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardDetails from "@/components/CardDetails";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -55,6 +56,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   baseCard,
   currentQuantity = 0,
 }) => {
+  const { t } = useI18n();
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50 });
@@ -294,7 +296,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     }`}
                   >
                     <ZoomIn className="h-3 w-3" />
-                    <span>Tap to zoom</span>
+                    <span>{t("cardPreview.tapToExpand")}</span>
                   </div>
                 </div>
               </div>
@@ -311,7 +313,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
               className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-sm hover:bg-blue-500 transition-colors px-4 py-2"
             >
               <TcgplayerLogo className="h-5 w-12 text-white" />
-              <span>View on TCGplayer</span>
+              <span>{t("cardPreview.viewOnTcg")}</span>
             </button>
           </div>
 
@@ -339,11 +341,12 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     </div>
                     <div className="text-left flex flex-col">
                       <p className="font-semibold text-slate-800">
-                        Official Rulings
+                        {t("cardPreview.rulingsTitle")}
                       </p>
                       <p className="text-xs text-amber-700">
-                        {rulings.length} Q&A{rulings.length > 1 ? "s" : ""}{" "}
-                        available
+                        {t("cardPreview.rulingsSubtitle", {
+                          count: rulings.length,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -410,7 +413,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         >
           <div className="w-full max-w-md pointer-events-none animate-in zoom-in-95 fade-in duration-200">
             <div className="text-white/80 text-sm font-medium text-center py-3">
-              Tap anywhere to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-4">
               <img

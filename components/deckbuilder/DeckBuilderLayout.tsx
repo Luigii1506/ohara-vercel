@@ -74,6 +74,7 @@ import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
 import BaseCardsToggle from "../BaseCardsToggle";
 import SortSelect, { SortOption } from "../SortSelect";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 // AlternateArt types que NO deben mostrarse en el deckbuilder
 const EXCLUDED_ALTERNATE_ARTS = [
@@ -84,35 +85,6 @@ const EXCLUDED_ALTERNATE_ARTS = [
   "2nd Anniversary",
   "3rd Anniversary",
   "Not for sale",
-];
-
-const SORT_OPTIONS: SortOption[] = [
-  {
-    value: "code_asc",
-    label: "Code A-Z",
-    description: "Ascending by card code",
-  },
-  {
-    value: "code_desc",
-    label: "Code Z-A",
-    description: "Descending by card code",
-  },
-  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
-  {
-    value: "name_desc",
-    label: "Name Z-A",
-    description: "Reverse alphabetical",
-  },
-  {
-    value: "price_high",
-    label: "Price: High to Low",
-    description: "Most expensive first",
-  },
-  {
-    value: "price_low",
-    label: "Price: Low to High",
-    description: "Cheapest first",
-  },
 ];
 
 interface CompleteDeckBuilderLayoutProps {
@@ -157,6 +129,7 @@ const CompleteDeckBuilderLayout = ({
   setIsPublished,
   initialQueryData,
 }: CompleteDeckBuilderLayoutProps) => {
+  const { t } = useI18n();
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Helper functions for price handling
@@ -269,6 +242,41 @@ const CompleteDeckBuilderLayout = ({
   >("list");
   const isPriceSort =
     selectedSort === "price_high" || selectedSort === "price_low";
+  const sortOptions = useMemo<SortOption[]>(
+    () => [
+      {
+        value: "code_asc",
+        label: t("sort.codeAsc"),
+        description: t("sort.codeAscDesc"),
+      },
+      {
+        value: "code_desc",
+        label: t("sort.codeDesc"),
+        description: t("sort.codeDescDesc"),
+      },
+      {
+        value: "name_asc",
+        label: t("sort.nameAsc"),
+        description: t("sort.nameAscDesc"),
+      },
+      {
+        value: "name_desc",
+        label: t("sort.nameDesc"),
+        description: t("sort.nameDescDesc"),
+      },
+      {
+        value: "price_high",
+        label: t("sort.priceHigh"),
+        description: t("sort.priceHighDesc"),
+      },
+      {
+        value: "price_low",
+        label: t("sort.priceLow"),
+        description: t("sort.priceLowDesc"),
+      },
+    ],
+    [t]
+  );
 
   const nonLeaderCategories = useMemo(
     () =>
@@ -539,9 +547,7 @@ const CompleteDeckBuilderLayout = ({
       .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
 
     if (totalQuantityBase >= 4) {
-      showWarningToast(
-        "You can't add more than 4 cards of the same code to the deck."
-      );
+      showWarningToast(t("deckbuilder.maxSameCode"));
       return;
     }
 
@@ -969,7 +975,7 @@ const CompleteDeckBuilderLayout = ({
       }, 100); // Puedes ajustar el tiempo si es necesario
     } else {
       if (totalCards >= 50) {
-        showWarningToast("You can't add more than 50 cards to the deck.");
+        showWarningToast(t("deckbuilder.maxDeckCards"));
         return;
       }
 
@@ -1192,7 +1198,7 @@ const CompleteDeckBuilderLayout = ({
           <DropdownSearch
             search={search}
             setSearch={setSearch}
-            placeholder="Search..."
+            placeholder={t("common.searchPlaceholder")}
           />
 
           <div className="flex items-center gap-2">
@@ -1205,7 +1211,7 @@ const CompleteDeckBuilderLayout = ({
               }`}
             >
               <SlidersHorizontal className="h-4 w-4" />
-              <span>Filters</span>
+              <span>{t("deckbuilder.filters")}</span>
               {totalFilters > 0 && (
                 <>
                   <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
@@ -1243,10 +1249,10 @@ const CompleteDeckBuilderLayout = ({
 
             <div className="ml-auto flex items-center gap-2">
               <SortSelect
-                options={SORT_OPTIONS}
+                options={sortOptions}
                 selected={selectedSort}
                 setSelected={setSelectedSort}
-                buttonLabel="Sort"
+                buttonLabel={t("deckbuilder.sort")}
               />
               {/* <ViewSwitch
                 viewSelected={viewSelected}
@@ -1257,9 +1263,13 @@ const CompleteDeckBuilderLayout = ({
 
           {/* Results count */}
           <p className="text-xs text-slate-500">
-            {totalResults?.toLocaleString()} cards found
+            {t("deckbuilder.cardsFound", {
+              count: totalResults?.toLocaleString() ?? "0",
+            })}
             {(isFetchingCards || isFetchingNextPage || isCounting) && (
-              <span className="ml-2 text-blue-600">Loading...</span>
+              <span className="ml-2 text-blue-600">
+                {t("deckbuilder.loading")}
+              </span>
             )}
           </p>
         </div>
@@ -1279,10 +1289,10 @@ const CompleteDeckBuilderLayout = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-base leading-tight">
-                    Select your Leader
+                    {t("deckbuilder.selectLeaderTitle")}
                   </h3>
                   <p className="text-slate-400 text-sm mt-0.5 leading-snug">
-                    Tap on a Leader card to start
+                    {t("deckbuilder.selectLeaderSubtitle")}
                   </p>
                 </div>
               </div>
@@ -1562,7 +1572,9 @@ const CompleteDeckBuilderLayout = ({
                                             );
                                           } else {
                                             showWarningToast(
-                                              `Max ${baseMaxQuantity} cards reached.`
+                                            t("deckbuilder.maxReached", {
+                                              count: baseMaxQuantity,
+                                            })
                                             );
                                           }
                                         }}
@@ -1575,7 +1587,9 @@ const CompleteDeckBuilderLayout = ({
                                             );
                                           } else {
                                             showWarningToast(
-                                              `Max ${baseMaxQuantity} cards reached.`
+                                            t("deckbuilder.maxReached", {
+                                              count: baseMaxQuantity,
+                                            })
                                             );
                                           }
                                         }}
@@ -1754,7 +1768,9 @@ const CompleteDeckBuilderLayout = ({
                                           );
                                         } else {
                                           showWarningToast(
-                                            `Max ${alternateMaxQuantity} cards reached.`
+                                            t("deckbuilder.maxReached", {
+                                              count: alternateMaxQuantity,
+                                            })
                                           );
                                         }
                                       }}
@@ -1767,7 +1783,9 @@ const CompleteDeckBuilderLayout = ({
                                           );
                                         } else {
                                           showWarningToast(
-                                            `Max ${alternateMaxQuantity} cards reached.`
+                                            t("deckbuilder.maxReached", {
+                                              count: alternateMaxQuantity,
+                                            })
                                           );
                                         }
                                       }}
@@ -2291,7 +2309,9 @@ const CompleteDeckBuilderLayout = ({
                                       );
                                     } else {
                                       showWarningToast(
-                                        `Max ${maxQuantityByCode} cards reached.`
+                                        t("deckbuilder.maxReached", {
+                                          count: maxQuantityByCode,
+                                        })
                                       );
                                     }
                                   }}
@@ -2304,7 +2324,9 @@ const CompleteDeckBuilderLayout = ({
                                       );
                                     } else {
                                       showWarningToast(
-                                        `Max ${maxQuantityByCode} cards reached.`
+                                        t("deckbuilder.maxReached", {
+                                          count: maxQuantityByCode,
+                                        })
                                       );
                                     }
                                   }}
@@ -2452,7 +2474,9 @@ const CompleteDeckBuilderLayout = ({
                                         );
                                       } else {
                                         showWarningToast(
-                                          `Max ${maxQuantityByCode} cards reached.`
+                                          t("deckbuilder.maxReached", {
+                                            count: maxQuantityByCode,
+                                          })
                                         );
                                       }
                                     }}
@@ -2465,7 +2489,9 @@ const CompleteDeckBuilderLayout = ({
                                         );
                                       } else {
                                         showWarningToast(
-                                          `Max ${maxQuantityByCode} cards reached.`
+                                          t("deckbuilder.maxReached", {
+                                            count: maxQuantityByCode,
+                                          })
                                         );
                                       }
                                     }}
@@ -2566,7 +2592,7 @@ const CompleteDeckBuilderLayout = ({
                       }
                       return (
                         <span className="text-[10px] font-medium text-gray-400 leading-tight mt-0.5">
-                          No price
+                          {t("deckbuilder.noPrice")}
                         </span>
                       );
                     })()}
@@ -2598,7 +2624,7 @@ const CompleteDeckBuilderLayout = ({
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Clear Deck</p>
+                        <p>{t("deckbuilder.clearDeck")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -2610,10 +2636,10 @@ const CompleteDeckBuilderLayout = ({
                   </div>
                   <div className="min-w-0 flex flex-col justify-center">
                     <span className="font-semibold text-sm text-gray-700 leading-tight">
-                      Select Leader
+                      {t("deckbuilder.selectLeaderLabel")}
                     </span>
                     <p className="text-xs text-gray-500 leading-tight">
-                      Choose your leader
+                      {t("deckbuilder.chooseLeaderLabel")}
                     </p>
                   </div>
                 </div>
@@ -2627,7 +2653,7 @@ const CompleteDeckBuilderLayout = ({
                   type="text"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  placeholder="Deck name..."
+                  placeholder={t("deckbuilder.deckNamePlaceholder")}
                   className="w-full h-9 sm:h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                   maxLength={50}
                 />
@@ -2637,7 +2663,7 @@ const CompleteDeckBuilderLayout = ({
                       type="text"
                       value={shopSlugValue}
                       onChange={(e) => handleSlugInputChange(e.target.value)}
-                      placeholder="Slug para la tienda (ej. super-deck)"
+                      placeholder={t("deckbuilder.shopSlugPlaceholder")}
                       className="w-full h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                       maxLength={60}
                     />
@@ -2645,7 +2671,7 @@ const CompleteDeckBuilderLayout = ({
                       type="url"
                       value={shopUrlValue}
                       onChange={(e) => handleShopUrlChange(e.target.value)}
-                      placeholder="URL de la tienda (https://...)"
+                      placeholder={t("deckbuilder.shopUrlPlaceholder")}
                       className="w-full h-9 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg transition-colors"
                     />
                     <div className="flex items-center justify-center gap-3 pt-1">
@@ -2654,7 +2680,9 @@ const CompleteDeckBuilderLayout = ({
                         onCheckedChange={(checked) => setIsPublished?.(checked)}
                       />
                       <span className="text-xs font-medium text-gray-600">
-                        {isPublished ? "Publicado" : "Sin publicar"}
+                        {isPublished
+                          ? t("deckbuilder.shopPublished")
+                          : t("deckbuilder.shopUnpublished")}
                       </span>
                     </div>
                     {shopSlugValue && (
@@ -2676,7 +2704,7 @@ const CompleteDeckBuilderLayout = ({
                     {totalCards}
                   </div>
                   <div className="text-[10px] text-gray-500 font-medium leading-tight mt-0.5 uppercase tracking-wider">
-                    Total
+                    {t("deckbuilder.total")}
                   </div>
                 </div>
                 <div className="w-px h-8 bg-gray-200"></div>
@@ -2701,7 +2729,7 @@ const CompleteDeckBuilderLayout = ({
                         : "text-emerald-600"
                     }`}
                   >
-                    Left
+                    {t("deckbuilder.left")}
                   </div>
                 </div>
 
@@ -2717,19 +2745,19 @@ const CompleteDeckBuilderLayout = ({
                               {formatCurrency(totalDeckPrice)}
                             </div>
                             <div className="text-[10px] text-emerald-600 font-medium leading-tight mt-0.5 uppercase tracking-wider">
-                              Price
+                              {t("deckbuilder.price")}
                             </div>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="bg-white border border-gray-200 shadow-lg">
                           <div className="text-sm">
                             <p className="font-semibold text-gray-900 mb-2 text-sm">
-                              Price Breakdown
+                              {t("deckbuilder.priceBreakdown")}
                             </p>
                             <div className="space-y-1">
                               <p className="flex justify-between gap-3">
                                 <span className="text-gray-600">
-                                  Cards with price:
+                                  {t("deckbuilder.cardsWithPrice")}:
                                 </span>
                                 <span className="font-medium text-gray-900">
                                   {cardsWithPrice}
@@ -2738,7 +2766,7 @@ const CompleteDeckBuilderLayout = ({
                               {cardsWithoutPrice > 0 && (
                                 <p className="flex justify-between gap-3">
                                   <span className="text-gray-600">
-                                    Cards without price:
+                                    {t("deckbuilder.cardsWithoutPrice")}:
                                   </span>
                                   <span className="font-medium text-amber-600">
                                     {cardsWithoutPrice}
@@ -2748,7 +2776,7 @@ const CompleteDeckBuilderLayout = ({
                               <div className="pt-2 mt-2 border-t border-gray-200">
                                 <p className="flex justify-between gap-3">
                                   <span className="text-gray-600">
-                                    Average per card:
+                                    {t("deckbuilder.averagePerCard")}:
                                   </span>
                                   <span className="font-medium text-emerald-600">
                                     {formatCurrency(
@@ -2786,7 +2814,9 @@ const CompleteDeckBuilderLayout = ({
                   </TooltipTrigger>
                   <TooltipContent className="bg-white border border-gray-200">
                     <p className="font-medium text-sm">
-                      {isStatsOpen ? "Hide" : "View"} Statistics
+                      {isStatsOpen
+                        ? t("deckbuilder.statsHide")
+                        : t("deckbuilder.statsView")}
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -2808,17 +2838,15 @@ const CompleteDeckBuilderLayout = ({
                           <Users className="h-8 w-8 text-blue-600" />
                         </div>
                         <h3 className="text-xl font-bold text-gray-800 mb-2">
-                          Choose Your Leader
+                          {t("deckbuilder.chooseLeaderTitle")}
                         </h3>
                         <p className="text-gray-600 text-sm leading-relaxed">
-                          Start building your deck by selecting a leader from
-                          the available cards on the left.
+                          {t("deckbuilder.chooseLeaderBody")}
                         </p>
                       </div>
                       <div className="bg-blue-100 rounded-lg p-3">
                         <p className="text-blue-700 text-xs font-medium">
-                          💡 Tip: Your leader determines which colors you can
-                          use in your deck
+                          💡 {t("deckbuilder.chooseLeaderTip")}
                         </p>
                       </div>
                     </CardContent>
@@ -2831,16 +2859,15 @@ const CompleteDeckBuilderLayout = ({
                           <Layers className="h-8 w-8 text-green-600" />
                         </div>
                         <h3 className="text-xl font-bold text-gray-800 mb-2">
-                          Build Your Deck
+                          {t("deckbuilder.buildDeckTitle")}
                         </h3>
                         <p className="text-gray-600 text-sm leading-relaxed">
-                          Great! Now add cards to your deck from the available
-                          selection on the left.
+                          {t("deckbuilder.buildDeckBody")}
                         </p>
                       </div>
                       <div className="bg-green-100 rounded-lg p-3">
                         <p className="text-green-700 text-xs font-medium">
-                          🎯 Goal: Build a deck with exactly 50 cards
+                          🎯 {t("deckbuilder.goalText")}
                         </p>
                       </div>
                     </CardContent>
@@ -2905,7 +2932,7 @@ const CompleteDeckBuilderLayout = ({
                                     }
                                     return (
                                       <span className="text-[10px] font-medium text-gray-400 mt-0.5">
-                                        No price
+                                        {t("deckbuilder.noPrice")}
                                       </span>
                                     );
                                   })()}
@@ -2954,7 +2981,7 @@ const CompleteDeckBuilderLayout = ({
                                   );
                                 } else {
                                   showWarningToast(
-                                    "You can't add more than 4 cards of the same code to the deck."
+                                    t("deckbuilder.maxSameCode")
                                   );
                                 }
                               }}
@@ -3000,7 +3027,7 @@ const CompleteDeckBuilderLayout = ({
                 }}
               >
                 <RotateCcw className="h-5 w-5 mr-2" />
-                Clear Deck
+                {t("deckbuilder.clearDeck")}
               </Button>
               {/* Proxies Button - Only show if onProxies is provided */}
               {onProxies && (
@@ -3013,7 +3040,7 @@ const CompleteDeckBuilderLayout = ({
                   className="flex-1 h-14 border-2 border-violet-300 text-violet-600 hover:bg-violet-50 hover:border-violet-400 transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Download className="h-5 w-5 mr-2" />
-                  Proxies
+                  {t("deckbuilder.proxies")}
                 </Button>
               )}
               {/* Save Deck Button */}
@@ -3038,23 +3065,27 @@ const CompleteDeckBuilderLayout = ({
                 {deckBuilder.isSaving ? (
                   <>
                     <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                    Saving Deck...
+                    {t("deckbuilder.savingDeck")}
                   </>
                 ) : (
                   <div className="flex flex-col gap-0">
                     <div className="flex items-center justify-center">
                       <Save className="h-5 w-5 mr-2" />
                       <span className="hidden md:block">
-                        Save Deck ({totalCards}/50)
+                        {t("deckbuilder.saveDeck", { count: totalCards })}
                       </span>
-                      <span className="block md:hidden">Save Deck</span>
+                      <span className="block md:hidden">
+                        {t("deckbuilder.saveDeckShort")}
+                      </span>
                     </div>
                     {totalCards >= 50 && deckName === "" && (
-                      <span className="text-xs text-white">Name your deck</span>
+                      <span className="text-xs text-white">
+                        {t("deckbuilder.nameDeck")}
+                      </span>
                     )}
                     {shopFieldsMissing && (
                       <span className="text-xs text-white">
-                        Completa slug y URL de la tienda
+                        {t("deckbuilder.completeShopFields")}
                       </span>
                     )}
                   </div>
@@ -3183,7 +3214,7 @@ const CompleteDeckBuilderLayout = ({
                 <div className="w-full max-w-[900px] h-screen md:h-fit max-h-[96dvh] bg-white rounded-lg shadow-2xl flex flex-col transition-shadow duration-300 overflow-auto">
                   <div className="sticky top-0 bg-[#000] text-white p-4 flex flex-row justify-center items-center rounded-t-lg z-10 min-h-[80px] lg:min-h-[80px]">
                     <DialogTitle className="text-lg lg:text-2xl font-bold">
-                      Stats
+                      {t("deckbuilder.statsTitle")}
                     </DialogTitle>
                     <div className="absolute right-5 top-0 bottom-0 m-auto h-fit">
                       <button
@@ -3231,7 +3262,7 @@ const CompleteDeckBuilderLayout = ({
                 <div className="w-full max-w-[900px] md:h-fit bg-white rounded-lg shadow-2xl flex flex-col transition-shadow duration-300 overflow-auto">
                   <div className="sticky top-0 bg-[#000] text-white p-4 flex flex-row justify-center items-center rounded-t-lg z-10 min-h-[80px] lg:min-h-[80px]">
                     <DialogTitle className="text-xl lg:text-2xl font-bold">
-                      Deck preview
+                      {t("deckbuilder.deckPreview")}
                     </DialogTitle>
                     <div className="absolute right-5 top-0 bottom-0 m-auto h-fit">
                       <button
@@ -3295,7 +3326,9 @@ const CompleteDeckBuilderLayout = ({
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full min-h-[100px]">
-                      <p className="text-center text-2xl">No cards added</p>
+                      <p className="text-center text-2xl">
+                        {t("deckbuilder.noCardsAdded")}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -3312,7 +3345,7 @@ const CompleteDeckBuilderLayout = ({
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
@@ -3350,7 +3383,7 @@ const CompleteDeckBuilderLayout = ({
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img

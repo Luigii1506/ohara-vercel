@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const EditDeckBuilder = () => {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useParams();
 
@@ -44,7 +46,7 @@ const EditDeckBuilder = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payloadCards,
-          name: deckBuilder.deckName.trim() || "Mi Deck",
+          name: deckBuilder.deckName.trim() || t("deckbuilder.defaultDeckName"),
         }),
       });
 
@@ -66,7 +68,7 @@ const EditDeckBuilder = () => {
   const handleRestart = () => {
     deckBuilder.setSelectedLeader(null);
     deckBuilder.setDeckCards([]);
-    deckBuilder.setDeckName("Mi Deck");
+    deckBuilder.setDeckName(t("deckbuilder.defaultDeckName"));
   };
 
   // ✅ TanStack Query maneja el fetch automáticamente

@@ -335,7 +335,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
       maxHeight="90vh"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pb-4">
+      <div className="flex items-center justify-between px-4 pb-2">
         <h2 className="text-xl font-bold text-slate-900">
           Generar Proxies
         </h2>
@@ -346,6 +346,28 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
         >
           <X className="h-5 w-5" />
         </button>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="px-4 pb-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg">
+              <span className="text-xs font-semibold text-slate-500">Deck</span>
+              <span className="text-sm font-bold text-slate-900 truncate max-w-[180px] sm:max-w-none">
+                {deckName}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg">
+              <span className="text-xs font-semibold text-slate-500">
+                Cartas
+              </span>
+              <span className="text-sm font-bold text-slate-900 tabular-nums">
+                {totalCards}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Content */}

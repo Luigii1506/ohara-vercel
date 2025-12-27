@@ -22,6 +22,9 @@ export async function GET(
               include: {
                 colors: true,
                 types: true,
+                texts: true,
+                effects: true,
+                conditions: true,
                 sets: {
                   select: {
                     set: {

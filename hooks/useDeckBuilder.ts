@@ -34,13 +34,9 @@ export function useDeckBuilder(initialDeckUrl?: string): DeckBuilderHook {
   // Si se pasa una URL, se asume que se está haciendo fork de un deck existente
   useEffect(() => {
     if (initialDeckUrl) {
-      let url = "";
-      if (session) {
-        url = "/api/admin/deck/";
-      } else {
-        url = "/api/admin/decks/";
-      }
-      fetch(`${url}${initialDeckUrl}`)
+      // Use /api/decks/{id} for all users (regular route with proper auth)
+      const url = `/api/decks/${initialDeckUrl}`;
+      fetch(url)
         .then((res) => {
           if (!res.ok) throw new Error("Deck no encontrado");
           return res.json();
@@ -49,15 +45,18 @@ export function useDeckBuilder(initialDeckUrl?: string): DeckBuilderHook {
           setDeckData(data);
           // Establecer el nombre del deck desde los datos cargados
           setDeckName(data.name || "Mi Deck");
+          const isLeaderCategory = (category?: string | null) =>
+            (category || "").toLowerCase() === "leader";
+
           // Asumimos que el deck original tiene 1 Leader
-          const leaderEntry = data.deckCards.find(
-            (dc: any) => dc.card.category === "Leader"
+          const leaderEntry = data.deckCards.find((dc: any) =>
+            isLeaderCategory(dc.card.category)
           );
           if (leaderEntry) setSelectedLeader(leaderEntry.card);
           // Las cartas no Leader para el deck
 
           const nonLeaderCards = data.deckCards
-            .filter((dc: any) => dc.card.category !== "Leader")
+            .filter((dc: any) => !isLeaderCategory(dc.card.category))
             .map((dc: any) => ({
               attribute: dc.card.attribute,
               cardId: dc.card.id,
@@ -72,13 +71,15 @@ export function useDeckBuilder(initialDeckUrl?: string): DeckBuilderHook {
               set: dc.card.sets[0].set.title ?? "",
               counter: dc.card.counter,
               power: dc.card.power,
+              marketPrice: dc.card.marketPrice ?? null,
+              priceCurrency: dc.card.priceCurrency ?? "USD",
             }));
 
           setDeckCards(nonLeaderCards);
           setIsDeckLoaded(true);
         })
         .catch((error) => {
-          console.error(error);
+          console.error("[useDeckBuilder] Error:", error);
           setIsDeckLoaded(true);
         });
     } else {

@@ -1,5 +1,14 @@
 import { CardWithCollectionData } from "@/types";
 
+export type CardsSortBy =
+  | "price_high"
+  | "price_low"
+  | "code_asc"
+  | "code_desc"
+  | "name_asc"
+  | "name_desc"
+  | "collection"; // default sort by collection order
+
 export type CardsFilters = {
   search?: string;
   sets?: string[];
@@ -7,6 +16,7 @@ export type CardsFilters = {
   colors?: string[];
   rarities?: string[];
   categories?: string[];
+  excludeCategories?: string[];
   costs?: string[];
   power?: string[];
   attributes?: string[];
@@ -16,7 +26,8 @@ export type CardsFilters = {
   region?: string;
   counter?: string;
   trigger?: string;
-  sortBy?: "price_high" | "price_low";
+  sortBy?: CardsSortBy;
+  baseOnly?: boolean; // When true, only return base cards (no alternates)
 };
 
 export type CardsPage = {

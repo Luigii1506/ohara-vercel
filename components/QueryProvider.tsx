@@ -94,12 +94,12 @@ export default function QueryProvider({
         maxAge: 1000 * 60 * 60 * 24, // 24 horas
         buster: 'v3', // ✅ ACTUALIZADO: Invalida cache anterior (v2 → v3)
 
-        // ⚡ OPTIMIZADO: Persistir SOLO datos de cartas
+        // ⚡ OPTIMIZADO: Persistir datos de cartas y torneos
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
-            // Solo persistir query principal de cards
-            // NO imágenes, NO metadata extra
-            return query.queryKey[0] === 'cards';
+            // Persistir cards y tournaments para navegación instantánea
+            const key = query.queryKey[0];
+            return key === 'cards' || key === 'tournaments';
           },
         },
       }}

@@ -24,15 +24,14 @@ import FiltersSidebar from "@/components/FiltersSidebar";
 // Componentes críticos - carga inmediata
 import StoreCard from "@/components/StoreCard";
 import ViewSwitch from "@/components/ViewSwitch";
-import SearchResults from "@/components/SearchResults";
+import SortSelect, { SortOption } from "@/components/SortSelect";
 import DropdownSearch from "@/components/DropdownSearch";
 import { rarityFormatter } from "@/helpers/formatters";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Oswald } from "next/font/google";
-import SingleSelect from "@/components/SingleSelect";
-import { Option } from "@/components/MultiSelect";
+import BaseCardsToggle from "@/components/BaseCardsToggle";
 import FAB from "@/components/Fab";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import {
@@ -50,7 +49,7 @@ import {
   serializeFiltersForKey,
 } from "@/hooks/useCards";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { RefreshCw, WifiOff } from "lucide-react";
+import { RefreshCw, WifiOff, SlidersHorizontal } from "lucide-react";
 import ClearFiltersButton from "@/components/ClearFiltersButton";
 import { useSession } from "next-auth/react";
 import { getOptimizedImageUrl, smartPrefetch } from "@/lib/imageOptimization";
@@ -60,6 +59,7 @@ import {
   getFilteredAlternates,
 } from "@/lib/cardFilters";
 import LazyImage from "@/components/LazyImage";
+import CardPreviewDialog from "@/components/deckbuilder/CardPreviewDialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -74,22 +74,105 @@ const oswald = Oswald({
   weight: ["400", "500", "700"],
 });
 
-const baseSortOptions: Option[] = [
-  { value: "Most variants", label: "Most variants" },
-  { value: "Less variants", label: "Less variant" },
-  { value: "Ascending code", label: "Ascending code" },
-  { value: "Descending code", label: "Descending code" },
-];
-
-const priceSortOptions: Option[] = [
-  { value: "Price high", label: "Price: high to low" },
-  { value: "Price low", label: "Price: low to high" },
+const SORT_OPTIONS: SortOption[] = [
+  {
+    value: "code_asc",
+    label: "Code A-Z",
+    description: "Ascending by card code",
+  },
+  {
+    value: "code_desc",
+    label: "Code Z-A",
+    description: "Descending by card code",
+  },
+  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
+  {
+    value: "name_desc",
+    label: "Name Z-A",
+    description: "Reverse alphabetical",
+  },
+  {
+    value: "price_high",
+    label: "Price: High to Low",
+    description: "Most expensive first",
+  },
+  {
+    value: "price_low",
+    label: "Price: Low to High",
+    description: "Cheapest first",
+  },
+  {
+    value: "most_variants",
+    label: "Most variants",
+    description: "Most variants first",
+  },
+  {
+    value: "less_variants",
+    label: "Less variants",
+    description: "Least variants first",
+  },
 ];
 
 const PAGE_SIZE = 60;
 
 const NO_COUNTER_LABEL = "No counter";
 const NO_TRIGGER_LABEL = "No trigger";
+
+// Helper functions para precio - fuera del componente para evitar recreación
+const getNumericPriceStatic = (value: any) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const getCardPriceValueStatic = (card: CardWithCollectionData) => {
+  return (
+    getNumericPriceStatic(card.marketPrice) ??
+    getNumericPriceStatic(card.alternates?.[0]?.marketPrice) ??
+    null
+  );
+};
+
+const formatCurrencyStatic = (value: number, currency?: string | null) =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+
+// Componente PriceTag memoizado - fuera del componente principal
+const PriceTag = React.memo(
+  ({
+    card,
+    className = "",
+  }: {
+    card: CardWithCollectionData;
+    className?: string;
+  }) => {
+    const priceValue = getCardPriceValueStatic(card);
+    if (priceValue === null) {
+      return (
+        <div
+          className={`mt-1 text-xs font-medium uppercase tracking-wide text-amber-600 ${className}`}
+        >
+          Precio no disponible
+        </div>
+      );
+    }
+
+    const currency =
+      card.priceCurrency ?? card.alternates?.[0]?.priceCurrency ?? "USD";
+
+    return (
+      <div
+        className={`mt-1 text-sm font-semibold text-emerald-600 ${className}`}
+      >
+        {formatCurrencyStatic(priceValue, currency)}
+      </div>
+    );
+  }
+);
+PriceTag.displayName = "PriceTag";
 
 type CardListClientProps = {
   initialData: CardsPage;
@@ -117,6 +200,30 @@ const CardListClient = ({
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(
+    null
+  );
+  const [previewBaseCard, setPreviewBaseCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const openCardPreview = useCallback(
+    (card: CardWithCollectionData, base?: CardWithCollectionData) => {
+      setPreviewCard(card);
+      setPreviewBaseCard(base || card);
+      setIsPreviewOpen(true);
+    },
+    []
+  );
+
+  const closeCardPreview = useCallback(() => {
+    setIsPreviewOpen(false);
+    setTimeout(() => {
+      setPreviewCard(null);
+      setPreviewBaseCard(null);
+    }, 300);
+  }, []);
 
   // Leer estado desde URL params
   const [search, setSearch] = useState(
@@ -155,8 +262,27 @@ const CardListClient = ({
   const [selectedTrigger, setSelectedTrigger] = useState<string>(
     searchParams.get("trigger") ?? initialFilters.trigger ?? ""
   );
+  const normalizeSortValue = (value: string | null) => {
+    switch (value) {
+      case "Price high":
+        return "price_high";
+      case "Price low":
+        return "price_low";
+      case "Ascending code":
+        return "code_asc";
+      case "Descending code":
+        return "code_desc";
+      case "Most variants":
+        return "most_variants";
+      case "Less variants":
+        return "less_variants";
+      default:
+        return value ?? "";
+    }
+  };
+
   const [selectedSort, setSelectedSort] = useState<string>(
-    searchParams.get("sort") ?? ""
+    normalizeSortValue(searchParams.get("sort"))
   );
   const [selectedCodes, setSelectedCodes] = useState<string[]>(
     getArrayParam("codes", [])
@@ -171,13 +297,9 @@ const CardListClient = ({
     "grid" | "list" | "alternate" | "text"
   >((searchParams.get("view") as any) || "list");
 
-  // Opciones de ordenamiento dinámicas según la vista
-  const sortOptions = useMemo(() => {
-    if (viewSelected === "list") {
-      return [...baseSortOptions, ...priceSortOptions];
-    }
-    return baseSortOptions;
-  }, [viewSelected]);
+  const [showOnlyBaseCards, setShowOnlyBaseCards] = useState(false);
+  const isPriceSort =
+    selectedSort === "price_high" || selectedSort === "price_low";
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFab, setShowFab] = useState(false);
@@ -195,7 +317,9 @@ const CardListClient = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
-  const [touchedCardId, setTouchedCardId] = useState<number | string | null>(null);
+  const [touchedCardId, setTouchedCardId] = useState<number | string | null>(
+    null
+  );
 
   // Función para calcular priority limit según ancho
   const calculatePriorityLimit = (width: number) => {
@@ -251,13 +375,15 @@ const CardListClient = ({
 
   // ✅ OPTIMIZADO: filtros memorizados para llamadas al endpoint paginado
   const filters = useMemo<CardsFilters>(() => {
-    // Map selected sort to backend sortBy format
-    let sortBy: "price_high" | "price_low" | undefined = undefined;
-    if (selectedSort === "Price high") {
-      sortBy = "price_high";
-    } else if (selectedSort === "Price low") {
-      sortBy = "price_low";
-    }
+    const sortBy =
+      selectedSort === "price_high" ||
+      selectedSort === "price_low" ||
+      selectedSort === "code_asc" ||
+      selectedSort === "code_desc" ||
+      selectedSort === "name_asc" ||
+      selectedSort === "name_desc"
+        ? (selectedSort as CardsFilters["sortBy"])
+        : undefined;
 
     return {
       search: search.trim() || undefined,
@@ -284,6 +410,7 @@ const CardListClient = ({
           ? selectedTrigger
           : undefined,
       sortBy,
+      baseOnly: showOnlyBaseCards ? true : undefined,
     };
   }, [
     search,
@@ -302,6 +429,7 @@ const CardListClient = ({
     selectedCounter,
     selectedTrigger,
     selectedSort,
+    showOnlyBaseCards,
   ]);
 
   const filtersSignature = useMemo(
@@ -384,16 +512,29 @@ const CardListClient = ({
   // ✅ Datos ahora vienen de TanStack Query (arriba)
 
   const BATCH_SIZE = PAGE_SIZE;
-  const LOAD_THRESHOLD_PX = 10000;
+  const LOAD_THRESHOLD_PX = 3000; // Reducido de 10000 para mejor performance
   const DEFAULT_VISIBLE_COUNT = BATCH_SIZE;
   const SCROLL_RESET_COUNT = BATCH_SIZE;
   const [visibleCount, setVisibleCount] = useState(DEFAULT_VISIBLE_COUNT);
   const isLoadingMoreRef = useRef(false);
   const queuedVisibleCountRef = useRef<number | null>(null);
 
+  // Refs para throttle del scroll
+  const showFabRef = useRef(false);
+  const scrollRafRef = useRef<number | null>(null);
+
   const handleScrollToTop = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     setVisibleCount(SCROLL_RESET_COUNT);
+  }, []);
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
   }, []);
 
   const totalFilters = useMemo(
@@ -440,27 +581,9 @@ const CardListClient = ({
     return [];
   }, [cards, initialData, matchesInitialFilters]);
 
-  // Helper functions for price handling
-  const getNumericPrice = (value: any) => {
-    if (value === null || value === undefined || value === "") return null;
-    const numberValue = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(numberValue) ? numberValue : null;
-  };
-
-  const getCardPriceValue = (card: CardWithCollectionData) => {
-    return (
-      getNumericPrice(card.marketPrice) ??
-      getNumericPrice(card.alternates?.[0]?.marketPrice) ??
-      null
-    );
-  };
-
-  const formatCurrency = (value: number, currency?: string | null) =>
-    new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currency || "USD",
-      minimumFractionDigits: 2,
-    }).format(value);
+  // Usar las funciones estáticas definidas fuera del componente
+  const getCardPriceValue = getCardPriceValueStatic;
+  const formatCurrency = formatCurrencyStatic;
 
   const filteredCards = useMemo(() => {
     if (!dataSource?.length) return [];
@@ -475,77 +598,172 @@ const CardListClient = ({
           return { ...card, alternates: filteredAlts };
         }
       }
+      if (showOnlyBaseCards && card.alternates?.length) {
+        return { ...card, alternates: [] };
+      }
       return card;
     });
 
     // Para ordenamiento por precio, el backend ya devuelve las cartas ordenadas
-    // Solo retornamos las cartas sin aplicar ordenamiento adicional
-    if (selectedSort === "Price high" || selectedSort === "Price low") {
+    if (isPriceSort) {
       return normalizedCards;
     }
 
     // Para otros ordenamientos, usar la lógica original
     const sortedCards = [...normalizedCards];
 
-    if (selectedSort === "Most variants") {
+    if (selectedSort === "most_variants") {
       sortedCards.sort(
         (a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0)
       );
-    } else if (selectedSort === "Less variants") {
+    } else if (selectedSort === "less_variants") {
       sortedCards.sort(
         (a, b) => (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0)
       );
-    } else if (selectedSort === "Ascending code") {
+    } else if (selectedSort === "code_asc") {
       sortedCards.sort((a, b) => a.code.localeCompare(b.code));
-    } else if (selectedSort === "Descending code") {
+    } else if (selectedSort === "code_desc") {
       sortedCards.sort((a, b) => b.code.localeCompare(a.code));
+    } else if (selectedSort === "name_asc") {
+      sortedCards.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (selectedSort === "name_desc") {
+      sortedCards.sort((a, b) => b.name.localeCompare(a.name));
     } else {
       sortedCards.sort(sortByCollectionOrder);
     }
 
     return sortedCards;
-  }, [dataSource, isProVersion, selectedSort]);
+  }, [dataSource, isProVersion, selectedSort, isPriceSort, showOnlyBaseCards]);
 
-  const PriceTag = ({
-    card,
-    className = "",
-  }: {
-    card: CardWithCollectionData;
-    className?: string;
-  }) => {
-    const priceValue = getCardPriceValue(card);
-    if (priceValue === null) {
-      return (
-        <div
-          className={`mt-1 text-xs font-medium uppercase tracking-wide text-amber-600 ${className}`}
-        >
-          Precio no disponible
-        </div>
-      );
-    }
+  const handleOpenCard = useCallback(
+    (card: CardWithCollectionData, base: CardWithCollectionData) => {
+      if (isDesktop) {
+        const cardIndex = filteredCards.findIndex(
+          (c) => (c._id || c.id) === (base._id || base.id)
+        );
+        setCurrentCardIndex(cardIndex);
+        setSelectedCard(card);
+        setBaseCard(base);
+        setAlternatesCards(base.alternates);
+        setIsOpen(true);
+        return;
+      }
+      openCardPreview(card, base);
+    },
+    [
+      isDesktop,
+      filteredCards,
+      openCardPreview,
+      setCurrentCardIndex,
+      setSelectedCard,
+      setBaseCard,
+      setAlternatesCards,
+      setIsOpen,
+    ]
+  );
 
-    const currency =
-      card.priceCurrency ?? card.alternates?.[0]?.priceCurrency ?? "USD";
+  // Scroll handler optimizado con throttle via requestAnimationFrame
+  // Definido después de filteredCards para evitar referencia antes de declaración
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLDivElement;
+      const { scrollTop, clientHeight, scrollHeight } = target;
 
-    return (
-      <div
-        className={`mt-1 text-sm font-semibold text-emerald-600 ${className}`}
-      >
-        {formatCurrency(priceValue, currency)}
-      </div>
-    );
-  };
+      // Actualizar FAB solo si cambió el estado (sin setState innecesario)
+      const shouldShowFab = scrollTop > 100;
+      if (showFabRef.current !== shouldShowFab) {
+        showFabRef.current = shouldShowFab;
+        // Usar RAF para el setState del FAB
+        if (scrollRafRef.current) {
+          cancelAnimationFrame(scrollRafRef.current);
+        }
+        scrollRafRef.current = requestAnimationFrame(() => {
+          setShowFab(shouldShowFab);
+        });
+      }
 
-  // Calcular el total incluyendo alternativas
+      // Lógica de carga infinita (no necesita throttle, ya tiene guards)
+      const remaining = scrollHeight - (scrollTop + clientHeight);
+      if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMoreRef.current) {
+        if (visibleCount < filteredCards.length) {
+          isLoadingMoreRef.current = true;
+          setVisibleCount((prev) =>
+            Math.min(prev + BATCH_SIZE, filteredCards.length)
+          );
+          requestAnimationFrame(() => {
+            isLoadingMoreRef.current = false;
+          });
+        } else if (hasNextPage && !isFetchingNextPage) {
+          isLoadingMoreRef.current = true;
+          queuedVisibleCountRef.current = visibleCount + BATCH_SIZE;
+          fetchNextPage()
+            .catch(() => {
+              queuedVisibleCountRef.current = null;
+            })
+            .finally(() => {
+              isLoadingMoreRef.current = false;
+            });
+        }
+      }
+    },
+    [visibleCount, filteredCards.length, hasNextPage, isFetchingNextPage, fetchNextPage, BATCH_SIZE, LOAD_THRESHOLD_PX]
+  );
+
+  // Pre-calcular datos de cartas visibles para evitar IIFE en render
+  const visibleCardsData = useMemo(() => {
+    const result: Array<{
+      card: CardWithCollectionData;
+      filteredAlts: CardWithCollectionData[];
+      isBaseMatch: boolean;
+      baseCardIndex: number;
+      cardIndex: number;
+    }> = [];
+
+    let globalIndex = 0;
+    const cardsToProcess = filteredCards.slice(0, visibleCount);
+
+    cardsToProcess.forEach((card, index) => {
+      const filteredAlts = showOnlyBaseCards
+        ? []
+        : getFilteredAlternates(card, selectedSets, selectedAltArts);
+
+      const isBaseMatch = baseCardMatches(card, selectedSets, selectedAltArts);
+
+      if (!isBaseMatch && filteredAlts.length === 0) return;
+
+      const baseCardIndex = globalIndex;
+      if (isBaseMatch) globalIndex++;
+
+      // Asignar índices a alternates
+      const altsWithIndex = filteredAlts.map((alt) => {
+        const altIdx = globalIndex++;
+        return { ...alt, _globalIndex: altIdx };
+      });
+
+      result.push({
+        card,
+        filteredAlts: altsWithIndex,
+        isBaseMatch,
+        baseCardIndex,
+        cardIndex: index,
+      });
+    });
+
+    return result;
+  }, [
+    filteredCards,
+    visibleCount,
+    showOnlyBaseCards,
+    selectedSets,
+    selectedAltArts,
+  ]);
+
   // Resetear ordenamiento por precio cuando cambien de vista
   useEffect(() => {
-    if (
-      viewSelected !== "list" &&
-      (selectedSort === "Price high" || selectedSort === "Price low")
-    ) {
+    if (viewSelected !== "list" && isPriceSort) {
       setSelectedSort("");
     }
-  }, [viewSelected, selectedSort]);
+  }, [viewSelected, isPriceSort]);
 
   // Scroll to top y resetear visibleCount cuando cambien filtros
   useEffect(() => {
@@ -624,8 +842,6 @@ const CardListClient = ({
     totalCount ??
     (matchesInitialFilters ? initialData?.totalCount : undefined) ??
     filteredCards.length;
-  const displayResultCount = filteredCards.length;
-
   const showInitialOverlay =
     dataSource.length === 0 && (isLoading || isFetching);
 
@@ -672,7 +888,7 @@ const CardListClient = ({
   const hasNextCard = currentCardIndex < filteredCards.length - 1;
 
   return (
-    <div className="bg-[#f2eede] flex-1 overflow-hidden flex flex-col max-h-dvh">
+    <div className="bg-[#f2eede] flex-1 min-h-0 overflow-hidden flex flex-col">
       {/* Header y filtros... */}
       <div className="bg-white w-full">
         {/* Filtros desktop - Colapsables */}
@@ -724,62 +940,33 @@ const CardListClient = ({
             placeholder="Search..."
           />
 
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex gap-2 justify-center items-center">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className={`${
-                  totalFilters > 0
-                    ? "bg-[#2463eb] !text-white"
-                    : "bg-gray-100 !text-black"
-                } px-4 py-2 text-black font-bold border rounded-lg`}
-              >
-                Filters
-                {totalFilters > 0 && (
-                  <Badge className="ml-2 !bg-white !text-[#2463eb] font-bold">
-                    {totalFilters}
-                  </Badge>
-                )}
-              </button>
-              <ClearFiltersButton
-                isTouchable={
-                  selectedColors.length > 0 ||
-                  selectedRarities.length > 0 ||
-                  selectedCategories.length > 0 ||
-                  selectedCounter !== "" ||
-                  selectedTrigger !== "" ||
-                  selectedEffects.length > 0 ||
-                  selectedTypes.length > 0 ||
-                  selectedSets.length > 0 ||
-                  selectedCosts.length > 0 ||
-                  selectedPower.length > 0 ||
-                  selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0 ||
-                  selectedAltArts.length > 0 ||
-                  selectedRegion !== ""
-                }
-                clearFilters={() => {
-                  setSelectedColors([]);
-                  setSelectedRarities([]);
-                  setSelectedCategories([]);
-                  setSelectedCounter("");
-                  setSelectedTrigger("");
-                  setSelectedEffects([]);
-                  setSelectedTypes([]);
-                  setSelectedSets([]);
-                  setSelectedCosts([]);
-                  setSelectedPower([]);
-                  setSelectedAttributes([]);
-                  setSelectedCodes([]);
-                  setSelectedAltArts([]);
-                  setSelectedRegion("");
-                }}
-                isMobile={true}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
+                totalFilters > 0
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>Filters</span>
+              {totalFilters > 0 && (
+                <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                  {totalFilters}
+                </span>
+              )}
+            </button>
+
+              <BaseCardsToggle
+                isActive={showOnlyBaseCards}
+                onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
               />
             </div>
 
-            <div className="flex justify-center items-center gap-2">
+            <div className="flex-1 flex justify-end">
               <ViewSwitch
                 viewSelected={viewSelected}
                 setViewSelected={setViewSelected}
@@ -836,12 +1023,12 @@ const CardListClient = ({
 
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <SearchResults
-            count={displayResultCount}
-            uniqueCount={undefined}
-            showResult={!isLoading}
-            totalCount={totalResults}
-          />
+          <p className="text-xs text-slate-500">
+            {totalResults?.toLocaleString()} cards found
+            {(isFetching || isFetchingNextPage || isCounting) && (
+              <span className="ml-2 text-blue-600">Loading...</span>
+            )}
+          </p>
 
           {/* Botón para colapsar/expandir filtros - Solo visible en desktop */}
           <button
@@ -921,18 +1108,21 @@ const CardListClient = ({
         </div>
 
         <div className="flex flex-row gap-3 items-center">
-          {session?.user?.role === "ADMIN" && (
+          {/* {session?.user?.role === "ADMIN" && (
             <ProToggleButton
               isActive={isProVersion}
               onToggle={(value) => setIsProVersion(value)}
             />
-          )}
-          <SingleSelect
-            options={sortOptions}
+          )} */}
+          {/* <BaseCardsToggle
+            isActive={showOnlyBaseCards}
+            onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
+          /> */}
+          <SortSelect
+            options={SORT_OPTIONS}
             selected={selectedSort}
             setSelected={setSelectedSort}
-            buttonLabel="Sort by"
-            isColor={false}
+            buttonLabel="Sort"
           />
 
           <div className="hidden md:flex justify-center items-center">
@@ -945,40 +1135,13 @@ const CardListClient = ({
       </div>
 
       <div
-        className="p-3 md:p-5 overflow-y-scroll flex-1 relative"
+        className="p-3 md:p-5 overflow-y-auto flex-1 min-h-0 relative touch-pan-y overscroll-y-contain"
         ref={scrollContainerRef}
-        onScroll={(e) => {
-          const target = e.target as HTMLDivElement;
-          const { scrollTop, clientHeight, scrollHeight } = target;
-          setShowFab(scrollTop > 100);
-
-          const remaining = scrollHeight - (scrollTop + clientHeight);
-          if (remaining <= LOAD_THRESHOLD_PX && !isLoadingMoreRef.current) {
-            if (visibleCount < filteredCards.length) {
-              isLoadingMoreRef.current = true;
-              setVisibleCount((prev) =>
-                Math.min(prev + BATCH_SIZE, filteredCards.length)
-              );
-              requestAnimationFrame(() => {
-                isLoadingMoreRef.current = false;
-              });
-            } else if (hasNextPage && !isFetchingNextPage) {
-              isLoadingMoreRef.current = true;
-              queuedVisibleCountRef.current = visibleCount + BATCH_SIZE;
-              fetchNextPage()
-                .catch(() => {
-                  queuedVisibleCountRef.current = null;
-                })
-                .finally(() => {
-                  isLoadingMoreRef.current = false;
-                });
-            }
-          }
-        }}
+        onScroll={handleScroll}
       >
         {showInitialOverlay && (
           <div className="absolute inset-0 z-10 bg-[#f2eede] p-5">
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+            <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
               {Array.from({ length: BATCH_SIZE }).map((_, index) => (
                 <div
                   key={`skeleton-card-${index}`}
@@ -1012,174 +1175,126 @@ const CardListClient = ({
             <>
               {viewSelected === "list" && (
                 <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
-                  {(() => {
-                    let globalIndex = 0; // Contador global incluyendo alternativas
+                  {visibleCardsData.map(
+                    ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
+                      <Fragment key={card._id || card.id}>
+                        {isBaseMatch && (
+                          <div
+                            onClick={() => {
+                              handleOpenCard(card, card);
+                            }}
+                            onMouseEnter={() =>
+                              card.src &&
+                              smartPrefetch(card.src, "large", true)
+                            }
+                            onTouchStart={() => {
+                              card.src &&
+                                smartPrefetch(card.src, "large", true);
+                              setTouchedCardId(card.id);
+                            }}
+                            onTouchEnd={() => setTouchedCardId(null)}
+                            onTouchCancel={() => setTouchedCardId(null)}
+                            onContextMenu={(e) => e.preventDefault()}
+                            className="w-full cursor-pointer max-w-[450px]"
+                          >
+                            <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                              <LazyImage
+                                src={card.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={card.name}
+                                className="w-full"
+                                priority={baseCardIndex < priorityLimit}
+                                size={imageSize}
+                              />
 
-                    return filteredCards
-                      ?.slice(0, visibleCount)
-                      .map((card, index) => {
-                        const filteredAlts = getFilteredAlternates(
-                          card,
-                          selectedSets,
-                          selectedAltArts
-                        );
-
-                        const isBaseMatch = baseCardMatches(
-                          card,
-                          selectedSets,
-                          selectedAltArts
-                        );
-
-                        if (!isBaseMatch && filteredAlts.length === 0)
-                          return null;
-
-                        const baseCardIndex = globalIndex;
-                        if (isBaseMatch) globalIndex++; // Incrementar si mostramos la base
-
-                        return (
-                          <Fragment key={card._id || card.id}>
-                            {isBaseMatch && (
-                              <div
-                                onClick={() => {
-                                  const cardIndex = filteredCards.findIndex(
-                                    (c) =>
-                                      (c._id || c.id) === (card._id || card.id)
-                                  );
-                                  setCurrentCardIndex(cardIndex);
-                                  setSelectedCard(card);
-                                  setBaseCard(card);
-                                  setAlternatesCards(card.alternates);
-                                  setIsOpen(true);
-                                }}
-                                onMouseEnter={() =>
-                                  card.src &&
-                                  smartPrefetch(card.src, "large", true)
-                                }
-                                onTouchStart={(e) => {
-                                  card.src && smartPrefetch(card.src, "large", true);
-                                  setTouchedCardId(card.id);
-                                }}
-                                onTouchEnd={() => setTouchedCardId(null)}
-                                onTouchCancel={() => setTouchedCardId(null)}
-                                onContextMenu={(e) => e.preventDefault()}
-                                className="w-full cursor-pointer max-w-[450px]"
-                              >
-                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
-                                  <LazyImage
-                                    src={card.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={card.name}
-                                    className="w-full"
-                                    priority={baseCardIndex < priorityLimit}
-                                    size={imageSize}
-                                  />
-
-                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                                  {card.code && (
-                                    <div
-                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                        isDesktop
-                                          ? 'opacity-100 translate-y-0'
-                                          : touchedCardId === card.id
-                                            ? 'opacity-100 translate-y-0'
-                                            : 'opacity-0 -translate-y-2 pointer-events-none'
-                                      }`}
-                                    >
-                                      {card.code}
-                                    </div>
-                                  )}
-
-                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                                  {(() => {
-                                    const priceValue = getCardPriceValue(card);
-                                    if (priceValue !== null) {
-                                      return (
-                                        <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                          {formatCurrency(priceValue, card.priceCurrency)}
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                </div>
-                              </div>
-                            )}
-
-                            {filteredAlts.map((alt, altIndex) => {
-                              const altGlobalIndex = globalIndex++;
-                              return (
+                              {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                              {card.code && (
                                 <div
-                                  key={alt._id || alt.id}
-                                  onClick={() => {
-                                    const cardIndex = filteredCards.findIndex(
-                                      (c) =>
-                                        (c._id || c.id) ===
-                                        (card._id || card.id)
-                                    );
-                                    setCurrentCardIndex(cardIndex);
-                                    setSelectedCard(alt);
-                                    setBaseCard(card);
-                                    setAlternatesCards(card.alternates);
-                                    setIsOpen(true);
-                                  }}
-                                  onMouseEnter={() =>
-                                    alt.src &&
-                                    smartPrefetch(alt.src, "large", true)
-                                  }
-                                  onTouchStart={(e) => {
-                                    alt.src && smartPrefetch(alt.src, "large", true);
-                                    setTouchedCardId(alt.id);
-                                  }}
-                                  onTouchEnd={() => setTouchedCardId(null)}
-                                  onTouchCancel={() => setTouchedCardId(null)}
-                                  onContextMenu={(e) => e.preventDefault()}
-                                  className="w-full cursor-pointer max-w-[450px]"
+                                  className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                    isDesktop
+                                      ? "opacity-100 translate-y-0"
+                                      : touchedCardId === card.id
+                                      ? "opacity-100 translate-y-0"
+                                      : "opacity-0 -translate-y-2 pointer-events-none"
+                                  }`}
                                 >
-                                  <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
-                                    <LazyImage
-                                      src={alt.src}
-                                      fallbackSrc="/assets/images/backcard.webp"
-                                      alt={alt.name}
-                                      className="w-full"
-                                      priority={altGlobalIndex < priorityLimit}
-                                      size={imageSize}
-                                    />
-
-                                    {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                                    {card.code && (
-                                      <div
-                                        className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                          isDesktop
-                                            ? 'opacity-100 translate-y-0'
-                                            : touchedCardId === alt.id
-                                              ? 'opacity-100 translate-y-0'
-                                              : 'opacity-0 -translate-y-2 pointer-events-none'
-                                        }`}
-                                      >
-                                        {card.code}
-                                      </div>
-                                    )}
-
-                                    {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                                    {(() => {
-                                      const priceValue = getCardPriceValue(alt);
-                                      if (priceValue !== null) {
-                                        return (
-                                          <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                            {formatCurrency(priceValue, alt.priceCurrency)}
-                                          </div>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </div>
+                                  {card.code}
                                 </div>
-                              );
-                            })}
-                          </Fragment>
-                        );
-                      });
-                  })()}
+                              )}
+
+                              {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                              {getCardPriceValue(card) !== null && (
+                                <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                  {formatCurrency(
+                                    getCardPriceValue(card)!,
+                                    card.priceCurrency
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {filteredAlts.map((alt: any) => (
+                          <div
+                            key={alt._id || alt.id}
+                            onClick={() => {
+                              handleOpenCard(alt, card);
+                            }}
+                            onMouseEnter={() =>
+                              alt.src &&
+                              smartPrefetch(alt.src, "large", true)
+                            }
+                            onTouchStart={() => {
+                              alt.src &&
+                                smartPrefetch(alt.src, "large", true);
+                              setTouchedCardId(alt.id);
+                            }}
+                            onTouchEnd={() => setTouchedCardId(null)}
+                            onTouchCancel={() => setTouchedCardId(null)}
+                            onContextMenu={(e) => e.preventDefault()}
+                            className="w-full cursor-pointer max-w-[450px]"
+                          >
+                            <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                              <LazyImage
+                                src={alt.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={alt.name}
+                                className="w-full"
+                                priority={alt._globalIndex < priorityLimit}
+                                size={imageSize}
+                              />
+
+                              {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                              {card.code && (
+                                <div
+                                  className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                    isDesktop
+                                      ? "opacity-100 translate-y-0"
+                                      : touchedCardId === alt.id
+                                      ? "opacity-100 translate-y-0"
+                                      : "opacity-0 -translate-y-2 pointer-events-none"
+                                  }`}
+                                >
+                                  {card.code}
+                                </div>
+                              )}
+
+                              {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                              {getCardPriceValue(alt) !== null && (
+                                <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                  {formatCurrency(
+                                    getCardPriceValue(alt)!,
+                                    alt.priceCurrency
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </Fragment>
+                    )
+                  )}
                 </div>
               )}
 
@@ -1187,14 +1302,7 @@ const CardListClient = ({
                 <div className="grid gap-3 lg:gap-5 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 3xl:grid-cols-[repeat(auto-fit,_minmax(350px,_1fr))] justify-items-center">
                   {filteredCards?.slice(0, visibleCount).map((card, index) => {
                     const handleCardClick = () => {
-                      const cardIndex = filteredCards.findIndex(
-                        (c) => (c._id || c.id) === (card._id || card.id)
-                      );
-                      setCurrentCardIndex(cardIndex);
-                      setSelectedCard(card);
-                      setBaseCard(card);
-                      setAlternatesCards(card.alternates);
-                      setIsOpen(true);
+                      handleOpenCard(card, card);
                     };
 
                     return (
@@ -1218,223 +1326,186 @@ const CardListClient = ({
 
               {viewSelected === "alternate" && (
                 <div className="flex flex-col lg:px-5 lg:py-5 gap-5">
-                  {(() => {
-                    let globalIndex = 0;
-
-                    return filteredCards
-                      ?.slice(0, visibleCount)
-                      .map((card, cardIndex) => {
-                        const filteredAlts = getFilteredAlternates(
-                          card,
-                          selectedSets,
-                          selectedAltArts
-                        );
-                        const isBaseMatch = baseCardMatches(
-                          card,
-                          selectedSets,
-                          selectedAltArts
-                        );
-
-                        if (!isBaseMatch && filteredAlts.length === 0)
-                          return null;
-
-                        const baseCardIndex = globalIndex;
-                        if (isBaseMatch) globalIndex++;
-
-                        return (
-                          <div
-                            key={card._id || card.id}
-                            className="flex flex-col gap-5"
-                          >
-                            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,250px))] mb-3">
-                              <Card>
-                                <CardContent className="p-5 h-full bg-black rounded-lg text-white justify-start">
-                                  <div className="h-full flex flex-col justify-around items-center relative">
-                                    <div className="flex items-center justify-between flex-col mt-4">
-                                      <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
-                                        {highlightText(card?.name, search)}
-                                      </h2>
-                                      <p
-                                        className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
-                                      >
-                                        {card.category === "DON"
-                                          ? card.sets?.[0]?.set?.title
-                                          : highlightText(card?.code, search)}
-                                      </p>
-                                      <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
-                                        >
-                                          <span className="text-center w-full font-black leading-[16px] mb-[2px]">
-                                            {card?.rarity
-                                              ? rarityFormatter(card.rarity)
-                                              : card.category === "DON"
-                                              ? "DON!!"
-                                              : ""}
-                                          </span>
-                                        </Badge>
-                                      </div>
-                                      <div className="flex flex-col mt-2">
-                                        {card?.types.map((type) => (
-                                          <span
-                                            key={type.type}
-                                            className="text-[13px] leading-[15px] font-[200] text-center"
-                                          >
-                                            {highlightText(type.type, search)}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1 mt-3">
-                                      <img
-                                        src={AlternatesWhite.src}
-                                        alt="eye"
-                                        className="w-[35px] h-[35px] mt-1"
-                                      />
-                                      <div className="flex items-center flex-col">
-                                        <span className="font-bold text-2xl text-white leading-[30px]">
-                                          {(card?.alternates?.length ?? 0) + 1}
-                                        </span>
-                                        <span className="text-sm text-white leading-[13px]">
-                                          {card?.alternates?.length === 0
-                                            ? "variant"
-                                            : "variants"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-
-                              {isBaseMatch && (
-                                <Card
-                                  onClick={() => {
-                                    const cardIndex = filteredCards.findIndex(
-                                      (c) =>
-                                        (c._id || c.id) ===
-                                        (card._id || card.id)
-                                    );
-                                    setCurrentCardIndex(cardIndex);
-                                    setSelectedCard(card);
-                                    setBaseCard(card);
-                                    setAlternatesCards(card.alternates);
-                                    setIsOpen(true);
-                                  }}
-                                  onMouseEnter={() =>
-                                    card.src &&
-                                    smartPrefetch(card.src, "large", true)
-                                  }
-                                  onTouchStart={() =>
-                                    card.src &&
-                                    smartPrefetch(card.src, "large", true)
-                                  }
-                                  className="cursor-pointer"
-                                >
-                                  <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
-                                    <div className="flex justify-center items-center w-full">
-                                      <LazyImage
-                                        src={card?.src}
-                                        fallbackSrc="/assets/images/backcard.webp"
-                                        alt={card?.name}
-                                        className="w-[80%] m-auto"
-                                        priority={baseCardIndex < priorityLimit}
-                                        size={imageSize}
-                                      />
-                                    </div>
-                                    <div>
-                                      <div className="text-center font-bold mt-2">
-                                        Base
-                                      </div>
-                                      {card.sets?.map((set) => (
-                                        <p
-                                          key={set.set.title}
-                                          className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                                        >
-                                          {highlightText(set.set.title, search)}
-                                        </p>
-                                      ))}
-                                    </div>
-                                    <PriceTag card={card} className="mt-2" />
-                                  </CardContent>
-                                </Card>
-                              )}
-
-                              {filteredAlts.map((alt) => {
-                                const altGlobalIndex = globalIndex++;
-                                return (
-                                  <Card
-                                    key={alt._id || alt.id}
-                                    onClick={() => {
-                                      const cardIndex = filteredCards.findIndex(
-                                        (c) =>
-                                          (c._id || c.id) ===
-                                          (card._id || card.id)
-                                      );
-                                      setCurrentCardIndex(cardIndex);
-                                      setSelectedCard(alt);
-                                      setBaseCard(card);
-                                      setAlternatesCards(card.alternates);
-                                      setIsOpen(true);
-                                    }}
-                                    onMouseEnter={() =>
-                                      alt.src &&
-                                      smartPrefetch(alt.src, "large", true)
-                                    }
-                                    onTouchStart={() =>
-                                      alt.src &&
-                                      smartPrefetch(alt.src, "large", true)
-                                    }
-                                    className="cursor-pointer"
+                  {visibleCardsData.map(
+                    ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
+                      <div
+                        key={card._id || card.id}
+                        className="flex flex-col gap-5"
+                      >
+                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,250px))] mb-3">
+                          <Card>
+                            <CardContent className="p-5 h-full bg-black rounded-lg text-white justify-start">
+                              <div className="h-full flex flex-col justify-around items-center relative">
+                                <div className="flex items-center justify-between flex-col mt-4">
+                                  <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
+                                    {highlightText(card?.name, search)}
+                                  </h2>
+                                  <p
+                                    className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
                                   >
-                                    <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
-                                      <div className="flex justify-center items-center w-full">
-                                        <LazyImage
-                                          src={alt?.src}
-                                          fallbackSrc="/assets/images/backcard.webp"
-                                          alt={alt?.name}
-                                          className="w-[80%] m-auto"
-                                          priority={
-                                            altGlobalIndex < priorityLimit
-                                          }
-                                          size={imageSize}
-                                        />
-                                      </div>
-                                      <div>
-                                        <div className="text-center font-bold mt-2">
-                                          {card.category === "DON"
-                                            ? alt?.alias
-                                            : alt?.alternateArt}
-                                        </div>
-                                        {alt?.sets?.map((set) => (
-                                          <p
-                                            key={set.set.title}
-                                            className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                                          >
-                                            {highlightText(
-                                              set.set.title,
-                                              search
-                                            )}
-                                          </p>
-                                        ))}
-                                      </div>
-                                      <PriceTag card={alt} className="mt-2" />
-                                    </CardContent>
-                                  </Card>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
+                                    {card.category === "DON"
+                                      ? card.sets?.[0]?.set?.title
+                                      : highlightText(card?.code, search)}
+                                  </p>
+                                  <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
+                                    >
+                                      <span className="text-center w-full font-black leading-[16px] mb-[2px]">
+                                        {card?.rarity
+                                          ? rarityFormatter(card.rarity)
+                                          : card.category === "DON"
+                                          ? "DON!!"
+                                          : ""}
+                                      </span>
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-col mt-2">
+                                    {card?.types.map((type) => (
+                                      <span
+                                        key={type.type}
+                                        className="text-[13px] leading-[15px] font-[200] text-center"
+                                      >
+                                        {highlightText(type.type, search)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 mt-3">
+                                  <img
+                                    src={AlternatesWhite.src}
+                                    alt="eye"
+                                    className="w-[35px] h-[35px] mt-1"
+                                  />
+                                  <div className="flex items-center flex-col">
+                                    <span className="font-bold text-2xl text-white leading-[30px]">
+                                      {(card?.alternates?.length ?? 0) + 1}
+                                    </span>
+                                    <span className="text-sm text-white leading-[13px]">
+                                      {card?.alternates?.length === 0
+                                        ? "variant"
+                                        : "variants"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {isBaseMatch && (
+                            <Card
+                              onClick={() => {
+                                handleOpenCard(card, card);
+                              }}
+                              onMouseEnter={() =>
+                                card.src &&
+                                smartPrefetch(card.src, "large", true)
+                              }
+                              onTouchStart={() =>
+                                card.src &&
+                                smartPrefetch(card.src, "large", true)
+                              }
+                              className="cursor-pointer"
+                            >
+                              <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
+                                <div className="relative flex justify-center items-center w-full">
+                                  <LazyImage
+                                    src={card?.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={card?.name}
+                                    className="w-[80%] m-auto"
+                                    priority={baseCardIndex < priorityLimit}
+                                    size={imageSize}
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-center font-bold mt-2">
+                                    Base
+                                  </div>
+                                  {card.sets?.map((set) => (
+                                    <p
+                                      key={set.set.title}
+                                      className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                    >
+                                      {highlightText(set.set.title, search)}
+                                    </p>
+                                  ))}
+                                </div>
+                                <PriceTag card={card} className="mt-2" />
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {filteredAlts.map((alt: any) => (
+                            <Card
+                              key={alt._id || alt.id}
+                              onClick={() => {
+                                handleOpenCard(alt, card);
+                              }}
+                              onMouseEnter={() =>
+                                alt.src &&
+                                smartPrefetch(alt.src, "large", true)
+                              }
+                              onTouchStart={() =>
+                                alt.src &&
+                                smartPrefetch(alt.src, "large", true)
+                              }
+                              className="cursor-pointer"
+                            >
+                              <CardContent className="flex items-center pb-4 pl-0 pt-0 pr-0 flex-col h-full">
+                                <div className="relative flex justify-center items-center w-full">
+                                  <LazyImage
+                                    src={alt?.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={alt?.name}
+                                    className="w-[80%] m-auto"
+                                    priority={alt._globalIndex < priorityLimit}
+                                    size={imageSize}
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-center font-bold mt-2">
+                                    {card.category === "DON"
+                                      ? alt?.alias
+                                      : alt?.alternateArt}
+                                  </div>
+                                  {alt?.sets?.map((set: any) => (
+                                    <p
+                                      key={set.set.title}
+                                      className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                    >
+                                      {highlightText(set.set.title, search)}
+                                    </p>
+                                  ))}
+                                </div>
+                                <PriceTag card={alt} className="mt-2" />
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               )}
             </>
           )}
         </div>
       </div>
+
+      <CardPreviewDialog
+        isOpen={isPreviewOpen}
+        onClose={closeCardPreview}
+        card={previewCard}
+        baseCard={previewBaseCard}
+        currentQuantity={0}
+        maxQuantity={4}
+        canAdd={false}
+        canRemove={false}
+        isLeaderSelection={false}
+      />
 
       {/* Modales... */}
       <Transition appear show={isOpen} as={Fragment}>

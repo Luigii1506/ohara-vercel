@@ -26,6 +26,7 @@ import {
   Minus,
   Plus,
   Download,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Oswald } from "next/font/google";
 import DropdownSearch from "@/components/DropdownSearch";
@@ -50,22 +51,29 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { allColors } from "@/helpers/constants";
+import { allColors, categoryOptions } from "@/helpers/constants";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
-import ClearFiltersButton from "../ClearFiltersButton";
+import type { CardsFilters } from "@/lib/cards/types";
+import { usePaginatedCards, useCardsCount } from "@/hooks/useCards";
 
 import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
+import DeckBuilderDrawer from "./DeckBuilderDrawer";
+import MobileFiltersDrawer from "./MobileFiltersDrawer";
+import CardPreviewDialog from "./CardPreviewDialog";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 import LazyImage from "@/components/LazyImage";
-import { getOptimizedImageUrl } from "@/lib/imageOptimization";
+import CardWithBadges from "@/components/CardWithBadges";
+import { getOptimizedImageUrl, smartPrefetch } from "@/lib/imageOptimization";
 
 import { DeckCard } from "@/types";
 import ViewSwitch from "../ViewSwitch";
 import StoreCard from "../StoreCard";
+import BaseCardsToggle from "../BaseCardsToggle";
+import SortSelect, { SortOption } from "../SortSelect";
 
 // AlternateArt types que NO deben mostrarse en el deckbuilder
 const EXCLUDED_ALTERNATE_ARTS = [
@@ -78,11 +86,41 @@ const EXCLUDED_ALTERNATE_ARTS = [
   "Not for sale",
 ];
 
+const SORT_OPTIONS: SortOption[] = [
+  {
+    value: "code_asc",
+    label: "Code A-Z",
+    description: "Ascending by card code",
+  },
+  {
+    value: "code_desc",
+    label: "Code Z-A",
+    description: "Descending by card code",
+  },
+  { value: "name_asc", label: "Name A-Z", description: "Alphabetical order" },
+  {
+    value: "name_desc",
+    label: "Name Z-A",
+    description: "Reverse alphabetical",
+  },
+  {
+    value: "price_high",
+    label: "Price: High to Low",
+    description: "Most expensive first",
+  },
+  {
+    value: "price_low",
+    label: "Price: Low to High",
+    description: "Cheapest first",
+  },
+];
+
 interface CompleteDeckBuilderLayoutProps {
   onSave: () => void;
   onRestart: () => void;
   deckBuilder: ReturnType<typeof useDeckBuilder>;
-  initialCards: CardWithCollectionData[];
+  initialCards?: CardWithCollectionData[];
+  useServerCards?: boolean;
   isFork?: boolean;
   deckName?: string;
   setDeckName?: (name: string) => void;
@@ -94,13 +132,18 @@ interface CompleteDeckBuilderLayoutProps {
   setShopUrl?: (url: string) => void;
   isPublished?: boolean;
   setIsPublished?: (value: boolean) => void;
+  initialQueryData?: {
+    pages: any[];
+    pageParams: (number | null)[];
+  };
 }
 
 const CompleteDeckBuilderLayout = ({
   onSave,
   onRestart,
   deckBuilder,
-  initialCards,
+  initialCards = [],
+  useServerCards = true,
   isFork = false,
   deckName,
   setDeckName,
@@ -112,6 +155,7 @@ const CompleteDeckBuilderLayout = ({
   setShopUrl,
   isPublished,
   setIsPublished,
+  initialQueryData,
 }: CompleteDeckBuilderLayoutProps) => {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -125,13 +169,17 @@ const CompleteDeckBuilderLayout = ({
   const getCardPriceValue = useCallback(
     (card: CardWithCollectionData | DeckCard) => {
       if ("marketPrice" in card) {
-        // Filtrar alternativas válidas antes de obtener el precio
-        const validAlternates = filterValidAlternates(card.alternates);
-        return (
-          getNumericPrice(card.marketPrice) ??
-          getNumericPrice(validAlternates[0]?.marketPrice) ??
-          null
-        );
+        // For DeckCard, just return the marketPrice directly
+        // For CardWithCollectionData, also check alternates
+        const directPrice = getNumericPrice(card.marketPrice);
+        if (directPrice !== null) return directPrice;
+
+        // Only check alternates if the card has them (CardWithCollectionData)
+        if ("alternates" in card && card.alternates) {
+          const validAlternates = filterValidAlternates(card.alternates);
+          return getNumericPrice(validAlternates[0]?.marketPrice) ?? null;
+        }
+        return null;
       }
       return null;
     },
@@ -146,10 +194,12 @@ const CompleteDeckBuilderLayout = ({
     }).format(value);
 
   // Helper function para filtrar alternativas excluidas
+  // Cuando showOnlyBaseCards está activo, retorna array vacío para ocultar todas las alternas
   const filterValidAlternates = (
-    alternates: CardWithCollectionData[] | undefined
+    alternates: CardWithCollectionData[] | undefined,
+    hideAlternates: boolean = false
   ) => {
-    if (!alternates) return [];
+    if (!alternates || hideAlternates) return [];
     return alternates.filter(
       (alt) => !EXCLUDED_ALTERNATE_ARTS.includes(alt.alternateArt ?? "")
     );
@@ -217,6 +267,229 @@ const CompleteDeckBuilderLayout = ({
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
+  const isPriceSort =
+    selectedSort === "price_high" || selectedSort === "price_low";
+
+  const nonLeaderCategories = useMemo(
+    () =>
+      categoryOptions
+        .map((option) => option.value)
+        .filter((value) => value.toLowerCase() !== "leader"),
+    []
+  );
+
+  // Toggle para mostrar solo cartas base (isFirstEdition = true) u ocultar alternas
+  const [showOnlyBaseCards, setShowOnlyBaseCards] = useState(false);
+
+  // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
+  const [touchedCardId, setTouchedCardId] = useState<number | string | null>(
+    null
+  );
+
+  // Detectar si es desktop para mostrar badges de código
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  // Card preview dialog state
+  const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(
+    null
+  );
+  const [previewBaseCard, setPreviewBaseCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Open card preview
+  const openCardPreview = useCallback(
+    (card: CardWithCollectionData, baseCard?: CardWithCollectionData) => {
+      setPreviewCard(card);
+      setPreviewBaseCard(baseCard || card);
+      setIsPreviewOpen(true);
+    },
+    []
+  );
+
+  // Close card preview
+  const closeCardPreview = useCallback(() => {
+    setIsPreviewOpen(false);
+    setTimeout(() => {
+      setPreviewCard(null);
+      setPreviewBaseCard(null);
+    }, 300);
+  }, []);
+
+  // Get quantity of a specific card in the deck
+  const getCardQuantityInDeck = useCallback(
+    (cardId: number | string) => {
+      const card = deckBuilder.deckCards.find(
+        (c) => c.cardId === Number(cardId)
+      );
+      return card?.quantity || 0;
+    },
+    [deckBuilder.deckCards]
+  );
+
+  // Get total quantity by code in deck
+  const getTotalQuantityByCode = useCallback(
+    (code: string) => {
+      return deckBuilder.deckCards
+        .filter((c) => c.code === code)
+        .reduce((sum, c) => sum + c.quantity, 0);
+    },
+    [deckBuilder.deckCards]
+  );
+
+  const getMaxQuantityForCode = useCallback((code?: string) => {
+    return code === "OP08-072" || code === "OP01-075" ? 50 : 4;
+  }, []);
+
+  const isLeaderCategory = (category?: string | null) =>
+    (category ?? "").toLowerCase().trim() === "leader";
+
+  const getCardColorTokens = useCallback((card: CardWithCollectionData) => {
+    const rawColors = Array.isArray(card.colors) ? card.colors : [];
+    const tokens = rawColors
+      .flatMap((c: { color?: string } | string) =>
+        String(typeof c === "string" ? c : c?.color || "").split(/[\\/,+]/)
+      )
+      .map((color) => color.toLowerCase().trim())
+      .filter(Boolean);
+    if (tokens.length > 0) return tokens;
+    const fallback = (card as any).color;
+    const normalizedFallback = String(fallback || "")
+      .toLowerCase()
+      .trim();
+    return normalizedFallback ? [normalizedFallback] : [];
+  }, []);
+
+  // Si hay un Leader seleccionado, obtenemos sus colores
+  const leaderColors = useMemo(() => {
+    if (!deckBuilder.selectedLeader) return [];
+    const rawColors = Array.isArray(deckBuilder.selectedLeader.colors)
+      ? deckBuilder.selectedLeader.colors
+      : [];
+    const normalizedColors = rawColors
+      .map((c: { color?: string } | string) =>
+        typeof c === "string" ? c : c?.color
+      )
+      .map((color: string | undefined) => (color ?? "").toLowerCase().trim())
+      .filter(Boolean);
+    if (normalizedColors.length > 0) return normalizedColors;
+    const fallback = (deckBuilder.selectedLeader.color ?? "")
+      .toString()
+      .toLowerCase()
+      .trim();
+    return fallback ? [fallback] : [];
+  }, [deckBuilder.selectedLeader]);
+
+  const cardsFilters = useMemo<CardsFilters>(() => {
+    // Map selectedSort to backend sortBy format
+    const sortBy = selectedSort
+      ? (selectedSort as CardsFilters["sortBy"])
+      : undefined;
+
+    // Exclude DON cards when sorting is applied (unless user explicitly filters by DON category)
+    const shouldExcludeDON = sortBy && selectedCategories.length === 0;
+
+    return {
+      sortBy,
+      search: search.trim() || undefined,
+      colors:
+        selectedColors.length > 0
+          ? selectedColors
+          : deckBuilder.selectedLeader && leaderColors.length > 0
+          ? leaderColors
+          : undefined,
+      sets: selectedSets.length ? selectedSets : undefined,
+      setCodes: selectedCodes.length ? selectedCodes : undefined,
+      rarities: selectedRarities.length ? selectedRarities : undefined,
+      costs: selectedCosts.length ? selectedCosts : undefined,
+      power: selectedPower.length ? selectedPower : undefined,
+      attributes: selectedAttributes.length ? selectedAttributes : undefined,
+      categories: deckBuilder.selectedLeader
+        ? selectedCategories.length
+          ? selectedCategories
+          : nonLeaderCategories
+        : ["Leader"],
+      excludeCategories: shouldExcludeDON ? ["DON"] : undefined,
+      effects: selectedEffects.length ? selectedEffects : undefined,
+      types: selectedTypes.length ? selectedTypes : undefined,
+      altArts: selectedAltArts.length ? selectedAltArts : undefined,
+      counter: selectedCounter || undefined,
+      trigger: selectedTrigger || undefined,
+      // When showOnlyBaseCards is active, filter bases on server
+      baseOnly: showOnlyBaseCards ? true : undefined,
+    };
+  }, [
+    search,
+    selectedColors,
+    selectedSets,
+    selectedCodes,
+    selectedRarities,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedCategories,
+    selectedEffects,
+    selectedTypes,
+    selectedAltArts,
+    selectedCounter,
+    selectedTrigger,
+    selectedSort,
+    showOnlyBaseCards,
+    deckBuilder.selectedLeader,
+    leaderColors,
+    nonLeaderCategories,
+  ]);
+
+  const isBackendSort = Boolean(cardsFilters.sortBy);
+
+  // When editing/forking a deck, wait for the deck AND leader to load before fetching cards
+  // This ensures selectedLeader is set and filters are correct (categories will be non-Leader)
+  const shouldFetchCards =
+    useServerCards &&
+    (isFork
+      ? deckBuilder.isDeckLoaded && deckBuilder.selectedLeader !== null
+      : true);
+
+  const {
+    cards: serverCards,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingCards,
+    isFetching: isFetchingCards,
+    totalCount,
+  } = usePaginatedCards(cardsFilters, {
+    limit: 60,
+    enabled: shouldFetchCards,
+    initialData: initialQueryData,
+  });
+
+  // Get total count from database with filters
+  const { data: countData, isFetching: isCounting } = useCardsCount(
+    cardsFilters,
+    {
+      enabled: shouldFetchCards,
+    }
+  );
+
+  const cardsSource = useServerCards ? serverCards : initialCards;
+
+  // Total results - prefer count from API, fallback to pagination count
+  const totalResults = countData ?? totalCount ?? cardsSource.length;
 
   const [visibleCount, setVisibleCount] = useState(50);
   const [selectedCard, setSelectedCard] = useState<DeckCard | undefined>();
@@ -228,8 +501,8 @@ const CompleteDeckBuilderLayout = ({
   const [alternatesCards, setAlternatesCards] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
-  // Estado para controlar la vista mobile
-  const [mobileView, setMobileView] = useState<"cards" | "deck">("cards");
+  // Estado para controlar el drawer del deck en mobile
+  const [isDeckDrawerOpen, setIsDeckDrawerOpen] = useState(false);
   const isShopView = Boolean(isShopMode);
   const showShopFields =
     isShopView && Boolean(setShopSlug) && Boolean(setShopUrl);
@@ -272,7 +545,7 @@ const CompleteDeckBuilderLayout = ({
       return;
     }
 
-    handleCardClick({} as any, card, card);
+    handleCardClick(null, card, card);
   };
 
   // Función wrapper para setSelectedCard compatible con StoreCard
@@ -350,9 +623,9 @@ const CompleteDeckBuilderLayout = ({
   };
 
   const filteredCards = useMemo(() => {
-    if (!initialCards || initialCards.length === 0) return [];
+    if (!cardsSource || cardsSource.length === 0) return [];
 
-    return initialCards
+    const mapped = cardsSource
       .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
@@ -374,8 +647,8 @@ const CompleteDeckBuilderLayout = ({
 
         const matchesColors =
           selectedColors.length === 0 ||
-          card.colors.some((col) =>
-            selectedColors.includes(col.color.toLowerCase())
+          getCardColorTokens(card).some((color) =>
+            selectedColors.includes(color)
           );
 
         // Dividir setCode por comas y verificar si alguno coincide
@@ -478,26 +751,31 @@ const CompleteDeckBuilderLayout = ({
       })
       .map((card) => ({
         ...card,
-        // Filtrar alternativas excluidas
-        alternates: filterValidAlternates(card.alternates),
-      }))
-      .sort((a, b) => {
-        // Primero ordenar por el sort seleccionado si existe
-        if (selectedSort === "Most variants") {
-          const variantDiff =
-            (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        } else if (selectedSort === "Less variants") {
-          const variantDiff =
-            (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        }
+        // Filtrar alternativas excluidas (ocultar todas si showOnlyBaseCards está activo)
+        alternates: filterValidAlternates(card.alternates, showOnlyBaseCards),
+      }));
 
-        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
-        return sortByCollectionOrder(a, b);
-      });
+    if (isBackendSort) {
+      return mapped;
+    }
+
+    return mapped.sort((a, b) => {
+      // Primero ordenar por el sort seleccionado si existe
+      if (selectedSort === "Most variants") {
+        const variantDiff =
+          (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
+        if (variantDiff !== 0) return variantDiff;
+      } else if (selectedSort === "Less variants") {
+        const variantDiff =
+          (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
+        if (variantDiff !== 0) return variantDiff;
+      }
+
+      // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
+      return sortByCollectionOrder(a, b);
+    });
   }, [
-    initialCards,
+    cardsSource,
     search,
     selectedColors,
     selectedRarities,
@@ -513,9 +791,9 @@ const CompleteDeckBuilderLayout = ({
     selectedSort,
     selectedAltArts,
     selectedCodes,
+    showOnlyBaseCards,
+    isBackendSort,
   ]);
-
-  console.log("initial", initialCards);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInputClear, setIsInputClear] = useState(false);
@@ -528,16 +806,9 @@ const CompleteDeckBuilderLayout = ({
   // Estado para controlar el sidebar de filtros
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Si hay un Leader seleccionado, obtenemos sus colores
-  const leaderColors = deckBuilder.selectedLeader
-    ? deckBuilder.selectedLeader.colors.map((c: { color: string }) =>
-        c.color.toLowerCase()
-      )
+  const disabledColors = leaderColors.length
+    ? allColors?.filter((color) => !leaderColors.includes(color))
     : [];
-
-  const disabledColors = allColors?.filter(
-    (color) => !leaderColors.includes(color)
-  );
 
   // Filtrado adicional:
   // - Si NO hay un Leader seleccionado: mostramos solo cartas de la categoría "Leader".
@@ -547,20 +818,25 @@ const CompleteDeckBuilderLayout = ({
     if (!filteredCards) return []; // ⚡ Retornar array vacío en vez de null
 
     const filtered = deckBuilder.selectedLeader
-      ? filteredCards.filter(
-          (card) =>
-            card.category !== "Leader" &&
-            card.colors.some((col) =>
-              leaderColors.includes(col.color.toLowerCase())
-            )
-        )
-      : filteredCards.filter((card) => card.category === "Leader");
+      ? filteredCards.filter((card) => {
+          const matchesLeaderColors =
+            leaderColors.length === 0
+              ? true
+              : getCardColorTokens(card).some((color) =>
+                  leaderColors.includes(color)
+                );
+          return !isLeaderCategory(card.category) && matchesLeaderColors;
+        })
+      : filteredCards.filter((card) => isLeaderCategory(card.category));
+
+    if (isBackendSort) {
+      return filtered;
+    }
 
     // Las cartas ya vienen ordenadas de filteredCards, pero aseguramos el orden
     return filtered.sort(sortByCollectionOrder);
-  }, [filteredCards, deckBuilder.selectedLeader, leaderColors]);
+  }, [filteredCards, deckBuilder.selectedLeader, leaderColors, isBackendSort]);
 
-  console.log("filteredCards", filteredCards);
   // Calcula el total de cartas agregadas en el deck
   const totalCards = deckBuilder.deckCards.reduce(
     (total, card) => total + card.quantity,
@@ -575,17 +851,17 @@ const CompleteDeckBuilderLayout = ({
 
     // Incluir el precio del leader si existe
     if (deckBuilder.selectedLeader) {
-      // Buscar el leader en initialCards (puede ser base o alternativa)
+      // Buscar el leader en cardsSource (puede ser base o alternativa)
       let foundLeader: CardWithCollectionData | undefined;
 
       // Primero buscar en las cartas base
-      foundLeader = initialCards.find(
+      foundLeader = cardsSource.find(
         (card) => Number(card.id) === Number(deckBuilder.selectedLeader?.id)
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundLeader) {
-        for (const card of initialCards) {
+        for (const card of cardsSource) {
           const alternate = card.alternates?.find(
             (alt) => Number(alt.id) === Number(deckBuilder.selectedLeader?.id)
           );
@@ -611,17 +887,17 @@ const CompleteDeckBuilderLayout = ({
 
     // Calcular precio de todas las cartas del deck
     deckBuilder.deckCards.forEach((deckCard) => {
-      // Buscar la carta original en initialCards (puede ser base o alternativa)
+      // Buscar la carta original en cardsSource (puede ser base o alternativa)
       let foundCard: CardWithCollectionData | undefined;
 
       // Primero buscar en las cartas base
-      foundCard = initialCards.find(
+      foundCard = cardsSource.find(
         (card) => Number(card.id) === deckCard.cardId
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundCard) {
-        for (const card of initialCards) {
+        for (const card of cardsSource) {
           const alternate = card.alternates?.find(
             (alt) => Number(alt.id) === deckCard.cardId
           );
@@ -653,18 +929,26 @@ const CompleteDeckBuilderLayout = ({
   }, [
     deckBuilder.deckCards,
     deckBuilder.selectedLeader,
-    initialCards,
+    cardsSource,
     getCardPriceValue,
   ]);
 
   const handleScrollToTop = () => {
     gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    setVisibleCount(50);
+    if (!useServerCards) {
+      setVisibleCount(50);
+    }
+  };
+
+  const resetVisibleCount = () => {
+    if (!useServerCards) {
+      setVisibleCount(50);
+    }
   };
 
   // Handler para el click en cada carta
   const handleCardClick = (
-    e: MouseEvent<HTMLDivElement>,
+    _e: MouseEvent<HTMLDivElement> | null,
     card: CardWithCollectionData,
     alternate: CardWithCollectionData
   ) => {
@@ -712,22 +996,27 @@ const CompleteDeckBuilderLayout = ({
 
       // Scroll para que el card clickeado quede centrado
       // Scroll para que el card clickeado quede centrado solo si no se ve completamente
-      const containerRect = gridRef.current?.getBoundingClientRect();
-      const cardRect = e.currentTarget.getBoundingClientRect();
+      if (_e) {
+        const containerRect = gridRef.current?.getBoundingClientRect();
+        const cardRect = _e.currentTarget.getBoundingClientRect();
 
-      if (containerRect) {
-        if (
-          cardRect.top < containerRect.top ||
-          cardRect.bottom > containerRect.bottom
-        ) {
-          e.currentTarget.scrollIntoView({
+        if (containerRect) {
+          if (
+            cardRect.top < containerRect.top ||
+            cardRect.bottom > containerRect.bottom
+          ) {
+            _e.currentTarget.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+            });
+          }
+        } else {
+          // Si no se puede obtener el contenedor, se hace scroll como fallback.
+          _e.currentTarget.scrollIntoView({
             behavior: "smooth",
-            block: "nearest",
+            block: "center",
           });
         }
-      } else {
-        // Si no se puede obtener el contenedor, se hace scroll como fallback.
-        e.currentTarget.scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
       // Esperamos un momento para que se actualice el array de cartas y luego scroll al grupo de la carta agregada.
@@ -795,24 +1084,50 @@ const CompleteDeckBuilderLayout = ({
       const { scrollTop, clientHeight, scrollHeight } = container;
       const remaining = scrollHeight - (scrollTop + clientHeight);
 
-      if (
-        remaining <= LOAD_THRESHOLD_PX &&
-        !isLoadingMoreRef.current &&
-        visibleCount < (filteredByLeader?.length ?? 0)
-      ) {
-        isLoadingMoreRef.current = true;
+      if (remaining > LOAD_THRESHOLD_PX || isLoadingMoreRef.current) {
+        return;
+      }
+
+      isLoadingMoreRef.current = true;
+
+      if (useServerCards) {
+        if (hasNextPage && !isFetchingNextPage) {
+          fetchNextPage().finally(() => {
+            isLoadingMoreRef.current = false;
+          });
+        } else {
+          isLoadingMoreRef.current = false;
+        }
+        return;
+      }
+
+      if (visibleCount < (filteredByLeader?.length ?? 0)) {
         setVisibleCount((prev) =>
           Math.min(prev + BATCH_SIZE, filteredByLeader?.length ?? 0)
         );
-        setTimeout(() => {
-          isLoadingMoreRef.current = false;
-        }, 100);
       }
+
+      setTimeout(() => {
+        isLoadingMoreRef.current = false;
+      }, 100);
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [visibleCount, filteredByLeader?.length]);
+  }, [
+    visibleCount,
+    filteredByLeader?.length,
+    useServerCards,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
+
+  useEffect(() => {
+    if (useServerCards) {
+      setVisibleCount(filteredByLeader?.length ?? 0);
+    }
+  }, [useServerCards, filteredByLeader?.length]);
 
   useEffect(() => {
     if (deckBuilder.deckCards.length > 0 || !isFork) {
@@ -830,51 +1145,48 @@ const CompleteDeckBuilderLayout = ({
     }
   }, [showLargeImageCard]);
 
-  console.log("12", filteredByLeader);
   return (
     <div className="flex flex-1 bg-[#f2eede] w-full h-full overflow-hidden">
-      {/* Mobile Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 z-50 shadow-lg">
-        <div className="flex justify-around items-center">
-          <button
-            onClick={() => setMobileView("cards")}
-            className={`flex flex-col items-center py-2 px-4 rounded-md transition-all min-w-0 flex-1 mx-1 ${
-              mobileView === "cards"
-                ? "bg-blue-100 text-blue-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <Grid className="h-5 w-5 mb-1" />
-            <span className="text-xs font-medium">Cards</span>
-          </button>
-
-          <button
-            onClick={() => setMobileView("deck")}
-            className={`flex flex-col items-center py-2 px-4 rounded-md transition-all min-w-0 flex-1 mx-1 relative ${
-              mobileView === "deck"
-                ? "bg-blue-100 text-blue-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <div className="relative flex flex-col">
-              <Layers className="h-5 w-5 mb-1" />
-              <span className="text-xs font-medium">Deck</span>
-              {totalCards > 0 && (
-                <div className="absolute -top-2 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                  {totalCards}
-                </div>
-              )}
+      {/* Mobile FAB - Open Deck Drawer */}
+      <div className="md:hidden fixed bottom-6 right-6 z-50">
+        <button
+          onClick={() => setIsDeckDrawerOpen(true)}
+          className="relative flex items-center justify-center h-16 w-16 rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 active:scale-95 transition-all"
+        >
+          <Layers className="h-7 w-7" />
+          {totalCards > 0 && (
+            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center font-bold border-2 border-white">
+              {totalCards}
             </div>
-          </button>
-        </div>
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Deck Drawer */}
+      <div className="md:hidden">
+        <DeckBuilderDrawer
+          isOpen={isDeckDrawerOpen}
+          onClose={() => setIsDeckDrawerOpen(false)}
+          deckBuilder={deckBuilder}
+          deckName={deckName}
+          setDeckName={setDeckName}
+          onSave={onSave}
+          onRestart={onRestart}
+          onProxies={onProxies}
+          isShopMode={isShopMode}
+          shopSlug={shopSlug}
+          setShopSlug={setShopSlug}
+          shopUrl={shopUrl}
+          setShopUrl={setShopUrl}
+          isPublished={isPublished}
+          setIsPublished={setIsPublished}
+          formatCurrency={formatCurrency}
+          getCardPriceValue={getCardPriceValue}
+        />
       </div>
 
       {/* Sidebar izquierdo: Lista de cartas disponibles con filtros */}
-      <div
-        className={`bg-white ${
-          mobileView === "cards" ? "flex" : "hidden md:flex"
-        } w-full md:w-[300px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col`}
-      >
+      <div className="bg-white flex w-full md:w-[300px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col">
         {/* Controles móviles */}
         <div className="flex p-3 flex-col gap-3 border-b border-[#f5f5f5]">
           <DropdownSearch
@@ -883,114 +1195,133 @@ const CompleteDeckBuilderLayout = ({
             placeholder="Search..."
           />
 
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex gap-2 justify-center items-center">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className={`
-              ${
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
                 totalFilters > 0
-                  ? "bg-[#2463eb] !text-white"
-                  : "bg-gray-100 !text-black"
-              }
-              px-4 py-2 text-black font-bold border rounded-lg
-                `}
-              >
-                Filters
-                {totalFilters > 0 && (
-                  <Badge className="ml-2 !bg-white !text-[#2463eb] font-bold">
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>Filters</span>
+              {totalFilters > 0 && (
+                <>
+                  <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                     {totalFilters}
-                  </Badge>
-                )}
-              </button>
-              <ClearFiltersButton
-                isTouchable={
-                  selectedColors.length > 0 ||
-                  selectedRarities.length > 0 ||
-                  selectedCategories.length > 0 ||
-                  selectedCounter !== "" ||
-                  selectedTrigger !== "" ||
-                  selectedEffects.length > 0 ||
-                  selectedTypes.length > 0 ||
-                  selectedSets.length > 0 ||
-                  selectedCosts.length > 0 ||
-                  selectedPower.length > 0 ||
-                  selectedAttributes.length > 0 ||
-                  selectedCodes.length > 0 ||
-                  selectedAltArts.length > 0
-                }
-                clearFilters={() => {
-                  setSelectedColors([]);
-                  setSelectedRarities([]);
-                  setSelectedCategories([]);
-                  setSelectedCounter("");
-                  setSelectedTrigger("");
-                  setSelectedEffects([]);
-                  setSelectedTypes([]);
-                  setSelectedSets([]);
-                  setSelectedCosts([]);
-                  setSelectedPower([]);
-                  setSelectedAttributes([]);
-                  setSelectedCodes([]);
-                  setSelectedAltArts([]);
-                }}
-                isMobile={true}
-              />
-            </div>
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedColors([]);
+                      setSelectedRarities([]);
+                      setSelectedCategories([]);
+                      setSelectedCounter("");
+                      setSelectedTrigger("");
+                      setSelectedEffects([]);
+                      setSelectedTypes([]);
+                      setSelectedSets([]);
+                      setSelectedCosts([]);
+                      setSelectedPower([]);
+                      setSelectedAttributes([]);
+                      setSelectedCodes([]);
+                      setSelectedAltArts([]);
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-blue-200 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </button>
 
-            <div className="flex justify-center items-center gap-2">
-              <ViewSwitch
+            <BaseCardsToggle
+              isActive={showOnlyBaseCards}
+              onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
+            />
+
+            <div className="ml-auto flex items-center gap-2">
+              <SortSelect
+                options={SORT_OPTIONS}
+                selected={selectedSort}
+                setSelected={setSelectedSort}
+                buttonLabel="Sort"
+              />
+              {/* <ViewSwitch
                 viewSelected={viewSelected}
                 setViewSelected={setViewSelected}
-              />
+              /> */}
             </div>
           </div>
+
+          {/* Results count */}
+          <p className="text-xs text-slate-500">
+            {totalResults?.toLocaleString()} cards found
+            {(isFetchingCards || isFetchingNextPage || isCounting) && (
+              <span className="ml-2 text-blue-600">Loading...</span>
+            )}
+          </p>
         </div>
 
         {/* Lista de cartas disponibles */}
         <div
-          className="p-3 pb-20 md:pb-3 overflow-y-auto flex-1 min-h-0"
+          className="p-3 pb-28 md:pb-3 overflow-y-auto flex-1 min-h-0"
           ref={gridRef}
         >
-          {viewSelected === "alternate" && (
-            <div className="flex flex-col gap-5">
-              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                // Función que verifica si la carta base cumple con los filtros de display
-                const baseCardMatches = (): boolean => {
-                  if (!card) return false;
+          {/* Banner para seleccionar Leader - Solo visible cuando no hay leader and not loading deck
+              In fork mode, never show this banner since we always expect a leader from the deck */}
+          {!deckBuilder.selectedLeader && !isLoadingCards && !isFork && (
+            <div className="mb-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-4 shadow-lg border border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold text-base leading-tight">
+                    Select your Leader
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-0.5 leading-snug">
+                    Tap on a Leader card to start
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
+          {/* Skeleton de carga - Mobile first (matching DeckDetailView style) */}
+          {(isLoadingCards ||
+            (isFork &&
+              (!deckBuilder.isDeckLoaded || !deckBuilder.selectedLeader)) ||
+            (isFetchingCards && cardsSource.length === 0)) && (
+            <div className="grid gap-1.5 sm:gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <div
+                  key={`skeleton-${index}`}
+                  className="aspect-[3/4.2] bg-gray-200 rounded-lg animate-pulse"
+                />
+              ))}
+            </div>
+          )}
 
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
+          {!isLoadingCards &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            !(isFetchingCards && cardsSource.length === 0) &&
+            viewSelected === "alternate" && (
+              <div className="flex flex-col gap-5">
+                {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
+                  // Función que verifica si la carta base cumple con los filtros de display
+                  const baseCardMatches = (): boolean => {
+                    if (!card) return false;
 
-                  return true;
-                };
-
-                const getFilteredAlternates = () => {
-                  if (!card?.alternates) return [];
-                  return card.alternates.filter((alt) => {
                     if (normalizedSelectedSets.length > 0) {
-                      const altSetCodes = (alt.setCode ?? "")
+                      const baseSetCodes = (card.setCode ?? "")
                         .split(",")
-                        .map((code) => code.trim().toLowerCase())
+                        .map((code: string) => code.trim().toLowerCase())
                         .filter(Boolean);
                       if (
-                        !altSetCodes.some((code) =>
+                        !baseSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)
                         )
                       ) {
@@ -999,245 +1330,301 @@ const CompleteDeckBuilderLayout = ({
                     }
 
                     if (selectedAltArts.length > 0) {
-                      return selectedAltArts.includes(alt.alternateArt ?? "");
+                      return selectedAltArts.includes(card?.alternateArt ?? "");
                     }
 
                     return true;
-                  });
-                };
+                  };
 
-                const filteredAlts = getFilteredAlternates();
-
-                if (!baseCardMatches() && filteredAlts.length === 0)
-                  return null;
-
-                const totalQuantityBase = deckBuilder.deckCards
-                  ?.filter((card_alt) => card_alt.code === card.code)
-                  .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
-
-                return (
-                  <div className="flex flex-col gap-5" key={card.id}>
-                    <div className="grid gap-3 grid-cols-2 mb-3">
-                      {/* Info Card */}
-                      <div className="bg-black border rounded-lg shadow p-5 h-full text-white">
-                        <div className="h-full flex flex-col justify-around items-center relative">
-                          <div className="flex items-center justify-between flex-col mt-4">
-                            <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
-                              {card?.name}
-                            </h2>
-                            <p
-                              className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
-                            >
-                              {card?.code}
-                            </p>
-                            <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
-                              <Badge
-                                variant="secondary"
-                                className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
-                              >
-                                <span className="text-center w-full font-black leading-[16px] mb-[2px]">
-                                  {card?.rarity}
-                                </span>
-                              </Badge>
-                            </div>
-                            <div className="flex flex-col mt-2">
-                              {card?.types.map((type) => (
-                                <span
-                                  key={type.type}
-                                  className="text-[13px] leading-[15px] font-[200] text-center"
-                                >
-                                  {type.type}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1 mt-3">
-                            <div className="flex items-center flex-col">
-                              <span className="font-bold text-2xl text-white leading-[30px]">
-                                {(card?.alternates?.length ?? 0) + 1}
-                              </span>
-                              <span className="text-sm text-white leading-[13px]">
-                                {card?.alternates?.length === 0
-                                  ? "variant"
-                                  : "variants"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Base Card */}
-                      {baseCardMatches() && (
-                        <div
-                          onClick={(e) => {
-                            if (totalQuantityBase >= 4) {
-                              // Optional: Add logic if the limit is reached.
-                            } else {
-                              handleCardClick(e, card, card);
-                            }
-                          }}
-                          className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
-                            totalQuantityBase >= 4
-                              ? "opacity-70 grayscale"
-                              : "hover:shadow-md"
-                          }`}
-                        >
-                          <div className="flex justify-center items-center w-full relative">
-                            <LazyImage
-                              src={card?.src}
-                              fallbackSrc="/assets/images/backcard.webp"
-                              alt={card?.name}
-                              priority={index < 20}
-                              size="small"
-                              className="w-[80%] m-auto"
-                            />
-                            {(() => {
-                              const baseCardInDeck = deckBuilder.deckCards.find(
-                                (deckCard) =>
-                                  deckCard.cardId === Number(card.id)
-                              );
-                              return (
-                                baseCardInDeck && (
-                                  <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
-                                    <span className="mb-[2px]">
-                                      {baseCardInDeck.quantity}
-                                    </span>
-                                  </div>
-                                )
-                              );
-                            })()}
-                          </div>
-                          <div>
-                            <div className="text-center font-bold mt-2">
-                              Base
-                            </div>
-                            {card.sets?.map((set) => (
-                              <p
-                                key={set.set.title}
-                                className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                              >
-                                {set.set.title}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Alternate Cards */}
-                      {filteredAlts.map((alt) => {
-                        const alternateInDeck = deckBuilder.deckCards.find(
-                          (deckCard) => deckCard.cardId === Number(alt.id)
-                        );
-                        const totalQuantity = deckBuilder.deckCards
-                          ?.filter((card_alt) => card_alt.code === card.code)
-                          .reduce(
-                            (sum, card_alt) => sum + card_alt.quantity,
-                            0
-                          );
-
-                        return (
-                          <div
-                            key={alt.id}
-                            onClick={(e) => {
-                              if (totalQuantity >= 4) {
-                                // Optional: Add logic if the limit is reached.
-                              } else {
-                                handleCardClick(e, card, alt);
-                              }
-                            }}
-                            className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
-                              totalQuantity >= 4
-                                ? "opacity-70 grayscale"
-                                : "hover:shadow-md"
-                            }`}
-                          >
-                            <div className="flex justify-center items-center w-full relative">
-                              <LazyImage
-                                src={alt?.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt?.name}
-                                priority={index < 20}
-                                size="small"
-                                className="w-[80%] m-auto"
-                              />
-                              {alternateInDeck && (
-                                <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
-                                  <span className="mb-[2px]">
-                                    {alternateInDeck.quantity}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-center font-bold mt-2">
-                                {alt?.alternateArt}
-                              </div>
-                              {alt?.sets?.map((set) => (
-                                <p
-                                  key={set.set.title}
-                                  className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
-                                >
-                                  {set.set.title}
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {viewSelected === "text" && (
-            <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                const totalQuantityBase = deckBuilder.deckCards
-                  ?.filter((card_alt) => card_alt.code === card.code)
-                  .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
-
-                return (
-                  <React.Fragment key={card.id}>
-                    <div
-                      className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                        totalQuantityBase >= 4 ? "opacity-70 grayscale" : ""
-                      }`}
-                      onClick={() => handleStoreCardClick(card)}
-                    >
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <StoreCard
-                          card={card}
-                          searchTerm={search}
-                          viewSelected={viewSelected}
-                          selectedRarities={selectedAltArts}
-                          selectedSets={selectedSets}
-                          setSelectedCard={handleSetSelectedCard}
-                          setBaseCard={setBaseCard}
-                          setAlternatesCards={setAlternatesCards}
-                          setIsOpen={setIsOpen}
-                        />
-                      </div>
-                    </div>
-
-                    {card?.alternates?.length > 0 &&
-                      viewSelected !== "text" &&
-                      card.alternates
-                        ?.filter((alt) => {
-                          if (normalizedSelectedSets.length === 0) {
-                            return true;
-                          }
-                          const altSetCodes = (alt.setCode ?? "")
-                            .split(",")
-                            .map((code) => code.trim().toLowerCase())
-                            .filter(Boolean);
-                          return altSetCodes.some((code) =>
+                  const getFilteredAlternates = () => {
+                    if (!card?.alternates) return [];
+                    return card.alternates.filter((alt) => {
+                      if (normalizedSelectedSets.length > 0) {
+                        const altSetCodes = (alt.setCode ?? "")
+                          .split(",")
+                          .map((code) => code.trim().toLowerCase())
+                          .filter(Boolean);
+                        if (
+                          !altSetCodes.some((code) =>
                             normalizedSelectedSets.includes(code)
+                          )
+                        ) {
+                          return false;
+                        }
+                      }
+
+                      if (selectedAltArts.length > 0) {
+                        return selectedAltArts.includes(alt.alternateArt ?? "");
+                      }
+
+                      return true;
+                    });
+                  };
+
+                  const filteredAlts = getFilteredAlternates();
+
+                  if (!baseCardMatches() && filteredAlts.length === 0)
+                    return null;
+
+                  const totalQuantityBase = deckBuilder.deckCards
+                    ?.filter((card_alt) => card_alt.code === card.code)
+                    .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
+
+                  return (
+                    <div className="flex flex-col gap-5" key={card.id}>
+                      <div className="grid gap-3 grid-cols-2 mb-3">
+                        {/* Info Card */}
+                        <div className="bg-black border rounded-lg shadow p-5 h-full text-white">
+                          <div className="h-full flex flex-col justify-around items-center relative">
+                            <div className="flex items-center justify-between flex-col mt-4">
+                              <h2 className="text-lg font-black break-normal mb-2 text-center leading-tight line-clamp-2">
+                                {card?.name}
+                              </h2>
+                              <p
+                                className={`${oswald.className} text-md text-white leading-[16px] mb-4 font-[400]`}
+                              >
+                                {card?.code}
+                              </p>
+                              <div className="flex justify-between items-end flex-col gap-1 mb-1 mr-1">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-sm !bg-white text-black rounded-full min-w-[41px] text-center border border-[#000]"
+                                >
+                                  <span className="text-center w-full font-black leading-[16px] mb-[2px]">
+                                    {card?.rarity}
+                                  </span>
+                                </Badge>
+                              </div>
+                              <div className="flex flex-col mt-2">
+                                {card?.types.map((type) => (
+                                  <span
+                                    key={type.type}
+                                    className="text-[13px] leading-[15px] font-[200] text-center"
+                                  >
+                                    {type.type}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 mt-3">
+                              <div className="flex items-center flex-col">
+                                <span className="font-bold text-2xl text-white leading-[30px]">
+                                  {(card?.alternates?.length ?? 0) + 1}
+                                </span>
+                                <span className="text-sm text-white leading-[13px]">
+                                  {card?.alternates?.length === 0
+                                    ? "variant"
+                                    : "variants"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Base Card */}
+                        {baseCardMatches() &&
+                          (() => {
+                            const baseCardInDeck = deckBuilder.deckCards.find(
+                              (deckCard) => deckCard.cardId === Number(card.id)
+                            );
+                            const baseCardQuantity =
+                              baseCardInDeck?.quantity || 0;
+                            const baseMaxQuantity = getMaxQuantityForCode(
+                              card.code
+                            );
+                            const baseTotalByCode = getTotalQuantityByCode(
+                              card.code
+                            );
+                            const canAddMore =
+                              baseTotalByCode < baseMaxQuantity;
+                            const showQuantityControls = true;
+
+                            return (
+                              <div
+                                onClick={() => {
+                                  if (totalQuantityBase < baseMaxQuantity) {
+                                    handleCardClick(null, card, card);
+                                  }
+                                }}
+                                onMouseEnter={() =>
+                                  card.src &&
+                                  smartPrefetch(card.src, "large", true)
+                                }
+                                onTouchStart={() => {
+                                  if (card.src)
+                                    smartPrefetch(card.src, "large", true);
+                                  setTouchedCardId(card.id);
+                                }}
+                                onTouchEnd={() => setTouchedCardId(null)}
+                                onTouchCancel={() => setTouchedCardId(null)}
+                                onContextMenu={(e) => e.preventDefault()}
+                                className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
+                                  totalQuantityBase >= baseMaxQuantity
+                                    ? "opacity-70 grayscale"
+                                    : "hover:shadow-md"
+                                }`}
+                              >
+                                <div className="flex justify-center items-center w-full relative">
+                                  <LazyImage
+                                    src={card?.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={card?.name}
+                                    priority={index < 20}
+                                    size="small"
+                                    className="w-[80%] m-auto"
+                                  />
+                                  {/* Code Badge */}
+                                  {card.code && (
+                                    <div
+                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                        isDesktop || touchedCardId === card.id
+                                          ? "opacity-100 translate-y-0"
+                                          : "opacity-0 -translate-y-2 pointer-events-none"
+                                      }`}
+                                    >
+                                      {card.code}
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openCardPreview(card, card);
+                                    }}
+                                    onTouchEnd={(e) => {
+                                      e.stopPropagation();
+                                      openCardPreview(card, card);
+                                    }}
+                                    className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                                    aria-label="View card details"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </button>
+                                  {/* Price Badge */}
+                                  {(() => {
+                                    const priceValue = getCardPriceValue(card);
+                                    if (priceValue !== null) {
+                                      return (
+                                        <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                          {formatCurrency(
+                                            priceValue,
+                                            card.priceCurrency
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                {showQuantityControls && (
+                                  <div className="w-full mt-2 px-1">
+                                    <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (baseCardQuantity > 0) {
+                                            deckBuilder.updateDeckCardQuantity(
+                                              Number(card.id),
+                                              baseCardQuantity - 1
+                                            );
+                                          }
+                                        }}
+                                        onTouchEnd={(e) => {
+                                          e.stopPropagation();
+                                          if (baseCardQuantity > 0) {
+                                            deckBuilder.updateDeckCardQuantity(
+                                              Number(card.id),
+                                              baseCardQuantity - 1
+                                            );
+                                          }
+                                        }}
+                                        disabled={baseCardQuantity <= 0}
+                                        className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
+                                        aria-label="Remove one"
+                                      >
+                                        <Minus className="h-4 w-4" />
+                                      </button>
+                                      <div className="flex items-center justify-center">
+                                        <span className="text-white font-bold text-base">
+                                          {baseCardQuantity}
+                                        </span>
+                                        <span className="text-white/60 text-xs ml-1">
+                                          /{baseMaxQuantity}
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (canAddMore) {
+                                            deckBuilder.updateDeckCardQuantity(
+                                              Number(card.id),
+                                              baseCardQuantity + 1
+                                            );
+                                          } else {
+                                            showWarningToast(
+                                              `Max ${baseMaxQuantity} cards reached.`
+                                            );
+                                          }
+                                        }}
+                                        onTouchEnd={(e) => {
+                                          e.stopPropagation();
+                                          if (canAddMore) {
+                                            deckBuilder.updateDeckCardQuantity(
+                                              Number(card.id),
+                                              baseCardQuantity + 1
+                                            );
+                                          } else {
+                                            showWarningToast(
+                                              `Max ${baseMaxQuantity} cards reached.`
+                                            );
+                                          }
+                                        }}
+                                        disabled={!canAddMore}
+                                        className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
+                                          canAddMore
+                                            ? "bg-white/15 text-white hover:bg-white/25"
+                                            : "bg-white/5 text-white/30 cursor-not-allowed"
+                                        }`}
+                                        aria-label="Add one"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="text-center font-bold mt-2">
+                                    Base
+                                  </div>
+                                  {card.sets?.map((set) => (
+                                    <p
+                                      key={set.set.title}
+                                      className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                    >
+                                      {set.set.title}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                        {/* Alternate Cards */}
+                        {filteredAlts.map((alt) => {
+                          const alternateInDeck = deckBuilder.deckCards.find(
+                            (deckCard) => deckCard.cardId === Number(alt.id)
                           );
-                        })
-                        .map((alt) => {
+                          const alternateQuantity =
+                            alternateInDeck?.quantity || 0;
+                          const alternateMaxQuantity = getMaxQuantityForCode(
+                            card.code
+                          );
+                          const alternateTotalByCode = getTotalQuantityByCode(
+                            card.code
+                          );
+                          const canAddMore =
+                            alternateTotalByCode < alternateMaxQuantity;
+                          const showQuantityControls = true;
                           const totalQuantity = deckBuilder.deckCards
                             ?.filter((card_alt) => card_alt.code === card.code)
                             .reduce(
@@ -1248,91 +1635,523 @@ const CompleteDeckBuilderLayout = ({
                           return (
                             <div
                               key={alt.id}
-                              onClick={() => handleStoreCardClick(alt)}
-                              className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                                totalQuantity >= 4 ? "opacity-70 grayscale" : ""
+                              onClick={() => {
+                                if (totalQuantity < 4) {
+                                  handleCardClick(null, card, alt);
+                                }
+                              }}
+                              onMouseEnter={() =>
+                                alt.src && smartPrefetch(alt.src, "large", true)
+                              }
+                              onTouchStart={() => {
+                                if (alt.src)
+                                  smartPrefetch(alt.src, "large", true);
+                                setTouchedCardId(alt.id);
+                              }}
+                              onTouchEnd={() => setTouchedCardId(null)}
+                              onTouchCancel={() => setTouchedCardId(null)}
+                              onContextMenu={(e) => e.preventDefault()}
+                              className={`cursor-pointer border rounded-lg shadow bg-white flex justify-center items-center p-4 flex-col h-full ${
+                                totalQuantity >= alternateMaxQuantity
+                                  ? "opacity-70 grayscale"
+                                  : "hover:shadow-md"
                               }`}
                             >
-                              <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
+                              <div className="flex justify-center items-center w-full relative">
                                 <LazyImage
                                   src={alt?.src}
                                   fallbackSrc="/assets/images/backcard.webp"
                                   alt={alt?.name}
                                   priority={index < 20}
                                   size="small"
-                                  className="w-full"
+                                  className="w-[80%] m-auto"
                                 />
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className="flex justify-center items-center w-full flex-col">
-                                        <span
-                                          className={`${oswald.className} text-[13px] font-bold mt-2`}
-                                        >
-                                          {highlightText(card?.code, search)}
-                                        </span>
-                                        <span className="text-center text-[13px] line-clamp-1">
-                                          {highlightText(
-                                            alt?.sets[0]?.set?.title,
-                                            search
-                                          )}
-                                        </span>
+                                {/* Code Badge */}
+                                {card.code && (
+                                  <div
+                                    className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                      isDesktop || touchedCardId === alt.id
+                                        ? "opacity-100 translate-y-0"
+                                        : "opacity-0 -translate-y-2 pointer-events-none"
+                                    }`}
+                                  >
+                                    {card.code}
+                                  </div>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openCardPreview(alt, card);
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    openCardPreview(alt, card);
+                                  }}
+                                  className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                                  aria-label="View card details"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Price Badge */}
+                                {(() => {
+                                  const priceValue = getCardPriceValue(alt);
+                                  if (priceValue !== null) {
+                                    return (
+                                      <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                        {formatCurrency(
+                                          priceValue,
+                                          alt.priceCurrency
+                                        )}
                                       </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{alt?.sets[0]?.set?.title}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                              {showQuantityControls && (
+                                <div className="w-full mt-2 px-1">
+                                  <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (alternateQuantity > 0) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity - 1
+                                          );
+                                        }
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.stopPropagation();
+                                        if (alternateQuantity > 0) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity - 1
+                                          );
+                                        }
+                                      }}
+                                      disabled={alternateQuantity <= 0}
+                                      className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
+                                      aria-label="Remove one"
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </button>
+                                    <div className="flex items-center justify-center">
+                                      <span className="text-white font-bold text-base">
+                                        {alternateQuantity}
+                                      </span>
+                                      <span className="text-white/60 text-xs ml-1">
+                                        /{alternateMaxQuantity}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (canAddMore) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity + 1
+                                          );
+                                        } else {
+                                          showWarningToast(
+                                            `Max ${alternateMaxQuantity} cards reached.`
+                                          );
+                                        }
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.stopPropagation();
+                                        if (canAddMore) {
+                                          deckBuilder.updateDeckCardQuantity(
+                                            Number(alt.id),
+                                            alternateQuantity + 1
+                                          );
+                                        } else {
+                                          showWarningToast(
+                                            `Max ${alternateMaxQuantity} cards reached.`
+                                          );
+                                        }
+                                      }}
+                                      disabled={!canAddMore}
+                                      className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
+                                        canAddMore
+                                          ? "bg-white/15 text-white hover:bg-white/25"
+                                          : "bg-white/5 text-white/30 cursor-not-allowed"
+                                      }`}
+                                      aria-label="Add one"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-center font-bold mt-2">
+                                  {alt?.alternateArt}
+                                </div>
+                                {alt?.sets?.map((set) => (
+                                  <p
+                                    key={set.set.title}
+                                    className="text-[13px] leading-[15px] font-[200] text-center line-clamp-2"
+                                  >
+                                    {set.set.title}
+                                  </p>
+                                ))}
                               </div>
                             </div>
                           );
                         })}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-          {viewSelected === "list" && (
-            <div className="grid gap-3 grid-cols-3 justify-items-center">
-              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                // Función que determina si la carta base coincide con los filtros
-                const baseCardMatches = (): boolean => {
-                  if (!card) return false;
+          {!isLoadingCards &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            !(isFetchingCards && cardsSource.length === 0) &&
+            viewSelected === "text" && (
+              <div className="grid gap-3 grid-cols-1 justify-items-center">
+                {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
+                  const totalQuantityBase = deckBuilder.deckCards
+                    ?.filter((card_alt) => card_alt.code === card.code)
+                    .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
 
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
+                  return (
+                    <React.Fragment key={card.id}>
+                      <div
+                        className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
+                          totalQuantityBase >= 4 ? "opacity-70 grayscale" : ""
+                        }`}
+                        onClick={() => handleStoreCardClick(card)}
+                      >
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <StoreCard
+                            card={card}
+                            searchTerm={search}
+                            viewSelected={viewSelected}
+                            selectedRarities={selectedAltArts}
+                            selectedSets={selectedSets}
+                            setSelectedCard={handleSetSelectedCard}
+                            setBaseCard={setBaseCard}
+                            setAlternatesCards={setAlternatesCards}
+                            setIsOpen={setIsOpen}
+                          />
+                        </div>
+                      </div>
+
+                      {card?.alternates?.length > 0 &&
+                        viewSelected !== "text" &&
+                        card.alternates
+                          ?.filter((alt) => {
+                            if (normalizedSelectedSets.length === 0) {
+                              return true;
+                            }
+                            const altSetCodes = (alt.setCode ?? "")
+                              .split(",")
+                              .map((code) => code.trim().toLowerCase())
+                              .filter(Boolean);
+                            return altSetCodes.some((code) =>
+                              normalizedSelectedSets.includes(code)
+                            );
+                          })
+                          .map((alt) => {
+                            const totalQuantity = deckBuilder.deckCards
+                              ?.filter(
+                                (card_alt) => card_alt.code === card.code
+                              )
+                              .reduce(
+                                (sum, card_alt) => sum + card_alt.quantity,
+                                0
+                              );
+
+                            return (
+                              <div
+                                key={alt.id}
+                                onClick={() => handleStoreCardClick(alt)}
+                                className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
+                                  totalQuantity >= 4
+                                    ? "opacity-70 grayscale"
+                                    : ""
+                                }`}
+                              >
+                                <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
+                                  <LazyImage
+                                    src={alt?.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={alt?.name}
+                                    priority={index < 20}
+                                    size="small"
+                                    className="w-full"
+                                  />
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="flex justify-center items-center w-full flex-col">
+                                          <span
+                                            className={`${oswald.className} text-[13px] font-bold mt-2`}
+                                          >
+                                            {highlightText(card?.code, search)}
+                                          </span>
+                                          <span className="text-center text-[13px] line-clamp-1">
+                                            {highlightText(
+                                              alt?.sets[0]?.set?.title,
+                                              search
+                                            )}
+                                          </span>
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{alt?.sets[0]?.set?.title}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                              </div>
+                            );
+                          })}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+
+          {!isLoadingCards &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            !(isFetchingCards && cardsSource.length === 0) &&
+            viewSelected === "list" && (
+              <div className="grid gap-1.5 grid-cols-3 justify-items-center">
+                {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
+                  // Función que determina si la carta base coincide con los filtros
+                  const baseCardMatches = (): boolean => {
+                    if (!card) return false;
+
+                    if (normalizedSelectedSets.length > 0) {
+                      const baseSetCodes = (card.setCode ?? "")
+                        .split(",")
+                        .map((code: string) => code.trim().toLowerCase())
+                        .filter(Boolean);
+                      if (
+                        !baseSetCodes.some((code: string) =>
+                          normalizedSelectedSets.includes(code)
+                        )
+                      ) {
+                        return false;
+                      }
+                    }
+
+                    if (selectedAltArts.length > 0) {
+                      return selectedAltArts.includes(card?.alternateArt ?? "");
+                    }
+
+                    return true;
+                  };
+
+                  // Función que filtra las alternates según set y rareza
+                  const getFilteredAlternates = () => {
+                    if (!card?.alternates) return [];
+                    return card.alternates.filter((alt) => {
+                      if (normalizedSelectedSets.length > 0) {
+                        const altSetCodes = (alt.setCode ?? "")
+                          .split(",")
+                          .map((code) => code.trim().toLowerCase())
+                          .filter(Boolean);
+                        if (
+                          !altSetCodes.some((code) =>
+                            normalizedSelectedSets.includes(code)
+                          )
+                        ) {
+                          return false;
+                        }
+                      }
+                      if (selectedAltArts.length > 0) {
+                        return selectedAltArts.includes(alt.alternateArt ?? "");
+                      }
+                      return true;
+                    });
+                  };
+
+                  const filteredAlts = getFilteredAlternates();
+                  const totalQuantityBase = deckBuilder.deckCards
+                    ?.filter((card_alt) => card_alt.code === card.code)
+                    .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
+
+                  // Si ni la carta base ni alguna alterna coinciden, no renderizamos nada
+                  if (!baseCardMatches() && filteredAlts.length === 0)
+                    return null;
+
+                  const baseCardInDeck = deckBuilder.deckCards.find(
+                    (deckCard) => deckCard.cardId === Number(card.id)
+                  );
+
+                  return (
+                    <React.Fragment key={card.id}>
+                      {baseCardMatches() && (
+                        <CardWithBadges
+                          id={card.id}
+                          src={card.src}
+                          alt={card.name}
+                          code={card.code}
+                          price={getCardPriceValue(card)}
+                          priceCurrency={card.priceCurrency}
+                          onClick={() => {
+                            if (totalQuantityBase < 4) {
+                              handleCardClick(null, card, card);
+                            }
+                          }}
+                          onInfoClick={() => openCardPreview(card, card)}
+                          onAdd={() => handleCardClick(null, card, card)}
+                          onRemove={() => {
+                            const qty = baseCardInDeck?.quantity || 0;
+                            if (qty > 0) {
+                              deckBuilder.updateDeckCardQuantity(
+                                Number(card.id),
+                                qty - 1
+                              );
+                            }
+                          }}
+                          priority={index < 20}
+                          size="small"
+                          disabled={totalQuantityBase >= 4}
+                          quantityInDeck={baseCardInDeck?.quantity || 0}
+                          maxQuantity={
+                            card.code === "OP08-072" || card.code === "OP01-075"
+                              ? 50
+                              : 4
+                          }
+                          touchedCardId={touchedCardId}
+                          onTouchStart={(id) => setTouchedCardId(id)}
+                          onTouchEnd={() => setTouchedCardId(null)}
+                          showControls
+                        />
+                      )}
+
+                      {filteredAlts.length > 0 &&
+                        filteredAlts.map((alt) => {
+                          const alternateInDeck = deckBuilder.deckCards.find(
+                            (deckCard) => deckCard.cardId === Number(alt.id)
+                          );
+                          const alternateMaxQuantity = getMaxQuantityForCode(
+                            card.code
+                          );
+                          const totalQuantity = deckBuilder.deckCards
+                            ?.filter((card_alt) => card_alt.code === card.code)
+                            .reduce(
+                              (sum, card_alt) => sum + card_alt.quantity,
+                              0
+                            );
+
+                          return (
+                            <CardWithBadges
+                              key={alt.id}
+                              id={alt.id}
+                              src={alt.src}
+                              alt={alt.name}
+                              code={card.code}
+                              price={getCardPriceValue(alt)}
+                              priceCurrency={alt.priceCurrency}
+                              onClick={() => {
+                                if (totalQuantity < alternateMaxQuantity) {
+                                  handleCardClick(null, card, alt);
+                                }
+                              }}
+                              onInfoClick={() => openCardPreview(alt, card)}
+                              onAdd={() => handleCardClick(null, card, alt)}
+                              onRemove={() => {
+                                const qty = alternateInDeck?.quantity || 0;
+                                if (qty > 0) {
+                                  deckBuilder.updateDeckCardQuantity(
+                                    Number(alt.id),
+                                    qty - 1
+                                  );
+                                }
+                              }}
+                              priority={index < 20}
+                              size="small"
+                              disabled={totalQuantity >= 4}
+                              quantityInDeck={alternateInDeck?.quantity || 0}
+                              maxQuantity={
+                                card.code === "OP08-072" ||
+                                card.code === "OP01-075"
+                                  ? 50
+                                  : 4
+                              }
+                              touchedCardId={touchedCardId}
+                              onTouchStart={(id) => setTouchedCardId(id)}
+                              onTouchEnd={() => setTouchedCardId(null)}
+                              showControls
+                            />
+                          );
+                        })}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+
+          {!isLoadingCards &&
+            (!isFork ||
+              (deckBuilder.isDeckLoaded && deckBuilder.selectedLeader)) &&
+            !(isFetchingCards && cardsSource.length === 0) &&
+            viewSelected === "grid" && (
+              <div className="grid gap-3 grid-cols-1 justify-items-center">
+                {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
+                  // Función que determina si la carta base cumple con los filtros
+                  const baseCardMatches = (card: any): boolean => {
+                    if (!card) return false;
+
                     if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
+                      [
+                        "Demo Version",
+                        "Not for Sale",
+                        "Pre-Errata",
+                        "Pre-Release",
+                      ].includes(card.alternateArt ?? "")
                     ) {
                       return false;
                     }
-                  }
 
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
+                    if (normalizedSelectedSets.length > 0) {
+                      const baseSetCodes = (card.setCode ?? "")
+                        .split(",")
+                        .map((code: string) => code.trim().toLowerCase())
+                        .filter(Boolean);
+                      if (
+                        !baseSetCodes.some((code: string) =>
+                          normalizedSelectedSets.includes(code)
+                        )
+                      ) {
+                        return false;
+                      }
+                    }
+                    if (selectedAltArts.length > 0) {
+                      return selectedAltArts.includes(card?.alternateArt ?? "");
+                    }
+                    return true;
+                  };
 
-                  return true;
-                };
+                  // Función que determina si una alterna cumple los filtros
+                  const alternateMatches = (alt: any): boolean => {
+                    if (
+                      [
+                        "Demo Version",
+                        "Not for Sale",
+                        "Pre-Errata",
+                        "Pre-Release",
+                      ].includes(alt.alternateArt ?? "")
+                    ) {
+                      return false;
+                    }
 
-                // Función que filtra las alternates según set y rareza
-                const getFilteredAlternates = () => {
-                  if (!card?.alternates) return [];
-                  return card.alternates.filter((alt) => {
                     if (normalizedSelectedSets.length > 0) {
                       const altSetCodes = (alt.setCode ?? "")
                         .split(",")
-                        .map((code) => code.trim().toLowerCase())
+                        .map((code: string) => code.trim().toLowerCase())
                         .filter(Boolean);
                       if (
-                        !altSetCodes.some((code) =>
+                        !altSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)
                         )
                       ) {
@@ -1343,330 +2162,205 @@ const CompleteDeckBuilderLayout = ({
                       return selectedAltArts.includes(alt.alternateArt ?? "");
                     }
                     return true;
-                  });
-                };
+                  };
 
-                const filteredAlts = getFilteredAlternates();
-                const totalQuantityBase = deckBuilder.deckCards
-                  ?.filter((card_alt) => card_alt.code === card.code)
-                  .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
+                  // Filtrar las alternates que cumplen los criterios
+                  const filteredAlternates =
+                    card.alternates?.filter((alt) => alternateMatches(alt)) ||
+                    [];
 
-                // Si ni la carta base ni alguna alterna coinciden, no renderizamos nada
-                if (!baseCardMatches() && filteredAlts.length === 0)
-                  return null;
+                  // Si ni la carta base ni ninguna alterna cumplen, no renderizamos nada para esta carta
+                  if (!baseCardMatches(card) && filteredAlternates.length === 0)
+                    return null;
 
-                return (
-                  <React.Fragment key={card.id}>
-                    {baseCardMatches() && (
-                      <div
-                        onClick={(e) => {
-                          if (totalQuantityBase >= 4) {
-                            // Optional: Add logic if the limit is reached.
-                          } else {
-                            handleCardClick(e, card, card);
-                          }
-                        }}
-                        className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                          totalQuantityBase >= 4 ? "opacity-70 grayscale" : ""
-                        }`}
-                      >
-                        <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
+                  // Obtener cantidad en deck para carta base
+                  const totalQuantityBase = deckBuilder.deckCards
+                    ?.filter((card_alt) => card_alt.code === card.code)
+                    .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
+                  const maxQuantityByCode = getMaxQuantityForCode(card.code);
+                  const canAddMoreByCode =
+                    totalQuantityBase < maxQuantityByCode;
+                  const baseCardInDeck = deckBuilder.deckCards.find(
+                    (deckCard) => deckCard.cardId === Number(card.id)
+                  );
+                  const baseCardQuantity = baseCardInDeck?.quantity || 0;
+                  const showBaseControls = true;
+
+                  return (
+                    <React.Fragment key={card.id}>
+                      {/* Render the base card only if it matches the filters */}
+                      {baseCardMatches(card) && (
+                        <div
+                          className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
+                          onClick={(e) => {
+                            if (totalQuantityBase >= maxQuantityByCode) {
+                              // Optional: Add logic if the limit is reached.
+                            } else {
+                              handleCardClick(e, card, card);
+                            }
+                          }}
+                        >
                           <LazyImage
-                            src={card.src}
+                            src={card.src ?? "/assets/images/backcard.webp"}
                             fallbackSrc="/assets/images/backcard.webp"
-                            alt={card.name}
+                            alt={card?.name}
                             priority={index < 20}
                             size="small"
-                            className="w-full"
+                            className={`
+                        w-full
+                        ${
+                          totalQuantityBase >= maxQuantityByCode
+                            ? "filter grayscale opacity-70"
+                            : ""
+                        }
+                      `}
                           />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openCardPreview(card, card);
+                            }}
+                            onTouchEnd={(e) => {
+                              e.stopPropagation();
+                              openCardPreview(card, card);
+                            }}
+                            className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                            aria-label="View card details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div className="flex justify-center items-center w-full flex-col">
                                   <span
-                                    className={`${oswald.className} text-[13px] font-bold mt-2`}
+                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
                                   >
-                                    {card?.code}
-                                  </span>
-                                  <span className="text-center text-[13px] line-clamp-1">
-                                    {card?.sets[0]?.set?.title}
+                                    {card.code}
                                   </span>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{card?.sets[0]?.set?.title}</p>
+                                <p>{card.sets?.[0]?.set?.title}</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                          <PriceTag card={card} className="mt-1" />
-                          {(() => {
-                            const baseCardInDeck = deckBuilder.deckCards.find(
-                              (deckCard) => deckCard.cardId === Number(card.id)
-                            );
-                            return (
-                              baseCardInDeck && (
-                                <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
-                                  <span className="mb-[2px]">
-                                    {baseCardInDeck.quantity}
+                          {showBaseControls && (
+                            <div className="w-full mt-2 px-1">
+                              <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (baseCardQuantity > 0) {
+                                      deckBuilder.updateDeckCardQuantity(
+                                        Number(card.id),
+                                        baseCardQuantity - 1
+                                      );
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    if (baseCardQuantity > 0) {
+                                      deckBuilder.updateDeckCardQuantity(
+                                        Number(card.id),
+                                        baseCardQuantity - 1
+                                      );
+                                    }
+                                  }}
+                                  disabled={baseCardQuantity <= 0}
+                                  className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
+                                  aria-label="Remove one"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <div className="flex items-center justify-center">
+                                  <span className="text-white font-bold text-base">
+                                    {baseCardQuantity}
+                                  </span>
+                                  <span className="text-white/60 text-xs ml-1">
+                                    /{maxQuantityByCode}
                                   </span>
                                 </div>
-                              )
-                            );
-                          })()}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (canAddMoreByCode) {
+                                      deckBuilder.updateDeckCardQuantity(
+                                        Number(card.id),
+                                        baseCardQuantity + 1
+                                      );
+                                    } else {
+                                      showWarningToast(
+                                        `Max ${maxQuantityByCode} cards reached.`
+                                      );
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    if (canAddMoreByCode) {
+                                      deckBuilder.updateDeckCardQuantity(
+                                        Number(card.id),
+                                        baseCardQuantity + 1
+                                      );
+                                    } else {
+                                      showWarningToast(
+                                        `Max ${maxQuantityByCode} cards reached.`
+                                      );
+                                    }
+                                  }}
+                                  disabled={!canAddMoreByCode}
+                                  className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
+                                    canAddMoreByCode
+                                      ? "bg-white/15 text-white hover:bg-white/25"
+                                      : "bg-white/5 text-white/30 cursor-not-allowed"
+                                  }`}
+                                  aria-label="Add one"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {filteredAlts.length > 0 &&
-                      filteredAlts.map((alt) => {
+                      {/* Render filtered alternates */}
+                      {filteredAlternates.map((alt, altIndex) => {
                         const alternateInDeck = deckBuilder.deckCards.find(
                           (deckCard) => deckCard.cardId === Number(alt.id)
                         );
-                        const totalQuantity = deckBuilder.deckCards
-                          ?.filter((card_alt) => card_alt.code === card.code)
-                          .reduce(
-                            (sum, card_alt) => sum + card_alt.quantity,
-                            0
-                          );
+                        const alternateQuantity =
+                          alternateInDeck?.quantity || 0;
+                        const showAltControls = true;
 
                         return (
                           <div
                             key={alt.id}
+                            className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
                             onClick={(e) => {
-                              if (totalQuantity >= 4) {
+                              const totalQuantity = deckBuilder.deckCards
+                                ?.filter(
+                                  (card_alt) => card_alt.code === card.code
+                                )
+                                .reduce(
+                                  (sum, card_alt) => sum + card_alt.quantity,
+                                  0
+                                );
+
+                              if (totalQuantity >= maxQuantityByCode) {
                                 // Optional: Add logic if the limit is reached.
                               } else {
                                 handleCardClick(e, card, alt);
                               }
                             }}
-                            className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                              totalQuantity >= 4 ? "opacity-70 grayscale" : ""
-                            }`}
                           >
-                            <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                              <LazyImage
-                                src={alt.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt.name}
-                                priority={index < 20}
-                                size="small"
-                                className="w-full"
-                              />
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex justify-center items-center w-full flex-col">
-                                      <span
-                                        className={`${oswald.className} text-[13px] font-bold mt-2`}
-                                      >
-                                        {card?.code}
-                                      </span>
-                                      <span className="text-center text-[13px] line-clamp-1">
-                                        {alt?.sets[0]?.set?.title}
-                                      </span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{alt?.sets[0]?.set?.title}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <PriceTag card={alt} className="mt-1" />
-                              {alternateInDeck && (
-                                <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[40px] w-[40px] flex items-center justify-center text-xl font-bold border-2 border-white z-10">
-                                  <span className="mb-[2px]">
-                                    {alternateInDeck.quantity}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
-
-          {viewSelected === "grid" && (
-            <div className="grid gap-3 grid-cols-1 justify-items-center">
-              {filteredByLeader?.slice(0, visibleCount).map((card, index) => {
-                // Función que determina si la carta base cumple con los filtros
-                const baseCardMatches = (card: any): boolean => {
-                  if (!card) return false;
-
-                  if (
-                    [
-                      "Demo Version",
-                      "Not for Sale",
-                      "Pre-Errata",
-                      "Pre-Release",
-                    ].includes(card.alternateArt ?? "")
-                  ) {
-                    return false;
-                  }
-
-                  if (normalizedSelectedSets.length > 0) {
-                    const baseSetCodes = (card.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !baseSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(card?.alternateArt ?? "");
-                  }
-                  return true;
-                };
-
-                // Función que determina si una alterna cumple los filtros
-                const alternateMatches = (alt: any): boolean => {
-                  if (
-                    [
-                      "Demo Version",
-                      "Not for Sale",
-                      "Pre-Errata",
-                      "Pre-Release",
-                    ].includes(alt.alternateArt ?? "")
-                  ) {
-                    return false;
-                  }
-
-                  if (normalizedSelectedSets.length > 0) {
-                    const altSetCodes = (alt.setCode ?? "")
-                      .split(",")
-                      .map((code: string) => code.trim().toLowerCase())
-                      .filter(Boolean);
-                    if (
-                      !altSetCodes.some((code: string) =>
-                        normalizedSelectedSets.includes(code)
-                      )
-                    ) {
-                      return false;
-                    }
-                  }
-                  if (selectedAltArts.length > 0) {
-                    return selectedAltArts.includes(alt.alternateArt ?? "");
-                  }
-                  return true;
-                };
-
-                // Filtrar las alternates que cumplen los criterios
-                const filteredAlternates =
-                  card.alternates?.filter((alt) => alternateMatches(alt)) || [];
-
-                // Si ni la carta base ni ninguna alterna cumplen, no renderizamos nada para esta carta
-                if (!baseCardMatches(card) && filteredAlternates.length === 0)
-                  return null;
-
-                // Obtener cantidad en deck para carta base
-                const totalQuantityBase = deckBuilder.deckCards
-                  ?.filter((card_alt) => card_alt.code === card.code)
-                  .reduce((sum, card_alt) => sum + card_alt.quantity, 0);
-
-                return (
-                  <React.Fragment key={card.id}>
-                    {/* Render the base card only if it matches the filters */}
-                    {baseCardMatches(card) && (
-                      <div
-                        className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                        onClick={(e) => {
-                          if (totalQuantityBase >= 4) {
-                            // Optional: Add logic if the limit is reached.
-                          } else {
-                            handleCardClick(e, card, card);
-                          }
-                        }}
-                      >
-                        <LazyImage
-                          src={card.src ?? "/assets/images/backcard.webp"}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={card?.name}
-                          priority={index < 20}
-                          size="small"
-                          className={`
-                        w-full
-                        ${
-                          totalQuantityBase >= 4
-                            ? "filter grayscale opacity-70"
-                            : ""
-                        }
-                      `}
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex justify-center items-center w-full flex-col">
-                                <span
-                                  className={`${oswald.className} text-[13px] font-[500] mt-1`}
-                                >
-                                  {card.code}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{card.sets?.[0]?.set?.title}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {(() => {
-                          const baseCardInDeck = deckBuilder.deckCards.find(
-                            (deckCard) => deckCard.cardId === Number(card.id)
-                          );
-                          return (
-                            baseCardInDeck && (
-                              <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[30px] w-[30px] flex items-center justify-center text-[12px] font-bold border-2 border-white z-10">
-                                <span className="mb-[2px]">
-                                  {baseCardInDeck.quantity}
-                                </span>
-                              </div>
-                            )
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {/* Render filtered alternates */}
-                    {filteredAlternates.map((alt, altIndex) => {
-                      const alternateInDeck = deckBuilder.deckCards.find(
-                        (deckCard) => deckCard.cardId === Number(alt.id)
-                      );
-
-                      return (
-                        <div
-                          key={alt.id}
-                          className="cursor-pointer border rounded-lg shadow p-1 bg-white justify-center items-center flex flex-col relative h-fit mb-3"
-                          onClick={(e) => {
-                            const totalQuantity = deckBuilder.deckCards
-                              ?.filter(
-                                (card_alt) => card_alt.code === card.code
-                              )
-                              .reduce(
-                                (sum, card_alt) => sum + card_alt.quantity,
-                                0
-                              );
-
-                            if (totalQuantity >= 4) {
-                              // Optional: Add logic if the limit is reached.
-                            } else {
-                              handleCardClick(e, card, alt);
-                            }
-                          }}
-                        >
-                          <LazyImage
-                            src={alt.src ?? "/assets/images/backcard.webp"}
-                            fallbackSrc="/assets/images/backcard.webp"
-                            alt={alt?.name}
-                            priority={index < 20}
-                            size="small"
-                            className={`
+                            <LazyImage
+                              src={alt.src ?? "/assets/images/backcard.webp"}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={alt?.name}
+                              priority={index < 20}
+                              size="small"
+                              className={`
                               w-full
                               ${
                                 (deckBuilder.deckCards
@@ -1681,47 +2375,126 @@ const CompleteDeckBuilderLayout = ({
                                   : ""
                               }
                             `}
-                          />
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex justify-center items-center w-full flex-col">
-                                  <span
-                                    className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                            />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex justify-center items-center w-full flex-col">
+                                    <span
+                                      className={`${oswald.className} text-[13px] font-[500] mt-1`}
+                                    >
+                                      {card.code}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{alt.sets?.[0]?.set?.title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCardPreview(alt, card);
+                              }}
+                              onTouchEnd={(e) => {
+                                e.stopPropagation();
+                                openCardPreview(alt, card);
+                              }}
+                              className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                              aria-label="View card details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                            {showAltControls && (
+                              <div className="w-full mt-2 px-1">
+                                <div className="flex items-center justify-between bg-gray-900 text-white rounded-lg px-2 py-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (alternateQuantity > 0) {
+                                        deckBuilder.updateDeckCardQuantity(
+                                          Number(alt.id),
+                                          alternateQuantity - 1
+                                        );
+                                      }
+                                    }}
+                                    onTouchEnd={(e) => {
+                                      e.stopPropagation();
+                                      if (alternateQuantity > 0) {
+                                        deckBuilder.updateDeckCardQuantity(
+                                          Number(alt.id),
+                                          alternateQuantity - 1
+                                        );
+                                      }
+                                    }}
+                                    disabled={alternateQuantity <= 0}
+                                    className="h-7 w-7 rounded-md bg-white/15 text-white flex items-center justify-center hover:bg-white/25 active:scale-95 transition-all disabled:opacity-40"
+                                    aria-label="Remove one"
                                   >
-                                    {card.code}
-                                  </span>
+                                    <Minus className="h-4 w-4" />
+                                  </button>
+                                  <div className="flex items-center justify-center">
+                                    <span className="text-white font-bold text-base">
+                                      {alternateQuantity}
+                                    </span>
+                                    <span className="text-white/60 text-xs ml-1">
+                                      /{maxQuantityByCode}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (canAddMoreByCode) {
+                                        deckBuilder.updateDeckCardQuantity(
+                                          Number(alt.id),
+                                          alternateQuantity + 1
+                                        );
+                                      } else {
+                                        showWarningToast(
+                                          `Max ${maxQuantityByCode} cards reached.`
+                                        );
+                                      }
+                                    }}
+                                    onTouchEnd={(e) => {
+                                      e.stopPropagation();
+                                      if (canAddMoreByCode) {
+                                        deckBuilder.updateDeckCardQuantity(
+                                          Number(alt.id),
+                                          alternateQuantity + 1
+                                        );
+                                      } else {
+                                        showWarningToast(
+                                          `Max ${maxQuantityByCode} cards reached.`
+                                        );
+                                      }
+                                    }}
+                                    disabled={!canAddMoreByCode}
+                                    className={`h-7 w-7 rounded-md flex items-center justify-center active:scale-95 transition-all ${
+                                      canAddMoreByCode
+                                        ? "bg-white/15 text-white hover:bg-white/25"
+                                        : "bg-white/5 text-white/30 cursor-not-allowed"
+                                    }`}
+                                    aria-label="Add one"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </button>
                                 </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{alt.sets?.[0]?.set?.title}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {alternateInDeck && (
-                            <div className="absolute -top-1 -right-1 !bg-[#000] !text-white rounded-full h-[30px] w-[30px] flex items-center justify-center text-[12px] font-bold border-2 border-white z-10">
-                              <span className="mb-[2px]">
-                                {alternateInDeck.quantity}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
         </div>
       </div>
 
-      {/* Área principal: Construcción del deck */}
-      <div
-        className={`flex flex-col flex-1 min-h-0 bg-[#f2eede] ${
-          mobileView === "deck" ? "flex" : "hidden md:flex"
-        }`}
-      >
+      {/* Área principal: Construcción del deck - Solo visible en desktop */}
+      <div className="hidden md:flex flex-col flex-1 min-h-0 bg-[#f2eede]">
         {/* Header del deck - Diseño Profesional y Minimalista */}
         <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-4 sm:py-3.5">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
@@ -1812,7 +2585,7 @@ const CompleteDeckBuilderLayout = ({
                             onRestart();
                             setSearch("");
                             setIsInputClear(true);
-                            setVisibleCount(50);
+                            resetVisibleCount();
                             setTimeout(() => {
                               gridRef.current?.scrollTo({
                                 top: 0,
@@ -2217,7 +2990,7 @@ const CompleteDeckBuilderLayout = ({
                   onRestart();
                   setSearch("");
                   setIsInputClear(true);
-                  setVisibleCount(50);
+                  resetVisibleCount();
                   setTimeout(() => {
                     gridRef.current?.scrollTo({
                       top: 0,
@@ -2292,21 +3065,11 @@ const CompleteDeckBuilderLayout = ({
         )}
       </div>
 
-      {/* Sidebar de filtros móviles */}
-      <Transition
-        show={isModalOpen}
-        enter="transition transform duration-300"
-        enterFrom="-translate-x-full"
-        enterTo="translate-x-0"
-        leave="transition transform duration-200"
-        leaveFrom="translate-x-0"
-        leaveTo="-translate-x-full"
-      >
-        <FiltersSidebar
+      {/* Mobile Filters Drawer - Bottom sheet for mobile */}
+      <div className="md:hidden">
+        <MobileFiltersDrawer
           isOpen={isModalOpen}
-          setIsOpen={setIsModalOpen}
-          search={search}
-          setSearch={setSearch}
+          onClose={() => setIsModalOpen(false)}
           selectedColors={selectedColors}
           setSelectedColors={setSelectedColors}
           selectedRarities={selectedRarities}
@@ -2329,18 +3092,70 @@ const CompleteDeckBuilderLayout = ({
           setSelectedPower={setSelectedPower}
           selectedAttributes={selectedAttributes}
           setSelectedAttributes={setSelectedAttributes}
-          disabledColors={deckBuilder.selectedLeader ? disabledColors : []}
           selectedAltArts={selectedAltArts}
           setSelectedAltArts={setSelectedAltArts}
           selectedCodes={selectedCodes}
           setSelectedCodes={setSelectedCodes}
+          disabledColors={deckBuilder.selectedLeader ? disabledColors : []}
           disabledTypes={
             deckBuilder.selectedLeader
               ? ["Leader"]
               : ["Character", "Event", "Stage"]
           }
         />
-      </Transition>
+      </div>
+
+      {/* Desktop Filters Sidebar - Left panel for desktop */}
+      <div className="hidden md:block">
+        <Transition
+          show={isModalOpen}
+          enter="transition transform duration-300"
+          enterFrom="-translate-x-full"
+          enterTo="translate-x-0"
+          leave="transition transform duration-200"
+          leaveFrom="translate-x-0"
+          leaveTo="-translate-x-full"
+        >
+          <FiltersSidebar
+            isOpen={isModalOpen}
+            setIsOpen={setIsModalOpen}
+            search={search}
+            setSearch={setSearch}
+            selectedColors={selectedColors}
+            setSelectedColors={setSelectedColors}
+            selectedRarities={selectedRarities}
+            setSelectedRarities={setSelectedRarities}
+            selectedCategories={selectedCategories}
+            setSelectedCategories={setSelectedCategories}
+            selectedCounter={selectedCounter}
+            setSelectedCounter={setSelectedCounter}
+            selectedTrigger={selectedTrigger}
+            setSelectedTrigger={setSelectedTrigger}
+            selectedEffects={selectedEffects}
+            setSelectedEffects={setSelectedEffects}
+            selectedTypes={selectedTypes}
+            setSelectedTypes={setSelectedTypes}
+            selectedSets={selectedSets}
+            setSelectedSets={setSelectedSets}
+            selectedCosts={selectedCosts}
+            setSelectedCosts={setSelectedCosts}
+            selectedPower={selectedPower}
+            setSelectedPower={setSelectedPower}
+            selectedAttributes={selectedAttributes}
+            setSelectedAttributes={setSelectedAttributes}
+            disabledColors={deckBuilder.selectedLeader ? disabledColors : []}
+            selectedAltArts={selectedAltArts}
+            setSelectedAltArts={setSelectedAltArts}
+            selectedCodes={selectedCodes}
+            setSelectedCodes={setSelectedCodes}
+            disabledTypes={
+              deckBuilder.selectedLeader
+                ? ["Leader"]
+                : ["Character", "Event", "Stage"]
+            }
+          />
+        </Transition>
+      </div>
 
       <Transition appear show={isStatsOpen} as={Fragment}>
         <Dialog
@@ -2557,6 +3372,92 @@ const CompleteDeckBuilderLayout = ({
           </div>
         </div>
       )}
+
+      {/* Card Preview Dialog */}
+      <CardPreviewDialog
+        isOpen={isPreviewOpen}
+        onClose={closeCardPreview}
+        card={previewCard}
+        baseCard={previewBaseCard}
+        currentQuantity={
+          previewCard ? getCardQuantityInDeck(previewCard.id) : 0
+        }
+        maxQuantity={
+          previewCard?.code === "OP08-072" || previewCard?.code === "OP01-075"
+            ? 50
+            : 4
+        }
+        canAdd={
+          deckBuilder.selectedLeader !== null &&
+          totalCards < 50 &&
+          (previewCard
+            ? getTotalQuantityByCode(previewCard.code || "") <
+              (previewCard.code === "OP08-072" ||
+              previewCard.code === "OP01-075"
+                ? 50
+                : 4)
+            : false)
+        }
+        canRemove={
+          previewCard ? getCardQuantityInDeck(previewCard.id) > 0 : false
+        }
+        isLeaderSelection={
+          !deckBuilder.selectedLeader && previewCard?.category === "Leader"
+        }
+        onAddCard={() => {
+          if (previewCard && previewBaseCard) {
+            if (
+              !deckBuilder.selectedLeader &&
+              previewCard.category === "Leader"
+            ) {
+              // Select as leader
+              deckBuilder.setSelectedLeader({
+                ...previewBaseCard,
+                src: previewCard.src,
+                id: Number(previewCard.id),
+                marketPrice: previewCard.marketPrice,
+                priceCurrency: previewCard.priceCurrency,
+              });
+              setSearch("");
+              closeCardPreview();
+            } else {
+              // Add to deck
+              deckBuilder.handleAddCard({
+                cardId: Number(previewCard.id),
+                id: Number(previewCard.id),
+                name: previewBaseCard.name,
+                rarity: previewBaseCard.rarity ?? "",
+                src: previewCard.src,
+                quantity: 1,
+                code: previewBaseCard.code,
+                color: previewBaseCard.colors.length
+                  ? previewBaseCard.colors[0].color
+                  : "gray",
+                colors: previewBaseCard.colors,
+                cost: previewBaseCard.cost ?? "",
+                category: previewBaseCard.category,
+                set: previewCard.sets?.[0]?.set?.title || "",
+                power: previewBaseCard.power ?? "",
+                counter: previewBaseCard.counter ?? "",
+                attribute: previewBaseCard.attribute ?? "",
+                marketPrice: previewCard.marketPrice,
+                priceCurrency: previewCard.priceCurrency,
+              } as any);
+            }
+          }
+        }}
+        onRemoveCard={() => {
+          if (previewCard) {
+            const currentQty = getCardQuantityInDeck(previewCard.id);
+            if (currentQty > 0) {
+              deckBuilder.updateDeckCardQuantity(
+                Number(previewCard.id),
+                currentQty - 1
+              );
+            }
+          }
+        }}
+      />
     </div>
   );
 };

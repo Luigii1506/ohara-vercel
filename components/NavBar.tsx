@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 import { useUser } from "@/app/context/UserContext";
+import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ import {
   AlertTriangle,
   Calendar,
   RefreshCw,
+  Trophy,
 } from "lucide-react";
 import {
   siInstagram,
@@ -110,15 +112,19 @@ const NavBar = () => {
   }, [isMobileMenuOpen]);
 
   // Prevenir scroll cuando el menú móvil está abierto
+  const wasMenuOpenRef = useRef(false);
   useEffect(() => {
     if (isMobileMenuOpen) {
-      document.body.style.overflow = "hidden";
+      if (!wasMenuOpenRef.current) {
+        lockBodyScroll();
+        wasMenuOpenRef.current = true;
+      }
     } else {
-      document.body.style.overflow = "unset";
+      if (wasMenuOpenRef.current) {
+        unlockBodyScroll();
+        wasMenuOpenRef.current = false;
+      }
     }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
   }, [isMobileMenuOpen]);
 
   const adminMenuCategories = [
@@ -165,6 +171,12 @@ const NavBar = () => {
           label: "Events",
           icon: Calendar,
           description: "Aprueba y edita eventos",
+        },
+        {
+          href: "/admin/tournaments",
+          label: "Tournament Insights",
+          icon: Trophy,
+          description: "Resultados y decklists sincronizados",
         },
         {
           href: "/admin/missing-sets",
@@ -240,6 +252,7 @@ const NavBar = () => {
     { href: "/", label: "Home", icon: Home },
     { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
     { href: "/events", label: "Events", icon: Calendar },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/proxies", label: "Proxies", icon: Copy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];

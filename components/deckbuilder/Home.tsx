@@ -4,40 +4,51 @@ import { useRouter } from "next/navigation";
 import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
-import { useAllCards } from "@/hooks/useCards";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { useCardStore } from "@/store/cardStore";
-import type { CardsFilters } from "@/lib/cards/types";
+import type { CardsFilters, CardsPage } from "@/lib/cards/types";
+import { serializeFiltersForKey } from "@/hooks/useCards";
 
-const DeckBuilder = () => {
+interface DeckBuilderProps {
+  initialData?: CardsPage;
+}
+
+const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
   const router = useRouter();
   const { data: session } = useSession();
-  const deckBuilder = useDeckBuilder(); // sin URL, deck nuevo
+  const deckBuilder = useDeckBuilder();
   const [deckName, setDeckNameState] = useState(deckBuilder.deckName ?? "");
   const [isDeckNameManual, setIsDeckNameManual] = useState(false);
 
-  // ✅ Obtener todas las cartas usando el mismo sistema que card-list
-  const cachedCards = useCardStore((state) => state.allCards);
-  const setAllCards = useCardStore((state) => state.setAllCards);
-  const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
-  const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
-  const allCardsSignatureRef = useRef<string | null>(null);
+  // Calcular filtros iniciales basados en si hay leader seleccionado
+  const initialFilters = useMemo<CardsFilters>(() => {
+    if (!deckBuilder.selectedLeader) {
+      return { categories: ["Leader"] };
+    }
+    return {};
+  }, [deckBuilder.selectedLeader]);
 
-  // Filtros vacíos para traer TODAS las cartas
-  const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
+  // Calcular initialQueryData para TanStack Query
+  const initialQueryData = useMemo(() => {
+    if (!initialData) return undefined;
 
-  const {
-    data: allCardsData,
-    isLoading: isLoadingAllCards,
-    isFetching: isFetchingAllCards,
-  } = useAllCards(fullQueryFilters, {
-    includeRelations: true,
-    includeAlternates: true,
-    includeCounts: true,
-  });
+    // Solo usar initialData si los filtros coinciden (Leaders iniciales)
+    const initialFiltersSignature = serializeFiltersForKey({
+      categories: ["Leader"],
+    });
+    const currentFiltersSignature = serializeFiltersForKey(initialFilters);
 
-  // ✅ Guardar en Zustand cuando lleguen las cartas
+    if (initialFiltersSignature !== currentFiltersSignature) {
+      return undefined;
+    }
+
+    return {
+      pages: [initialData],
+      pageParams: [null],
+    };
+  }, [initialData, initialFilters]);
+
+  // Auto-set deck name based on leader
   useEffect(() => {
     if (!deckBuilder.selectedLeader) {
       if (!isDeckNameManual) {
@@ -52,47 +63,6 @@ const DeckBuilder = () => {
     }
   }, [deckBuilder.selectedLeader, isDeckNameManual]);
 
-  useEffect(() => {
-    if (!allCardsData) return;
-
-    if (!allCardsData.length) {
-      if (allCardsSignatureRef.current !== "empty") {
-        allCardsSignatureRef.current = "empty";
-        setAllCards([]);
-      }
-      return;
-    }
-
-    const firstCard = allCardsData[0];
-    const lastCard = allCardsData[allCardsData.length - 1];
-
-    const normalizeTimestamp = (value: Date | string | undefined) => {
-      if (!value) return "";
-      if (value instanceof Date) return value.getTime().toString();
-      const parsed = Date.parse(value);
-      return Number.isNaN(parsed) ? String(value) : parsed.toString();
-    };
-
-    const signature = [
-      allCardsData.length,
-      firstCard?.id ?? "",
-      lastCard?.id ?? "",
-      normalizeTimestamp(firstCard?.updatedAt),
-      normalizeTimestamp(lastCard?.updatedAt),
-    ].join("-");
-
-    if (allCardsSignatureRef.current !== signature) {
-      allCardsSignatureRef.current = signature;
-      setAllCards(allCardsData);
-    }
-
-    if (!isFetchingAllCards) {
-      setIsFullyLoaded(true);
-    }
-  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
-
-  // ✅ Usar cachedCards si existen, sino allCardsData
-  const dataSource = cachedCards.length > 0 ? cachedCards : allCardsData ?? [];
   const totalCards = deckBuilder.deckCards.reduce(
     (total, card) => total + card.quantity,
     0
@@ -125,9 +95,7 @@ const DeckBuilder = () => {
     ];
 
     const baseName =
-      deckName.trim() ||
-      deckBuilder.selectedLeader?.name ||
-      "Mi Deck";
+      deckName.trim() || deckBuilder.selectedLeader?.name || "Mi Deck";
 
     deckBuilder.setIsSaving(true);
     try {
@@ -166,16 +134,16 @@ const DeckBuilder = () => {
     setDeckNameState("");
   };
 
-  // ✅ TanStack Query maneja el fetch automáticamente
-
   return (
     <DeckBuilderLayout
       deckBuilder={deckBuilder}
       onSave={handleSave}
       onRestart={handleRestart}
-      initialCards={dataSource as CardWithCollectionData[]}
+      initialCards={initialData?.items as CardWithCollectionData[] ?? []}
+      useServerCards={true}
       deckName={deckName}
       setDeckName={handleDeckNameChange}
+      initialQueryData={initialQueryData}
     />
   );
 };

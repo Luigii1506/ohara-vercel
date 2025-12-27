@@ -5,14 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
-import { useCards } from "@/hooks/useCards";
 
 const EditDeckBuilder = () => {
-  const { data: cards = [], isLoading } = useCards();
   const router = useRouter();
   const params = useParams();
 
-  console.log("params", params);
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const deckBuilder = useDeckBuilder(id);
@@ -42,7 +39,7 @@ const EditDeckBuilder = () => {
 
     deckBuilder.setIsSaving(true);
     try {
-      const response = await fetch(`/api/admin/deck/${id}`, {
+      const response = await fetch(`/api/decks/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,8 +75,8 @@ const EditDeckBuilder = () => {
       deckBuilder={deckBuilder}
       onSave={handleEdit}
       onRestart={handleRestart}
-      initialCards={cards as CardWithCollectionData[]}
-      isFork={true}
+      initialCards={[] as CardWithCollectionData[]}
+      useServerCards
       deckName={deckBuilder.deckName}
       setDeckName={deckBuilder.setDeckName}
     />

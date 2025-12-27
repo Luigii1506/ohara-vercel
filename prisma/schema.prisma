@@ -9,60 +9,61 @@ datasource db {
 }
 
 model Card {
-  id                  Int                 @id @default(autoincrement())
-  src                 String
-  imageKey            String?
-  name                String
-  cost                String?
-  power               String?
-  attribute           String?
-  counter             String?
-  category            String
-  life                String?
-  rarity              String?
-  illustrator         String?
-  alternateArt        String?
-  status              String?
-  triggerCard         String?
-  code                String
-  setCode             String
-  isFirstEdition      Boolean
-  uuid                String              @unique @default(uuid())
-  createdAt           DateTime?           @default(now())
-  updatedAt           DateTime?           @updatedAt
-  tcgUrl              String?             @default("")
-  tcgplayerProductId  String?             @unique
-  tcgplayerLinkStatus Boolean? // null = not attempted, false = marked missing, true = linked
-  marketPrice         Decimal?
-  lowPrice            Decimal?
-  highPrice           Decimal?
-  priceCurrency       String?             @default("USD")
-  priceUpdatedAt      DateTime?
-  isWatchlisted       Boolean             @default(false)
-  alias               String?             @default("")
-  order               String              @default("0")
-  collectionOrder     String              @default("")
-  isPro               Boolean             @default(false)
-  region              String?
-  baseCardId          Int? // NULL si es carta base, ID de la base si es alternativa
-  baseCard            Card?               @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
-  colors              CardColor[]
-  conditions          CardCondition[]
-  effects             CardEffect[]
-  priceLogs           CardPriceLog[]
-  rulings             CardRuling[]
-  sets                CardSet[]
-  texts               CardText[]
-  types               CardType[]
-  priceAlerts         CardPriceAlert[]
-  alertLogs           CardPriceAlertLog[]
-  adminNotifications  AdminNotification[]
-  DeckCard            DeckCard[]
-  opponentGameLogs    GameLog[]           @relation("OpponentLeader")
-  GameLogCard         GameLogCard[]
-  userListCards       UserListCard[]
-  alternateCards      Card[]              @relation("CardAlternates") // Las alternativas de esta carta base
-  eventCards          EventCard[]
+  id                    Int                 @id @default(autoincrement())
+  src                   String
+  imageKey              String?
+  name                  String
+  cost                  String?
+  power                 String?
+  attribute             String?
+  counter               String?
+  category              String
+  life                  String?
+  rarity                String?
+  illustrator           String?
+  alternateArt          String?
+  status                String?
+  triggerCard           String?
+  code                  String
+  setCode               String
+  isFirstEdition        Boolean
+  uuid                  String              @unique @default(uuid())
+  createdAt             DateTime?           @default(now())
+  updatedAt             DateTime?           @updatedAt
+  tcgUrl                String?             @default("")
+  tcgplayerProductId    String?             @unique
+  tcgplayerLinkStatus   Boolean? // null = not attempted, false = marked missing, true = linked
+  marketPrice           Decimal?
+  lowPrice              Decimal?
+  highPrice             Decimal?
+  priceCurrency         String?             @default("USD")
+  priceUpdatedAt        DateTime?
+  isWatchlisted         Boolean             @default(false)
+  alias                 String?             @default("")
+  order                 String              @default("0")
+  collectionOrder       String              @default("")
+  isPro                 Boolean             @default(false)
+  region                String?
+  baseCardId            Int? // NULL si es carta base, ID de la base si es alternativa
+  baseCard              Card?               @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
+  colors                CardColor[]
+  conditions            CardCondition[]
+  effects               CardEffect[]
+  priceLogs             CardPriceLog[]
+  rulings               CardRuling[]
+  sets                  CardSet[]
+  texts                 CardText[]
+  types                 CardType[]
+  priceAlerts           CardPriceAlert[]
+  alertLogs             CardPriceAlertLog[]
+  adminNotifications    AdminNotification[]
+  DeckCard              DeckCard[]
+  opponentGameLogs      GameLog[]           @relation("OpponentLeader")
+  GameLogCard           GameLogCard[]
+  userListCards         UserListCard[]
+  alternateCards        Card[]              @relation("CardAlternates") // Las alternativas de esta carta base
+  eventCards            EventCard[]
+  leaderTournamentDecks TournamentDeck[]    @relation("TournamentLeaderCard")
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -70,23 +71,24 @@ model Card {
 }
 
 model Deck {
-  id             Int        @id @default(autoincrement())
-  name           String
-  createdAt      DateTime?  @default(now())
-  updatedAt      DateTime?  @updatedAt
-  originalDeckId Int?
-  uniqueUrl      String     @unique
-  description    String?    @default("")
-  userId         Int?
-  isShopDeck     Boolean    @default(false)
-  isPublished    Boolean    @default(false)
-  shopSlug       String?    @unique
-  shopUrl        String?
-  originalDeck   Deck?      @relation("OriginalDeck", fields: [originalDeckId], references: [id])
-  forks          Deck[]     @relation("OriginalDeck")
-  user           User?      @relation(fields: [userId], references: [id])
-  deckCards      DeckCard[]
-  gameLogs       GameLog[]
+  id              Int              @id @default(autoincrement())
+  name            String
+  createdAt       DateTime?        @default(now())
+  updatedAt       DateTime?        @updatedAt
+  originalDeckId  Int?
+  uniqueUrl       String           @unique
+  description     String?          @default("")
+  userId          Int?
+  isShopDeck      Boolean          @default(false)
+  isPublished     Boolean          @default(false)
+  shopSlug        String?          @unique
+  shopUrl         String?
+  originalDeck    Deck?            @relation("OriginalDeck", fields: [originalDeckId], references: [id])
+  forks           Deck[]           @relation("OriginalDeck")
+  user            User?            @relation(fields: [userId], references: [id])
+  deckCards       DeckCard[]
+  gameLogs        GameLog[]
+  tournamentDecks TournamentDeck[]
 
   @@index([originalDeckId])
   @@index([userId])
@@ -191,6 +193,98 @@ model CardText {
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
+}
+
+enum TournamentStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model TournamentSource {
+  id           Int          @id @default(autoincrement())
+  slug         String       @unique
+  name         String
+  baseUrl      String
+  description  String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tournaments  Tournament[]
+}
+
+model Tournament {
+  id                  Int              @id @default(autoincrement())
+  sourceId            Int
+  source              TournamentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceTournamentId  String
+  type                TournamentType?
+  name                String
+  region              String?
+  country             String?
+  format              String?
+  playerCount         Int?
+  isPlayerCountApprox Boolean          @default(false)
+  winnerName          String?
+  winnerUrl           String?
+  eventDate           DateTime
+  tournamentUrl       String
+  status              TournamentStatus @default(COMPLETED)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  decks               TournamentDeck[]
+
+  @@unique([sourceId, sourceTournamentId])
+  @@index([eventDate])
+  @@index([status])
+}
+
+enum TournamentType {
+  REGIONAL
+  CHAMPIONSHIP
+  TREASURE_CUP
+}
+
+model TournamentDeck {
+  id            Int        @id @default(autoincrement())
+  tournamentId  Int
+  deckId        Int?
+  leaderCardId  Int?
+  playerId      Int?
+  playerName    String
+  standing      Int?
+  wins          Int?
+  losses        Int?
+  draws         Int?
+  deckSourceUrl String?
+  archetypeName String?
+  sourceDeckRef String?    @unique
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  deck          Deck?      @relation(fields: [deckId], references: [id])
+  leaderCard    Card?      @relation("TournamentLeaderCard", fields: [leaderCardId], references: [id])
+  player        Player?    @relation(fields: [playerId], references: [id])
+
+  @@index([tournamentId])
+  @@index([deckId])
+  @@index([leaderCardId])
+  @@index([playerId])
+}
+
+model Player {
+  id                Int             @id @default(autoincrement())
+  name              String
+  playerUrl         String?
+  source            String
+  sourcePlayerId    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  tournamentDecks   TournamentDeck[]
+
+  @@unique([source, sourcePlayerId])
+  @@index([name])
 }
 
 model User {

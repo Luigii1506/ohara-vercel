@@ -9,7 +9,7 @@ import {
   Download,
   ChartColumnBigIcon,
 } from "lucide-react";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -23,7 +23,7 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import MobileDeckStats from "./MobileDeckStats";
 import CardWithBadges from "@/components/CardWithBadges";
 import CardPreviewDialog from "./CardPreviewDialog";
-import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
+import BaseDrawer from "@/components/ui/BaseDrawer";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -69,7 +69,6 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
   formatCurrency,
   getCardPriceValue,
 }) => {
-  const [isAnimating, setIsAnimating] = useState(false);
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -166,64 +165,9 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
     );
   };
 
-  const wasOpenRef = useRef(false);
-  useEffect(() => {
-    if (isOpen) {
-      setIsAnimating(true);
-      if (!wasOpenRef.current) {
-        lockBodyScroll();
-        wasOpenRef.current = true;
-      }
-    } else {
-      if (wasOpenRef.current) {
-        unlockBodyScroll();
-        wasOpenRef.current = false;
-      }
-    }
-  }, [isOpen]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (wasOpenRef.current) {
-        unlockBodyScroll();
-      }
-    };
-  }, []);
-
-  if (!isOpen && !isAnimating) return null;
-
-  const handleClose = () => {
-    setIsAnimating(false);
-    setTimeout(onClose, 300);
-  };
-
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
-          isAnimating ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={handleClose}
-      />
-
-      {/* Drawer */}
-      <div
-        className={`fixed inset-0 z-50 flex items-end ${
-          isAnimating ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
-        <div
-          className={`w-full max-h-[92vh] overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ease-out ${
-            isAnimating ? "translate-y-0" : "translate-y-full"
-          }`}
-        >
-          {/* Handle for mobile */}
-          <div className="flex justify-center py-3">
-            <div className="h-1.5 w-12 rounded-full bg-slate-300" />
-          </div>
-
+      <BaseDrawer isOpen={isOpen} onClose={onClose} maxHeight="92vh">
           {/* Header */}
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-4 pt-1">
             <div className="flex items-start justify-between gap-3">
@@ -613,8 +557,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
               </div>
             </div>
           )}
-        </div>
-      </div>
+      </BaseDrawer>
 
       {/* Large Image Modal - Leader */}
       {showLargeImage && deckBuilder.selectedLeader && (

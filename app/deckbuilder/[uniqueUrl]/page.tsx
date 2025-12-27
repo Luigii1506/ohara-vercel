@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import DeckStats from "@/components/deckbuilder/DeckStats";
 import { DeckCard } from "@/types";
+import { useUser } from "@/app/context/UserContext";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -47,6 +48,7 @@ const oswald = Oswald({
 const DeckBuilderUniqueUrl = () => {
   const { uniqueUrl } = useParams(); // URL único del deck original
   const router = useRouter();
+  const { userId, loading: userLoading } = useUser();
 
   const deckRef = useRef(null);
   const modalRef = useRef(null);
@@ -74,6 +76,7 @@ const DeckBuilderUniqueUrl = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [isOn, setIsOn] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
 
   const totalCards = deckCards.reduce(
     (total, card) => total + card.quantity,
@@ -809,11 +812,22 @@ const DeckBuilderUniqueUrl = () => {
 
   // Fetch del deck original mediante su uniqueUrl
   useEffect(() => {
+    if (userLoading) return;
+    if (!userId) {
+      router.push("/unauthorized");
+      return;
+    }
+
     const fetchDeck = async () => {
       try {
         const res = await fetch(`/api/decks/${uniqueUrl}`);
         if (!res.ok) throw new Error("Deck no encontrado");
         const data = await res.json();
+        const ownerId = data?.userId ?? data?.user?.id;
+        if (ownerId && Number(ownerId) !== Number(userId)) {
+          router.push("/unauthorized");
+          return;
+        }
         setDeckData(data);
         // Se asume que el deck original tiene exactamente 1 Leader
         const leaderEntry = data.deckCards.find(
@@ -841,11 +855,13 @@ const DeckBuilderUniqueUrl = () => {
         setIsDeckLoaded(true);
       } catch (error) {
         console.error(error);
+      } finally {
+        setAccessChecked(true);
       }
     };
 
     if (uniqueUrl) fetchDeck();
-  }, [uniqueUrl]);
+  }, [uniqueUrl, userId, userLoading, router]);
 
   useEffect(() => {
     if (!showLargeImage) {
@@ -856,6 +872,14 @@ const DeckBuilderUniqueUrl = () => {
       setIsTouchable(false);
     }
   }, [showLargeImage]);
+
+  if (!accessChecked && !isDeckLoaded) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[#f2eede]">
+        <div className="text-sm text-slate-500">Loading deck...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 bg-[#f2eede] w-full">

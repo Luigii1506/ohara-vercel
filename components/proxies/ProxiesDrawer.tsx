@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Layers, RotateCcw, Printer, Minus, Plus, Eye } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Oswald } from "next/font/google";
 import { DeckCard, CardWithCollectionData } from "@/types";
@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
-import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
+import BaseDrawer from "@/components/ui/BaseDrawer";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -37,7 +37,6 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
   onGeneratePDF,
   allCards = [],
 }) => {
-  const [isAnimating, setIsAnimating] = useState(false);
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [selectedCard, setSelectedCard] = useState<DeckCard | null>(null);
   const [selectedFullCard, setSelectedFullCard] =
@@ -102,64 +101,9 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
     setIsCardPreviewOpen(true);
   };
 
-  const wasOpenRef = useRef(false);
-  useEffect(() => {
-    if (isOpen) {
-      setIsAnimating(true);
-      if (!wasOpenRef.current) {
-        lockBodyScroll();
-        wasOpenRef.current = true;
-      }
-    } else {
-      if (wasOpenRef.current) {
-        unlockBodyScroll();
-        wasOpenRef.current = false;
-      }
-    }
-  }, [isOpen]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (wasOpenRef.current) {
-        unlockBodyScroll();
-      }
-    };
-  }, []);
-
-  if (!isOpen && !isAnimating) return null;
-
-  const handleClose = () => {
-    setIsAnimating(false);
-    setTimeout(onClose, 300);
-  };
-
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
-          isAnimating ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={handleClose}
-      />
-
-      {/* Drawer */}
-      <div
-        className={`fixed inset-0 z-50 flex items-end ${
-          isAnimating ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
-        <div
-          className={`w-full max-h-[92vh] overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ease-out ${
-            isAnimating ? "translate-y-0" : "translate-y-full"
-          }`}
-        >
-          {/* Handle for mobile */}
-          <div className="flex justify-center py-3">
-            <div className="h-1.5 w-12 rounded-full bg-slate-300" />
-          </div>
-
+      <BaseDrawer isOpen={isOpen} onClose={onClose} maxHeight="92vh">
           {/* Header */}
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-4 pt-1">
             <div className="flex items-start justify-between gap-3">
@@ -180,7 +124,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
                 </div>
               </div>
               <button
-                onClick={handleClose}
+                onClick={onClose}
                 className="flex-shrink-0 rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
               >
                 <X className="h-5 w-5" />
@@ -348,8 +292,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
               </Button>
             </div>
           </div>
-        </div>
-      </div>
+      </BaseDrawer>
 
       {/* Card Preview Drawer */}
       <ProxyCardPreviewDrawer

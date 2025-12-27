@@ -46,8 +46,17 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 }) => {
   const [shouldRender, setShouldRender] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 1024;
+    }
+    return true;
+  });
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wasOpenRef = useRef(false);
+  const dragStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -82,7 +91,15 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   // Cleanup on unmount if drawer was open
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobileViewport(window.innerWidth < 1024);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
     return () => {
+      window.removeEventListener("resize", handleResize);
       if (wasOpenRef.current) {
         unlockBodyScroll();
       }
@@ -93,6 +110,41 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
     if (preventClose) return;
     onClose();
   }, [preventClose, onClose]);
+
+  const handleDragStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (preventClose) return;
+      dragStartRef.current = event.clientY;
+      setIsDragging(true);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [preventClose]
+  );
+
+  const handleDragMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isDragging || dragStartRef.current === null) return;
+      const delta = event.clientY - dragStartRef.current;
+      setDragOffset(delta > 0 ? delta : 0);
+    },
+    [isDragging]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    if (!isDragging) return;
+    const shouldClose = dragOffset > 120;
+    setIsDragging(false);
+    dragStartRef.current = null;
+    setDragOffset(0);
+    if (shouldClose && !preventClose) {
+      onClose();
+    }
+  }, [dragOffset, isDragging, onClose, preventClose]);
+
+  const drawerTransform = isVisible
+    ? `translateY(${dragOffset}px)`
+    : "translateY(100%)";
+  const drawerStyle = isMobileViewport ? { transform: drawerTransform } : {};
 
   if (!shouldRender) return null;
 
@@ -106,25 +158,36 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
             isVisible ? "opacity-100" : "opacity-0"
           }`}
           onClick={handleBackdropClick}
+          onPointerDown={handleBackdropClick}
         />
 
         {/* Drawer / Modal */}
         <div
-          className={`fixed inset-0 z-50 flex items-end lg:items-center lg:justify-center ${
-            isVisible ? "pointer-events-auto" : "pointer-events-none"
-          }`}
+          className="fixed inset-0 z-50 flex items-end lg:items-center lg:justify-center pointer-events-none"
         >
           <div
-            className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ease-out lg:max-h-[85vh] lg:${desktopMaxWidth} lg:rounded-3xl ${
+            className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
+              isDragging ? "transition-none" : "transition-all duration-300"
+            } ease-out lg:max-h-[85vh] lg:${desktopMaxWidth} lg:rounded-3xl ${
               isVisible
                 ? "translate-y-0 lg:translate-y-0 lg:scale-100 lg:opacity-100"
                 : "translate-y-full lg:translate-y-0 lg:scale-95 lg:opacity-0"
-            }`}
-            style={{ maxHeight: `min(${maxHeight}, 90vh)` }}
+            } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
+            style={{
+              maxHeight: `min(${maxHeight}, 90vh)`,
+              ...drawerStyle,
+            }}
           >
             {/* Handle - mobile only */}
             {showHandle && (
-              <div className="flex justify-center py-3 lg:hidden">
+              <div
+                className="flex justify-center py-3 lg:hidden"
+                onPointerDown={handleDragStart}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                onPointerCancel={handleDragEnd}
+                style={{ touchAction: "none" }}
+              >
                 <div className="h-1.5 w-12 rounded-full bg-slate-300" />
               </div>
             )}
@@ -146,23 +209,31 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
           isVisible ? "opacity-100" : "opacity-0"
         }`}
         onClick={handleBackdropClick}
+        onPointerDown={handleBackdropClick}
       />
 
       {/* Drawer */}
       <div
-        className={`fixed inset-0 z-50 flex items-end ${
-          isVisible ? "pointer-events-auto" : "pointer-events-none"
-        }`}
+        className="fixed inset-0 z-50 flex items-end pointer-events-none"
       >
         <div
-          className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ease-out ${
+          className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
+            isDragging ? "transition-none" : "transition-all duration-300"
+          } ease-out ${
             isVisible ? "translate-y-0" : "translate-y-full"
-          }`}
-          style={{ maxHeight }}
+          } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
+          style={{ maxHeight, ...drawerStyle }}
         >
           {/* Handle for mobile */}
           {showHandle && (
-            <div className="flex justify-center py-3">
+            <div
+              className="flex justify-center py-3"
+              onPointerDown={handleDragStart}
+              onPointerMove={handleDragMove}
+              onPointerUp={handleDragEnd}
+              onPointerCancel={handleDragEnd}
+              style={{ touchAction: "none" }}
+            >
               <div className="h-1.5 w-12 rounded-full bg-slate-300" />
             </div>
           )}

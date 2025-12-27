@@ -59,7 +59,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50 });
   const [isHovering, setIsHovering] = useState(false);
-  const [isRulingsExpanded, setIsRulingsExpanded] = useState(false);
+  const [isRulingsExpanded, setIsRulingsExpanded] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleMove = useCallback((clientX: number, clientY: number) => {

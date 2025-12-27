@@ -20,6 +20,7 @@ import SearchFilters from "@/components/home/SearchFilters";
 import CardModal from "@/components/CardModal";
 import DonModal from "@/components/DonModal";
 import FiltersSidebar from "@/components/FiltersSidebar";
+import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
 
 // Componentes críticos - carga inmediata
 import StoreCard from "@/components/StoreCard";
@@ -975,50 +976,87 @@ const CardListClient = ({
           </div>
         </div>
 
-        <Transition show={isModalOpen} as={Fragment}>
-          <TransitionChild
-            as={Fragment}
-            enter="transition transform duration-300"
-            enterFrom="-translate-x-full"
-            enterTo="translate-x-0"
-            leave="transition transform duration-200"
-            leaveFrom="translate-x-0"
-            leaveTo="-translate-x-full"
-          >
-            <FiltersSidebar
-              isOpen={isModalOpen}
-              setIsOpen={setIsModalOpen}
-              search={search}
-              setSearch={setSearch}
-              selectedColors={selectedColors}
-              setSelectedColors={setSelectedColors}
-              selectedRarities={selectedRarities}
-              setSelectedRarities={setSelectedRarities}
-              selectedCategories={selectedCategories}
-              setSelectedCategories={setSelectedCategories}
-              selectedCounter={selectedCounter}
-              setSelectedCounter={setSelectedCounter}
-              selectedTrigger={selectedTrigger}
-              setSelectedTrigger={setSelectedTrigger}
-              selectedEffects={selectedEffects}
-              setSelectedEffects={setSelectedEffects}
-              selectedTypes={selectedTypes}
-              setSelectedTypes={setSelectedTypes}
-              selectedSets={selectedSets}
-              setSelectedSets={setSelectedSets}
-              selectedCosts={selectedCosts}
-              setSelectedCosts={setSelectedCosts}
-              selectedPower={selectedPower}
-              setSelectedPower={setSelectedPower}
-              selectedAttributes={selectedAttributes}
-              setSelectedAttributes={setSelectedAttributes}
-              selectedAltArts={selectedAltArts}
-              setSelectedAltArts={setSelectedAltArts}
-              selectedCodes={selectedCodes}
-              setSelectedCodes={setSelectedCodes}
-            />
-          </TransitionChild>
-        </Transition>
+        <div className="md:hidden">
+          <MobileFiltersDrawer
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            selectedColors={selectedColors}
+            setSelectedColors={setSelectedColors}
+            selectedRarities={selectedRarities}
+            setSelectedRarities={setSelectedRarities}
+            selectedCategories={selectedCategories}
+            setSelectedCategories={setSelectedCategories}
+            selectedCounter={selectedCounter}
+            setSelectedCounter={setSelectedCounter}
+            selectedTrigger={selectedTrigger}
+            setSelectedTrigger={setSelectedTrigger}
+            selectedEffects={selectedEffects}
+            setSelectedEffects={setSelectedEffects}
+            selectedTypes={selectedTypes}
+            setSelectedTypes={setSelectedTypes}
+            selectedSets={selectedSets}
+            setSelectedSets={setSelectedSets}
+            selectedCosts={selectedCosts}
+            setSelectedCosts={setSelectedCosts}
+            selectedPower={selectedPower}
+            setSelectedPower={setSelectedPower}
+            selectedAttributes={selectedAttributes}
+            setSelectedAttributes={setSelectedAttributes}
+            selectedAltArts={selectedAltArts}
+            setSelectedAltArts={setSelectedAltArts}
+            selectedCodes={selectedCodes}
+            setSelectedCodes={setSelectedCodes}
+            selectedRegion={selectedRegion}
+            setSelectedRegion={setSelectedRegion}
+          />
+        </div>
+
+        <div className="hidden md:block">
+          <Transition show={isModalOpen} as={Fragment}>
+            <TransitionChild
+              as={Fragment}
+              enter="transition transform duration-300"
+              enterFrom="-translate-x-full"
+              enterTo="translate-x-0"
+              leave="transition transform duration-200"
+              leaveFrom="translate-x-0"
+              leaveTo="-translate-x-full"
+            >
+              <FiltersSidebar
+                isOpen={isModalOpen}
+                setIsOpen={setIsModalOpen}
+                search={search}
+                setSearch={setSearch}
+                selectedColors={selectedColors}
+                setSelectedColors={setSelectedColors}
+                selectedRarities={selectedRarities}
+                setSelectedRarities={setSelectedRarities}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                selectedCounter={selectedCounter}
+                setSelectedCounter={setSelectedCounter}
+                selectedTrigger={selectedTrigger}
+                setSelectedTrigger={setSelectedTrigger}
+                selectedEffects={selectedEffects}
+                setSelectedEffects={setSelectedEffects}
+                selectedTypes={selectedTypes}
+                setSelectedTypes={setSelectedTypes}
+                selectedSets={selectedSets}
+                setSelectedSets={setSelectedSets}
+                selectedCosts={selectedCosts}
+                setSelectedCosts={setSelectedCosts}
+                selectedPower={selectedPower}
+                setSelectedPower={setSelectedPower}
+                selectedAttributes={selectedAttributes}
+                setSelectedAttributes={setSelectedAttributes}
+                selectedAltArts={selectedAltArts}
+                setSelectedAltArts={setSelectedAltArts}
+                selectedCodes={selectedCodes}
+                setSelectedCodes={setSelectedCodes}
+              />
+            </TransitionChild>
+          </Transition>
+        </div>
       </div>
 
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">

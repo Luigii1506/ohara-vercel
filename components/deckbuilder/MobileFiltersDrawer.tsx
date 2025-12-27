@@ -29,6 +29,7 @@ import {
   atributeOptions,
   altArtOptions,
   setCodesOptions,
+  allRegions,
 } from "@/helpers/constants";
 
 interface FilterOption {
@@ -75,6 +76,8 @@ interface MobileFiltersDrawerProps {
   setSelectedAltArts: (altArts: string[]) => void;
   selectedCodes: string[];
   setSelectedCodes: (codes: string[]) => void;
+  selectedRegion?: string;
+  setSelectedRegion?: (region: string) => void;
   disabledColors?: string[];
   disabledTypes?: string[];
 }
@@ -108,6 +111,8 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   setSelectedAltArts,
   selectedCodes,
   setSelectedCodes,
+  selectedRegion,
+  setSelectedRegion,
   disabledColors = [],
   disabledTypes = [],
 }) => {
@@ -222,6 +227,15 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       isMulti: true,
     },
   ];
+  if (setSelectedRegion) {
+    filters.push({
+      id: "region",
+      label: "Region",
+      options: allRegions,
+      isMulti: false,
+      isSearchable: true,
+    });
+  }
 
   const getSelectedValues = (filterId: string): string[] => {
     switch (filterId) {
@@ -251,6 +265,8 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
         return selectedAltArts;
       case "codes":
         return selectedCodes;
+      case "region":
+        return selectedRegion ? [selectedRegion] : [];
       default:
         return [];
     }
@@ -312,6 +328,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
         case "trigger":
           setSelectedTrigger(newValue);
           break;
+        case "region":
+          setSelectedRegion?.(newValue);
+          break;
       }
     }
   };
@@ -357,6 +376,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       case "codes":
         setSelectedCodes([]);
         break;
+      case "region":
+        setSelectedRegion?.("");
+        break;
     }
   };
 
@@ -385,6 +407,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     setSelectedAttributes([]);
     setSelectedAltArts([]);
     setSelectedCodes([]);
+    setSelectedRegion?.("");
   };
 
   const hasActiveFilters =
@@ -400,7 +423,8 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     selectedPower.length > 0 ||
     selectedAttributes.length > 0 ||
     selectedAltArts.length > 0 ||
-    selectedCodes.length > 0;
+    selectedCodes.length > 0 ||
+    (selectedRegion ?? "") !== "";
 
   const totalActiveFilters =
     selectedColors.length +
@@ -415,7 +439,8 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     selectedPower.length +
     selectedAttributes.length +
     selectedAltArts.length +
-    selectedCodes.length;
+    selectedCodes.length +
+    ((selectedRegion ?? "") !== "" ? 1 : 0);
 
   const activeFilterConfig = filters.find((f) => f.id === activeFilter);
 

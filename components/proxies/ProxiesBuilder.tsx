@@ -132,8 +132,8 @@ const ProxiesBuilder = ({
           ? selectedTrigger
           : undefined,
       sortBy,
-      // When sorting by price and showOnlyBaseCards is active, filter on server
-      baseOnly: sortBy && showOnlyBaseCards ? true : undefined,
+      // When showOnlyBaseCards is active, filter bases on server
+      baseOnly: showOnlyBaseCards ? true : undefined,
     };
   }, [
     search,

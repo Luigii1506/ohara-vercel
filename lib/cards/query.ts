@@ -157,7 +157,9 @@ const buildWhere = (
 ): Prisma.CardWhereInput => {
   const where: Prisma.CardWhereInput = {
     // Solo filtrar por baseCardId: null si NO incluimos alternativas
+    // o si el caller solicita solo cartas base.
     ...(includeAlternates ? {} : { baseCardId: null }),
+    ...(filters.baseOnly ? { baseCardId: null } : {}),
     AND: [],
   };
 

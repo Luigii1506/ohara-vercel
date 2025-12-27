@@ -8,6 +8,7 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { getColors } from "@/helpers/functions";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardDetails from "@/components/CardDetails";
+import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -27,6 +28,10 @@ const formatCurrency = (value: number, currency?: string | null) =>
     currency: currency || "USD",
     minimumFractionDigits: 2,
   }).format(value);
+
+const openTcgplayer = (webUrl: string) => {
+  window.open(webUrl, "_blank", "noopener,noreferrer");
+};
 
 interface CardPreviewDialogProps {
   isOpen: boolean;
@@ -57,27 +62,24 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   const [isRulingsExpanded, setIsRulingsExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleMove = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!cardRef.current) return;
+  const handleMove = useCallback((clientX: number, clientY: number) => {
+    if (!cardRef.current) return;
 
-      const rect = cardRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
+    const rect = cardRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
 
-      // Calculate tilt based on cursor position relative to center
-      const tiltX = ((clientY - centerY) / (rect.height / 2)) * -15;
-      const tiltY = ((clientX - centerX) / (rect.width / 2)) * 15;
+    // Calculate tilt based on cursor position relative to center
+    const tiltX = ((clientY - centerY) / (rect.height / 2)) * -15;
+    const tiltY = ((clientX - centerX) / (rect.width / 2)) * 15;
 
-      // Calculate glare position (0-100%)
-      const glareX = ((clientX - rect.left) / rect.width) * 100;
-      const glareY = ((clientY - rect.top) / rect.height) * 100;
+    // Calculate glare position (0-100%)
+    const glareX = ((clientX - rect.left) / rect.width) * 100;
+    const glareY = ((clientY - rect.top) / rect.height) * 100;
 
-      setTilt({ x: tiltX, y: tiltY });
-      setGlarePosition({ x: glareX, y: glareY });
-    },
-    []
-  );
+    setTilt({ x: tiltX, y: tiltY });
+    setGlarePosition({ x: glareX, y: glareY });
+  }, []);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -119,6 +121,16 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   if (!altCard || !infoCard) return null;
 
   const priceValue = getNumericPrice(altCard.marketPrice);
+  const tcgUrl =
+    altCard?.tcgUrl && altCard.tcgUrl !== ""
+      ? altCard.tcgUrl
+      : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
+          infoCard.name
+        )}&Rarity=${encodeURIComponent(
+          infoCard.rarity ?? ""
+        )}&Color=${encodeURIComponent(
+          infoCard.colors?.[0].color ?? ""
+        )}&CardType=${encodeURIComponent(infoCard.category ?? "")}`;
 
   // Get colors for gradient (from base card)
   const colors = infoCard.colors || [];
@@ -173,7 +185,10 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         {/* Scrollable Content */}
         <div
           className="overflow-y-auto flex-1 pb-4"
-          style={{ maxHeight: "calc(92vh - 100px)", WebkitOverflowScrolling: "touch" }}
+          style={{
+            maxHeight: "calc(92vh - 100px)",
+            WebkitOverflowScrolling: "touch",
+          }}
         >
           {/* Card Image with 3D Tilt Effect */}
           <div className="p-4 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
@@ -204,7 +219,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     transformStyle: "preserve-3d",
                   }}
                 >
-                {/* Color Border */}
+                  {/* Color Border */}
                   <div
                     className="rounded-2xl p-1.5"
                     style={{
@@ -232,50 +247,50 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                       transition: "box-shadow 0.3s ease",
                     }}
                   >
-                  {/* Card Image Container */}
+                    {/* Card Image Container */}
                     <div className="relative w-52 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden bg-white">
                       {/* Image from alternate card */}
                       <img
-                      src={getOptimizedImageUrl(altCard.src, "medium")}
-                      alt={infoCard.name}
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
+                        src={getOptimizedImageUrl(altCard.src, "medium")}
+                        alt={infoCard.name}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
 
-                    {/* Quantity Badge - Top Right */}
-                    {currentQuantity > 0 && (
-                      <div className="absolute top-0 right-0 bg-black text-white rounded-tr-xl rounded-bl-lg min-w-[28px] h-[28px] flex items-center justify-center text-sm font-bold border-2 border-white shadow-lg z-20">
-                        x{currentQuantity}
-                      </div>
-                    )}
+                      {/* Quantity Badge - Top Right */}
+                      {currentQuantity > 0 && (
+                        <div className="absolute top-0 right-0 bg-black text-white rounded-tr-xl rounded-bl-lg min-w-[28px] h-[28px] flex items-center justify-center text-sm font-bold border-2 border-white shadow-lg z-20">
+                          x{currentQuantity}
+                        </div>
+                      )}
 
-                    {/* Price Badge - Bottom Left */}
-                    {priceValue && (
-                      <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-xl px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-20">
-                        {formatCurrency(priceValue, altCard.priceCurrency)}
-                      </div>
-                    )}
+                      {/* Price Badge - Bottom Left */}
+                      {priceValue && (
+                        <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-xl px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-20">
+                          {formatCurrency(priceValue, altCard.priceCurrency)}
+                        </div>
+                      )}
 
-                    {/* Glare/Shine Effect */}
-                    <div
-                      className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-10"
-                      style={{
-                        opacity: isHovering ? 0.6 : 0,
-                        background: `radial-gradient(
+                      {/* Glare/Shine Effect */}
+                      <div
+                        className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-10"
+                        style={{
+                          opacity: isHovering ? 0.6 : 0,
+                          background: `radial-gradient(
                           circle at ${glarePosition.x}% ${glarePosition.y}%,
                           rgba(255, 255, 255, 0.8) 0%,
                           rgba(255, 255, 255, 0.4) 20%,
                           transparent 60%
                         )`,
-                      }}
-                    />
+                        }}
+                      />
 
-                    {/* Holographic Rainbow Effect */}
-                    <div
-                      className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-color-dodge z-10"
-                      style={{
-                        opacity: isHovering ? 0.15 : 0,
-                        background: `linear-gradient(
+                      {/* Holographic Rainbow Effect */}
+                      <div
+                        className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-color-dodge z-10"
+                        style={{
+                          opacity: isHovering ? 0.15 : 0,
+                          background: `linear-gradient(
                           ${45 + tilt.y * 2}deg,
                           rgba(255, 0, 0, 0.5) 0%,
                           rgba(255, 154, 0, 0.5) 10%,
@@ -289,12 +304,12 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                           rgba(251, 7, 217, 0.5) 90%,
                           rgba(255, 0, 0, 0.5) 100%
                         )`,
-                      }}
-                    />
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Zoom Hint */}
+                  {/* Zoom Hint */}
                   <div
                     className={`absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-opacity duration-200 ${
                       isHovering ? "opacity-100" : "opacity-0"
@@ -306,6 +321,20 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="flex justify-center px-4 mt-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openTcgplayer(tcgUrl);
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-sm hover:bg-blue-500 transition-colors px-4 py-2"
+            >
+              <TcgplayerLogo className="h-5 w-12 text-white" />
+              <span>View on TCGplayer</span>
+            </button>
           </div>
 
           {/* Card Info Section - Using base card for effect/texts */}
@@ -417,7 +446,10 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 </span>
                 {altCard.sets && altCard.sets.length > 0 && (
                   <p className="text-white/70 text-sm mt-1">
-                    {(altCard.sets[0] as { set?: { title?: string } })?.set?.title}
+                    {
+                      (altCard.sets[0] as { set?: { title?: string } })?.set
+                        ?.title
+                    }
                   </p>
                 )}
               </div>

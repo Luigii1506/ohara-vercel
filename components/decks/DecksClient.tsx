@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Plus, ChartColumnBigIcon } from "lucide-react";
+import { Plus, ChartColumnBigIcon, FilterX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showErrorToast } from "@/lib/toastify";
 import { Deck, GroupedDecks } from "@/types";
 import DeckCard from "./DeckCard";
 import DeckDetailDrawer from "./DeckDetailDrawer";
 import DeckDetailPanel from "./DeckDetailPanel";
+import DropdownSearch from "@/components/DropdownSearch";
+import { allColors } from "@/helpers/constants";
+import { getColors } from "@/helpers/functions";
 
 const DecksClient = () => {
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -18,6 +21,13 @@ const DecksClient = () => {
   const [hasFetched, setHasFetched] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedLeaderColors, setSelectedLeaderColors] = useState<string[]>(
+    []
+  );
+  const [publishFilter, setPublishFilter] = useState<
+    "all" | "published" | "draft"
+  >("all");
 
   const { data: session, status: sessionStatus } = useSession();
   const userId = session?.user?.id;
@@ -27,10 +37,52 @@ const DecksClient = () => {
   const isPublicShopView = currentPath.startsWith("/shop");
   const isShopView = isAdminShopView || isPublicShopView;
 
-  // Group decks by leader
-  const groupedDecks = decks.reduce((acc, deck) => {
+  const getLeaderColors = (deck: Deck) => {
     const leaderCard = deck.deckCards.find(
-      (dc) => dc.card?.category === "Leader"
+      (dc) => (dc.card?.category ?? "").toLowerCase() === "leader"
+    );
+    const rawColors = leaderCard?.card?.colors ?? [];
+    const normalized = rawColors
+      .map((c) => c.color?.toLowerCase().trim())
+      .filter(Boolean);
+    return normalized.length > 0 ? normalized : [];
+  };
+
+  const filteredDecks = decks.filter((deck) => {
+    const query = search.trim().toLowerCase();
+    const leaderCard = deck.deckCards.find(
+      (dc) => (dc.card?.category ?? "").toLowerCase() === "leader"
+    );
+    const leaderName = leaderCard?.card?.name?.toLowerCase() ?? "";
+    const leaderCode = leaderCard?.card?.code?.toLowerCase() ?? "";
+    const deckName = deck.name?.toLowerCase() ?? "";
+    const deckSlug = deck.shopSlug?.toLowerCase() ?? "";
+
+    const matchesSearch =
+      query.length === 0 ||
+      deckName.includes(query) ||
+      leaderName.includes(query) ||
+      leaderCode.includes(query) ||
+      deckSlug.includes(query);
+
+    const leaderColors = getLeaderColors(deck);
+    const matchesColors =
+      selectedLeaderColors.length === 0 ||
+      leaderColors.some((color) => selectedLeaderColors.includes(color));
+
+    const matchesPublish =
+      !isAdminShopView ||
+      publishFilter === "all" ||
+      (publishFilter === "published" && deck.isPublished) ||
+      (publishFilter === "draft" && !deck.isPublished);
+
+    return matchesSearch && matchesColors && matchesPublish;
+  });
+
+  // Group decks by leader
+  const groupedDecks = filteredDecks.reduce((acc, deck) => {
+    const leaderCard = deck.deckCards.find(
+      (dc) => (dc.card?.category ?? "").toLowerCase() === "leader"
     );
     if (leaderCard?.card) {
       const leaderCode = leaderCard.card.code;
@@ -119,6 +171,13 @@ const DecksClient = () => {
     : isPublicShopView
     ? "shop"
     : "user";
+
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    selectedLeaderColors.length > 0 ||
+    (isAdminShopView && publishFilter !== "all");
+  const listPaddingClass =
+    filteredDecks.length > 3 ? "pb-20 lg:pb-4" : "pb-6 lg:pb-4";
 
   // Loading state - Skeleton matching page structure
   // Show skeleton while: fetching decks, session is loading, or haven't fetched yet
@@ -245,51 +304,137 @@ const DecksClient = () => {
   }
 
   return (
-    <div className="flex min-h-screen w-full min-w-0 flex-col bg-[#f2eede] lg:flex-row">
+    <div className="flex min-h-[calc(100dvh-70px)] w-full min-w-0 flex-col bg-white lg:bg-[#f2eede] lg:flex-row">
       {/* Sidebar - Deck List */}
-      <div className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
+      <div className="flex w-full min-h-0 flex-col border-slate-200 bg-white lg:h-screen lg:min-h-0 lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">
-                {isAdminShopView
-                  ? "Gestionar Decks"
-                  : isPublicShopView
-                  ? "Tienda de Decks"
-                  : "Mis Decks"}
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-500">
-                {decks.length} deck{decks.length !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <Button asChild size="sm" className="rounded-xl">
-              <Link
-                href={isAdminShopView ? "/admin/create-decks" : "/deckbuilder"}
-              >
-                <Plus className="mr-1.5 h-4 w-4" />
-                <span className="hidden sm:inline lg:hidden xl:inline">
-                  Nuevo
+          <div className="flex flex-col gap-3">
+            {/* <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-slate-900">
+                  {isAdminShopView
+                    ? "Gestionar Decks"
+                    : isPublicShopView
+                    ? "Tienda de Decks"
+                    : "Mis Decks"}
+                </h1>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  {filteredDecks.length} deck
+                  {filteredDecks.length !== 1 ? "s" : ""}
+                  {hasActiveFilters && (
+                    <span className="text-slate-400"> of {decks.length}</span>
+                  )}
+                </p>
+              </div>
+            </div> */}
+
+            <div className="flex flex-col gap-4">
+              <DropdownSearch
+                search={search}
+                setSearch={setSearch}
+                placeholder="Search decks or leaders..."
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">
+                  Leader colors
                 </span>
-              </Link>
-            </Button>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setSelectedLeaderColors([]);
+                      setPublishFilter("all");
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
+                  >
+                    <FilterX className="h-3.5 w-3.5" />
+                    Clear filters
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {allColors.map((color) => {
+                  const isActive = selectedLeaderColors.includes(color);
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        setSelectedLeaderColors((prev) =>
+                          isActive
+                            ? prev.filter((c) => c !== color)
+                            : [...prev, color]
+                        );
+                      }}
+                      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                        isActive
+                          ? "border-slate-900 text-slate-900"
+                          : "border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: getColors(color) }}
+                      />
+                      <span className="capitalize">{color}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {isAdminShopView && (
+                <div className="flex items-center gap-2">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "published", label: "Published" },
+                    { value: "draft", label: "Draft" },
+                  ].map((option) => {
+                    const isActive = publishFilter === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setPublishFilter(option.value as typeof publishFilter)
+                        }
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                          isActive
+                            ? "bg-slate-900 text-white"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Deck List - Scrollable */}
         <div className="flex-1 overflow-y-auto p-3 lg:p-4">
-          <div className="space-y-3 pb-20 lg:pb-4">
-            {Object.entries(groupedDecks).map(
-              ([leaderCode, { leaderCard, decks: leaderDecks }]) => (
-                <DeckCard
-                  key={leaderCode}
-                  leaderCode={leaderCode}
-                  leaderCard={leaderCard}
-                  decks={leaderDecks}
-                  selectedDeckUrl={selectedDeck?.uniqueUrl || null}
-                  onSelectDeck={handleSelectDeck}
-                  mode={mode}
-                />
+          <div className={`space-y-3 ${listPaddingClass}`}>
+            {filteredDecks.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                No decks match your filters.
+              </div>
+            ) : (
+              Object.entries(groupedDecks).map(
+                ([leaderCode, { leaderCard, decks: leaderDecks }]) => (
+                  <DeckCard
+                    key={leaderCode}
+                    leaderCode={leaderCode}
+                    leaderCard={leaderCard}
+                    decks={leaderDecks}
+                    selectedDeckUrl={selectedDeck?.uniqueUrl || null}
+                    onSelectDeck={handleSelectDeck}
+                    mode={mode}
+                  />
+                )
               )
             )}
           </div>

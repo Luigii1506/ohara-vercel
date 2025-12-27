@@ -166,6 +166,9 @@ const buildQueryString = (
   if (filters.baseOnly) {
     searchParams.set("baseOnly", "true");
   }
+  if (filters.baseOnly) {
+    searchParams.set("baseOnly", "true");
+  }
 
   if ("limit" in params) {
     searchParams.set("includeRelations", "true");

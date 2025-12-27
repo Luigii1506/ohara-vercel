@@ -243,9 +243,7 @@ const NavBar = () => {
   ];
 
   const privateDesktopMenuItems = [
-    { href: "/lists", label: "My Lists", icon: FolderOpen },
     { href: "/decks", label: "My decks", icon: FolderOpen },
-    { href: "/logs", label: "Game Logs", icon: FileText },
   ];
 
   const publicMobileMenuItems = [
@@ -257,9 +255,7 @@ const NavBar = () => {
   ];
 
   const privateMobileMenuItems = [
-    { href: "/lists", label: "My Lists", icon: FolderOpen },
     { href: "/decks", label: "My decks", icon: FolderOpen },
-    { href: "/logs", label: "Game Logs", icon: FileText },
   ];
 
   const showPrivateMenus = Boolean(userId);

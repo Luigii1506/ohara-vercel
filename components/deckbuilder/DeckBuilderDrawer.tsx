@@ -241,7 +241,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                 </div>
               </div>
               <button
-                onClick={handleClose}
+                onClick={onClose}
                 className="flex-shrink-0 rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
               >
                 <X className="h-5 w-5" />

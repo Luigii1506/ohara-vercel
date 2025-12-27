@@ -196,36 +196,16 @@ const ProxyCardPreviewDrawer: React.FC<ProxyCardPreviewDrawerProps> = ({
                     transformStyle: "preserve-3d",
                   }}
                 >
-                  {/* Color Border */}
+                  {/* Card Image Container - Sin borde, solo sombra */}
                   <div
-                    className="rounded-2xl p-1.5"
+                    className="relative w-52 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden"
                     style={{
-                      background:
-                        colors.length === 2
-                          ? `linear-gradient(135deg, ${getColors(
-                              colors[0].color
-                            )} 0%, ${getColors(colors[1].color)} 100%)`
-                          : colors.length > 0
-                          ? getColors(colors[0].color)
-                          : "#e2e8f0",
                       boxShadow: isHovering
-                        ? `0 25px 50px -12px rgba(0, 0, 0, 0.4),
-                           0 0 30px ${
-                             colors.length > 0
-                               ? getColors(colors[0].color) + "40"
-                               : "rgba(148, 163, 184, 0.4)"
-                           }`
-                        : `0 20px 40px -10px rgba(0, 0, 0, 0.25),
-                           0 0 20px ${
-                             colors.length > 0
-                               ? getColors(colors[0].color) + "30"
-                               : "rgba(148, 163, 184, 0.3)"
-                           }`,
+                        ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
+                        : "0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -8px rgba(0, 0, 0, 0.2)",
                       transition: "box-shadow 0.3s ease",
                     }}
                   >
-                    {/* Card Image Container */}
-                    <div className="relative w-52 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden bg-white">
                       <img
                         src={getOptimizedImageUrl(card.src, "medium")}
                         alt={card.name}
@@ -269,7 +249,6 @@ const ProxyCardPreviewDrawer: React.FC<ProxyCardPreviewDrawerProps> = ({
                         }}
                       />
                     </div>
-                  </div>
 
                   {/* Zoom Hint */}
                   <div

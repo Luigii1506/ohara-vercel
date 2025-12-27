@@ -12,6 +12,7 @@ import {
 } from "chart.js";
 
 import { DeckCard } from "@/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 // Registro de Chart.js
 ChartJS.register(
@@ -35,6 +36,7 @@ function parseNumberFromString(str: string | null): number {
 }
 
 const DeckStats: React.FC<DeckStatsProps> = ({ deck }) => {
+  const { t } = useI18n();
   // Inicializamos los acumuladores para cada estadística
   const powerCurve: Record<number, number> = {};
   const costCurve: Record<number, number> = {};
@@ -105,7 +107,9 @@ const DeckStats: React.FC<DeckStatsProps> = ({ deck }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Power Curve */}
         <div className="bg-white shadow rounded p-4">
-          <h2 className="text-lg font-semibold mb-2">Power Curve</h2>
+          <h2 className="text-lg font-semibold mb-2">
+            {t("deckStats.powerCurve")}
+          </h2>
           <Bar
             data={{
               labels: powerLabels,
@@ -122,7 +126,9 @@ const DeckStats: React.FC<DeckStatsProps> = ({ deck }) => {
 
         {/* Cost Curve */}
         <div className="bg-white shadow rounded p-4">
-          <h2 className="text-lg font-semibold mb-2">Cost Curve</h2>
+          <h2 className="text-lg font-semibold mb-2">
+            {t("deckStats.costCurve")}
+          </h2>
           <Bar
             data={{
               labels: costLabels,
@@ -139,7 +145,9 @@ const DeckStats: React.FC<DeckStatsProps> = ({ deck }) => {
 
         {/* Attribute Curve */}
         <div className="bg-white shadow rounded p-4">
-          <h2 className="text-lg font-semibold mb-2">Attribute Curve</h2>
+          <h2 className="text-lg font-semibold mb-2">
+            {t("deckStats.attributeCurve")}
+          </h2>
           <Bar
             data={{
               labels: attributeLabels,
@@ -156,7 +164,9 @@ const DeckStats: React.FC<DeckStatsProps> = ({ deck }) => {
 
         {/* Counter Curve */}
         <div className="bg-white shadow rounded p-4">
-          <h2 className="text-lg font-semibold mb-2">Counter Curve</h2>
+          <h2 className="text-lg font-semibold mb-2">
+            {t("deckStats.counterCurve")}
+          </h2>
           <Bar
             data={{
               labels: counterLabels,

@@ -11,6 +11,8 @@ import { useUser } from "@/app/context/UserContext";
 import { lockBodyScroll, unlockBodyScroll } from "@/components/ui/BaseDrawer";
 
 import { Button } from "@/components/ui/button";
+import BaseDrawer from "@/components/ui/BaseDrawer";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import {
   LogOutIcon,
   UserIcon,
@@ -32,6 +34,7 @@ import {
   Calendar,
   RefreshCw,
   Trophy,
+  Globe,
 } from "lucide-react";
 import {
   siInstagram,
@@ -49,10 +52,12 @@ const NavBar = () => {
       .filter((segment) => segment !== "") || [];
 
   const { userId, role, loading } = useUser();
+  const { t, lang, setLang, languages } = useI18n();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLanguageDrawerOpen, setIsLanguageDrawerOpen] = useState(false);
   const adminMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const previousPathRef = useRef(pathname);
@@ -235,27 +240,27 @@ const NavBar = () => {
   ];
 
   const publicDesktopMenuItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
-    { href: "/events", label: "Events", icon: Calendar },
+    { href: "/", label: t("nav.home"), icon: Home },
+    { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers },
+    { href: "/events", label: t("nav.events"), icon: Calendar },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
     //{ href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
   const privateDesktopMenuItems = [
-    { href: "/decks", label: "My decks", icon: FolderOpen },
+    { href: "/decks", label: t("nav.decks"), icon: FolderOpen },
   ];
 
   const publicMobileMenuItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/deckbuilder", label: "Deckbuilder", icon: Layers },
-    { href: "/events", label: "Events", icon: Calendar },
-    { href: "/tournaments", label: "Tournaments", icon: Trophy },
+    { href: "/", label: t("nav.home"), icon: Home },
+    { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers },
+    { href: "/events", label: t("nav.events"), icon: Calendar },
+    { href: "/tournaments", label: t("nav.tournaments"), icon: Trophy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 
   const privateMobileMenuItems = [
-    { href: "/decks", label: "My decks", icon: FolderOpen },
+    { href: "/decks", label: t("nav.decks"), icon: FolderOpen },
   ];
 
   const showPrivateMenus = Boolean(userId);
@@ -328,7 +333,7 @@ const NavBar = () => {
         className="h-10 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center gap-2"
       >
         <UserIcon size={18} />
-        <span>Sign In</span>
+        <span>{t("auth.signIn")}</span>
       </Button>
     );
   };
@@ -348,7 +353,7 @@ const NavBar = () => {
           onClick={() => signOut({ callbackUrl: "/?from=logout" })}
         >
           <LogOutIcon size={18} className="text-white" />
-          <span className="text-white">Sign Out</span>
+          <span className="text-white">{t("auth.signOut")}</span>
         </Button>
       );
     }
@@ -363,7 +368,7 @@ const NavBar = () => {
         className="w-full h-11 bg-transparent border border-white hover:bg-white hover:text-black transition-all duration-300 rounded-md flex items-center justify-center gap-2"
       >
         <UserIcon size={18} className="text-white" />
-        <span className="text-white">Sign In</span>
+        <span className="text-white">{t("auth.signIn")}</span>
       </Button>
     );
   };
@@ -456,7 +461,7 @@ const NavBar = () => {
                           }`}
                         >
                           <Shield size={16} className="text-red-400" />
-                          <span className="font-medium">Admin</span>
+                          <span className="font-medium">{t("nav.admin")}</span>
                           <ChevronDown
                             size={14}
                             className={`transition-transform duration-200 ${
@@ -469,7 +474,7 @@ const NavBar = () => {
                           <div className="absolute top-full mt-2 right-0 w-[600px] max-w-[90vw] bg-gray-900 border border-gray-800 rounded-lg shadow-xl overflow-hidden z-50">
                             <div className="p-3 border-b border-gray-800 bg-gray-900/50">
                               <p className="text-xs text-white font-semibold px-2">
-                                ADMIN TOOLS
+                                {t("nav.adminTools")}
                               </p>
                             </div>
                             <div className="p-3 grid grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto">
@@ -531,7 +536,7 @@ const NavBar = () => {
                                 onClick={() => setIsAdminMenuOpen(false)}
                                 className="flex items-center justify-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-all duration-200"
                               >
-                                View all admin options →
+                                {t("nav.viewAllAdmin")} →
                               </Link>
                             </div>
                           </div>
@@ -561,24 +566,43 @@ const NavBar = () => {
                   </Link>
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={() => setIsLanguageDrawerOpen(true)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+                aria-label="Language"
+              >
+                <Globe size={16} />
+                <span className="uppercase">{lang}</span>
+              </button>
               {renderDesktopAuth()}
             </div>
 
             {/* Botón de menú móvil */}
-            <button
-              className="mobile-menu-button md:hidden p-2 rounded-md hover:bg-white/10 transition-colors relative z-50 ml-auto"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMobileMenuOpen(!isMobileMenuOpen);
-              }}
-              aria-label="Toggle mobile menu"
-            >
-              {isMobileMenuOpen ? (
-                <X size={24} className="text-white" />
-              ) : (
-                <Menu size={24} className="text-white" />
-              )}
-            </button>
+            <div className="md:hidden flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={() => setIsLanguageDrawerOpen(true)}
+                className="p-2 rounded-md hover:bg-white/10 transition-colors"
+                aria-label="Language"
+              >
+                <Globe size={20} className="text-white" />
+              </button>
+              <button
+                className="mobile-menu-button p-2 rounded-md hover:bg-white/10 transition-colors relative z-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileMenuOpen(!isMobileMenuOpen);
+                }}
+                aria-label="Toggle mobile menu"
+              >
+                {isMobileMenuOpen ? (
+                  <X size={24} className="text-white" />
+                ) : (
+                  <Menu size={24} className="text-white" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -734,7 +758,7 @@ const NavBar = () => {
             {/* Redes sociales mobile */}
             <div className="mt-8">
               <p className="text-xs text-gray-400 font-medium px-1 mb-3">
-                FOLLOW US
+                {t("nav.followUs")}
               </p>
               <div className="flex flex-wrap gap-3">
                 {socialLinks.map(({ href, label, iconPath }) => (
@@ -759,6 +783,49 @@ const NavBar = () => {
           </div>
         </div>
       </div>
+
+      <BaseDrawer
+        isOpen={isLanguageDrawerOpen}
+        onClose={() => setIsLanguageDrawerOpen(false)}
+        maxHeight="60vh"
+      >
+        <div className="px-5 pb-4 flex flex-col">
+          <h3 className="text-lg font-semibold text-slate-900">
+            {t("language.title")}
+          </h3>
+          <p className="text-sm text-slate-500">{t("language.subtitle")}</p>
+        </div>
+        <div className="px-3 pb-6 space-y-1">
+          {languages.map((option) => {
+            const isActive = option.code === lang;
+            return (
+              <button
+                key={option.code}
+                type="button"
+                onClick={() => {
+                  setLang(option.code);
+                  setIsLanguageDrawerOpen(false);
+                }}
+                className={`w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-200 active:scale-[0.98] ${
+                  isActive
+                    ? "bg-blue-50 border-2 border-blue-500"
+                    : "bg-slate-50 border-2 border-transparent hover:bg-slate-100"
+                }`}
+              >
+                <span className="font-semibold text-slate-900">
+                  {option.label}
+                </span>
+                {isActive && (
+                  <span className="text-xs font-semibold text-blue-600 uppercase">
+                    {option.code}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="h-[env(safe-area-inset-bottom)]" />
+      </BaseDrawer>
     </>
   );
 };

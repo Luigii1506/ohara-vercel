@@ -8,12 +8,14 @@ import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import { serializeFiltersForKey } from "@/hooks/useCards";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface DeckBuilderProps {
   initialData?: CardsPage;
 }
 
 const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
+  const { t } = useI18n();
   const router = useRouter();
   const { data: session } = useSession();
   const deckBuilder = useDeckBuilder();
@@ -95,7 +97,9 @@ const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
     ];
 
     const baseName =
-      deckName.trim() || deckBuilder.selectedLeader?.name || "Mi Deck";
+      deckName.trim() ||
+      deckBuilder.selectedLeader?.name ||
+      t("deckbuilder.defaultDeckName");
 
     deckBuilder.setIsSaving(true);
     try {

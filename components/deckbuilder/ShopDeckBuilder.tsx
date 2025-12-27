@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useUser } from "@/app/context/UserContext";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const slugify = (value: string) =>
   value
@@ -20,6 +21,7 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "");
 
 const ShopDeckBuilder = () => {
+  const { t } = useI18n();
   const router = useRouter();
   const deckBuilder = useDeckBuilder();
   const { data: session } = useSession();
@@ -130,17 +132,17 @@ const ShopDeckBuilder = () => {
   const handleSave = async () => {
     if (deckBuilder.isSaving) return;
     if (!deckBuilder.selectedLeader) {
-      showErrorToast("Selecciona un líder para el deck.");
+      showErrorToast(t("deckbuilder.shopSelectLeader"));
       return;
     }
     if (totalCards !== 50) {
-      showErrorToast("El deck debe tener 50 cartas (sin contar el líder).");
+      showErrorToast(t("deckbuilder.shopNeedFifty"));
       return;
     }
 
     const normalizedSlug = slugify(shopSlug);
     if (!normalizedSlug) {
-      showErrorToast("Define un slug válido para la tienda.");
+      showErrorToast(t("deckbuilder.shopSlugInvalid"));
       return;
     }
 
@@ -149,7 +151,7 @@ const ShopDeckBuilder = () => {
       // Validación sencilla para URL
       new URL(urlToSave);
     } catch {
-      showErrorToast("Ingresa una URL de tienda válida (https://...).");
+      showErrorToast(t("deckbuilder.shopUrlInvalid"));
       return;
     }
 
@@ -162,7 +164,9 @@ const ShopDeckBuilder = () => {
     ];
 
     const baseName =
-      deckName.trim() || deckBuilder.selectedLeader?.name || "Mi Deck";
+      deckName.trim() ||
+      deckBuilder.selectedLeader?.name ||
+      t("deckbuilder.defaultDeckName");
 
     deckBuilder.setIsSaving(true);
     try {
@@ -182,11 +186,11 @@ const ShopDeckBuilder = () => {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || "No se pudo crear el deck de tienda"
+          errorData.error || t("deckbuilder.shopCreateError")
         );
       }
 
-      showSuccessToast("Deck de tienda creado correctamente");
+      showSuccessToast(t("deckbuilder.shopCreated"));
       const newDeck = await response.json();
       router.push(`/shop`);
     } catch (error) {
@@ -194,7 +198,7 @@ const ShopDeckBuilder = () => {
       showErrorToast(
         error instanceof Error
           ? error.message
-          : "Error creando el deck de tienda"
+          : t("deckbuilder.shopCreateErrorGeneric")
       );
     } finally {
       deckBuilder.setIsSaving(false);

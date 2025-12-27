@@ -61,6 +61,7 @@ import {
 } from "@/lib/cardFilters";
 import LazyImage from "@/components/LazyImage";
 import CardPreviewDialog from "@/components/deckbuilder/CardPreviewDialog";
+import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
 import {
   ChevronLeft,
   ChevronRight,
@@ -69,6 +70,7 @@ import {
 } from "lucide-react";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { DON_CATEGORY } from "@/helpers/constants";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -185,6 +187,7 @@ const CardListClient = ({
   initialFilters,
 }: CardListClientProps) => {
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const getArrayParam = useCallback(
     (key: string, fallback: string[] = []) =>
       searchParams.get(key)?.split(",").filter(Boolean) ?? fallback,
@@ -938,7 +941,7 @@ const CardListClient = ({
           <DropdownSearch
             search={search}
             setSearch={setSearch}
-            placeholder="Search..."
+            placeholder={t("common.searchPlaceholder")}
           />
 
           <div className="flex flex-wrap items-center gap-2">
@@ -953,7 +956,7 @@ const CardListClient = ({
               }`}
             >
               <SlidersHorizontal className="h-4 w-4" />
-              <span>Filters</span>
+              <span>{t("common.filters")}</span>
               {totalFilters > 0 && (
                 <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                   {totalFilters}
@@ -1062,9 +1065,11 @@ const CardListClient = ({
       <div className="py-2 px-4 border-b bg-white flex justify-between items-center">
         <div className="flex items-center gap-3">
           <p className="text-xs text-slate-500">
-            {totalResults?.toLocaleString()} cards found
+            {t("cardList.cardsFound", {
+              count: totalResults?.toLocaleString() ?? "0",
+            })}
             {(isFetching || isFetchingNextPage || isCounting) && (
-              <span className="ml-2 text-blue-600">Loading...</span>
+              <span className="ml-2 text-blue-600">{t("common.loading")}</span>
             )}
           </p>
 
@@ -1072,12 +1077,14 @@ const CardListClient = ({
           <button
             onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-all text-gray-700 font-medium text-sm group border border-gray-200"
-            aria-label={isFiltersCollapsed ? "Show filters" : "Hide filters"}
+            aria-label={
+              isFiltersCollapsed ? t("filters.show") : t("filters.hide")
+            }
           >
             {isFiltersCollapsed ? (
               <>
                 <ChevronDown className="h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
-                <span className="hidden lg:inline">Filters</span>
+                <span className="hidden lg:inline">{t("common.filters")}</span>
                 {totalFilters > 0 && (
                   <Badge className="!bg-[#2463eb] !text-white font-bold text-xs min-w-[20px] h-5 flex items-center justify-center">
                     {totalFilters}
@@ -1087,7 +1094,7 @@ const CardListClient = ({
             ) : (
               <>
                 <ChevronUp className="h-4 w-4 group-hover:-translate-y-0.5 transition-transform" />
-                <span className="hidden lg:inline">Filters</span>
+                <span className="hidden lg:inline">{t("common.filters")}</span>
                 {totalFilters > 0 && (
                   <Badge className="!bg-[#2463eb] !text-white font-bold text-xs min-w-[20px] h-5 flex items-center justify-center">
                     {totalFilters}
@@ -1113,7 +1120,7 @@ const CardListClient = ({
             title={
               lastUpdated
                 ? `Last updated: ${lastUpdated.toLocaleTimeString()}`
-                : "Refresh"
+                : t("cardList.refresh")
             }
           >
             <RefreshCw
@@ -1160,7 +1167,7 @@ const CardListClient = ({
             options={SORT_OPTIONS}
             selected={selectedSort}
             setSelected={setSelectedSort}
-            buttonLabel="Sort"
+            buttonLabel={t("common.sort")}
           />
 
           <div className="hidden md:flex justify-center items-center">
@@ -1207,133 +1214,157 @@ const CardListClient = ({
 
           {!showInitialOverlay && filteredCards.length === 0 ? (
             <div className="flex items-center justify-center text-center text-muted-foreground h-full">
-              No cards match your filters. Try adjusting the selection.
+              {t("cardList.noResults")}
             </div>
           ) : (
             <>
               {viewSelected === "list" && (
-                <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
-                  {visibleCardsData.map(
-                    ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
-                      <Fragment key={card._id || card.id}>
-                        {isBaseMatch && (
-                          <div
-                            onClick={() => {
-                              handleOpenCard(card, card);
-                            }}
-                            onMouseEnter={() =>
-                              card.src &&
-                              smartPrefetch(card.src, "large", true)
-                            }
-                            onTouchStart={() => {
-                              card.src &&
-                                smartPrefetch(card.src, "large", true);
-                              setTouchedCardId(card.id);
-                            }}
-                            onTouchEnd={() => setTouchedCardId(null)}
-                            onTouchCancel={() => setTouchedCardId(null)}
-                            onContextMenu={(e) => e.preventDefault()}
-                            className="w-full cursor-pointer max-w-[450px]"
-                          >
-                            <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
-                              <LazyImage
-                                src={card.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={card.name}
-                                className="w-full"
-                                priority={baseCardIndex < priorityLimit}
-                                size={imageSize}
-                              />
-
-                              {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                              {card.code && (
-                                <div
-                                  className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                    isDesktop
-                                      ? "opacity-100 translate-y-0"
-                                      : touchedCardId === card.id
-                                      ? "opacity-100 translate-y-0"
-                                      : "opacity-0 -translate-y-2 pointer-events-none"
-                                  }`}
-                                >
-                                  {card.code}
-                                </div>
-                              )}
-
-                              {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                              {getCardPriceValue(card) !== null && (
-                                <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                  {formatCurrency(
-                                    getCardPriceValue(card)!,
-                                    card.priceCurrency
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {filteredAlts.map((alt: any) => (
-                          <div
-                            key={alt._id || alt.id}
-                            onClick={() => {
-                              handleOpenCard(alt, card);
-                            }}
-                            onMouseEnter={() =>
-                              alt.src &&
-                              smartPrefetch(alt.src, "large", true)
-                            }
-                            onTouchStart={() => {
-                              alt.src &&
-                                smartPrefetch(alt.src, "large", true);
-                              setTouchedCardId(alt.id);
-                            }}
-                            onTouchEnd={() => setTouchedCardId(null)}
-                            onTouchCancel={() => setTouchedCardId(null)}
-                            onContextMenu={(e) => e.preventDefault()}
-                            className="w-full cursor-pointer max-w-[450px]"
-                          >
-                            <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
-                              <LazyImage
-                                src={alt.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={alt.name}
-                                className="w-full"
-                                priority={alt._globalIndex < priorityLimit}
-                                size={imageSize}
-                              />
-
-                              {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                              {card.code && (
-                                <div
-                                  className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                    isDesktop
-                                      ? "opacity-100 translate-y-0"
-                                      : touchedCardId === alt.id
-                                      ? "opacity-100 translate-y-0"
-                                      : "opacity-0 -translate-y-2 pointer-events-none"
-                                  }`}
-                                >
-                                  {card.code}
-                                </div>
-                              )}
-
-                              {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                              {getCardPriceValue(alt) !== null && (
-                                <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                  {formatCurrency(
-                                    getCardPriceValue(alt)!,
-                                    alt.priceCurrency
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </Fragment>
-                    )
+                <>
+                  {/* Mobile: Virtualized Grid */}
+                  {!isDesktop && (
+                    <VirtualizedCardGrid
+                      cards={visibleCardsData}
+                      onCardClick={handleOpenCard}
+                      imageSize={imageSize}
+                      priorityLimit={priorityLimit}
+                      formatCurrency={formatCurrency}
+                      getCardPriceValue={getCardPriceValue}
+                      scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                      touchedCardId={touchedCardId}
+                      setTouchedCardId={setTouchedCardId}
+                      isDesktop={isDesktop}
+                      hasNextPage={hasNextPage}
+                      isFetchingNextPage={isFetchingNextPage}
+                      fetchNextPage={fetchNextPage}
+                    />
                   )}
-                </div>
+
+                  {/* Desktop: Regular Grid */}
+                  {isDesktop && (
+                    <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
+                      {visibleCardsData.map(
+                        ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
+                          <Fragment key={card._id || card.id}>
+                            {isBaseMatch && (
+                              <div
+                                onClick={() => {
+                                  handleOpenCard(card, card);
+                                }}
+                                onMouseEnter={() =>
+                                  card.src &&
+                                  smartPrefetch(card.src, "large", true)
+                                }
+                                onTouchStart={() => {
+                                  card.src &&
+                                    smartPrefetch(card.src, "large", true);
+                                  setTouchedCardId(card.id);
+                                }}
+                                onTouchEnd={() => setTouchedCardId(null)}
+                                onTouchCancel={() => setTouchedCardId(null)}
+                                onContextMenu={(e) => e.preventDefault()}
+                                className="w-full cursor-pointer max-w-[450px]"
+                              >
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                                  <LazyImage
+                                    src={card.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={card.name}
+                                    className="w-full"
+                                    priority={baseCardIndex < priorityLimit}
+                                    size={imageSize}
+                                  />
+
+                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                                  {card.code && (
+                                    <div
+                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                        isDesktop
+                                          ? "opacity-100 translate-y-0"
+                                          : touchedCardId === card.id
+                                          ? "opacity-100 translate-y-0"
+                                          : "opacity-0 -translate-y-2 pointer-events-none"
+                                      }`}
+                                    >
+                                      {card.code}
+                                    </div>
+                                  )}
+
+                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                                  {getCardPriceValue(card) !== null && (
+                                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                      {formatCurrency(
+                                        getCardPriceValue(card)!,
+                                        card.priceCurrency
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {filteredAlts.map((alt: any) => (
+                              <div
+                                key={alt._id || alt.id}
+                                onClick={() => {
+                                  handleOpenCard(alt, card);
+                                }}
+                                onMouseEnter={() =>
+                                  alt.src &&
+                                  smartPrefetch(alt.src, "large", true)
+                                }
+                                onTouchStart={() => {
+                                  alt.src &&
+                                    smartPrefetch(alt.src, "large", true);
+                                  setTouchedCardId(alt.id);
+                                }}
+                                onTouchEnd={() => setTouchedCardId(null)}
+                                onTouchCancel={() => setTouchedCardId(null)}
+                                onContextMenu={(e) => e.preventDefault()}
+                                className="w-full cursor-pointer max-w-[450px]"
+                              >
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                                  <LazyImage
+                                    src={alt.src}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={alt.name}
+                                    className="w-full"
+                                    priority={alt._globalIndex < priorityLimit}
+                                    size={imageSize}
+                                  />
+
+                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
+                                  {card.code && (
+                                    <div
+                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
+                                        isDesktop
+                                          ? "opacity-100 translate-y-0"
+                                          : touchedCardId === alt.id
+                                          ? "opacity-100 translate-y-0"
+                                          : "opacity-0 -translate-y-2 pointer-events-none"
+                                      }`}
+                                    >
+                                      {card.code}
+                                    </div>
+                                  )}
+
+                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
+                                  {getCardPriceValue(alt) !== null && (
+                                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
+                                      {formatCurrency(
+                                        getCardPriceValue(alt)!,
+                                        alt.priceCurrency
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </Fragment>
+                        )
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               {viewSelected === "text" && (

@@ -7,6 +7,7 @@ import SquareAltIcon from "@/components/Icons/SquareAltIcon";
 import TextIcon from "@/components/Icons/TextIcon";
 import { ChevronDown, Check } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 import {
   Tooltip,
@@ -58,6 +59,7 @@ export default function ViewSwitcher({
   isAlternate = true,
   isText = true,
 }: ViewSwitcherProps) {
+  const { t } = useI18n();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Filter available options based on props
@@ -69,6 +71,16 @@ export default function ViewSwitcher({
 
   const currentOption =
     availableOptions.find((o) => o.id === viewSelected) || availableOptions[0];
+  const getOptionLabel = (id: ViewType) => {
+    if (id === "list") return t("view.images");
+    if (id === "text") return t("view.description");
+    return t("view.alternates");
+  };
+  const getOptionDescription = (id: ViewType) => {
+    if (id === "list") return t("view.imagesDesc");
+    if (id === "text") return t("view.descriptionDesc");
+    return t("view.alternatesDesc");
+  };
 
   const handleSelect = useCallback(
     (view: ViewType) => {
@@ -181,12 +193,10 @@ export default function ViewSwitcher({
         <div className="flex flex-col max-h-[80vh] min-h-0">
           {/* Title */}
           <div className="px-5 pb-3 flex flex-col">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Select View
-            </h3>
-            <p className="text-sm text-slate-500">
-              Choose how to display cards
-            </p>
+          <h3 className="text-lg font-semibold text-slate-900">
+            {t("view.title")}
+          </h3>
+          <p className="text-sm text-slate-500">{t("view.subtitle")}</p>
           </div>
 
           {/* Options */}
@@ -229,10 +239,10 @@ export default function ViewSwitcher({
                         : "text-slate-900"
                     )}
                   >
-                    {option.label}
+                    {getOptionLabel(option.id)}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {option.description}
+                    {getOptionDescription(option.id)}
                   </p>
                 </div>
 

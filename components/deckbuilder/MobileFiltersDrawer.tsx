@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getColors } from "@/helpers/functions";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import {
   rarityOptions,
   typesOptions,
@@ -116,6 +117,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   disabledColors = [],
   disabledTypes = [],
 }) => {
+  const { t } = useI18n();
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -149,14 +151,14 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   const filters: FilterConfig[] = [
     {
       id: "codes",
-      label: "Codes",
+      label: t("filters.codes"),
       options: setCodesOptions,
       isMulti: true,
       isSearchable: true,
     },
     {
       id: "sets",
-      label: "Sets",
+      label: t("filters.sets"),
       options: setOptions,
       isMulti: true,
       isSearchable: true,
@@ -164,65 +166,65 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
 
     {
       id: "altArts",
-      label: "Alt Arts",
+      label: t("filters.altArts"),
       options: altArtOptions,
       isMulti: true,
       isSearchable: true,
     },
     {
       id: "categories",
-      label: "Type",
+      label: t("filters.categories"),
       options: categoryOptions,
       isMulti: true,
     },
     {
       id: "colors",
-      label: "Color",
+      label: t("filters.colors"),
       options: colorOptions,
       isMulti: true,
       isColor: true,
     },
-    { id: "rarity", label: "Rarity", options: rarityOptions, isMulti: true },
+    { id: "rarity", label: t("filters.rarity"), options: rarityOptions, isMulti: true },
 
-    { id: "costs", label: "Cost", options: costOptions, isMulti: true },
+    { id: "costs", label: t("filters.costs"), options: costOptions, isMulti: true },
     {
       id: "power",
-      label: "Power",
+      label: t("filters.power"),
       options: powerOptions,
       isMulti: true,
       isSearchable: true,
     },
     {
       id: "effects",
-      label: "Effects",
+      label: t("filters.effects"),
       options: effectsOptions,
       isMulti: true,
       isSearchable: true,
     },
     {
       id: "counter",
-      label: "Counter",
+      label: t("filters.counter"),
       options: counterOptions,
       isMulti: false,
     },
 
     {
       id: "trigger",
-      label: "Trigger",
+      label: t("filters.trigger"),
       options: triggerOptions,
       isMulti: false,
     },
 
     {
       id: "types",
-      label: "Family",
+      label: t("filters.types"),
       options: typesOptions,
       isMulti: true,
       isSearchable: true,
     },
     {
       id: "attributes",
-      label: "Attribute",
+      label: t("filters.attributes"),
       options: atributeOptions,
       isMulti: true,
     },
@@ -230,7 +232,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   if (setSelectedRegion) {
     filters.push({
       id: "region",
-      label: "Region",
+      label: t("filters.region"),
       options: allRegions,
       isMulti: false,
       isSearchable: true,
@@ -474,12 +476,13 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-slate-900">
-                    Filters
+                    {t("filters.title")}
                   </h2>
                   {totalActiveFilters > 0 && (
                     <p className="text-xs text-slate-500">
-                      {totalActiveFilters} filter
-                      {totalActiveFilters > 1 ? "s" : ""} applied
+                      {t("filters.applied", {
+                        count: totalActiveFilters,
+                      })}
                     </p>
                   )}
                 </div>
@@ -563,7 +566,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                   onClick={clearAllFilters}
                 >
                   <FilterX className="h-4 w-4 mr-1.5" />
-                  Clear
+                  {t("common.clear")}
                 </Button>
               )}
               <Button
@@ -573,7 +576,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                 } h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl`}
                 onClick={onClose}
               >
-                Show results
+                {t("common.showResults")}
               </Button>
             </div>
           </div>
@@ -600,7 +603,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                   </h2>
                   {getSelectedValues(activeFilter).length > 0 && (
                     <p className="text-xs text-slate-500">
-                      {getSelectedValues(activeFilter).length} selected
+                      {t("filters.selected", {
+                        count: getSelectedValues(activeFilter).length,
+                      })}
                     </p>
                   )}
                 </div>
@@ -610,7 +615,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                   onClick={() => clearFilter(activeFilter)}
                   className="text-sm text-red-600 font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                 >
-                  Clear
+                  {t("common.clear")}
                 </button>
               )}
             </div>
@@ -623,7 +628,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
                   <Input
                     ref={searchInputRef}
                     type="text"
-                    placeholder={`Search ${activeFilterConfig.label.toLowerCase()}...`}
+                    placeholder={`${t("common.searchPlaceholder")}`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 h-11 bg-slate-50 border-slate-200 rounded-xl"
@@ -675,7 +680,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
           <div className="flex-1 overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className="px-4 py-12 text-center text-slate-500">
-                No results found
+                {t("filters.noResults")}
               </div>
             ) : (
               filteredOptions.map((option) => {
@@ -744,7 +749,7 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
               className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl"
               onClick={() => setActiveFilter(null)}
             >
-              Done
+              {t("common.done")}
               {getSelectedValues(activeFilter).length > 0 && (
                 <span className="ml-1">
                   ({getSelectedValues(activeFilter).length})

@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import DeckStats from "@/components/deckbuilder/DeckStats";
 import { DeckCard } from "@/types";
 import { useUser } from "@/app/context/UserContext";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -46,6 +47,7 @@ const oswald = Oswald({
 });
 
 const DeckBuilderUniqueUrl = () => {
+  const { t } = useI18n();
   const { uniqueUrl } = useParams(); // URL único del deck original
   const router = useRouter();
   const { userId, loading: userLoading } = useUser();
@@ -86,8 +88,8 @@ const DeckBuilderUniqueUrl = () => {
   // Función para compartir el URL del deck usando la API nativa o copiando el link
   const handleShare = async () => {
     const shareData = {
-      title: deckData?.name || "Mi Deck",
-      text: "Mira mi deck en One Piece Card Game!",
+      title: deckData?.name || t("deckbuilder.defaultDeckName"),
+      text: t("deckbuilder.shareText"),
       url: window.location.href,
     };
     if (navigator.share) {
@@ -98,7 +100,7 @@ const DeckBuilderUniqueUrl = () => {
       }
     } else {
       await navigator.clipboard.writeText(window.location.href);
-      alert("Link copiado al portapapeles");
+      alert(t("deckbuilder.linkCopied"));
     }
   };
 
@@ -159,7 +161,7 @@ const DeckBuilderUniqueUrl = () => {
     ];
 
     if (expandedCards.length === 0) {
-      alert("No hay cartas en el deck para imprimir");
+      alert(t("deckbuilder.noCardsToPrint"));
       return;
     }
 
@@ -348,27 +350,29 @@ const DeckBuilderUniqueUrl = () => {
 
       <div class="print-modal-content">
         <div class="print-modal-header">
-          <h2>Generar PDF de Proxies</h2>
+          <h2>${t("deckbuilder.printPdfTitle")}</h2>
           <div class="print-modal-actions">
             <button id="print-btn" class="print-modal-btn print-modal-btn-primary" disabled>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/>
               </svg>
-              Imprimir PDF
+              ${t("deckbuilder.printPdf")}
             </button>
             <button class="print-modal-btn print-modal-btn-close" id="close-modal-btn">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
-              Cerrar
+              ${t("deckbuilder.close")}
             </button>
           </div>
         </div>
         <div class="print-preview-container">
           <div class="loading-container">
             <div class="loading-spinner"></div>
-            <div class="loading-text">Generando PDF...</div>
-            <div class="loading-progress">Preparando imágenes</div>
+            <div class="loading-text">${t("deckbuilder.generatingPdf")}</div>
+            <div class="loading-progress">${t(
+              "deckbuilder.preparingImages"
+            )}</div>
           </div>
         </div>
       </div>
@@ -634,11 +638,15 @@ const DeckBuilderUniqueUrl = () => {
 
         if (previewContainer) {
           const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
+            error instanceof Error ? error.message : t("deckbuilder.unknownError");
           previewContainer.innerHTML = `
             <div class="loading-container">
-              <div style="color: #f44336; font-size: 18px;">Error al generar el PDF</div>
-              <div style="color: #666; margin-top: 10px;">Por favor, intenta de nuevo</div>
+              <div style="color: #f44336; font-size: 18px;">${t(
+                "deckbuilder.pdfErrorTitle"
+              )}</div>
+              <div style="color: #666; margin-top: 10px;">${t(
+                "deckbuilder.pdfErrorSubtitle"
+              )}</div>
               <div style="color: #999; margin-top: 5px; font-size: 12px;">${errorMessage}</div>
             </div>
           `;
@@ -658,7 +666,7 @@ const DeckBuilderUniqueUrl = () => {
 
         const timeout = setTimeout(() => {
           img.src = "";
-          reject(new Error("Timeout cargando imagen"));
+          reject(new Error(t("deckbuilder.imageTimeout")));
         }, 15000); // Aumentamos timeout para images proxiadas
 
         img.onload = function () {
@@ -676,7 +684,7 @@ const DeckBuilderUniqueUrl = () => {
 
               resolve(canvas.toDataURL("image/jpeg", 0.9));
             } else {
-              reject(new Error("No se pudo obtener el contexto del canvas"));
+              reject(new Error(t("deckbuilder.canvasError")));
             }
           } catch (error) {
             clearTimeout(timeout);
@@ -686,7 +694,7 @@ const DeckBuilderUniqueUrl = () => {
 
         img.onerror = function () {
           clearTimeout(timeout);
-          reject(new Error("Error cargando imagen"));
+          reject(new Error(t("deckbuilder.imageLoadError")));
         };
 
         img.src = url;
@@ -698,7 +706,7 @@ const DeckBuilderUniqueUrl = () => {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
-      showSuccessToast("Text copied to clipboard");
+      showSuccessToast(t("deckbuilder.textCopied"));
       setCopied(true);
     } catch (err) {
       console.error("Error al copiar el texto: ", err);
@@ -707,7 +715,7 @@ const DeckBuilderUniqueUrl = () => {
   const handleCopyUrl = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showSuccessToast("Text copied to clipboard");
+      showSuccessToast(t("deckbuilder.textCopied"));
       setCopiedUrl(true);
     } catch (err) {
       console.error("Error al copiar el texto: ", err);
@@ -741,7 +749,7 @@ const DeckBuilderUniqueUrl = () => {
 
   // Función que genera el segundo formato: array con cabecera y luego el código repetido según la cantidad
   const formatTableTop = () => {
-    const output = ["Exported from oharatcg.com", [`${selectedLeader?.code}`]];
+    const output = [t("deckbuilder.exportedFrom"), [`${selectedLeader?.code}`]];
     deckCards.forEach((card) => {
       for (let i = 0; i < card.quantity; i++) {
         output.push(card.code);
@@ -821,7 +829,7 @@ const DeckBuilderUniqueUrl = () => {
     const fetchDeck = async () => {
       try {
         const res = await fetch(`/api/decks/${uniqueUrl}`);
-        if (!res.ok) throw new Error("Deck no encontrado");
+        if (!res.ok) throw new Error(t("deckbuilder.deckNotFound"));
         const data = await res.json();
         const ownerId = data?.userId ?? data?.user?.id;
         if (ownerId && Number(ownerId) !== Number(userId)) {
@@ -842,7 +850,7 @@ const DeckBuilderUniqueUrl = () => {
           .map((dc: any) => ({
             cardId: dc.card.id,
             name: dc.card.name,
-            rarity: dc.card.rarity || "Desconocido",
+            rarity: dc.card.rarity || t("deckbuilder.unknownRarity"),
             quantity: dc.quantity,
             src: dc.card.src,
             code: dc.card.code,
@@ -876,7 +884,9 @@ const DeckBuilderUniqueUrl = () => {
   if (!accessChecked && !isDeckLoaded) {
     return (
       <div className="flex flex-1 items-center justify-center bg-[#f2eede]">
-        <div className="text-sm text-slate-500">Loading deck...</div>
+        <div className="text-sm text-slate-500">
+          {t("deckbuilder.loadingDeck")}
+        </div>
       </div>
     );
   }
@@ -957,7 +967,7 @@ const DeckBuilderUniqueUrl = () => {
             <div className="flex flex-col flex-1">
               <div className="flex items-start justify-center gap-0 flex-col">
                 <span className="font-semibold text-sm line-clamp-1 break-all text-left">
-                  {selectedLeader?.name ?? "Name"}
+                  {selectedLeader?.name ?? t("deckbuilder.nameFallback")}
                 </span>
                 <span
                   className={`${oswald.className} text-sm text-muted-foreground text-left`}
@@ -983,11 +993,17 @@ const DeckBuilderUniqueUrl = () => {
         }
       `}
               aria-pressed={isStatsOpen}
-              aria-label={isStatsOpen ? "Apagar" : "Encender"}
+              aria-label={
+                isStatsOpen
+                  ? t("deckbuilder.statsToggleOnLabel")
+                  : t("deckbuilder.statsToggleOffLabel")
+              }
             >
               <ChartColumnBigIcon />
               <span className="sr-only">
-                {isStatsOpen ? "Encendido" : "Apagado"}
+                {isStatsOpen
+                  ? t("deckbuilder.statsAriaOn")
+                  : t("deckbuilder.statsAriaOff")}
               </span>
             </button>
           </div>
@@ -996,7 +1012,7 @@ const DeckBuilderUniqueUrl = () => {
         <div className="p-3 bg-[#F3F4F6] rounded-lg border overflow-auto flex-1">
           {isDeckLoaded ? (
             deckCards.length === 0 ? (
-              <p>No hay cartas en el deck.</p>
+              <p>{t("deckbuilder.noCardsInDeck")}</p>
             ) : (
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-9 2xl:grid-cols-10 max-w-[1900px] m-auto gap-2">
                 {groupedCards.map((group) =>
@@ -1047,7 +1063,7 @@ const DeckBuilderUniqueUrl = () => {
               </div>
             )
           ) : (
-            <p>Loading deck...</p>
+            <p>{t("deckbuilder.loadingDeck")}</p>
           )}
         </div>
 
@@ -1060,7 +1076,9 @@ const DeckBuilderUniqueUrl = () => {
               className="flex-1 gap-2 bg-blue-500 hover:bg-blue-600 text-white py-6 transition-all hover:shadow-lg hover:-translate-y-0.5"
             >
               <Pencil className="w-5 h-5" />
-              <span className="text-lg font-medium">Edit</span>
+              <span className="text-lg font-medium">
+                {t("deckbuilder.edit")}
+              </span>
             </Button>
 
             <Button
@@ -1068,14 +1086,18 @@ const DeckBuilderUniqueUrl = () => {
               className="flex-1 gap-2 bg-violet-500 hover:bg-violet-600 text-white py-6 transition-all hover:shadow-lg hover:-translate-y-0.5"
             >
               <Download className="w-5 h-5" />
-              <span className="text-lg font-medium">Export</span>
+              <span className="text-lg font-medium">
+                {t("deckbuilder.export")}
+              </span>
             </Button>
             <Button
               onClick={handleProxies}
               className="flex-1 gap-2 bg-violet-500 hover:bg-violet-600 text-white py-6 transition-all hover:shadow-lg hover:-translate-y-0.5"
             >
               <Download className="w-5 h-5" />
-              <span className="text-lg font-medium">Proxies</span>
+              <span className="text-lg font-medium">
+                {t("deckbuilder.proxies")}
+              </span>
             </Button>
           </div>
         </div>
@@ -1108,7 +1130,7 @@ const DeckBuilderUniqueUrl = () => {
                 <div className="w-full max-w-[430px] h-screen md:h-fit max-h-[96dvh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden transition-shadow duration-300">
                   <div className="sticky top-0 bg-[#000] text-white p-4 flex flex-row justify-center items-center rounded-t-lg z-10 min-h-[80px] lg:min-h-[96px]">
                     <DialogTitle className="text-lg lg:text-2xl font-bold">
-                      Export Deck
+                      {t("deckbuilder.exportDeckTitle")}
                     </DialogTitle>
                     <button
                       onClick={() => {
@@ -1202,12 +1224,12 @@ const DeckBuilderUniqueUrl = () => {
                       {copied ? (
                         <span className="flex items-center justify-center gap-2">
                           <Check className="w-5 h-5" />
-                          Copied!
+                          {t("deckbuilder.copied")}
                         </span>
                       ) : (
                         <span className="flex items-center justify-center gap-2">
                           <Copy className="w-5 h-5" />
-                          Copy Text
+                          {t("deckbuilder.copyText")}
                         </span>
                       )}
                     </Button>
@@ -1242,7 +1264,7 @@ const DeckBuilderUniqueUrl = () => {
                           ) : (
                             <Copy className="size-4" />
                           )}
-                          Copy URL
+                          {t("deckbuilder.copyUrl")}
                         </Button>
                       </div>
                     </div>
@@ -1251,7 +1273,9 @@ const DeckBuilderUniqueUrl = () => {
                       className="w-full bg-green-500 hover:bg-green-600 text-white py-6 text-lg font-medium"
                     >
                       <Share2 className="w-5 h-5" />
-                      <span className="text-lg font-medium">Share</span>
+                      <span className="text-lg font-medium">
+                        {t("deckbuilder.share")}
+                      </span>
                     </Button>
                   </div>
                 </div>
@@ -1287,7 +1311,7 @@ const DeckBuilderUniqueUrl = () => {
                 <div className="w-full max-w-[900px] h-screen md:h-fit max-h-[96dvh] bg-white rounded-lg shadow-2xl flex flex-col transition-shadow duration-300 overflow-auto">
                   <div className="sticky top-0 bg-[#000] text-white p-4 flex flex-row justify-center items-center rounded-t-lg z-10 min-h-[80px] lg:min-h-[80px]">
                     <DialogTitle className="text-lg lg:text-2xl font-bold">
-                      Stats
+                      {t("deckbuilder.statsTitle")}
                     </DialogTitle>
                     <div className="absolute right-5 top-0 bottom-0 m-auto h-fit">
                       <button
@@ -1310,14 +1334,18 @@ const DeckBuilderUniqueUrl = () => {
       {showModal && previewImage && (
         <div className="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="relative w-full">
-            <img src={previewImage} alt="Preview del Deck" className="w-full" />
+            <img
+              src={previewImage}
+              alt={t("deckbuilder.deckPreview")}
+              className="w-full"
+            />
             <div className="flex justify-between">
               <a
                 href={previewImage}
                 download="deck.png"
                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded"
               >
-                Descargar Imagen
+                {t("deckbuilder.downloadImage")}
               </a>
             </div>
           </div>
@@ -1331,7 +1359,7 @@ const DeckBuilderUniqueUrl = () => {
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img

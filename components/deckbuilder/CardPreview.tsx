@@ -5,6 +5,7 @@ import { Oswald } from "next/font/google";
 import { rarityFormatter } from "@/helpers/formatters";
 import { getColors } from "@/helpers/functions";
 import { useSwipeable } from "react-swipeable";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface CardPreviewProps {
   id: string;
@@ -40,6 +41,7 @@ export default function CardPreview({
   cost,
   onSwipeLeft,
 }: CardPreviewProps) {
+  const { t } = useI18n();
   const [showLargeImage, setShowLargeImage] = useState(false);
 
   const handlers = useSwipeable({
@@ -125,7 +127,7 @@ export default function CardPreview({
         >
           <div className="w-full max-w-3xl">
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
+              {t("cardPreview.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img

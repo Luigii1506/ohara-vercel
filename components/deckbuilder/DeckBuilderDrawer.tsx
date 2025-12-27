@@ -24,6 +24,7 @@ import MobileDeckStats from "./MobileDeckStats";
 import CardWithBadges from "@/components/CardWithBadges";
 import CardPreviewDialog from "./CardPreviewDialog";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -69,6 +70,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
   formatCurrency,
   getCardPriceValue,
 }) => {
+  const { t } = useI18n();
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -230,10 +232,10 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                       </div>
                       <div className="min-w-0 flex-1">
                         <h2 className="truncate text-base font-bold text-slate-700">
-                          Select Leader
+                          {t("deckbuilder.selectLeaderLabel")}
                         </h2>
                         <p className="text-xs text-slate-500">
-                          Choose your leader
+                          {t("deckbuilder.chooseLeaderLabel")}
                         </p>
                       </div>
                     </>
@@ -249,12 +251,12 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
             </div>
 
             {/* Stats Bar */}
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Total Cards */}
                 <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg">
                   <Layers className="h-4 w-4 text-slate-500" />
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
                     {totalCards}
                   </span>
                   <span className="text-xs text-slate-500">/50</span>
@@ -271,7 +273,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   }`}
                 >
                   <span
-                    className={`text-sm font-bold ${
+                    className={`text-sm font-bold tabular-nums ${
                       50 - totalCards === 0
                         ? "text-emerald-600"
                         : 50 - totalCards <= 10
@@ -280,15 +282,17 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                     }`}
                   >
                     {50 - totalCards === 0
-                      ? "Complete!"
-                      : `${50 - totalCards} left`}
+                      ? t("deckbuilder.completeLabel")
+                      : t("deckbuilder.leftCount", {
+                          count: 50 - totalCards,
+                        })}
                   </span>
                 </div>
 
                 {/* Deck Price */}
                 {deckPrice > 0 && (
                   <div className="flex items-center gap-1.5 bg-emerald-100 px-2.5 py-1.5 rounded-lg">
-                    <span className="text-sm font-bold text-emerald-700">
+                    <span className="text-sm font-bold text-emerald-700 tabular-nums">
                       {formatCurrency(deckPrice)}
                     </span>
                   </div>
@@ -298,7 +302,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
               {/* Stats Toggle Button */}
               <button
                 type="button"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 ${
+                className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 ${
                   isStatsOpen
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -306,7 +310,9 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                 onClick={() => setIsStatsOpen(!isStatsOpen)}
               >
                 <ChartColumnBigIcon className="h-4 w-4" />
-                <span className="text-xs font-semibold">Stats</span>
+                <span className="text-xs font-semibold">
+                  {t("deckbuilder.statsTitle")}
+                </span>
               </button>
             </div>
 
@@ -317,7 +323,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   type="text"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  placeholder="Deck name..."
+                  placeholder={t("deckbuilder.deckNamePlaceholder")}
                   className="w-full h-10 text-sm font-medium bg-white border border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 rounded-lg"
                   maxLength={50}
                 />
@@ -327,7 +333,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                       type="text"
                       value={shopSlugValue}
                       onChange={(e) => handleSlugInputChange(e.target.value)}
-                      placeholder="Slug para la tienda (ej. super-deck)"
+                      placeholder={t("deckbuilder.shopSlugPlaceholder")}
                       className="w-full h-10 text-sm font-medium bg-white border border-gray-300 rounded-lg"
                       maxLength={60}
                     />
@@ -335,7 +341,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                       type="url"
                       value={shopUrlValue}
                       onChange={(e) => handleShopUrlChange(e.target.value)}
-                      placeholder="URL de la tienda (https://...)"
+                      placeholder={t("deckbuilder.shopUrlPlaceholder")}
                       className="w-full h-10 text-sm font-medium bg-white border border-gray-300 rounded-lg"
                     />
                     <div className="flex items-center justify-center gap-3 pt-1">
@@ -344,7 +350,9 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                         onCheckedChange={(checked) => setIsPublished?.(checked)}
                       />
                       <span className="text-xs font-medium text-gray-600">
-                        {isPublished ? "Publicado" : "Sin publicar"}
+                        {isPublished
+                          ? t("deckbuilder.shopPublished")
+                          : t("deckbuilder.shopUnpublished")}
                       </span>
                     </div>
                     {shopSlugValue && (
@@ -383,10 +391,10 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                             <Users className="h-7 w-7 text-blue-600" />
                           </div>
                           <h3 className="text-lg font-bold text-gray-800 mb-2">
-                            Choose Your Leader
+                            {t("deckbuilder.chooseLeaderTitle")}
                           </h3>
                           <p className="text-gray-600 text-sm leading-relaxed">
-                            Start by selecting a leader from the cards list.
+                            {t("deckbuilder.chooseLeaderBody")}
                           </p>
                         </CardContent>
                       </Card>
@@ -397,10 +405,10 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                             <Layers className="h-7 w-7 text-green-600" />
                           </div>
                           <h3 className="text-lg font-bold text-gray-800 mb-2">
-                            Build Your Deck
+                            {t("deckbuilder.buildDeckTitle")}
                           </h3>
                           <p className="text-gray-600 text-sm leading-relaxed">
-                            Add cards to your deck from the available selection.
+                            {t("deckbuilder.buildDeckBody")}
                           </p>
                         </CardContent>
                       </Card>
@@ -447,7 +455,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                                     );
                                   } else {
                                     showWarningToast(
-                                      "You can't add more than 4 cards of the same code."
+                                      t("deckbuilder.maxSameCode")
                                     );
                                   }
                                 }}
@@ -460,7 +468,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                                     );
                                   } else {
                                     showWarningToast(
-                                      "You can't add more than 4 cards of the same code."
+                                      t("deckbuilder.maxSameCode")
                                     );
                                   }
                                 }}
@@ -511,7 +519,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   }}
                 >
                   <RotateCcw className="h-4 w-4 mr-1.5" />
-                  Clear
+                  {t("deckbuilder.clearDeck")}
                 </Button>
 
                 {onProxies && (
@@ -550,7 +558,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-1.5" />
-                      Save ({totalCards}/50)
+                      {t("deckbuilder.saveDeck", { count: totalCards })}
                     </>
                   )}
                 </Button>
@@ -566,7 +574,9 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
           onClick={() => setShowLargeImage(false)}
         >
           <div className="w-full max-w-lg">
-            <p className="mb-3 text-center text-white text-lg">Tap to close</p>
+            <p className="mb-3 text-center text-white text-lg">
+              {t("cardPreview.tapToClose")}
+            </p>
             <img
               src={getOptimizedImageUrl(
                 deckBuilder.selectedLeader.src ??
@@ -612,7 +622,7 @@ const DeckBuilderDrawer: React.FC<DeckBuilderDrawerProps> = ({
               });
             } else {
               showWarningToast(
-                "You can't add more than 4 cards of the same code."
+                t("deckbuilder.maxSameCode")
               );
             }
           }

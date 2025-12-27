@@ -211,6 +211,10 @@ const CardListClient = ({
   const [previewBaseCard, setPreviewBaseCard] =
     useState<CardWithCollectionData | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [skeletonLayout, setSkeletonLayout] = useState({
+    columns: 3,
+    count: 12,
+  });
 
   const openCardPreview = useCallback(
     (card: CardWithCollectionData, base?: CardWithCollectionData) => {
@@ -228,6 +232,39 @@ const CardListClient = ({
       setPreviewBaseCard(null);
     }, 300);
   }, []);
+
+  const getSkeletonLayout = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return { columns: 3, count: 12 };
+    }
+
+    const width = container.clientWidth || 0;
+    const height = container.clientHeight || 0;
+    const columns =
+      width >= 1536
+        ? 8
+        : width >= 1280
+        ? 7
+        : width >= 1024
+        ? 6
+        : width >= 768
+        ? 5
+        : width >= 640
+        ? 4
+        : 3;
+    const gap = width >= 640 ? 12 : 8;
+    const cardWidth = Math.max(1, (width - gap * (columns - 1)) / columns);
+    const imageHeight = cardWidth * 1.4;
+    const cardHeight = imageHeight + 36;
+    const rows = Math.max(
+      2,
+      Math.ceil(height > 0 ? height / (cardHeight + gap) : 3)
+    );
+
+    return { columns, count: rows * columns };
+  }, []);
+
 
   // Leer estado desde URL params
   const [search, setSearch] = useState(
@@ -849,6 +886,14 @@ const CardListClient = ({
   const showInitialOverlay =
     dataSource.length === 0 && (isLoading || isFetching);
 
+  useEffect(() => {
+    if (!showInitialOverlay) return;
+    const update = () => setSkeletonLayout(getSkeletonLayout());
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [showInitialOverlay, getSkeletonLayout]);
+
   // Mostrar error si falla la carga
   if (cardsError) {
     return (
@@ -1186,11 +1231,16 @@ const CardListClient = ({
       >
         {showInitialOverlay && (
           <div className="absolute inset-0 z-10 bg-[#f2eede] p-5">
-            <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-              {Array.from({ length: BATCH_SIZE }).map((_, index) => (
+            <div
+              className="grid gap-2 sm:gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${skeletonLayout.columns}, minmax(0, 1fr))`,
+              }}
+            >
+              {Array.from({ length: skeletonLayout.count }).map((_, index) => (
                 <div
                   key={`skeleton-card-${index}`}
-                  className="w-full max-w-[450px] border rounded-lg shadow p-3 bg-white animate-pulse"
+                  className="w-full border rounded-lg shadow p-3 bg-white animate-pulse"
                 >
                   <div className="w-full aspect-[2.5/3.5] rounded bg-gray-200 mb-3" />
                   <div className="space-y-2">

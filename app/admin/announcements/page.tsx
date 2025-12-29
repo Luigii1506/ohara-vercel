@@ -117,7 +117,7 @@ const AnnouncementsAdmin = () => {
     }
   };
 
-  const handleSaved = (announcement: Announcement) => {
+  const handleSaved = (announcement: AnnouncementWithMetrics) => {
     setAnnouncements((prev) => {
       const exists = prev.find((item) => item.id === announcement.id);
       if (exists) {

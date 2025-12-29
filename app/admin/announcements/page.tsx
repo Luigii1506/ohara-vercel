@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
-import EditAnnouncementModal from "@/app/admin/announcements/components/EditAnnouncementModal";
+import EditAnnouncementModal, {
+  Announcement,
+} from "@/app/admin/announcements/components/EditAnnouncementModal";
 import DeleteAnnouncementModal from "@/app/admin/announcements/components/DeleteAnnouncementModal";
 
 interface AnnouncementMetrics {
@@ -33,30 +35,16 @@ interface AnnouncementMetrics {
   clicks: number;
 }
 
-interface Announcement {
-  id: number;
-  titleEn: string;
-  bodyEn: string;
-  ctaLabelEn?: string | null;
-  titleEs?: string | null;
-  bodyEs?: string | null;
-  ctaLabelEs?: string | null;
-  ctaUrl?: string | null;
-  audience: "ALL" | "AUTH" | "GUEST";
-  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
-  screens?: string[] | null;
-  startAt?: string | null;
-  endAt?: string | null;
-  priority: number;
-  version: number;
-  showOnce: boolean;
+type AnnouncementWithMetrics = Announcement & {
   metrics?: AnnouncementMetrics;
   createdAt: string;
-}
+};
 
 const AnnouncementsAdmin = () => {
   const [loading, setLoading] = useState(true);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcements, setAnnouncements] = useState<
+    AnnouncementWithMetrics[]
+  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingAnnouncement, setEditingAnnouncement] =
     useState<Announcement | null>(null);

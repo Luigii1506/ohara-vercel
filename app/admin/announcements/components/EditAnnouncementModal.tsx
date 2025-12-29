@@ -41,7 +41,7 @@ interface AnnouncementFormData {
   showOnce: boolean;
 }
 
-interface Announcement {
+export interface Announcement {
   id: number;
   titleEn: string;
   bodyEn: string;

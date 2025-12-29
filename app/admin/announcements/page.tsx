@@ -117,15 +117,23 @@ const AnnouncementsAdmin = () => {
     }
   };
 
-  const handleSaved = (announcement: AnnouncementWithMetrics) => {
+  const handleSaved = (announcement: Announcement) => {
     setAnnouncements((prev) => {
       const exists = prev.find((item) => item.id === announcement.id);
       if (exists) {
         return prev.map((item) =>
-          item.id === announcement.id ? { ...item, ...announcement } : item
+          item.id === announcement.id
+            ? { ...item, ...announcement, createdAt: item.createdAt }
+            : item
         );
       }
-      return [announcement, ...prev];
+      return [
+        {
+          ...announcement,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ];
     });
   };
 

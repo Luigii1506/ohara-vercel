@@ -131,9 +131,10 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         )}&Rarity=${encodeURIComponent(
           infoCard.rarity ?? ""
         )}&Color=${encodeURIComponent(
-          infoCard.colors?.[0].color ?? ""
+          infoCard.colors?.[0]?.color ?? ""
         )}&CardType=${encodeURIComponent(infoCard.category ?? "")}`;
 
+  const isDon = (infoCard.category || "").toLowerCase() === "don";
   // Get colors for gradient (from base card)
   const colors = infoCard.colors || [];
 
@@ -318,17 +319,19 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
           </div>
 
           {/* Card Info Section - Using base card for effect/texts */}
-          <div className="mx-4 my-3">
-            <CardDetails
-              card={infoCard}
-              searchTerm=""
-              isModal={false}
-              isTextOnly={false}
-            />
-          </div>
+          {!isDon && (
+            <div className="mx-4 my-3">
+              <CardDetails
+                card={infoCard}
+                searchTerm=""
+                isModal={false}
+                isTextOnly={false}
+              />
+            </div>
+          )}
 
           {/* Rulings Section - Elegant expandable */}
-          {hasRulings && (
+          {hasRulings && !isDon && (
             <div className="px-4 pb-4">
               <button
                 onClick={() => setIsRulingsExpanded(!isRulingsExpanded)}

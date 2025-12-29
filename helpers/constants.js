@@ -255,6 +255,7 @@ export const setOptions = [
     label: "ST28 GREEN/YELLOW Yamato",
   },
 ];
+
 export const setCodesOptions = [
   { value: "PROMO", label: "Promo" },
   { value: "OP01", label: "OP01" },
@@ -988,18 +989,6 @@ export const atributeOptions = [
     value: "Wisdom",
     label: "Wisdom",
   },
-  // {
-  //   value: "Slash/Special",
-  //   label: "Slash/Special",
-  // },
-  // {
-  //   value: "Strike/Ranged",
-  //   label: "Strike/Ranged",
-  // },
-  // {
-  //   value: "Slash/Strike",
-  //   label: "Slash/Strike",
-  // },
 ];
 // Terminados
 

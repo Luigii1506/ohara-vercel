@@ -266,8 +266,10 @@ const SET_KEYWORDS = [
   "P-",
 ];
 
-const CURRENT_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list.php";
+const CURRENT_EVENTS_URL = "https://en.onepiece-cardgame.com/events/";
 const PAST_EVENTS_URL = "https://en.onepiece-cardgame.com/events/list_end.php";
+const ARCHIVE_EVENTS_URL =
+  "https://en.onepiece-cardgame.com/events/list_archive.php";
 
 const FRENCH_CURRENT_EVENTS_URL =
   "https://fr.onepiece-cardgame.com/events/list.php";
@@ -279,10 +281,12 @@ const JAPANESE_CURRENT_EVENTS_URL =
 const JAPANESE_PAST_EVENTS_URL =
   "https://www.onepiece-cardgame.com/events/list_end.php";
 
+type EventSourceCollection = EventListSource | EventListSource[];
+
 export interface LanguageEventSourceConfig {
   locale: string;
-  current?: EventListSource;
-  past?: EventListSource;
+  current?: EventSourceCollection;
+  past?: EventSourceCollection;
   notes?: string;
   requiresDynamicRendering?: boolean;
 }
@@ -299,12 +303,20 @@ const EVENT_LANGUAGE_SOURCE_MAP: Record<
       type: "current",
       region: EventRegion.NA,
     },
-    past: {
-      url: PAST_EVENTS_URL,
-      label: "global-past",
-      type: "past",
-      region: EventRegion.NA,
-    },
+    past: [
+      {
+        url: PAST_EVENTS_URL,
+        label: "global-past-recent",
+        type: "past",
+        region: EventRegion.NA,
+      },
+      {
+        url: ARCHIVE_EVENTS_URL,
+        label: "global-past-archive",
+        type: "past",
+        region: EventRegion.NA,
+      },
+    ],
   },
   fr: {
     locale: "fr",
@@ -365,19 +377,26 @@ export const LANGUAGE_EVENT_SOURCES: Record<
   LanguageEventSourceConfig
 > = EVENT_LANGUAGE_SOURCE_MAP;
 
+const normalizeEventSources = (
+  source?: EventSourceCollection
+): EventListSource[] => {
+  if (!source) return [];
+  return Array.isArray(source) ? source : [source];
+};
+
 Object.values(LANGUAGE_EVENT_SOURCES).forEach((config) => {
-  if (config.current) {
-    config.current.locale = config.locale;
+  normalizeEventSources(config.current).forEach((source) => {
+    source.locale = config.locale;
     if (config.requiresDynamicRendering) {
-      config.current.requiresDynamicRendering = true;
+      source.requiresDynamicRendering = true;
     }
-  }
-  if (config.past) {
-    config.past.locale = config.locale;
+  });
+  normalizeEventSources(config.past).forEach((source) => {
+    source.locale = config.locale;
     if (config.requiresDynamicRendering) {
-      config.past.requiresDynamicRendering = true;
+      source.requiresDynamicRendering = true;
     }
-  }
+  });
 });
 
 const DOMAIN_REGION_OVERRIDES = new Map<string, EventRegion>();
@@ -407,8 +426,12 @@ function registerDomainMetadata(source?: EventListSource) {
 }
 
 Object.values(LANGUAGE_EVENT_SOURCES).forEach((config) => {
-  registerDomainMetadata(config.current);
-  registerDomainMetadata(config.past);
+  normalizeEventSources(config.current).forEach((source) => {
+    registerDomainMetadata(source);
+  });
+  normalizeEventSources(config.past).forEach((source) => {
+    registerDomainMetadata(source);
+  });
 });
 
 function getRegionOverrideForUrl(
@@ -466,11 +489,27 @@ function extractListThumbnail(
       : anchor.parent();
 
   if (container && container.length > 0) {
+    const linkCardImg = container.find(".linkCardThumb img").first();
+    if (linkCardImg.length) {
+      const resolved = resolveImageUrl(
+        linkCardImg.attr("data-src") || linkCardImg.attr("src"),
+        baseUrl
+      );
+      if (resolved) {
+        return resolved;
+      }
+    }
+
     const img = container
-      .find(".eventThumnail img, .eventThumbnail img, img.eventThumnail, img.eventThumbnail")
+      .find(
+        ".eventThumnail img, .eventThumbnail img, img.eventThumnail, img.eventThumbnail, .linkCardThumb img"
+      )
       .first();
     if (img.length) {
-      const resolved = resolveImageUrl(img.attr("src"), baseUrl);
+      const resolved = resolveImageUrl(
+        img.attr("src") || img.attr("data-src"),
+        baseUrl
+      );
       if (resolved) {
         return resolved;
       }
@@ -479,7 +518,10 @@ function extractListThumbnail(
 
   const fallbackImg = anchor.find("img").first();
   if (fallbackImg.length) {
-    const resolved = resolveImageUrl(fallbackImg.attr("src"), baseUrl);
+    const resolved = resolveImageUrl(
+      fallbackImg.attr("src") || fallbackImg.attr("data-src"),
+      baseUrl
+    );
     if (resolved) return resolved;
   }
 
@@ -546,12 +588,15 @@ async function fetchPageHtml(
   }
 }
 
-export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] = [
-  EVENT_LANGUAGE_SOURCE_MAP.en.current!,
-];
+export const DEFAULT_EVENT_LIST_SOURCES: EventListSource[] =
+  normalizeEventSources(EVENT_LANGUAGE_SOURCE_MAP.en.current);
+
+export const PAST_EVENT_LIST_SOURCES: EventListSource[] =
+  normalizeEventSources(EVENT_LANGUAGE_SOURCE_MAP.en.past);
 
 export const PAST_EVENT_LIST_SOURCE: EventListSource =
-  EVENT_LANGUAGE_SOURCE_MAP.en.past!;
+  PAST_EVENT_LIST_SOURCES[0] ??
+  normalizeEventSources(EVENT_LANGUAGE_SOURCE_MAP.en.current)[0]!;
 
 const DEFAULT_MAX_EVENTS = 25;
 const DEFAULT_PER_SOURCE_LIMIT = 25;
@@ -2258,9 +2303,51 @@ async function scrapeEventsList(
     const eventEntries: EventListEntry[] = [];
     const seen = new Set<string>();
 
-    // Busca enlaces a eventos usando la grilla oficial
+    // Busca enlaces a eventos usando la grilla actual
     let listPosition = 0;
+    $(".eventsColInner a.linkCard[href]").each((_, element) => {
+      const href = $(element).attr("href");
+      if (!href) return;
 
+      const fullUrl = href.startsWith("http")
+        ? href
+        : new URL(href, baseUrl).toString();
+
+      if (!isValidEventDetailUrl(fullUrl)) {
+        return;
+      }
+
+      if (seen.has(fullUrl)) {
+        return;
+      }
+
+      const $element = $(element);
+      const thumbnail = extractListThumbnail($, $element, baseUrl);
+      const entryRoot = $element.closest(".eventsColBox");
+      const listEventTxt =
+        entryRoot.find(".linkCardTxt").first().text().trim() || null;
+      const listRawDateText = (() => {
+        const dateNode = entryRoot.find(".linkCardDate").first();
+        if (!dateNode.length) return null;
+        const clone = dateNode.clone();
+        clone.find("span").remove();
+        const text = clone.text().trim();
+        return cleanPeriodText(text);
+      })();
+      const entryOrder = listPosition++;
+
+      seen.add(fullUrl);
+      eventEntries.push({
+        url: fullUrl,
+        thumbnail,
+        eventTxt: listEventTxt,
+        rawDateText: listRawDateText,
+        listOrder: entryOrder,
+        sourceType: source.type ?? "current",
+      });
+    });
+
+    // Fallback: lista legacy
     $('.eventDetail a[href], a[href*="event"]').each((_, element) => {
       const href = $(element).attr("href");
       if (href) {
@@ -2268,7 +2355,6 @@ async function scrapeEventsList(
           ? href
           : new URL(href, baseUrl).toString();
 
-        // Evita duplicados
         if (!isValidEventDetailUrl(fullUrl)) {
           return;
         }

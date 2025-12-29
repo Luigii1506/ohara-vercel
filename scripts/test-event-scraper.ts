@@ -138,7 +138,11 @@ async function main() {
       }
 
       if (config.current) {
-        sources.push(config.current);
+        if (Array.isArray(config.current)) {
+          sources.push(...config.current);
+        } else {
+          sources.push(config.current);
+        }
       } else {
         console.warn(
           `\n⚠️  Language "${lang}" does not define a current events source.`
@@ -157,7 +161,11 @@ async function main() {
       if (!config) return;
 
       if (config.past) {
-        sources.push(config.past);
+        if (Array.isArray(config.past)) {
+          sources.push(...config.past);
+        } else {
+          sources.push(config.past);
+        }
       } else {
         console.warn(
           `\n⚠️  Language "${lang}" does not have a dedicated past-events feed.`

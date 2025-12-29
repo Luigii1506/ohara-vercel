@@ -35,7 +35,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const screens = normalizeScreens(body.screens);
+    const screens = normalizeScreens(body.screens) ?? [];
 
     const announcement = await prisma.announcement.update({
       where: { id },

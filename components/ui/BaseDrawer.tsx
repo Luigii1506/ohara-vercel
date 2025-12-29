@@ -136,7 +136,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   const handleDragEnd = useCallback(() => {
     if (!isDragging) return;
-    const shouldClose = dragOffset > 120;
+    const shouldClose = dragOffset > 70;
     setIsDragging(false);
     dragStartRef.current = null;
     setDragOffset(0);
@@ -176,7 +176,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
         event.preventDefault();
         setIsDragging(true);
         // Apply resistance to make it feel more natural
-        const resistance = 0.5;
+        const resistance = 0.7;
         setDragOffset(deltaY * resistance);
       }
     },
@@ -188,7 +188,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
     touchStartYRef.current = null;
 
     if (isDragging) {
-      const shouldClose = dragOffset > 100;
+      const shouldClose = dragOffset > 60;
       setIsDragging(false);
       setDragOffset(0);
       if (shouldClose && !preventClose) {

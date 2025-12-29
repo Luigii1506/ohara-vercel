@@ -106,7 +106,21 @@ const normalizeRegion = (value?: string | null): string =>
 const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
   if (region === DEFAULT_REGION) {
     return {
-      OR: [{ region }, { isRegionalExclusive: true, region: { not: region } }],
+      OR: [
+        { region },
+        { region: null },
+        { region: "" },
+        { isRegionalExclusive: true, region: { not: region } },
+      ],
+    };
+  }
+  return { region };
+};
+
+const buildBaseRegionCondition = (region: string): Prisma.CardWhereInput => {
+  if (region === DEFAULT_REGION) {
+    return {
+      OR: [{ region }, { region: null }, { region: "" }],
     };
   }
   return { region };
@@ -464,7 +478,7 @@ const buildWhere = (
 
   const andConditions = where.AND as Prisma.CardWhereInput[];
 
-  andConditions.push({ region: selectedRegion });
+  andConditions.push(buildBaseRegionCondition(selectedRegion));
 
   const withAlternates = (
     baseCondition: Prisma.CardWhereInput,

@@ -1275,7 +1275,7 @@ export const fetchCardsPageFromDb = async (
   const selectedRegion = normalizeRegion(filters.region);
   if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
     const codes = trimmed.map((card) => card.code);
-    const exclusiveAlternates = await prisma.card.findMany({
+    const exclusiveAlternatesRaw = await prisma.card.findMany({
       where: {
         code: { in: codes },
         isRegionalExclusive: true,
@@ -1283,6 +1283,8 @@ export const fetchCardsPageFromDb = async (
       },
       select: buildAlternateSelect(includeRelations),
     });
+    const exclusiveAlternates =
+      exclusiveAlternatesRaw as unknown as AlternateWithRelations[];
 
     if (exclusiveAlternates.length) {
       const extrasByCode: Record<string, AlternateWithRelations[]> = {};
@@ -1355,7 +1357,7 @@ export const fetchAllCardsFromDb = async (
   const selectedRegion = normalizeRegion(filters.region);
   if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
     const codes = cards.map((card) => card.code);
-    const exclusiveAlternates = await prisma.card.findMany({
+    const exclusiveAlternatesRaw = await prisma.card.findMany({
       where: {
         code: { in: codes },
         isRegionalExclusive: true,
@@ -1363,6 +1365,8 @@ export const fetchAllCardsFromDb = async (
       },
       select: buildAlternateSelect(includeRelations),
     });
+    const exclusiveAlternates =
+      exclusiveAlternatesRaw as unknown as AlternateWithRelations[];
 
     if (exclusiveAlternates.length) {
       const extrasByCode: Record<string, AlternateWithRelations[]> = {};

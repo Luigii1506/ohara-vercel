@@ -52,6 +52,12 @@ export default function DropdownSearch({
     }
   }, [isInputClear]);
 
+  React.useEffect(() => {
+    if (search !== inputValue) {
+      setInputValue(search);
+    }
+  }, [search]);
+
   return (
     <div className="flex w-full max-w-4xl rounded-lg bg-white border border-gray-200 shadow-sm">
       <div className="relative flex-1 flex items-center gap-2 p-1">

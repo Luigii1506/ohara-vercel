@@ -30,7 +30,9 @@ import DropdownSearch from "@/components/DropdownSearch";
 import { rarityFormatter } from "@/helpers/formatters";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Oswald } from "next/font/google";
 import BaseCardsToggle from "@/components/BaseCardsToggle";
 import FAB from "@/components/Fab";
@@ -50,7 +52,13 @@ import {
   serializeFiltersForKey,
 } from "@/hooks/useCards";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { RefreshCw, WifiOff, SlidersHorizontal } from "lucide-react";
+import {
+  RefreshCw,
+  WifiOff,
+  SlidersHorizontal,
+  X,
+  HelpCircle,
+} from "lucide-react";
 import ClearFiltersButton from "@/components/ClearFiltersButton";
 import { useSession } from "next-auth/react";
 import { getOptimizedImageUrl, smartPrefetch } from "@/lib/imageOptimization";
@@ -77,11 +85,12 @@ const oswald = Oswald({
   weight: ["400", "500", "700"],
 });
 
-
 const PAGE_SIZE = 60;
 
 const NO_COUNTER_LABEL = "No counter";
 const NO_TRIGGER_LABEL = "No trigger";
+const SEARCH_TIP_STORAGE_KEY = "card-search-tips-v1";
+const SEARCH_MODAL_STORAGE_KEY = "card-search-modal-v1";
 
 // Helper functions para precio - fuera del componente para evitar recreación
 const getNumericPriceStatic = (value: any) => {
@@ -195,6 +204,39 @@ const CardListClient = ({
     ],
     [t]
   );
+  const searchExamples = useMemo(
+    () => [
+      {
+        label: t("cardList.search.example.don.label"),
+        description: t("cardList.search.example.don.desc"),
+      },
+      {
+        label: t("cardList.search.example.secret.label"),
+        description: t("cardList.search.example.secret.desc"),
+      },
+      {
+        label: t("cardList.search.example.luffyRed.label"),
+        description: t("cardList.search.example.luffyRed.desc"),
+      },
+      {
+        label: t("cardList.search.example.namiOp12.label"),
+        description: t("cardList.search.example.namiOp12.desc"),
+      },
+      {
+        label: t("cardList.search.example.power3000.label"),
+        description: t("cardList.search.example.power3000.desc"),
+      },
+      {
+        label: t("cardList.search.example.cost7.label"),
+        description: t("cardList.search.example.cost7.desc"),
+      },
+      {
+        label: t("cardList.search.example.code120.label"),
+        description: t("cardList.search.example.code120.desc"),
+      },
+    ],
+    [t]
+  );
   const getArrayParam = useCallback(
     (key: string, fallback: string[] = []) =>
       searchParams.get(key)?.split(",").filter(Boolean) ?? fallback,
@@ -272,11 +314,16 @@ const CardListClient = ({
     return { columns, count: rows * columns };
   }, []);
 
-
   // Leer estado desde URL params
   const [search, setSearch] = useState(
     searchParams.get("search") ?? initialFilters.search ?? ""
   );
+  const [showSearchTips, setShowSearchTips] = useState(false);
+  const [showSearchHelp, setShowSearchHelp] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showSearchChips, setShowSearchChips] = useState(true);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const showSearchChipsRef = useRef(true);
   const [selectedColors, setSelectedColors] = useState<string[]>(
     getArrayParam("colors", initialFilters.colors ?? [])
   );
@@ -363,6 +410,65 @@ const CardListClient = ({
   const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasSeenModal = window.localStorage.getItem(SEARCH_MODAL_STORAGE_KEY);
+    const hasSeenTips = window.localStorage.getItem(SEARCH_TIP_STORAGE_KEY);
+    if (!hasSeenModal) {
+      setShowSearchModal(true);
+      return;
+    }
+    if (!hasSeenTips) {
+      setShowSearchTips(true);
+    }
+  }, []);
+
+  const markSearchTipsSeen = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(SEARCH_TIP_STORAGE_KEY, "1");
+  }, []);
+
+  const markSearchModalSeen = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(SEARCH_MODAL_STORAGE_KEY, "1");
+  }, []);
+
+  const handleSearchExample = useCallback(
+    (value: string) => {
+      setSearch(value);
+      setShowSearchHelp(false);
+      setShowSearchTips(false);
+      markSearchTipsSeen();
+    },
+    [markSearchTipsSeen, setSearch]
+  );
+
+  const handleCloseSearchModal = useCallback(
+    (showTips: boolean) => {
+      setShowSearchModal(false);
+      markSearchModalSeen();
+      if (showTips) {
+        setShowSearchTips(true);
+      }
+    },
+    [markSearchModalSeen]
+  );
+
+  useEffect(() => {
+    showSearchChipsRef.current = showSearchChips;
+  }, [showSearchChips]);
+
+  useEffect(() => {
+    if (searchExamples.length === 0) return;
+    const interval = setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % searchExamples.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [searchExamples.length]);
+
+  const dynamicPlaceholder =
+    searchExamples[placeholderIndex]?.label || t("common.searchPlaceholder");
 
   // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
   const [touchedCardId, setTouchedCardId] = useState<number | string | null>(
@@ -717,6 +823,11 @@ const CardListClient = ({
       const target = e.target as HTMLDivElement;
       const { scrollTop, clientHeight, scrollHeight } = target;
 
+      if (scrollTop > 120 && showSearchChipsRef.current) {
+        showSearchChipsRef.current = false;
+        setShowSearchChips(false);
+      }
+
       // Actualizar FAB solo si cambió el estado (sin setState innecesario)
       const shouldShowFab = scrollTop > 100;
       if (showFabRef.current !== shouldShowFab) {
@@ -754,7 +865,15 @@ const CardListClient = ({
         }
       }
     },
-    [visibleCount, filteredCards.length, hasNextPage, isFetchingNextPage, fetchNextPage, BATCH_SIZE, LOAD_THRESHOLD_PX]
+    [
+      visibleCount,
+      filteredCards.length,
+      hasNextPage,
+      isFetchingNextPage,
+      fetchNextPage,
+      BATCH_SIZE,
+      LOAD_THRESHOLD_PX,
+    ]
   );
 
   // Pre-calcular datos de cartas visibles para evitar IIFE en render
@@ -990,31 +1109,121 @@ const CardListClient = ({
         </div>
 
         <div className="flex md:hidden p-3 flex-col gap-3 border-b border-[#f5f5f5]">
-          <DropdownSearch
-            search={search}
-            setSearch={setSearch}
-            placeholder={t("common.searchPlaceholder")}
-          />
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <DropdownSearch
+                search={search}
+                setSearch={setSearch}
+                placeholder={`${t("cardList.search.placeholderPrefix")} ${dynamicPlaceholder}`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSearchHelp(true)}
+              className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:scale-95"
+            >
+              <HelpCircle className="h-5 w-5 mx-auto" />
+              <span className="sr-only">
+                {t("cardList.search.helpButton")}
+              </span>
+            </button>
+          </div>
+
+          {showSearchTips && !showSearchModal && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-700">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    {t("cardList.search.bannerTitle")}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {t("cardList.search.bannerDescription")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSearchTips(false);
+                    markSearchTipsSeen();
+                  }}
+                  className="h-7 w-7 rounded-full border border-blue-100 bg-white text-slate-500 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4 mx-auto" />
+                  <span className="sr-only">{t("cardList.search.close")}</span>
+                </button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowSearchHelp(true);
+                  setShowSearchTips(false);
+                  markSearchTipsSeen();
+                }}
+                className="mt-3 w-full"
+              >
+                {t("cardList.search.examplesCta")}
+              </Button>
+            </div>
+          )}
+
+          {showSearchChips ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500">
+                  {t("cardList.search.chipsTitle")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowSearchChips(false)}
+                  className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                >
+                  {t("cardList.search.chipsHide")}
+                </button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {searchExamples.map((example) => (
+                  <button
+                    key={example.label}
+                    type="button"
+                    onClick={() => handleSearchExample(example.label)}
+                    className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm active:scale-95"
+                  >
+                    {example.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowSearchChips(true)}
+              className="self-start text-xs font-semibold text-slate-500"
+            >
+              {t("cardList.search.chipsShow")}
+            </button>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
-                totalFilters > 0
-                  ? "border-blue-300 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              <span>{t("common.filters")}</span>
-              {totalFilters > 0 && (
-                <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                  {totalFilters}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
+                  totalFilters > 0
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>{t("common.filters")}</span>
+                {totalFilters > 0 && (
+                  <span className="bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                    {totalFilters}
+                  </span>
+                )}
+              </button>
 
               <BaseCardsToggle
                 isActive={showOnlyBaseCards}
@@ -1065,6 +1274,129 @@ const CardListClient = ({
             setSelectedRegion={setSelectedRegion}
           />
         </div>
+
+        <BaseDrawer
+          isOpen={showSearchModal}
+          onClose={() => handleCloseSearchModal(true)}
+          maxHeight="85vh"
+          desktopModal
+          desktopMaxWidth="max-w-lg"
+          showHandle={false}
+        >
+          <div className="bg-white rounded-t-2xl lg:rounded-2xl border border-slate-200">
+            <div className="p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {t("cardList.search.modalTitle")}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {t("cardList.search.modalDescription")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCloseSearchModal(true)}
+                  className="h-8 w-8 rounded-full border border-slate-200 text-slate-500"
+                >
+                  <X className="h-4 w-4 mx-auto" />
+                  <span className="sr-only">{t("cardList.search.close")}</span>
+                </button>
+              </div>
+
+              <div className="grid gap-2">
+                {searchExamples.slice(0, 4).map((example) => (
+                  <div
+                    key={`modal-${example.label}`}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <div className="text-sm font-semibold text-slate-900">
+                      {example.label}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {example.description}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setShowSearchHelp(true);
+                    handleCloseSearchModal(false);
+                  }}
+                  className="w-full"
+                >
+                  {t("cardList.search.examplesCta")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    markSearchTipsSeen();
+                    handleCloseSearchModal(false);
+                  }}
+                  className="w-full"
+                >
+                  {t("cardList.search.modalDismiss")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </BaseDrawer>
+
+        <BaseDrawer
+          isOpen={showSearchHelp}
+          onClose={() => setShowSearchHelp(false)}
+          maxHeight="85vh"
+        >
+          <div className="bg-white rounded-t-2xl lg:rounded-2xl border border-slate-200">
+            <div className="p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {t("cardList.search.helpTitle")}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {t("cardList.search.helpSubtitle")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSearchHelp(false)}
+                  className="h-8 w-8 rounded-full border border-slate-200 text-slate-500"
+                >
+                  <X className="h-4 w-4 mx-auto" />
+                  <span className="sr-only">{t("cardList.search.close")}</span>
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                {t("cardList.search.helpHint")}
+              </p>
+
+              <div className="space-y-3">
+                {searchExamples.map((example) => (
+                  <button
+                    key={`help-${example.label}`}
+                    type="button"
+                    onClick={() => handleSearchExample(example.label)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:bg-slate-50"
+                  >
+                    <div className="text-sm font-semibold text-slate-900">
+                      {example.label}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {example.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </BaseDrawer>
 
         <div className="hidden md:block">
           <Transition show={isModalOpen} as={Fragment}>
@@ -1286,7 +1618,9 @@ const CardListClient = ({
                       priorityLimit={priorityLimit}
                       formatCurrency={formatCurrency}
                       getCardPriceValue={getCardPriceValue}
-                      scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                      scrollContainerRef={
+                        scrollContainerRef as React.RefObject<HTMLDivElement>
+                      }
                       touchedCardId={touchedCardId}
                       setTouchedCardId={setTouchedCardId}
                       isDesktop={isDesktop}
@@ -1300,7 +1634,13 @@ const CardListClient = ({
                   {isDesktop && (
                     <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-[repeat(auto-fit,_minmax(250px,_1fr))] justify-items-center">
                       {visibleCardsData.map(
-                        ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
+                        ({
+                          card,
+                          filteredAlts,
+                          isBaseMatch,
+                          baseCardIndex,
+                          cardIndex,
+                        }) => (
                           <Fragment key={card._id || card.id}>
                             {isBaseMatch && (
                               <div
@@ -1453,7 +1793,13 @@ const CardListClient = ({
               {viewSelected === "alternate" && (
                 <div className="flex flex-col lg:px-5 lg:py-5 gap-5">
                   {visibleCardsData.map(
-                    ({ card, filteredAlts, isBaseMatch, baseCardIndex, cardIndex }) => (
+                    ({
+                      card,
+                      filteredAlts,
+                      isBaseMatch,
+                      baseCardIndex,
+                      cardIndex,
+                    }) => (
                       <div
                         key={card._id || card.id}
                         className="flex flex-col gap-5"
@@ -1571,12 +1917,10 @@ const CardListClient = ({
                                 handleOpenCard(alt, card);
                               }}
                               onMouseEnter={() =>
-                                alt.src &&
-                                smartPrefetch(alt.src, "large", true)
+                                alt.src && smartPrefetch(alt.src, "large", true)
                               }
                               onTouchStart={() =>
-                                alt.src &&
-                                smartPrefetch(alt.src, "large", true)
+                                alt.src && smartPrefetch(alt.src, "large", true)
                               }
                               className="cursor-pointer"
                             >

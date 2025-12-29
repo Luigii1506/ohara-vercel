@@ -23,6 +23,35 @@ export type MessageKey =
   | "cardList.noResults"
   | "cardList.newsLabel"
   | "cardList.refresh"
+  | "cardList.search.placeholderPrefix"
+  | "cardList.search.helpButton"
+  | "cardList.search.bannerTitle"
+  | "cardList.search.bannerDescription"
+  | "cardList.search.examplesCta"
+  | "cardList.search.chipsTitle"
+  | "cardList.search.chipsHide"
+  | "cardList.search.chipsShow"
+  | "cardList.search.helpTitle"
+  | "cardList.search.helpSubtitle"
+  | "cardList.search.helpHint"
+  | "cardList.search.modalTitle"
+  | "cardList.search.modalDescription"
+  | "cardList.search.modalDismiss"
+  | "cardList.search.close"
+  | "cardList.search.example.don.label"
+  | "cardList.search.example.don.desc"
+  | "cardList.search.example.secret.label"
+  | "cardList.search.example.secret.desc"
+  | "cardList.search.example.luffyRed.label"
+  | "cardList.search.example.luffyRed.desc"
+  | "cardList.search.example.namiOp12.label"
+  | "cardList.search.example.namiOp12.desc"
+  | "cardList.search.example.power3000.label"
+  | "cardList.search.example.power3000.desc"
+  | "cardList.search.example.cost7.label"
+  | "cardList.search.example.cost7.desc"
+  | "cardList.search.example.code120.label"
+  | "cardList.search.example.code120.desc"
   | "proxies.cardsFound"
   | "proxies.loading"
   | "news.deckbuilder.title"
@@ -234,6 +263,37 @@ export const messages: Record<SupportedLanguage, Messages> = {
       "No hay cartas con esos filtros. Ajusta tu seleccion.",
     "cardList.newsLabel": "Novedades",
     "cardList.refresh": "Actualizar",
+    "cardList.search.placeholderPrefix": "Ej:",
+    "cardList.search.helpButton": "Ayuda de busqueda",
+    "cardList.search.bannerTitle": "Nuevo: busqueda inteligente",
+    "cardList.search.bannerDescription":
+      "Usa colores, rareza, codigos y mas en una sola busqueda.",
+    "cardList.search.examplesCta": "Ver ejemplos",
+    "cardList.search.chipsTitle": "Prueba busquedas rapidas",
+    "cardList.search.chipsHide": "Ocultar",
+    "cardList.search.chipsShow": "Mostrar tips de busqueda",
+    "cardList.search.helpTitle": "Busqueda inteligente",
+    "cardList.search.helpSubtitle": "Explora combinaciones de busqueda.",
+    "cardList.search.helpHint": "Toca un ejemplo para probarlo.",
+    "cardList.search.modalTitle": "Busqueda inteligente",
+    "cardList.search.modalDescription":
+      "Combina color, rareza, codigo y mas en una sola busqueda.",
+    "cardList.search.modalDismiss": "No mostrar otra vez",
+    "cardList.search.close": "Cerrar",
+    "cardList.search.example.don.label": "don",
+    "cardList.search.example.don.desc": "Cartas DON!!",
+    "cardList.search.example.secret.label": "secreta",
+    "cardList.search.example.secret.desc": "Rareza Secret Rare",
+    "cardList.search.example.luffyRed.label": "luffy rojo",
+    "cardList.search.example.luffyRed.desc": "Nombre + color",
+    "cardList.search.example.namiOp12.label": "nami op08",
+    "cardList.search.example.namiOp12.desc": "Nombre + set",
+    "cardList.search.example.power3000.label": "3000",
+    "cardList.search.example.power3000.desc": "Poder",
+    "cardList.search.example.cost7.label": "7",
+    "cardList.search.example.cost7.desc": "Costo",
+    "cardList.search.example.code120.label": "120",
+    "cardList.search.example.code120.desc": "Sufijo de codigo",
     "proxies.cardsFound": "{count} cartas",
     "proxies.loading": "Cargando...",
     "news.deckbuilder.title": "DeckBuilder nuevo",
@@ -452,6 +512,37 @@ export const messages: Record<SupportedLanguage, Messages> = {
       "No cards match your filters. Try adjusting the selection.",
     "cardList.newsLabel": "News",
     "cardList.refresh": "Refresh",
+    "cardList.search.placeholderPrefix": "Eg:",
+    "cardList.search.helpButton": "Search help",
+    "cardList.search.bannerTitle": "New: smart search",
+    "cardList.search.bannerDescription":
+      "Use color, rarity, code, and more in one search.",
+    "cardList.search.examplesCta": "See examples",
+    "cardList.search.chipsTitle": "Try quick searches",
+    "cardList.search.chipsHide": "Hide",
+    "cardList.search.chipsShow": "Show search tips",
+    "cardList.search.helpTitle": "Smart search",
+    "cardList.search.helpSubtitle": "Explore search combinations.",
+    "cardList.search.helpHint": "Tap an example to try it.",
+    "cardList.search.modalTitle": "Smart search",
+    "cardList.search.modalDescription":
+      "Combine color, rarity, code, and more in one search.",
+    "cardList.search.modalDismiss": "Don't show again",
+    "cardList.search.close": "Close",
+    "cardList.search.example.don.label": "don",
+    "cardList.search.example.don.desc": "DON!! cards",
+    "cardList.search.example.secret.label": "secret",
+    "cardList.search.example.secret.desc": "Secret Rare rarity",
+    "cardList.search.example.luffyRed.label": "luffy red",
+    "cardList.search.example.luffyRed.desc": "Name + color",
+    "cardList.search.example.namiOp12.label": "nami op08",
+    "cardList.search.example.namiOp12.desc": "Name + set",
+    "cardList.search.example.power3000.label": "3000",
+    "cardList.search.example.power3000.desc": "Power",
+    "cardList.search.example.cost7.label": "7",
+    "cardList.search.example.cost7.desc": "Cost",
+    "cardList.search.example.code120.label": "120",
+    "cardList.search.example.code120.desc": "Code suffix",
     "proxies.cardsFound": "{count} cards",
     "proxies.loading": "Loading...",
     "news.deckbuilder.title": "New DeckBuilder",

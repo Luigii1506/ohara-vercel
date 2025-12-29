@@ -17,8 +17,8 @@ type LanguageOption = {
 };
 
 const LANGUAGE_OPTIONS: LanguageOption[] = [
-  { code: "es", label: "Español" },
   { code: "en", label: "English" },
+  { code: "es", label: "Español" },
 ];
 
 type I18nContextValue = {
@@ -33,7 +33,7 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 const STORAGE_KEY = "ohara-lang";
 
 export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
-  const [lang, setLangState] = useState<SupportedLanguage>("es");
+  const [lang, setLangState] = useState<SupportedLanguage>("en");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -41,7 +41,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
       setLangState(stored);
       return;
     }
-    setLangState("es");
+    setLangState("en");
   }, []);
 
   useEffect(() => {

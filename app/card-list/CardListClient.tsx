@@ -1114,7 +1114,9 @@ const CardListClient = ({
               <DropdownSearch
                 search={search}
                 setSearch={setSearch}
-                placeholder={`${t("cardList.search.placeholderPrefix")} ${dynamicPlaceholder}`}
+                placeholder={`${t(
+                  "cardList.search.placeholderPrefix"
+                )} ${dynamicPlaceholder}`}
               />
             </div>
             <button
@@ -1123,16 +1125,14 @@ const CardListClient = ({
               className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:scale-95"
             >
               <HelpCircle className="h-5 w-5 mx-auto" />
-              <span className="sr-only">
-                {t("cardList.search.helpButton")}
-              </span>
+              <span className="sr-only">{t("cardList.search.helpButton")}</span>
             </button>
           </div>
 
           {showSearchTips && !showSearchModal && (
             <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-700">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex flex-col">
                   <p className="font-semibold text-slate-900">
                     {t("cardList.search.bannerTitle")}
                   </p>

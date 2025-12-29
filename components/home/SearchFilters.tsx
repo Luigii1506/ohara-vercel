@@ -18,7 +18,6 @@ import {
   atributeOptions,
   setCodesOptions,
   altArtOptions,
-  allRegions,
 } from "@/helpers/constants";
 
 import ClearFiltersButton from "../ClearFiltersButton";
@@ -300,15 +299,6 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               searchPlaceholder="Search attribute..."
             />
 
-            {isProVersion && (
-              <SingleSelect
-                options={allRegions}
-                selected={selectedRegion ?? null}
-                setSelected={(value) => setSelectedRegion?.(value)}
-                buttonLabel="Region"
-                isColor={false}
-              />
-            )}
           </div>
         </div>
       </div>

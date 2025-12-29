@@ -48,17 +48,27 @@ export async function POST(req: NextRequest) {
         : [FALLBACK_LANGUAGE];
 
     const sources: EventListSource[] = [];
+    const normalizeSources = (
+      source?: EventListSource | EventListSource[]
+    ): EventListSource[] => {
+      if (!source) return [];
+      return Array.isArray(source) ? source : [source];
+    };
 
     normalizedLanguages.forEach((lang) => {
       const config = LANGUAGE_EVENT_SOURCES[lang];
       if (!config) {
         return;
       }
-      if (includeCurrent && config.current) {
-        sources.push({ ...config.current });
+      if (includeCurrent) {
+        normalizeSources(config.current).forEach((source) => {
+          sources.push({ ...source });
+        });
       }
-      if (includePast && config.past) {
-        sources.push({ ...config.past });
+      if (includePast) {
+        normalizeSources(config.past).forEach((source) => {
+          sources.push({ ...source });
+        });
       }
     });
 

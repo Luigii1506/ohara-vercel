@@ -257,7 +257,7 @@ const NavBar = () => {
     { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers },
     { href: "/events", label: t("nav.events"), icon: Calendar },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
-    //{ href: "/proxies", label: "Proxies", icon: Copy },
+    { href: "/proxies", label: "Proxies", icon: Copy },
   ];
 
   const privateDesktopMenuItems = [

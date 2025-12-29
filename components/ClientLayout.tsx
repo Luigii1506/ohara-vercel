@@ -5,6 +5,8 @@ import React from "react";
 import { useState } from "react";
 import NavBar from "@/components/NavBar";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
+import AnnouncementGate from "@/components/announcements/AnnouncementGate";
+import { RegionProvider } from "@/components/region/RegionProvider";
 
 export default function ClientLayout({
   children,
@@ -19,21 +21,28 @@ export default function ClientLayout({
   const isUserStorePage = pathname.startsWith("/user-store");
 
   if (isLoginPage || isSellerPage || isUserStorePage) {
-    return <I18nProvider>{children}</I18nProvider>; // Renderiza directamente los hijos si es login, seller o user-store
+    return (
+      <RegionProvider>
+        <I18nProvider>{children}</I18nProvider>
+      </RegionProvider>
+    ); // Renderiza directamente los hijos si es login, seller o user-store
   }
 
   return (
-    <I18nProvider>
-      <main className={"h-[100dvh] w-full flex flex-col min-h-0"}>
-        <NavBar />
+    <RegionProvider>
+      <I18nProvider>
+        <AnnouncementGate />
+        <main className={"h-[100dvh] w-full flex flex-col min-h-0"}>
+          <NavBar />
 
-        <section className="min-h-0 flex-1 flex flex-col-reverse md:flex-1 md:h-0 md:flex md:flex-row w-full">
-          {/* <SideNav /> */}
-          <section className="overflow-auto flex-1 flex min-h-0 w-full min-w-0 bg-[#f0ecdc]">
-            {children}
+          <section className="min-h-0 flex-1 flex flex-col-reverse md:flex-1 md:h-0 md:flex md:flex-row w-full">
+            {/* <SideNav /> */}
+            <section className="overflow-auto flex-1 flex min-h-0 w-full min-w-0 bg-[#f0ecdc]">
+              {children}
+            </section>
           </section>
-        </section>
-      </main>
-    </I18nProvider>
+        </main>
+      </I18nProvider>
+    </RegionProvider>
   );
 }

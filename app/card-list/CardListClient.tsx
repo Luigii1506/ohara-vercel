@@ -79,6 +79,7 @@ import {
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { DON_CATEGORY } from "@/helpers/constants";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useRegion } from "@/components/region/RegionProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -159,6 +160,7 @@ const CardListClient = ({
 }: CardListClientProps) => {
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const { region, setRegion } = useRegion();
   const sortOptions = useMemo<SortOption[]>(
     () => [
       {
@@ -385,9 +387,7 @@ const CardListClient = ({
   const [selectedAltArts, setSelectedAltArts] = useState<string[]>(
     getArrayParam("altArts", initialFilters.altArts ?? [])
   );
-  const [selectedRegion, setSelectedRegion] = useState<string>(
-    searchParams.get("region") ?? initialFilters.region ?? ""
-  );
+  const selectedRegion = region;
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >((searchParams.get("view") as any) || "list");
@@ -423,6 +423,14 @@ const CardListClient = ({
       setShowSearchTips(true);
     }
   }, []);
+
+  useEffect(() => {
+    const paramRegion = searchParams.get("region");
+    if (paramRegion && paramRegion !== region) {
+      setRegion(paramRegion);
+    }
+  }, [region, searchParams, setRegion]);
+
 
   const markSearchTipsSeen = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -705,8 +713,7 @@ const CardListClient = ({
       selectedPower?.length +
       selectedAttributes?.length +
       selectedCodes?.length +
-      selectedAltArts?.length +
-      (selectedRegion !== "" ? 1 : 0),
+      selectedAltArts?.length,
     [
       selectedColors,
       selectedRarities,
@@ -721,7 +728,6 @@ const CardListClient = ({
       selectedSets,
       selectedCodes,
       selectedAltArts,
-      selectedRegion,
     ]
   );
 
@@ -1102,8 +1108,6 @@ const CardListClient = ({
             setSelectedCodes={setSelectedCodes}
             setSelectedAltArts={setSelectedAltArts}
             selectedAltArts={selectedAltArts}
-            selectedRegion={selectedRegion}
-            setSelectedRegion={setSelectedRegion}
             isProVersion={isProVersion}
           />
         </div>
@@ -1270,8 +1274,6 @@ const CardListClient = ({
             setSelectedAltArts={setSelectedAltArts}
             selectedCodes={selectedCodes}
             setSelectedCodes={setSelectedCodes}
-            selectedRegion={selectedRegion}
-            setSelectedRegion={setSelectedRegion}
           />
         </div>
 

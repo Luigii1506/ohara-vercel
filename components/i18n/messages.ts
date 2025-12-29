@@ -233,6 +233,10 @@ export type MessageKey =
   | "deckStats.counterLabel"
   | "deckStats.typeLabel"
   | "deckStats.empty"
+  | "announcement.dismiss"
+  | "announcement.ctaDefault"
+  | "announcement.ctaSecondary"
+  | "announcement.badge"
   | "language.title"
   | "language.subtitle";
 
@@ -485,6 +489,10 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "deckStats.counterLabel": "Counter",
     "deckStats.typeLabel": "Tipo",
     "deckStats.empty": "Agrega cartas para ver stats",
+    "announcement.dismiss": "Ahora no",
+    "announcement.ctaDefault": "Ver novedades",
+    "announcement.ctaSecondary": "Entendido",
+    "announcement.badge": "Novedad",
     "language.title": "Idioma",
     "language.subtitle": "Elige tu idioma",
   },
@@ -731,6 +739,10 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "deckStats.counterLabel": "Counter",
     "deckStats.typeLabel": "Type",
     "deckStats.empty": "Add cards to see stats",
+    "announcement.dismiss": "Not now",
+    "announcement.ctaDefault": "See what's new",
+    "announcement.ctaSecondary": "Got it",
+    "announcement.badge": "Update",
     "language.title": "Language",
     "language.subtitle": "Choose your language",
   },

@@ -37,6 +37,8 @@ import {
   serializeFiltersForKey,
 } from "@/hooks/useCards";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useRegion } from "@/components/region/RegionProvider";
+import { DEFAULT_REGION } from "@/lib/regions";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -53,6 +55,7 @@ const ProxiesBuilder = ({
   initialFilters,
 }: ProxiesBuilderProps) => {
   const { t } = useI18n();
+  const { region } = useRegion();
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [proxies, setProxies] = useState<DeckCard[]>([]);
@@ -141,6 +144,7 @@ const ProxiesBuilder = ({
         selectedTrigger && selectedTrigger !== "No trigger"
           ? selectedTrigger
           : undefined,
+      region,
       sortBy,
       // When showOnlyBaseCards is active, filter bases on server
       baseOnly: showOnlyBaseCards ? true : undefined,
@@ -162,6 +166,7 @@ const ProxiesBuilder = ({
     selectedTrigger,
     selectedSort,
     showOnlyBaseCards,
+    region,
   ]);
 
   // Check if current filters match initial filters for using SSR data
@@ -179,11 +184,12 @@ const ProxiesBuilder = ({
   // Prepare initial data for the hook
   const initialQueryData = useMemo(() => {
     if (!initialData || !matchesInitialFilters) return undefined;
+    if (region !== DEFAULT_REGION) return undefined;
     return {
       pages: [initialData],
       pageParams: [null],
     };
-  }, [initialData, matchesInitialFilters]);
+  }, [initialData, matchesInitialFilters, region]);
 
   // Use paginated cards hook
   const {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_REGION } from "@/lib/regions";
 
 // Función optimizada para obtener el índice de orden según el prefijo
 function getPrefixIndex(code: string): number {
@@ -35,10 +36,12 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") || "";
     const limit = parseInt(searchParams.get("limit") || "24");
     const page = parseInt(searchParams.get("page") || "1");
+    const selectedRegion = searchParams.get("region") || DEFAULT_REGION;
 
     // Construir where clause dinámico
     const where: any = {
       isFirstEdition: true,
+      region: selectedRegion,
     };
 
     if (colors.length > 0) {
@@ -114,6 +117,14 @@ export async function GET(req: NextRequest) {
       where: {
         isFirstEdition: false,
         code: { in: codes },
+        ...(selectedRegion === DEFAULT_REGION
+          ? {
+              OR: [
+                { region: DEFAULT_REGION },
+                { isRegionalExclusive: true, region: { not: DEFAULT_REGION } },
+              ],
+            }
+          : { region: selectedRegion }),
       },
       select: {
         id: true,

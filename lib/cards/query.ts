@@ -7,6 +7,7 @@ import type {
   FetchCardsPageOptions,
 } from "./types";
 import type { CardWithCollectionData } from "@/types";
+import { DEFAULT_REGION } from "@/lib/regions";
 
 type AlternateRelation = {
   id: number;
@@ -99,6 +100,18 @@ const splitParam = (value: string | null | undefined) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
+const normalizeRegion = (value?: string | null): string =>
+  value && value.trim() ? value.trim() : DEFAULT_REGION;
+
+const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
+  if (region === DEFAULT_REGION) {
+    return {
+      OR: [{ region }, { isRegionalExclusive: true, region: { not: region } }],
+    };
+  }
+  return { region };
+};
+
 const VALID_SORT_VALUES = [
   "price_high",
   "price_low",
@@ -131,7 +144,7 @@ export const buildFiltersFromSearchParams = (
     types: splitParam(params.get("types")),
     effects: splitParam(params.get("effects")),
     altArts: splitParam(params.get("altArts")),
-    region: params.get("region") ?? undefined,
+    region: normalizeRegion(params.get("region")),
     counter: params.get("counter") ?? undefined,
     trigger: params.get("trigger") ?? undefined,
     sortBy,
@@ -439,6 +452,8 @@ const buildWhere = (
   filters: CardsFilters,
   includeAlternates: boolean = false
 ): Prisma.CardWhereInput => {
+  const selectedRegion = normalizeRegion(filters.region);
+  const alternateRegionCondition = buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     // Solo filtrar por baseCardId: null si NO incluimos alternativas
     // o si el caller solicita solo cartas base.
@@ -449,6 +464,8 @@ const buildWhere = (
 
   const andConditions = where.AND as Prisma.CardWhereInput[];
 
+  andConditions.push({ region: selectedRegion });
+
   const withAlternates = (
     baseCondition: Prisma.CardWhereInput,
     alternateCondition?: Prisma.CardWhereInput
@@ -457,7 +474,9 @@ const buildWhere = (
       baseCondition,
       {
         alternateCards: {
-          some: alternateCondition ?? baseCondition,
+          some: {
+            AND: [alternateRegionCondition, alternateCondition ?? baseCondition],
+          },
         },
       },
     ],
@@ -626,12 +645,17 @@ const buildWhere = (
         {
           alternateCards: {
             some: {
-              OR: [
-                { setCode: { in: filters.sets } },
+              AND: [
+                alternateRegionCondition,
                 {
-                  sets: {
-                    some: { set: { code: { in: filters.sets } } },
-                  },
+                  OR: [
+                    { setCode: { in: filters.sets } },
+                    {
+                      sets: {
+                        some: { set: { code: { in: filters.sets } } },
+                      },
+                    },
+                  ],
                 },
               ],
             },
@@ -648,7 +672,12 @@ const buildWhere = (
           { code: { contains: code, mode: "insensitive" } },
           {
             alternateCards: {
-              some: { code: { contains: code, mode: "insensitive" } },
+              some: {
+                AND: [
+                  alternateRegionCondition,
+                  { code: { contains: code, mode: "insensitive" } },
+                ],
+              },
             },
           },
         ],
@@ -738,14 +767,6 @@ const buildWhere = (
     );
   }
 
-  if (filters.region) {
-    andConditions.push(
-      withAlternates({
-        region: filters.region,
-      })
-    );
-  }
-
   if (filters.counter) {
     if (filters.counter === "No counter") {
       andConditions.push(
@@ -801,11 +822,53 @@ const buildWhere = (
   return where;
 };
 
+const buildAlternateSelect = (includeRelations: boolean) => ({
+  id: true,
+  src: true,
+  code: true,
+  alias: true,
+  order: true,
+  alternateArt: true,
+  isFirstEdition: true,
+  tcgUrl: true,
+  tcgplayerProductId: true,
+  tcgplayerLinkStatus: true,
+  marketPrice: true,
+  lowPrice: true,
+  highPrice: true,
+  priceCurrency: true,
+  priceUpdatedAt: true,
+  isPro: true,
+  region: true,
+  setCode: true,
+  baseCardId: true,
+  ...(includeRelations && {
+    types: { select: { id: true, type: true } },
+    colors: { select: { id: true, color: true } },
+    effects: { select: { id: true, effect: true } },
+    texts: { select: { id: true, text: true } },
+    sets: {
+      select: {
+        set: {
+          select: {
+            id: true,
+            title: true,
+            code: true,
+          },
+        },
+      },
+    },
+  }),
+});
+
 const buildInclude = (
   includeRelations: boolean,
-  includeAlternates: boolean
+  includeAlternates: boolean,
+  region?: string
 ): Prisma.CardInclude | undefined => {
   const include: Prisma.CardInclude = {};
+  const selectedRegion = normalizeRegion(region);
+  const alternateRegionCondition = buildRegionScopeCondition(selectedRegion);
 
   if (includeRelations) {
     include.types = { select: { id: true, type: true } };
@@ -835,45 +898,9 @@ const buildInclude = (
 
   if (includeAlternates) {
     include.alternateCards = {
+      where: alternateRegionCondition,
       orderBy: { order: "asc" },
-      select: {
-        id: true,
-        src: true,
-        code: true,
-        alias: true,
-        order: true,
-        alternateArt: true,
-        isFirstEdition: true,
-        tcgUrl: true,
-        tcgplayerProductId: true,
-        tcgplayerLinkStatus: true,
-        marketPrice: true,
-        lowPrice: true,
-        highPrice: true,
-        priceCurrency: true,
-        priceUpdatedAt: true,
-        isPro: true,
-        region: true,
-        setCode: true,
-        baseCardId: true,
-        ...(includeRelations && {
-          types: { select: { id: true, type: true } },
-          colors: { select: { id: true, color: true } },
-          effects: { select: { id: true, effect: true } },
-          texts: { select: { id: true, text: true } },
-          sets: {
-            select: {
-              set: {
-                select: {
-                  id: true,
-                  title: true,
-                  code: true,
-                },
-              },
-            },
-          },
-        }),
-      },
+      select: buildAlternateSelect(includeRelations),
     };
   }
 
@@ -1192,7 +1219,7 @@ export const fetchCardsPageFromDb = async (
 
   // Ordenamiento normal (solo cartas base)
   const where = buildWhere(filters);
-  const include = buildInclude(includeRelations, includeAlternates);
+  const include = buildInclude(includeRelations, includeAlternates, filters.region);
 
   const take = Math.min(Math.max(limit, 1), 200);
 
@@ -1245,6 +1272,45 @@ export const fetchCardsPageFromDb = async (
     mapCard(card, includeAlternates, includeCounts)
   );
 
+  const selectedRegion = normalizeRegion(filters.region);
+  if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
+    const codes = trimmed.map((card) => card.code);
+    const exclusiveAlternates = await prisma.card.findMany({
+      where: {
+        code: { in: codes },
+        isRegionalExclusive: true,
+        region: { not: selectedRegion },
+      },
+      select: buildAlternateSelect(includeRelations),
+    });
+
+    if (exclusiveAlternates.length) {
+      const extrasByCode: Record<string, AlternateWithRelations[]> = {};
+      for (const alt of exclusiveAlternates) {
+        if (!extrasByCode[alt.code]) {
+          extrasByCode[alt.code] = [];
+        }
+        extrasByCode[alt.code].push(alt);
+      }
+
+      for (const card of mapped) {
+        const extras = extrasByCode[card.code];
+        if (!extras?.length) continue;
+        const existingIds = new Set(
+          (card.alternates ?? []).map((alt) => alt.id)
+        );
+        const merged = [
+          ...(card.alternates ?? []),
+          ...extras.filter((alt) => !existingIds.has(alt.id)),
+        ];
+        card.alternates = normalizeAlternates(merged);
+        if (includeCounts) {
+          card.numOfVariations = card.alternates.length;
+        }
+      }
+    }
+  }
+
   const nextCursor =
     hasMore && trimmed.length ? trimmed[trimmed.length - 1].id : null;
 
@@ -1268,7 +1334,7 @@ export const fetchAllCardsFromDb = async (
   } = options;
 
   const where = buildWhere(filters);
-  const include = buildInclude(includeRelations, includeAlternates);
+  const include = buildInclude(includeRelations, includeAlternates, filters.region);
 
   const args: Prisma.CardFindManyArgs = {
     where,
@@ -1286,17 +1352,60 @@ export const fetchAllCardsFromDb = async (
     mapCard(card, includeAlternates, includeCounts)
   );
 
+  const selectedRegion = normalizeRegion(filters.region);
+  if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
+    const codes = cards.map((card) => card.code);
+    const exclusiveAlternates = await prisma.card.findMany({
+      where: {
+        code: { in: codes },
+        isRegionalExclusive: true,
+        region: { not: selectedRegion },
+      },
+      select: buildAlternateSelect(includeRelations),
+    });
+
+    if (exclusiveAlternates.length) {
+      const extrasByCode: Record<string, AlternateWithRelations[]> = {};
+      for (const alt of exclusiveAlternates) {
+        if (!extrasByCode[alt.code]) {
+          extrasByCode[alt.code] = [];
+        }
+        extrasByCode[alt.code].push(alt);
+      }
+
+      for (const card of mapped) {
+        const extras = extrasByCode[card.code];
+        if (!extras?.length) continue;
+        const existingIds = new Set(
+          (card.alternates ?? []).map((alt) => alt.id)
+        );
+        const merged = [
+          ...(card.alternates ?? []),
+          ...extras.filter((alt) => !existingIds.has(alt.id)),
+        ];
+        card.alternates = normalizeAlternates(merged);
+        if (includeCounts) {
+          card.numOfVariations = card.alternates.length;
+        }
+      }
+    }
+  }
+
   return mapped as unknown as CardWithCollectionData[];
 };
 
 // Build WHERE conditions for direct matching (without the "withAlternates" OR logic)
 // Used for counting individual cards that match filters
 const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+  const selectedRegion = normalizeRegion(filters.region);
+  const regionCondition = buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     AND: [],
   };
 
   const andConditions = where.AND as Prisma.CardWhereInput[];
+
+  andConditions.push(regionCondition);
 
   const buildSearchCondition = (search: string): Prisma.CardWhereInput => {
     return {
@@ -1491,10 +1600,6 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
         alternateArt: { equals: value, mode: "insensitive" as const },
       })),
     });
-  }
-
-  if (filters.region) {
-    andConditions.push({ region: filters.region });
   }
 
   if (filters.counter) {

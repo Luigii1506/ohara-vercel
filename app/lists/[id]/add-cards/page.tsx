@@ -61,6 +61,7 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
+import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardModal from "@/components/CardModal";
 import DonModal from "@/components/DonModal";
 import { useAllCards } from "@/hooks/useCards";
@@ -77,6 +78,7 @@ import FiltersSidebar from "@/components/FiltersSidebar";
 import ViewSwitch from "@/components/ViewSwitch";
 import { Option } from "@/components/MultiSelect";
 import ClearFiltersButton from "@/components/ClearFiltersButton";
+import { useRegion } from "@/components/region/RegionProvider";
 import FAB from "@/components/Fab";
 import StoreCard from "@/components/StoreCard";
 import { DON_CATEGORY } from "@/helpers/constants";
@@ -119,6 +121,8 @@ interface UserList {
 interface SimpleListCard {
   card: CardWithCollectionData;
   quantity: number;
+  customPrice?: number | string | null;
+  customCurrency?: string | null;
 }
 
 interface OrderedListChange {
@@ -347,6 +351,7 @@ const AddCardsPage = () => {
   const params = useParams();
   const router = useRouter();
   const listId = params.id as string;
+  const { region } = useRegion();
 
   // Core state
   const [list, setList] = useState<UserList | null>(null);
@@ -386,6 +391,18 @@ const AddCardsPage = () => {
 
   // Mobile card selection modal
   const [showMobileCardModal, setShowMobileCardModal] = useState(false);
+
+  // Mobile price drawer state
+  const [priceDrawerOpen, setPriceDrawerOpen] = useState(false);
+  const [priceDraft, setPriceDraft] = useState<{
+    card: CardWithCollectionData;
+    position?: { page: number; row: number; column: number };
+    quantity: number;
+    replaceCardId?: number;
+  } | null>(null);
+  const [priceInput, setPriceInput] = useState("");
+  const [priceCurrency, setPriceCurrency] = useState("USD");
+  const [isPriceSaving, setIsPriceSaving] = useState(false);
 
   // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -463,7 +480,10 @@ const AddCardsPage = () => {
   const allCardsSignatureRef = useRef<string | null>(null);
 
   // Filtros vacíos para traer TODAS las cartas
-  const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
+  const fullQueryFilters = useMemo<CardsFilters>(
+    () => ({ region }),
+    [region]
+  );
 
   const {
     data: allCardsData,
@@ -904,6 +924,8 @@ const AddCardsPage = () => {
               (listCard: any) => ({
                 card: listCard.card,
                 quantity: listCard.quantity || 1,
+                customPrice: listCard.customPrice ?? null,
+                customCurrency: listCard.customCurrency ?? null,
               })
             );
             setSimpleListCards(simpleCards);
@@ -1009,12 +1031,192 @@ const AddCardsPage = () => {
     );
   };
 
+  const getListCardPriceValue = (listCard: {
+    customPrice?: number | string | null;
+    card: CardWithCollectionData;
+  }) => {
+    return (
+      getNumericPrice(listCard.customPrice) ?? getCardPriceValue(listCard.card)
+    );
+  };
+
   const formatCurrency = (value: number, currency?: string | null) =>
     new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: currency || "USD",
       minimumFractionDigits: 2,
     }).format(value);
+
+  const openPriceDrawer = (
+    card: CardWithCollectionData,
+    options?: {
+      position?: { page: number; row: number; column: number };
+      quantity?: number;
+      replaceCardId?: number;
+    }
+  ) => {
+    const defaultPrice = getCardPriceValue(card);
+    setPriceDraft({
+      card,
+      position: options?.position,
+      quantity: options?.quantity ?? 1,
+      replaceCardId: options?.replaceCardId,
+    });
+    setPriceInput(
+      defaultPrice !== null && defaultPrice !== undefined
+        ? defaultPrice.toFixed(2)
+        : ""
+    );
+    setPriceCurrency(card.priceCurrency || "USD");
+    setPriceDrawerOpen(true);
+  };
+
+  const handleMobileCardPick = (card: CardWithCollectionData) => {
+    if (targetPosition) {
+      openPriceDrawer(card, { position: targetPosition });
+    } else {
+      setSelectedCardForPlacement(card);
+    }
+    setShowMobileCardModal(false);
+  };
+
+  const parsePriceValue = (value: string) => {
+    const cleaned = value.replace(/,/g, "").trim();
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const addCardWithPrice = async ({
+    card,
+    quantity,
+    position,
+    replaceCardId,
+    customPrice,
+    customCurrency,
+  }: {
+    card: CardWithCollectionData;
+    quantity: number;
+    position?: { page: number; row: number; column: number };
+    replaceCardId?: number;
+    customPrice: number | null;
+    customCurrency: string | null;
+  }) => {
+    if (!list) return;
+
+    if (list.isOrdered) {
+      if (!position) return;
+      if (replaceCardId) {
+        await fetch(`/api/lists/${listId}/cards/${replaceCardId}`, {
+          method: "DELETE",
+        });
+      }
+
+      const cardToAdd = {
+        cardId: card.id,
+        page: position.page,
+        row: position.row,
+        column: position.column,
+        customPrice,
+        customCurrency,
+      };
+
+      const response = await fetch(`/api/lists/${listId}/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([cardToAdd]),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error agregando carta: ${errorData.error}`);
+      }
+
+      const data = await response.json();
+      const savedCard = data.cards?.[0] || data.card;
+      const key = `${position.page}-${position.row}-${position.column}`;
+      setExistingCards((prev: any) => ({
+        ...prev,
+        [key]: savedCard,
+      }));
+      setPendingChanges((prev) =>
+        prev.filter(
+          (p) =>
+            !(
+              p.position.page === position.page &&
+              p.position.row === position.row &&
+              p.position.column === position.column
+            )
+        )
+      );
+      setTargetPosition(null);
+      return;
+    }
+
+    const existing = simpleListCards.find((item) => item.card.id === card.id);
+    if (existing) {
+      await handleSimpleQuantityChange(
+        card.id,
+        existing.quantity + quantity,
+        customPrice,
+        customCurrency
+      );
+      return;
+    }
+
+    const response = await fetch(`/api/lists/${listId}/cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId: card.id,
+        quantity,
+        customPrice,
+        customCurrency,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Error agregando carta: ${errorData.error}`);
+    }
+
+    const data = await response.json();
+    const savedCard = data.card || data.cards?.[0];
+
+    setSimpleListCards((prev) => [
+      ...prev,
+      {
+        card,
+        quantity,
+        customPrice: savedCard?.customPrice ?? customPrice,
+        customCurrency: savedCard?.customCurrency ?? customCurrency,
+      },
+    ]);
+  };
+
+  const handleConfirmPrice = async () => {
+    if (!priceDraft) return;
+    setIsPriceSaving(true);
+    try {
+      const customPrice = parsePriceValue(priceInput);
+      const customCurrencyValue = priceCurrency || "USD";
+      await addCardWithPrice({
+        card: priceDraft.card,
+        quantity: priceDraft.quantity,
+        position: priceDraft.position,
+        replaceCardId: priceDraft.replaceCardId,
+        customPrice,
+        customCurrency: customPrice !== null ? customCurrencyValue : null,
+      });
+      setPriceDrawerOpen(false);
+      setPriceDraft(null);
+    } catch (error) {
+      console.error("Error guardando precio:", error);
+      toast.error("Error al guardar el precio");
+    } finally {
+      setIsPriceSaving(false);
+    }
+  };
 
   // Calculate total value of the folder/list
   const folderTotalValue = useMemo(() => {
@@ -1025,13 +1227,14 @@ const AddCardsPage = () => {
       // For ordered lists (folders)
       Object.values(existingCards).forEach((listCard: any) => {
         if (listCard?.card) {
-          const priceValue = getCardPriceValue(listCard.card);
+          const priceValue = getListCardPriceValue(listCard);
           const quantity = listCard.quantity || 1;
           if (priceValue !== null) {
             totalValue += priceValue * quantity;
-            if (listCard.card.priceCurrency) {
-              currency = listCard.card.priceCurrency;
-            }
+            currency =
+              listCard.customCurrency ||
+              listCard.card.priceCurrency ||
+              currency;
           }
         }
       });
@@ -1039,13 +1242,14 @@ const AddCardsPage = () => {
       // For simple lists
       simpleListCards.forEach((simpleCard) => {
         if (simpleCard?.card) {
-          const priceValue = getCardPriceValue(simpleCard.card);
+          const priceValue = getListCardPriceValue(simpleCard);
           const quantity = simpleCard.quantity || 1;
           if (priceValue !== null) {
             totalValue += priceValue * quantity;
-            if (simpleCard.card.priceCurrency) {
-              currency = simpleCard.card.priceCurrency;
-            }
+            currency =
+              simpleCard.customCurrency ||
+              simpleCard.card.priceCurrency ||
+              currency;
           }
         }
       });
@@ -1464,6 +1668,10 @@ const AddCardsPage = () => {
       // If card exists, increment quantity using the existing function
       await handleSimpleQuantityChange(card.id, existing.quantity + 1);
     } else {
+      if (isMobile) {
+        openPriceDrawer(card, { quantity: 1 });
+        return;
+      }
       // If card doesn't exist, add it with quantity 1
       const newCards = [...simpleListCards, { card, quantity: 1 }];
       setSimpleListCards(newCards);
@@ -1495,14 +1703,27 @@ const AddCardsPage = () => {
 
   const handleSimpleQuantityChange = async (
     cardId: string,
-    quantity: number
+    quantity: number,
+    customPrice?: number | null,
+    customCurrency?: string | null
   ) => {
     // First update the local state
     const newCards =
       quantity <= 0
         ? simpleListCards.filter((item) => item.card.id !== cardId)
         : simpleListCards.map((item) =>
-            item.card.id === cardId ? { ...item, quantity } : item
+            item.card.id === cardId
+              ? {
+                  ...item,
+                  quantity,
+                  customPrice:
+                    customPrice !== undefined ? customPrice : item.customPrice,
+                  customCurrency:
+                    customCurrency !== undefined
+                      ? customCurrency
+                      : item.customCurrency,
+                }
+              : item
           );
 
     setSimpleListCards(newCards);
@@ -1527,7 +1748,11 @@ const AddCardsPage = () => {
         const response = await fetch(`/api/lists/${listId}/cards/${cardId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity }),
+          body: JSON.stringify({
+            quantity,
+            customPrice,
+            customCurrency,
+          }),
         });
 
         if (!response.ok) {
@@ -1586,6 +1811,13 @@ const AddCardsPage = () => {
 
     // If there's a selected card for placement, place it here
     if (selectedCardForPlacement && !cardAtPosition) {
+      if (isMobile) {
+        openPriceDrawer(selectedCardForPlacement, {
+          position: { page: targetPage, row, column: col },
+        });
+        setSelectedCardForPlacement(null);
+        return;
+      }
       const changeId = `${Date.now()}-${Math.random()}`;
       const newChange = {
         id: changeId,
@@ -3088,11 +3320,15 @@ const AddCardsPage = () => {
 
                               {/* Price Display */}
                               {(() => {
-                                const priceValue = getCardPriceValue(item.card);
+                                const priceValue = getListCardPriceValue(item);
                                 if (priceValue !== null) {
                                   return (
                                     <p className="text-sm font-bold text-emerald-600 mt-2">
-                                      {formatCurrency(priceValue, item.card.priceCurrency)}
+                                      {formatCurrency(
+                                        priceValue,
+                                        item.customCurrency ||
+                                          item.card.priceCurrency
+                                      )}
                                     </p>
                                   );
                                 }
@@ -3358,83 +3594,7 @@ const AddCardsPage = () => {
                             : ""
                         }`}
                         onClick={() => {
-                          if (targetPosition) {
-                            // Place card directly in the target position
-                            const changeId = `${Date.now()}-${Math.random()}`;
-                            const newChange = {
-                              id: changeId,
-                              type: "add" as const,
-                              position: targetPosition,
-                              card: card,
-                            };
-                            setPendingChanges((prev) => [
-                              ...prev.filter(
-                                (c) =>
-                                  !(
-                                    c.position.page === targetPosition.page &&
-                                    c.position.row === targetPosition.row &&
-                                    c.position.column === targetPosition.column
-                                  )
-                              ),
-                              newChange,
-                            ]);
-
-                            // Auto-save immediately
-                            (async () => {
-                              try {
-                                const cardToAdd = {
-                                  cardId: newChange.card.id,
-                                  page: newChange.position.page,
-                                  row: newChange.position.row,
-                                  column: newChange.position.column,
-                                };
-
-                                const response = await fetch(
-                                  `/api/lists/${listId}/cards`,
-                                  {
-                                    method: "POST",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify([cardToAdd]),
-                                  }
-                                );
-
-                                if (!response.ok) {
-                                  const errorData = await response.json();
-                                  throw new Error(
-                                    `Error agregando carta: ${errorData.error}`
-                                  );
-                                }
-
-                                // Update local state to reflect the save
-                                const newExistingCards = { ...existingCards };
-                                const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-                                newExistingCards[key] = {
-                                  card: newChange.card,
-                                  cardId: newChange.card.id,
-                                  page: newChange.position.page,
-                                  row: newChange.position.row,
-                                  column: newChange.position.column,
-                                };
-                                setExistingCards(newExistingCards);
-
-                                // Remove the processed change from pending changes
-                                setPendingChanges((prev) =>
-                                  prev.filter((p) => p.id !== newChange.id)
-                                );
-                              } catch (error) {
-                                console.error("Error en auto-guardado:", error);
-                                toast.error("Error al guardar automáticamente");
-                              }
-                            })();
-
-                            setTargetPosition(null);
-                          } else {
-                            // Select card for placement
-                            setSelectedCardForPlacement(card);
-                          }
-                          setShowMobileCardModal(false);
+                          handleMobileCardPick(card);
                         }}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
@@ -3449,92 +3609,7 @@ const AddCardsPage = () => {
                             setAlternatesCards={setAlternatesCards}
                             setIsOpen={setIsOpen}
                             onClick={() => {
-                              if (targetPosition) {
-                                // Place card directly in the target position
-                                const changeId = `${Date.now()}-${Math.random()}`;
-                                const newChange = {
-                                  id: changeId,
-                                  type: "add" as const,
-                                  position: targetPosition,
-                                  card: card,
-                                };
-                                setPendingChanges((prev) => [
-                                  ...prev.filter(
-                                    (c) =>
-                                      !(
-                                        c.position.page ===
-                                          targetPosition.page &&
-                                        c.position.row === targetPosition.row &&
-                                        c.position.column ===
-                                          targetPosition.column
-                                      )
-                                  ),
-                                  newChange,
-                                ]);
-
-                                // Auto-save immediately
-                                (async () => {
-                                  try {
-                                    const cardToAdd = {
-                                      cardId: newChange.card.id,
-                                      page: newChange.position.page,
-                                      row: newChange.position.row,
-                                      column: newChange.position.column,
-                                    };
-
-                                    const response = await fetch(
-                                      `/api/lists/${listId}/cards`,
-                                      {
-                                        method: "POST",
-                                        headers: {
-                                          "Content-Type": "application/json",
-                                        },
-                                        body: JSON.stringify([cardToAdd]),
-                                      }
-                                    );
-
-                                    if (!response.ok) {
-                                      const errorData = await response.json();
-                                      throw new Error(
-                                        `Error agregando carta: ${errorData.error}`
-                                      );
-                                    }
-
-                                    // Update local state to reflect the save
-                                    const newExistingCards = {
-                                      ...existingCards,
-                                    };
-                                    const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-                                    newExistingCards[key] = {
-                                      card: newChange.card,
-                                      cardId: newChange.card.id,
-                                      page: newChange.position.page,
-                                      row: newChange.position.row,
-                                      column: newChange.position.column,
-                                    };
-                                    setExistingCards(newExistingCards);
-
-                                    // Remove the processed change from pending changes
-                                    setPendingChanges((prev) =>
-                                      prev.filter((p) => p.id !== newChange.id)
-                                    );
-                                  } catch (error) {
-                                    console.error(
-                                      "Error en auto-guardado:",
-                                      error
-                                    );
-                                    toast.error(
-                                      "Error al guardar automáticamente"
-                                    );
-                                  }
-                                })();
-
-                                setTargetPosition(null);
-                              } else {
-                                // Select card for placement
-                                setSelectedCardForPlacement(card);
-                              }
-                              setShowMobileCardModal(false);
+                              handleMobileCardPick(card);
                             }}
                           />
                         </div>
@@ -3592,92 +3667,7 @@ const AddCardsPage = () => {
                         {baseCardMatches() && (
                           <div
                             onClick={() => {
-                              if (targetPosition) {
-                                // Place card directly in the target position
-                                const changeId = `${Date.now()}-${Math.random()}`;
-                                const newChange = {
-                                  id: changeId,
-                                  type: "add" as const,
-                                  position: targetPosition,
-                                  card: card,
-                                };
-                                setPendingChanges((prev) => [
-                                  ...prev.filter(
-                                    (c) =>
-                                      !(
-                                        c.position.page ===
-                                          targetPosition.page &&
-                                        c.position.row === targetPosition.row &&
-                                        c.position.column ===
-                                          targetPosition.column
-                                      )
-                                  ),
-                                  newChange,
-                                ]);
-
-                                // Auto-save immediately
-                                (async () => {
-                                  try {
-                                    const cardToAdd = {
-                                      cardId: newChange.card.id,
-                                      page: newChange.position.page,
-                                      row: newChange.position.row,
-                                      column: newChange.position.column,
-                                    };
-
-                                    const response = await fetch(
-                                      `/api/lists/${listId}/cards`,
-                                      {
-                                        method: "POST",
-                                        headers: {
-                                          "Content-Type": "application/json",
-                                        },
-                                        body: JSON.stringify([cardToAdd]),
-                                      }
-                                    );
-
-                                    if (!response.ok) {
-                                      const errorData = await response.json();
-                                      throw new Error(
-                                        `Error agregando carta: ${errorData.error}`
-                                      );
-                                    }
-
-                                    // Update local state to reflect the save
-                                    const newExistingCards = {
-                                      ...existingCards,
-                                    };
-                                    const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-                                    newExistingCards[key] = {
-                                      card: newChange.card,
-                                      cardId: newChange.card.id,
-                                      page: newChange.position.page,
-                                      row: newChange.position.row,
-                                      column: newChange.position.column,
-                                    };
-                                    setExistingCards(newExistingCards);
-
-                                    // Remove the processed change from pending changes
-                                    setPendingChanges((prev) =>
-                                      prev.filter((p) => p.id !== newChange.id)
-                                    );
-                                  } catch (error) {
-                                    console.error(
-                                      "Error en auto-guardado:",
-                                      error
-                                    );
-                                    toast.error(
-                                      "Error al guardar automáticamente"
-                                    );
-                                  }
-                                })();
-
-                                setTargetPosition(null);
-                              } else {
-                                // Select card for placement
-                                setSelectedCardForPlacement(card);
-                              }
-                              setShowMobileCardModal(false);
+                              handleMobileCardPick(card);
                             }}
                             className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
                               selectedCardForPlacement?.id === card.id
@@ -3731,95 +3721,7 @@ const AddCardsPage = () => {
                             <div
                               key={alt._id}
                               onClick={() => {
-                                if (targetPosition) {
-                                  // Place card directly in the target position
-                                  const changeId = `${Date.now()}-${Math.random()}`;
-                                  const newChange = {
-                                    id: changeId,
-                                    type: "add" as const,
-                                    position: targetPosition,
-                                    card: alt,
-                                  };
-                                  setPendingChanges((prev) => [
-                                    ...prev.filter(
-                                      (c) =>
-                                        !(
-                                          c.position.page ===
-                                            targetPosition.page &&
-                                          c.position.row ===
-                                            targetPosition.row &&
-                                          c.position.column ===
-                                            targetPosition.column
-                                        )
-                                    ),
-                                    newChange,
-                                  ]);
-
-                                  // Auto-save immediately
-                                  (async () => {
-                                    try {
-                                      const cardToAdd = {
-                                        cardId: newChange.card.id,
-                                        page: newChange.position.page,
-                                        row: newChange.position.row,
-                                        column: newChange.position.column,
-                                      };
-
-                                      const response = await fetch(
-                                        `/api/lists/${listId}/cards`,
-                                        {
-                                          method: "POST",
-                                          headers: {
-                                            "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify([cardToAdd]),
-                                        }
-                                      );
-
-                                      if (!response.ok) {
-                                        const errorData = await response.json();
-                                        throw new Error(
-                                          `Error agregando carta: ${errorData.error}`
-                                        );
-                                      }
-
-                                      // Update local state to reflect the save
-                                      const newExistingCards = {
-                                        ...existingCards,
-                                      };
-                                      const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-                                      newExistingCards[key] = {
-                                        card: newChange.card,
-                                        cardId: newChange.card.id,
-                                        page: newChange.position.page,
-                                        row: newChange.position.row,
-                                        column: newChange.position.column,
-                                      };
-                                      setExistingCards(newExistingCards);
-
-                                      // Remove the processed change from pending changes
-                                      setPendingChanges((prev) =>
-                                        prev.filter(
-                                          (p) => p.id !== newChange.id
-                                        )
-                                      );
-                                    } catch (error) {
-                                      console.error(
-                                        "Error en auto-guardado:",
-                                        error
-                                      );
-                                      toast.error(
-                                        "Error al guardar automáticamente"
-                                      );
-                                    }
-                                  })();
-
-                                  setTargetPosition(null);
-                                } else {
-                                  // Select card for placement
-                                  setSelectedCardForPlacement(alt);
-                                }
-                                setShowMobileCardModal(false);
+                                handleMobileCardPick(alt);
                               }}
                               className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
                                 selectedCardForPlacement?.id === alt.id
@@ -3875,6 +3777,140 @@ const AddCardsPage = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Mobile Price Drawer */}
+      <BaseDrawer
+        isOpen={priceDrawerOpen}
+        onClose={() => {
+          if (!isPriceSaving) {
+            setPriceDrawerOpen(false);
+            setPriceDraft(null);
+            setTargetPosition(null);
+          }
+        }}
+        maxHeight="85vh"
+        showHandle
+      >
+        <div className="px-5 pb-6 pt-3">
+          {priceDraft && (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-12 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                  <LazyImage
+                    src={priceDraft.card.src}
+                    fallbackSrc="/assets/images/backcard.webp"
+                    alt={priceDraft.card.name}
+                    className="h-full w-full object-cover"
+                    size="small"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {priceDraft.card.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {priceDraft.card.code}
+                  </p>
+                  <p className="text-xs text-emerald-600 font-semibold mt-1">
+                    TCG:{" "}
+                    {(() => {
+                      const marketPrice = getCardPriceValue(priceDraft.card);
+                      return marketPrice !== null
+                        ? formatCurrency(
+                            marketPrice,
+                            priceDraft.card.priceCurrency
+                          )
+                        : "Sin precio";
+                    })()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      Tu precio
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Se mostrara en tu carpeta y venta.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[11px]">
+                    {priceCurrency}
+                  </Badge>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    value={priceInput}
+                    onChange={(event) => setPriceInput(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="h-11 text-base font-semibold pl-10"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                    $
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={() => {
+                      const marketPrice = getCardPriceValue(priceDraft.card);
+                      if (marketPrice !== null) {
+                        setPriceInput(marketPrice.toFixed(2));
+                      }
+                    }}
+                  >
+                    Usar precio TCG
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-xs text-slate-500"
+                    onClick={() => setPriceInput("")}
+                  >
+                    Sin precio
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setPriceDrawerOpen(false);
+                    setPriceDraft(null);
+                    setTargetPosition(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmPrice}
+                  disabled={isPriceSaving}
+                  className="bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  {isPriceSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Agregar carta"
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </BaseDrawer>
 
       {/* Card Details Modal */}
       <Transition appear show={isOpen} as={Fragment}>

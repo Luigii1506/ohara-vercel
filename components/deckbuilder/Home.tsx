@@ -9,6 +9,8 @@ import { useSession } from "next-auth/react";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import { serializeFiltersForKey } from "@/hooks/useCards";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useRegion } from "@/components/region/RegionProvider";
+import { DEFAULT_REGION } from "@/lib/regions";
 
 interface DeckBuilderProps {
   initialData?: CardsPage;
@@ -16,6 +18,7 @@ interface DeckBuilderProps {
 
 const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
   const { t } = useI18n();
+  const { region } = useRegion();
   const router = useRouter();
   const { data: session } = useSession();
   const deckBuilder = useDeckBuilder();
@@ -25,18 +28,20 @@ const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
   // Calcular filtros iniciales basados en si hay leader seleccionado
   const initialFilters = useMemo<CardsFilters>(() => {
     if (!deckBuilder.selectedLeader) {
-      return { categories: ["Leader"] };
+      return { categories: ["Leader"], region };
     }
-    return {};
-  }, [deckBuilder.selectedLeader]);
+    return { region };
+  }, [deckBuilder.selectedLeader, region]);
 
   // Calcular initialQueryData para TanStack Query
   const initialQueryData = useMemo(() => {
     if (!initialData) return undefined;
+    if (region !== DEFAULT_REGION) return undefined;
 
     // Solo usar initialData si los filtros coinciden (Leaders iniciales)
     const initialFiltersSignature = serializeFiltersForKey({
       categories: ["Leader"],
+      region,
     });
     const currentFiltersSignature = serializeFiltersForKey(initialFilters);
 

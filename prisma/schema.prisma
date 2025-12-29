@@ -43,7 +43,9 @@ model Card {
   order                 String              @default("0")
   collectionOrder       String              @default("")
   isPro                 Boolean             @default(false)
-  region                String?
+  region                String?             // US, JP, CN, KR, TH, FR
+  language              String?             // en, ja, zh-Hans, zh-Hant, ko, th, fr
+  isRegionalExclusive   Boolean             @default(false)
   baseCardId            Int? // NULL si es carta base, ID de la base si es alternativa
   baseCard              Card?               @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
   colors                CardColor[]
@@ -67,6 +69,7 @@ model Card {
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
+  @@index([code, region, isFirstEdition]) // Índice para cartas base por region
   @@index([collectionOrder])
 }
 
@@ -202,6 +205,24 @@ enum TournamentStatus {
   CANCELLED
 }
 
+enum AnnouncementAudience {
+  ALL
+  AUTH
+  GUEST
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AnnouncementEventType {
+  IMPRESSION
+  DISMISS
+  CLICK
+}
+
 model TournamentSource {
   id           Int          @id @default(autoincrement())
   slug         String       @unique
@@ -302,6 +323,7 @@ model User {
   gameLogs      GameLog[]
   sessions      Session[]
   lists         UserList[]
+  announcementEvents AnnouncementEvent[]
 }
 
 model Account {
@@ -376,6 +398,8 @@ model UserListCard {
   column    Int?
   notes     String?
   condition String?
+  customPrice   Decimal?
+  customCurrency String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -400,6 +424,49 @@ model UserListBackcard {
 
   @@unique([listId, page, row, column], name: "unique_backcard_position")
   @@index([listId])
+}
+
+model Announcement {
+  id         Int                   @id @default(autoincrement())
+  titleEn    String
+  bodyEn     String
+  ctaLabelEn String?
+  titleEs    String?
+  bodyEs     String?
+  ctaLabelEs String?
+  ctaUrl     String?
+  audience   AnnouncementAudience @default(ALL)
+  status     AnnouncementStatus   @default(DRAFT)
+  screens    String[]
+  startAt    DateTime?
+  endAt      DateTime?
+  priority   Int                  @default(0)
+  version    Int                  @default(1)
+  showOnce   Boolean              @default(true)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  events     AnnouncementEvent[]
+
+  @@index([status, startAt, endAt])
+  @@index([priority])
+}
+
+model AnnouncementEvent {
+  id             Int                   @id @default(autoincrement())
+  announcementId Int
+  userId         Int?
+  visitorId      String?
+  type           AnnouncementEventType
+  screen         String?
+  locale         String?
+  createdAt      DateTime              @default(now())
+  announcement   Announcement          @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@index([userId])
+  @@index([visitorId])
+  @@index([type])
 }
 
 model Event {

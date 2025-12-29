@@ -75,6 +75,7 @@ import StoreCard from "../StoreCard";
 import BaseCardsToggle from "../BaseCardsToggle";
 import SortSelect, { SortOption } from "../SortSelect";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useRegion } from "@/components/region/RegionProvider";
 
 // AlternateArt types que NO deben mostrarse en el deckbuilder
 const EXCLUDED_ALTERNATE_ARTS = [
@@ -130,6 +131,7 @@ const CompleteDeckBuilderLayout = ({
   initialQueryData,
 }: CompleteDeckBuilderLayoutProps) => {
   const { t } = useI18n();
+  const { region } = useRegion();
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Helper functions for price handling
@@ -437,6 +439,7 @@ const CompleteDeckBuilderLayout = ({
       altArts: selectedAltArts.length ? selectedAltArts : undefined,
       counter: selectedCounter || undefined,
       trigger: selectedTrigger || undefined,
+      region,
       // When showOnlyBaseCards is active, filter bases on server
       baseOnly: showOnlyBaseCards ? true : undefined,
     };
@@ -457,6 +460,7 @@ const CompleteDeckBuilderLayout = ({
     selectedTrigger,
     selectedSort,
     showOnlyBaseCards,
+    region,
     deckBuilder.selectedLeader,
     leaderColors,
     nonLeaderCategories,
@@ -494,7 +498,11 @@ const CompleteDeckBuilderLayout = ({
     }
   );
 
-  const cardsSource = useServerCards ? serverCards : initialCards;
+  const rawCardsSource = useServerCards ? serverCards : initialCards;
+  const cardsSource = useMemo(() => {
+    if (!region) return rawCardsSource;
+    return rawCardsSource.filter((card) => card.region === region);
+  }, [rawCardsSource, region]);
 
   // Total results - prefer count from API, fallback to pagination count
   const totalResults = countData ?? totalCount ?? cardsSource.length;

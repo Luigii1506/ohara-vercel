@@ -279,6 +279,8 @@ export interface UserListCard {
   column?: number;
   notes?: string;
   condition?: string;
+  customPrice?: number | string | null;
+  customCurrency?: string | null;
   createdAt: Date;
   updatedAt: Date;
   list: UserList;

@@ -8,6 +8,12 @@ import {
   validateListOwnership,
 } from "@/lib/auth-helpers";
 
+const parseCustomPrice = (value: any) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
 // PUT /api/lists/[id]/cards/[cardId] - Actualizar carta en lista
 export async function PUT(
   request: NextRequest,
@@ -35,7 +41,8 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { quantity, notes, condition, position } = body;
+    const { quantity, notes, condition, position, customPrice, customCurrency } =
+      body;
 
     // Buscar la carta en la lista
     const listCard = await prisma.userListCard.findFirst({
@@ -83,6 +90,14 @@ export async function PUT(
 
     if (condition !== undefined) {
       updateData.condition = condition || "Near Mint";
+    }
+
+    if (customPrice !== undefined) {
+      updateData.customPrice = parseCustomPrice(customPrice);
+    }
+
+    if (customCurrency !== undefined) {
+      updateData.customCurrency = customCurrency || null;
     }
 
     // Manejar cambio de posición para listas ordenadas

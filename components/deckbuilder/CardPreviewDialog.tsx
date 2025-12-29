@@ -133,6 +133,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         )}&Color=${encodeURIComponent(
           infoCard.colors?.[0]?.color ?? ""
         )}&CardType=${encodeURIComponent(infoCard.category ?? "")}`;
+  const isUsCard = (altCard?.region ?? infoCard?.region) === "US";
 
   const isDon = (infoCard.category || "").toLowerCase() === "don";
   // Get colors for gradient (from base card)
@@ -304,19 +305,21 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-center px-4 mt-3">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openTcgplayer(tcgUrl);
-              }}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-sm hover:bg-blue-500 transition-colors px-4 py-2"
-            >
-              <TcgplayerLogo className="h-5 w-12 text-white" />
-              <span>{t("cardPreview.viewOnTcg")}</span>
-            </button>
-          </div>
+          {isUsCard && (
+            <div className="flex justify-center px-4 mt-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTcgplayer(tcgUrl);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-sm hover:bg-blue-500 transition-colors px-4 py-2"
+              >
+                <TcgplayerLogo className="h-5 w-12 text-white" />
+                <span>{t("cardPreview.viewOnTcg")}</span>
+              </button>
+            </div>
+          )}
 
           {/* Card Info Section - Using base card for effect/texts */}
           {!isDon && (

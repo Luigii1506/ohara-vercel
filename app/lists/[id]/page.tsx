@@ -27,6 +27,8 @@ interface ListCard {
   page: number | null;
   row: number | null;
   column: number | null;
+  customPrice?: number | string | null;
+  customCurrency?: string | null;
   card: CardWithCollectionData;
 }
 
@@ -64,6 +66,13 @@ const ListDetailPage = () => {
 
   const getCardPriceValue = (card: CardWithCollectionData) => {
     return getNumericPrice(card.marketPrice) ?? null;
+  };
+
+  const getListCardPriceValue = (listCard: ListCard) => {
+    return (
+      getNumericPrice(listCard.customPrice) ??
+      getCardPriceValue(listCard.card)
+    );
   };
 
   const formatCurrency = (value: number, currency?: string | null) =>
@@ -424,11 +433,15 @@ const ListDetailPage = () => {
                         {listCard.card.code}
                       </p>
                       {(() => {
-                        const priceValue = getCardPriceValue(listCard.card);
+                        const priceValue = getListCardPriceValue(listCard);
                         if (priceValue !== null) {
                           return (
                             <p className="text-sm font-bold text-emerald-600 mt-1.5">
-                              {formatCurrency(priceValue, listCard.card.priceCurrency)}
+                              {formatCurrency(
+                                priceValue,
+                                listCard.customCurrency ||
+                                  listCard.card.priceCurrency
+                              )}
                             </p>
                           );
                         }

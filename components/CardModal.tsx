@@ -102,6 +102,7 @@ const CardModal: React.FC<CardModalProps> = ({
   const [baseSelected, setBaseSelected] = React.useState<boolean | undefined>(
     false
   );
+  const isUsCard = (selectedCard?.region ?? baseCard?.region) === "US";
 
   const addItem = useCartStore((state) => state.addItem);
 
@@ -368,27 +369,30 @@ const CardModal: React.FC<CardModalProps> = ({
                   <div className="flex justify-center items-center flex-col gap-1">
                     {renderPriceSummary()}
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const tcgUrl = selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
-                          ? selectedCard.tcgUrl
-                          : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
-                              baseCard.name
-                            )}&Rarity=${encodeURIComponent(
-                              baseCard.rarity ?? ""
-                            )}&Color=${encodeURIComponent(
-                              baseCard.colors?.[0].color ?? ""
-                            )}&CardType=${encodeURIComponent(
-                              baseCard.category ?? ""
-                            )}`;
-                        openTcgplayer(tcgUrl);
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors mt-2 cursor-pointer"
-                    >
-                      <TcgplayerLogo className="h-5 w-12 text-white" />
-                      <span>View on TCGplayer</span>
-                    </button>
+                    {isUsCard && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const tcgUrl =
+                            selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                              ? selectedCard.tcgUrl
+                              : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
+                                  baseCard.name
+                                )}&Rarity=${encodeURIComponent(
+                                  baseCard.rarity ?? ""
+                                )}&Color=${encodeURIComponent(
+                                  baseCard.colors?.[0].color ?? ""
+                                )}&CardType=${encodeURIComponent(
+                                  baseCard.category ?? ""
+                                )}`;
+                          openTcgplayer(tcgUrl);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors mt-2 cursor-pointer"
+                      >
+                        <TcgplayerLogo className="h-5 w-12 text-white" />
+                        <span>View on TCGplayer</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -420,27 +424,30 @@ const CardModal: React.FC<CardModalProps> = ({
 
                   {renderPriceSummary()}
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const tcgUrl = selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
-                        ? selectedCard.tcgUrl
-                        : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
-                            baseCard.name
-                          )}&Rarity=${encodeURIComponent(
-                            baseCard.rarity ?? ""
-                          )}&Color=${encodeURIComponent(
-                            baseCard.colors?.[0].color ?? ""
-                          )}&CardType=${encodeURIComponent(
-                            baseCard.category ?? ""
-                          )}`;
-                      openTcgplayer(tcgUrl);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors cursor-pointer"
-                  >
-                    <TcgplayerLogo className="h-5 w-12 text-white" />
-                    <span className="text-xs">View on TCGplayer</span>
-                  </button>
+                  {isUsCard && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const tcgUrl =
+                          selectedCard?.tcgUrl && selectedCard.tcgUrl !== ""
+                            ? selectedCard.tcgUrl
+                            : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
+                                baseCard.name
+                              )}&Rarity=${encodeURIComponent(
+                                baseCard.rarity ?? ""
+                              )}&Color=${encodeURIComponent(
+                                baseCard.colors?.[0].color ?? ""
+                              )}&CardType=${encodeURIComponent(
+                                baseCard.category ?? ""
+                              )}`;
+                        openTcgplayer(tcgUrl);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-500 transition-colors cursor-pointer"
+                    >
+                      <TcgplayerLogo className="h-5 w-12 text-white" />
+                      <span className="text-xs">View on TCGplayer</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

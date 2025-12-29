@@ -24,6 +24,7 @@ const CardsVariations = ({
   setIndexSelected,
   isHorizontal = false,
 }: CardModalProps) => {
+  const isUsBase = baseCard?.region === "US";
   // Array de referencias para cada tarjeta
   const baseCardRef = useRef<HTMLDivElement | null>(null);
 
@@ -104,22 +105,24 @@ const CardsVariations = ({
             ) : (
               <p className="text-sm">{baseCard?.sets[0].set?.title}</p>
             )}
-            <Link
-              href={`https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
-                baseCard.name
-              )}&Rarity=${encodeURIComponent(
-                baseCard.rarity ?? ""
-              )}&Color=${encodeURIComponent(
-                baseCard.colors?.[0].color ?? ""
-              )}&CardType=${encodeURIComponent(baseCard.category ?? "")}`}
-              target="_blank"
-              className="underline text-blue-500 font-bold text-[13px] md:text-md"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              View on tcg plager.com
-            </Link>
+            {isUsBase && (
+              <Link
+                href={`https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
+                  baseCard.name
+                )}&Rarity=${encodeURIComponent(
+                  baseCard.rarity ?? ""
+                )}&Color=${encodeURIComponent(
+                  baseCard.colors?.[0].color ?? ""
+                )}&CardType=${encodeURIComponent(baseCard.category ?? "")}`}
+                target="_blank"
+                className="underline text-blue-500 font-bold text-[13px] md:text-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                View on tcg plager.com
+              </Link>
+            )}
           </div>
         </div>
 
@@ -152,22 +155,24 @@ const CardsVariations = ({
                     {item.sets[0].set?.title}
                   </p>
                 )}
-                <Link
-                  href={`https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
-                    baseCard.name
-                  )}&Rarity=${encodeURIComponent(
-                    baseCard.rarity ?? ""
-                  )}&Color=${encodeURIComponent(
-                    baseCard.colors?.[0].color ?? ""
-                  )}&CardType=${encodeURIComponent(baseCard.category ?? "")}`}
-                  target="_blank"
-                  className="underline text-blue-500 font-bold text-[13px] md:text-md"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  View on tcg plager.com
-                </Link>
+                {isUsBase && (
+                  <Link
+                    href={`https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
+                      baseCard.name
+                    )}&Rarity=${encodeURIComponent(
+                      baseCard.rarity ?? ""
+                    )}&Color=${encodeURIComponent(
+                      baseCard.colors?.[0].color ?? ""
+                    )}&CardType=${encodeURIComponent(baseCard.category ?? "")}`}
+                    target="_blank"
+                    className="underline text-blue-500 font-bold text-[13px] md:text-md"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    View on tcg plager.com
+                  </Link>
+                )}
               </div>
             </div>
           ))}

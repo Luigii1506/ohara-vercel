@@ -8,6 +8,12 @@ import {
   validateListOwnership,
 } from "@/lib/auth-helpers";
 
+const parseCustomPrice = (value: any) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
 // GET /api/lists/[id]/cards - Obtener cartas de lista
 export async function GET(
   request: NextRequest,
@@ -171,10 +177,15 @@ export async function POST(
         page,
         row,
         column,
+        customPrice,
+        customCurrency,
         // Ignorar id si viene en el input
         id: _ignoredId,
         ...otherFields
       } = cardInput;
+      const parsedCustomPrice = parseCustomPrice(customPrice);
+      const hasCustomPrice = customPrice !== undefined;
+      const hasCustomCurrency = customCurrency !== undefined;
 
       // Verificar que la carta existe
       const card = await prisma.card.findUnique({
@@ -225,6 +236,10 @@ export async function POST(
               quantity: 1, // Siempre 1 en listas ordenadas
               notes: notes || existingCard.notes,
               condition: condition || existingCard.condition,
+              ...(hasCustomPrice && { customPrice: parsedCustomPrice }),
+              ...(hasCustomCurrency && {
+                customCurrency: customCurrency || null,
+              }),
             },
             include: {
               card: {
@@ -249,6 +264,10 @@ export async function POST(
               quantity: existingCard.quantity + quantity,
               notes: notes || existingCard.notes,
               condition: condition || existingCard.condition,
+              ...(hasCustomPrice && { customPrice: parsedCustomPrice }),
+              ...(hasCustomCurrency && {
+                customCurrency: customCurrency || null,
+              }),
             },
             include: {
               card: {
@@ -276,6 +295,8 @@ export async function POST(
         quantity: list.isOrdered ? 1 : quantity, // En listas ordenadas siempre 1
         notes: notes || null,
         condition: condition || "Near Mint",
+        customPrice: parsedCustomPrice,
+        customCurrency: customCurrency || null,
       };
 
       // Asegurarse de que no se pase 'id' del input

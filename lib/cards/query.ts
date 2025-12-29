@@ -536,13 +536,13 @@ const buildWhere = (
           if (trigger === "No trigger") {
             andConditions.push(
               withAlternates({
-                trigger: null,
+                triggerCard: null,
               })
             );
           } else {
             andConditions.push(
               withAlternates({
-                trigger: { contains: trigger },
+                triggerCard: { contains: trigger },
               })
             );
           }
@@ -1337,9 +1337,9 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
         const normalizedTriggers = Array.from(new Set(parsed.triggers));
         normalizedTriggers.forEach((trigger) => {
           if (trigger === "No trigger") {
-            andConditions.push({ trigger: null });
+            andConditions.push({ triggerCard: null });
           } else {
-            andConditions.push({ trigger: { contains: trigger } });
+            andConditions.push({ triggerCard: { contains: trigger } });
           }
         });
       }

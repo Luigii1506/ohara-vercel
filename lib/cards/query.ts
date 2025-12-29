@@ -151,6 +151,18 @@ const buildInsensitiveListCondition = (
   };
 };
 
+const buildContainsAllCondition = (
+  values: string[],
+  build: (value: string) => Prisma.CardWhereInput
+): Prisma.CardWhereInput => {
+  if (values.length === 1) {
+    return build(values[0]);
+  }
+  return {
+    AND: values.map((value) => build(value)),
+  };
+};
+
 const SEARCH_COLOR_MAP: Record<string, string> = {
   red: "red",
   rojo: "red",
@@ -284,6 +296,12 @@ const normalizeSearchToken = (token: string) =>
   token.toLowerCase().replace(/[^a-z0-9-]/g, "");
 
 const parseSearchTokens = (search: string) => {
+  const illustratorMarkers = new Set([
+    "ill",
+    "illustrator",
+    "ilustrador",
+    "artist",
+  ]);
   const normalizedSearch = search.toLowerCase().replace(/[^a-z0-9\s-]/g, " ");
   const compactSearch = normalizedSearch.replace(/\s+/g, "");
   const rawTokens = normalizedSearch.match(/[a-z0-9-]+/gi) ?? [];
@@ -296,7 +314,11 @@ const parseSearchTokens = (search: string) => {
   const powers = new Set<string>();
   const codeTokens = new Set<string>();
   const codeSuffixTokens = new Set<string>();
+  const illustratorTokens = new Set<string>();
   const textTokens: string[] = [];
+  const illustratorMode = rawTokens.some((token) =>
+    illustratorMarkers.has(token)
+  );
 
   if (compactSearch.includes("notforsale")) {
     altArts.add("Not for sale");
@@ -358,6 +380,10 @@ const parseSearchTokens = (search: string) => {
       return;
     }
 
+    if (illustratorMode && illustratorMarkers.has(token)) {
+      return;
+    }
+
     if (/^\d+$/.test(token)) {
       if (token.length <= 2) {
         costs.add(String(parseInt(token, 10)));
@@ -379,6 +405,11 @@ const parseSearchTokens = (search: string) => {
       return;
     }
 
+    if (illustratorMode) {
+      illustratorTokens.add(token);
+      return;
+    }
+
     textTokens.push(token);
   });
 
@@ -393,6 +424,7 @@ const parseSearchTokens = (search: string) => {
     powers: Array.from(powers),
     codeTokens: Array.from(codeTokens),
     codeSuffixTokens: Array.from(codeSuffixTokens),
+    illustratorTokens: Array.from(illustratorTokens),
   };
 };
 
@@ -400,7 +432,7 @@ const hasAltArtSearch = (filters: CardsFilters) => {
   if (filters.altArts?.length) return true;
   if (!filters.search) return false;
   const parsed = parseSearchTokens(filters.search);
-  return parsed.altArts.length > 0;
+  return parsed.altArts.length > 0 || parsed.illustratorTokens.length > 0;
 };
 
 const buildWhere = (
@@ -435,6 +467,7 @@ const buildWhere = (
     return {
       OR: [
         { name: { contains: search, mode: "insensitive" } },
+        { illustrator: { contains: search, mode: "insensitive" } },
         { code: { contains: search, mode: "insensitive" } },
         { rarity: { contains: search, mode: "insensitive" } },
         {
@@ -564,6 +597,16 @@ const buildWhere = (
           withAlternates(
             buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
               code: { endsWith: value, mode: "insensitive" },
+            }))
+          )
+        );
+      }
+
+      if (parsed.illustratorTokens.length > 0) {
+        andConditions.push(
+          withAlternates(
+            buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
+              illustrator: { contains: value, mode: "insensitive" },
             }))
           )
         );
@@ -1259,6 +1302,7 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
     return {
       OR: [
         { name: { contains: search, mode: "insensitive" } },
+        { illustrator: { contains: search, mode: "insensitive" } },
         { code: { contains: search, mode: "insensitive" } },
         { rarity: { contains: search, mode: "insensitive" } },
         {
@@ -1356,6 +1400,14 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
         andConditions.push(
           buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
             code: { endsWith: value, mode: "insensitive" as const },
+          }))
+        );
+      }
+
+      if (parsed.illustratorTokens.length > 0) {
+        andConditions.push(
+          buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
+            illustrator: { contains: value, mode: "insensitive" as const },
           }))
         );
       }

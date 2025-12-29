@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import BaseDrawer from "@/components/ui/BaseDrawer";
 // import { Slider } from "@/components/ui/slider"; // Not available
 import SingleSelect from "./SingleSelect";
 
@@ -124,17 +125,17 @@ const ListsFiltersSidebar = forwardRef<
       }
     };
 
-    if (!isOpen) return null;
-
     return (
-      <div
-        ref={ref}
-        className="fixed inset-0 flex w-screen items-center justify-center p-4 backdrop-blur-md z-[99999]"
-        onClick={() => setIsOpen(false)}
+      <BaseDrawer
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        maxHeight="90vh"
+        desktopModal
+        desktopMaxWidth="max-w-2xl"
       >
         <div
-          className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[90vh] flex flex-col"
-          onClick={(e) => e.stopPropagation()}
+          ref={ref}
+          className="bg-white rounded-t-3xl lg:rounded-2xl border border-gray-200 w-full max-h-[90vh] flex flex-col"
         >
           {/* Header */}
           <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50">
@@ -144,10 +145,10 @@ const ListsFiltersSidebar = forwardRef<
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Filtros de Carpetas
+                  Filtros de Colecciones
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Personaliza tu vista de carpetas y listas
+                  Personaliza tu vista de colecciones y listas
                 </p>
               </div>
             </div>
@@ -167,7 +168,7 @@ const ListsFiltersSidebar = forwardRef<
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <Folder className="w-4 h-4" />
-                Tipo de Contenedor
+                Tipo de colección
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <Button
@@ -185,7 +186,7 @@ const ListsFiltersSidebar = forwardRef<
                   className="justify-start"
                 >
                   <Folder className="w-3 h-3 mr-1" />
-                  Carpetas
+                  Colecciones
                 </Button>
                 <Button
                   variant={selectedType === "list" ? "default" : "outline"}
@@ -279,7 +280,7 @@ const ListsFiltersSidebar = forwardRef<
             {/* Color Filter */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700">
-                Color de Carpeta
+                Color de Colección
               </label>
               <div className="grid grid-cols-4 gap-2">
                 {colorOptions.map((color) => (
@@ -438,7 +439,7 @@ const ListsFiltersSidebar = forwardRef<
             </Button>
           </div>
         </div>
-      </div>
+      </BaseDrawer>
     );
   }
 );

@@ -69,6 +69,7 @@ const NavBar = () => {
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLanguageDrawerOpen, setIsLanguageDrawerOpen] = useState(false);
+  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
   const [isRegionDrawerOpen, setIsRegionDrawerOpen] = useState(false);
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
   const adminMenuRef = useRef<HTMLDivElement>(null);
@@ -592,7 +593,7 @@ const NavBar = () => {
               )}
               <button
                 type="button"
-                onClick={() => setIsLanguageDrawerOpen(true)}
+                onClick={() => setIsLanguageModalOpen(true)}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
                 aria-label="Language"
               >
@@ -860,6 +861,40 @@ const NavBar = () => {
         </div>
         <div className="h-[env(safe-area-inset-bottom)]" />
       </BaseDrawer>
+
+      <Dialog open={isLanguageModalOpen} onOpenChange={setIsLanguageModalOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border-none bg-white p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("language.title")}</DialogTitle>
+            <DialogDescription>{t("language.subtitle")}</DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-2">
+            {languages.map((option) => {
+              const isActive = option.code === lang;
+              return (
+                <button
+                  key={option.code}
+                  type="button"
+                  onClick={() => {
+                    setLang(option.code);
+                    setIsLanguageModalOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors ${
+                    isActive
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-900 hover:bg-slate-200"
+                  }`}
+                >
+                  <span className="font-semibold">{option.label}</span>
+                  <span className="text-xs font-semibold uppercase">
+                    {option.code}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {role === "ADMIN" && (
         <>

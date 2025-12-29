@@ -579,15 +579,17 @@ const NavBar = () => {
                   </Link>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setIsRegionModalOpen(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
-                aria-label="Region"
-              >
-                <MapPin size={16} />
-                <span className="uppercase">{region || DEFAULT_REGION}</span>
-              </button>
+              {role === "ADMIN" && (
+                <button
+                  type="button"
+                  onClick={() => setIsRegionModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+                  aria-label="Region"
+                >
+                  <MapPin size={16} />
+                  <span className="uppercase">{region || DEFAULT_REGION}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsLanguageDrawerOpen(true)}
@@ -602,14 +604,16 @@ const NavBar = () => {
 
             {/* Botón de menú móvil */}
             <div className="md:hidden flex items-center gap-2 ml-auto">
-              <button
-                type="button"
-                onClick={() => setIsRegionDrawerOpen(true)}
-                className="p-2 rounded-md hover:bg-white/10 transition-colors"
-                aria-label="Region"
-              >
-                <MapPin size={20} className="text-white" />
-              </button>
+              {role === "ADMIN" && (
+                <button
+                  type="button"
+                  onClick={() => setIsRegionDrawerOpen(true)}
+                  className="p-2 rounded-md hover:bg-white/10 transition-colors"
+                  aria-label="Region"
+                >
+                  <MapPin size={20} className="text-white" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsLanguageDrawerOpen(true)}
@@ -857,84 +861,88 @@ const NavBar = () => {
         <div className="h-[env(safe-area-inset-bottom)]" />
       </BaseDrawer>
 
-      <BaseDrawer
-        isOpen={isRegionDrawerOpen}
-        onClose={() => setIsRegionDrawerOpen(false)}
-        maxHeight="60vh"
-      >
-        <div className="px-5 pb-4 flex flex-col">
-          <h3 className="text-lg font-semibold text-slate-900">Region</h3>
-          <p className="text-sm text-slate-500">
-            Choose the region for card data.
-          </p>
-        </div>
-        <div className="px-3 pb-6 space-y-1">
-          {regions.map((option) => {
-            const isActive = option.code === region;
-            return (
-              <button
-                key={option.code}
-                type="button"
-                onClick={() => {
-                  setRegion(option.code);
-                  setIsRegionDrawerOpen(false);
-                }}
-                className={`w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-200 active:scale-[0.98] ${
-                  isActive
-                    ? "bg-blue-50 border-2 border-blue-500"
-                    : "bg-slate-50 border-2 border-transparent hover:bg-slate-100"
-                }`}
-              >
-                <span className="font-semibold text-slate-900">
-                  {option.label}
-                </span>
-                {isActive && (
-                  <span className="text-xs font-semibold text-blue-600 uppercase">
-                    {option.code}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <div className="h-[env(safe-area-inset-bottom)]" />
-      </BaseDrawer>
+      {role === "ADMIN" && (
+        <>
+          <BaseDrawer
+            isOpen={isRegionDrawerOpen}
+            onClose={() => setIsRegionDrawerOpen(false)}
+            maxHeight="60vh"
+          >
+            <div className="px-5 pb-4 flex flex-col">
+              <h3 className="text-lg font-semibold text-slate-900">Region</h3>
+              <p className="text-sm text-slate-500">
+                Choose the region for card data.
+              </p>
+            </div>
+            <div className="px-3 pb-6 space-y-1">
+              {regions.map((option) => {
+                const isActive = option.code === region;
+                return (
+                  <button
+                    key={option.code}
+                    type="button"
+                    onClick={() => {
+                      setRegion(option.code);
+                      setIsRegionDrawerOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-200 active:scale-[0.98] ${
+                      isActive
+                        ? "bg-blue-50 border-2 border-blue-500"
+                        : "bg-slate-50 border-2 border-transparent hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="font-semibold text-slate-900">
+                      {option.label}
+                    </span>
+                    {isActive && (
+                      <span className="text-xs font-semibold text-blue-600 uppercase">
+                        {option.code}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="h-[env(safe-area-inset-bottom)]" />
+          </BaseDrawer>
 
-      <Dialog open={isRegionModalOpen} onOpenChange={setIsRegionModalOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border-none bg-white p-6 shadow-2xl">
-          <DialogHeader>
-            <DialogTitle>Region</DialogTitle>
-            <DialogDescription>
-              Choose the region for card data.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 space-y-2">
-            {regions.map((option) => {
-              const isActive = option.code === region;
-              return (
-                <button
-                  key={option.code}
-                  type="button"
-                  onClick={() => {
-                    setRegion(option.code);
-                    setIsRegionModalOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors ${
-                    isActive
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-900 hover:bg-slate-200"
-                  }`}
-                >
-                  <span className="font-semibold">{option.label}</span>
-                  <span className="text-xs font-semibold uppercase">
-                    {option.code}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+          <Dialog open={isRegionModalOpen} onOpenChange={setIsRegionModalOpen}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border-none bg-white p-6 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle>Region</DialogTitle>
+                <DialogDescription>
+                  Choose the region for card data.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 space-y-2">
+                {regions.map((option) => {
+                  const isActive = option.code === region;
+                  return (
+                    <button
+                      key={option.code}
+                      type="button"
+                      onClick={() => {
+                        setRegion(option.code);
+                        setIsRegionModalOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors ${
+                        isActive
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-900 hover:bg-slate-200"
+                      }`}
+                    >
+                      <span className="font-semibold">{option.label}</span>
+                      <span className="text-xs font-semibold uppercase">
+                        {option.code}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </>
   );
 };

@@ -135,9 +135,9 @@ const AnnouncementGate = () => {
 
   const handleCta = async () => {
     if (!announcement) return;
-    await logEvent("CLICK", { announcementId: announcement.id });
     markDismissed(announcement.id, announcement.version);
     setIsOpen(false);
+    void logEvent("CLICK", { announcementId: announcement.id });
     if (announcement.ctaUrl) {
       const targetUrl = announcement.ctaUrl;
       if (targetUrl.startsWith("/")) {

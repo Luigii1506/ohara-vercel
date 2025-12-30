@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       setCode
     );
 
+
     const includeRelations = params.get("includeRelations") !== "false";
     const includeAlternates = params.get("includeAlternates") !== "false";
     const includeCounts = params.get("includeCounts") === "true";
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
         : 150;
 
     const cursor = cursorParam ? Number(cursorParam) : null;
+
 
     const result = await fetchCardsPageFromDb({
       filters,

@@ -180,6 +180,12 @@ const NavBar = () => {
           icon: Shield,
           description: "Gestiona Don base y alternos",
         },
+        {
+          href: "/admin/region-alternates",
+          label: "Region Alternates",
+          icon: Images,
+          description: "Sync alternateArt from US cards",
+        },
       ],
     },
     {

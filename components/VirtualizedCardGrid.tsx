@@ -114,12 +114,15 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
 
   // Calculate row height based on card aspect ratio and gaps
   // Card aspect ratio is 2.5/3.5 = 0.714, so height = width * 1.4
+  // Plus info section height (~44px for stacked code/price)
   const rowHeight = useMemo(() => {
-    if (containerWidth === 0) return 150;
+    if (containerWidth === 0) return 200;
     const gap = 8; // gap-2 = 8px
     const cardWidth = (containerWidth - gap * (columns - 1)) / columns;
     // aspect-[2.5/3.5] means width/height = 2.5/3.5, so height = width * (3.5/2.5) = width * 1.4
-    const cardHeight = cardWidth * 1.4;
+    const imageHeight = cardWidth * 1.4;
+    const infoSectionHeight = 44; // px-2 py-1.5 with stacked text-xs lines
+    const cardHeight = imageHeight + infoSectionHeight;
     return Math.ceil(cardHeight + gap);
   }, [containerWidth, columns]);
 
@@ -167,7 +170,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
           onContextMenu={(e) => e.preventDefault()}
           className="w-full cursor-pointer max-w-[450px]"
         >
-          <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+          <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col overflow-hidden">
             <LazyImage
               src={card.src}
               fallbackSrc="/assets/images/backcard.webp"
@@ -177,27 +180,19 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
               size={imageSize}
             />
 
-            {/* Code Badge - Top left */}
-            {baseCard.code && (
-              <div
-                className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                  isDesktop
-                    ? "opacity-100 translate-y-0"
-                    : touchedCardId === card.id
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 -translate-y-2 pointer-events-none"
-                }`}
-              >
-                {baseCard.code}
-              </div>
-            )}
-
-            {/* Price Badge - Bottom left */}
-            {priceValue !== null && (
-              <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                {formatCurrency(priceValue, card.priceCurrency)}
-              </div>
-            )}
+            {/* Info section - Code and Price (stacked) */}
+            <div className="w-full px-2 py-1.5 flex flex-col items-center gap-0.5">
+              {baseCard.code && (
+                <span className="text-xs font-bold text-gray-800 truncate max-w-full">
+                  {baseCard.code}
+                </span>
+              )}
+              {priceValue !== null && (
+                <span className="text-xs font-semibold text-emerald-600">
+                  {formatCurrency(priceValue, card.priceCurrency)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -208,9 +203,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
       priorityLimit,
       formatCurrency,
       getCardPriceValue,
-      touchedCardId,
       setTouchedCardId,
-      isDesktop,
     ]
   );
 

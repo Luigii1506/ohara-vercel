@@ -263,6 +263,7 @@ const NavBar = () => {
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers },
     { href: "/events", label: t("nav.events"), icon: Calendar },
+    { href: "/tournaments", label: t("nav.tournaments"), icon: Trophy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/proxies", label: "Proxies", icon: Copy },
   ];
@@ -276,6 +277,7 @@ const NavBar = () => {
     { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers },
     { href: "/events", label: t("nav.events"), icon: Calendar },
     { href: "/tournaments", label: t("nav.tournaments"), icon: Trophy },
+    { href: "/proxies", label: "Proxies", icon: Copy },
     //{ href: "/shop", label: "Shop", icon: ShoppingBag },
   ];
 

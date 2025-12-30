@@ -428,7 +428,7 @@ const CardListClient = ({
       window.localStorage.setItem(SEARCH_MODAL_STORAGE_KEY, "1");
     }
     if (!hasSeenTips) {
-      window.localStorage.setItem(SEARCH_TIP_STORAGE_KEY, "1");
+      setShowSearchTips(true);
     }
   }, []);
 

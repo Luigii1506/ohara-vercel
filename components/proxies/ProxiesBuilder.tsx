@@ -823,7 +823,19 @@ const ProxiesBuilder = ({
               console.warn("Share failed, opening PDF instead.", error);
             }
           }
-          window.open(pdfUrl, "_blank", "noopener,noreferrer");
+
+          const downloadLink = document.createElement("a");
+          downloadLink.href = pdfUrl;
+          downloadLink.download = "ohara-proxies.pdf";
+          downloadLink.target = "_blank";
+          downloadLink.rel = "noopener noreferrer";
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          downloadLink.remove();
+
+          if (!document.hidden) {
+            window.location.href = pdfUrl;
+          }
           return;
         }
 

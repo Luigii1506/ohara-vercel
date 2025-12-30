@@ -425,11 +425,10 @@ const CardListClient = ({
     const hasSeenModal = window.localStorage.getItem(SEARCH_MODAL_STORAGE_KEY);
     const hasSeenTips = window.localStorage.getItem(SEARCH_TIP_STORAGE_KEY);
     if (!hasSeenModal) {
-      setShowSearchModal(true);
-      return;
+      window.localStorage.setItem(SEARCH_MODAL_STORAGE_KEY, "1");
     }
     if (!hasSeenTips) {
-      setShowSearchTips(true);
+      window.localStorage.setItem(SEARCH_TIP_STORAGE_KEY, "1");
     }
   }, []);
 

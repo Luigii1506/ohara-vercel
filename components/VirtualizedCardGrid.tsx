@@ -155,6 +155,10 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
     (item: FlatCardItem) => {
       const { card, baseCard, globalIndex } = item;
       const priceValue = getCardPriceValue(card);
+      const priceText =
+        priceValue !== null
+          ? formatCurrency(priceValue, card.priceCurrency)
+          : "0";
 
       return (
         <div
@@ -187,11 +191,13 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
                   {baseCard.code}
                 </span>
               )}
-              {priceValue !== null && (
-                <span className="text-xs font-semibold text-emerald-600 leading-tight">
-                  {formatCurrency(priceValue, card.priceCurrency)}
-                </span>
-              )}
+              <span
+                className={`text-xs font-semibold leading-tight ${
+                  priceValue !== null ? "text-emerald-600" : "text-transparent"
+                }`}
+              >
+                {priceText}
+              </span>
             </div>
           </div>
         </div>

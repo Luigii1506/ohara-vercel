@@ -42,9 +42,9 @@ type AnnouncementWithMetrics = Announcement & {
 
 const AnnouncementsAdmin = () => {
   const [loading, setLoading] = useState(true);
-  const [announcements, setAnnouncements] = useState<
-    AnnouncementWithMetrics[]
-  >([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementWithMetrics[]>(
+    []
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [editingAnnouncement, setEditingAnnouncement] =
     useState<Announcement | null>(null);
@@ -138,7 +138,7 @@ const AnnouncementsAdmin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -208,7 +208,8 @@ const AnnouncementsAdmin = () => {
                           {announcement.titleEn}
                         </div>
                         <div className="text-xs text-slate-500">
-                          v{announcement.version} · Priority {announcement.priority}
+                          v{announcement.version} · Priority{" "}
+                          {announcement.priority}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -226,7 +227,9 @@ const AnnouncementsAdmin = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{announcement.audience}</Badge>
+                        <Badge variant="secondary">
+                          {announcement.audience}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-slate-600">
                         {announcement.screens?.length

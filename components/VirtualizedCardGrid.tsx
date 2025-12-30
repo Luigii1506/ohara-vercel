@@ -180,15 +180,15 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
               size={imageSize}
             />
 
-            {/* Info section - Code and Price (stacked) */}
-            <div className="w-full px-2 py-1.5 flex flex-col items-center gap-0.5">
+            {/* Info section - Code and Price (stacked, centered) */}
+            <div className="w-full px-2 py-2 flex flex-col items-center justify-center text-center flex-1">
               {baseCard.code && (
-                <span className="text-xs font-bold text-gray-800 truncate max-w-full">
+                <span className="text-xs font-bold text-gray-800 truncate max-w-full leading-tight">
                   {baseCard.code}
                 </span>
               )}
               {priceValue !== null && (
-                <span className="text-xs font-semibold text-emerald-600">
+                <span className="text-xs font-semibold text-emerald-600 leading-tight">
                   {formatCurrency(priceValue, card.priceCurrency)}
                 </span>
               )}

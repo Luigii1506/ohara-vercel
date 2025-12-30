@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AnnouncementModal from "@/components/announcements/AnnouncementModal";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -33,6 +33,7 @@ const makeSessionKey = (id: number) => `${SESSION_KEY_PREFIX}${id}`;
 
 const AnnouncementGate = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const { lang } = useI18n();
   const [visitorId, setVisitorId] = useState<string | null>(null);
@@ -138,7 +139,24 @@ const AnnouncementGate = () => {
     markDismissed(announcement.id, announcement.version);
     setIsOpen(false);
     if (announcement.ctaUrl) {
-      window.open(announcement.ctaUrl, "_blank", "noopener,noreferrer");
+      const targetUrl = announcement.ctaUrl;
+      if (targetUrl.startsWith("/")) {
+        router.push(targetUrl);
+        return;
+      }
+      try {
+        const parsed = new URL(targetUrl, window.location.origin);
+        if (parsed.origin === window.location.origin) {
+          window.location.href = parsed.href;
+          return;
+        }
+      } catch {
+        // Fall through to window.open
+      }
+      const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.href = targetUrl;
+      }
     }
   };
 

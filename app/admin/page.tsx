@@ -110,6 +110,12 @@ export default function AdminDashboard() {
           icon: FileText,
           description: "Add rules and clarifications for cards",
         },
+        {
+          href: "/admin/region-alternates",
+          label: "Region Alternates",
+          icon: Layers,
+          description: "Sync alternateArt for non-US cards",
+        },
       ],
     },
     {

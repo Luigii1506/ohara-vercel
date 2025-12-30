@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import TournamentCard from "@/components/tournaments/TournamentCard";
 import {
@@ -11,6 +12,8 @@ import {
   Search,
   SlidersHorizontal,
   X,
+  LayoutList,
+  LayoutGrid,
 } from "lucide-react";
 
 interface CardColor {
@@ -151,12 +154,14 @@ function buildTournamentParams(
 }
 
 const TournamentsClient: React.FC = () => {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [recencyFilter, setRecencyFilter] = useState("all");
   const [winnerFilter, setWinnerFilter] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Debounce search term (400ms delay)
   const debouncedSearch = useDebounce(searchTerm, 400);
@@ -184,7 +189,13 @@ const TournamentsClient: React.FC = () => {
     hasNextPage: hasMore,
     fetchNextPage: loadMore,
     error,
-  } = useInfiniteQuery<TournamentsPage, Error, { pages: TournamentsPage[]; pageParams: (number | null)[] }, readonly [string, TournamentsFilters], number | null>({
+  } = useInfiniteQuery<
+    TournamentsPage,
+    Error,
+    { pages: TournamentsPage[]; pageParams: (number | null)[] },
+    readonly [string, TournamentsFilters],
+    number | null
+  >({
     queryKey: ["tournaments", filters] as const,
     queryFn: async ({ pageParam }) => {
       const queryString = buildTournamentParams(filters, pageParam);
@@ -209,7 +220,12 @@ const TournamentsClient: React.FC = () => {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
+        if (
+          entries[0].isIntersecting &&
+          hasMore &&
+          !isLoading &&
+          !isLoadingMore
+        ) {
           loadMore();
         }
       },
@@ -313,8 +329,31 @@ const TournamentsClient: React.FC = () => {
     setWinnerFilter(false);
   }, []);
 
+  const formatDate = useCallback((date: string) => {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
+
+  const formatTypeLabel = useCallback((type: Tournament["type"]) => {
+    switch (type) {
+      case "REGIONAL":
+        return "Regional";
+      case "CHAMPIONSHIP":
+        return "Championship";
+      case "TREASURE_CUP":
+        return "Treasure Cup";
+      default:
+        return "Open";
+    }
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-50 w-full">
+    <div className="min-h-screen bg-slate-50 w-full overflow-auto">
       {/* Simple Header - Sticky only on desktop */}
       <div className="border-b border-slate-200 bg-white/95 backdrop-blur md:sticky md:top-0 md:z-20">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -368,6 +407,39 @@ const TournamentsClient: React.FC = () => {
                     </span>
                   )}
                 </button>
+              </div>
+
+              {/* View Switch */}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold transition ${
+                      viewMode === "cards"
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    Tarjetas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold transition ${
+                      viewMode === "table"
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <LayoutList className="h-4 w-4" />
+                    Tabla
+                  </button>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {viewMode === "table" ? "Vista compacta" : "Vista visual"}
+                </span>
               </div>
 
               {/* Desktop Filters - Hidden on mobile */}
@@ -681,10 +753,76 @@ const TournamentsClient: React.FC = () => {
 
             {/* Tournament List */}
             {!isLoading && !error && tournaments.length > 0 && (
-              <div className="space-y-6">
-                {tournaments.map((tournament) => (
-                  <TournamentCard key={tournament.id} tournament={tournament} />
-                ))}
+              <>
+                <div
+                  className={`transition-all duration-300 ${
+                    viewMode === "cards" ? "space-y-6" : "hidden"
+                  }`}
+                >
+                  {tournaments.map((tournament) => (
+                    <TournamentCard
+                      key={tournament.id}
+                      tournament={tournament}
+                    />
+                  ))}
+                </div>
+
+                <div
+                  className={`transition-all duration-300 ${
+                    viewMode === "table"
+                      ? "rounded-3xl border border-slate-200 bg-white shadow-sm"
+                      : "hidden"
+                  }`}
+                >
+                  <div className="divide-y divide-slate-100">
+                    {tournaments.map((tournament, index) => (
+                      <button
+                        key={tournament.id}
+                        onClick={() => {
+                          router.push(`/tournaments/${tournament.id}`);
+                        }}
+                        className="w-full text-left transition hover:bg-slate-50"
+                      >
+                        <div className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:px-5">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                {formatTypeLabel(tournament.type)}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {tournament.region || "Global"}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-slate-900 line-clamp-2">
+                              {tournament.name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                              <span>{formatDate(tournament.eventDate)}</span>
+                              <span>
+                                {tournament.playerCount
+                                  ? `${tournament.playerCount} jugadores`
+                                  : "Jugadores N/D"}
+                              </span>
+                              {tournament.winnerName && (
+                                <span className="text-emerald-600">
+                                  Ganador: {tournament.winnerName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between sm:flex-col sm:items-end sm:gap-2">
+                            <span className="text-xs font-semibold text-slate-400">
+                              {tournament.source?.name ?? "Fuente"}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              #{index + 1}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Load More Trigger */}
                 <div ref={loadMoreRef} className="h-4" />
@@ -702,7 +840,7 @@ const TournamentsClient: React.FC = () => {
                     Has llegado al final
                   </p>
                 )}
-              </div>
+              </>
             )}
           </div>
 

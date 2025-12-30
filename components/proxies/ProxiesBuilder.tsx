@@ -404,6 +404,8 @@ const ProxiesBuilder = ({
 
   // Generate PDF handler
   const handleProxies = () => {
+    const isMobileViewport =
+      typeof window !== "undefined" && window.innerWidth < 768;
     const expandedCards = proxies.flatMap((card) =>
       Array(card.quantity).fill(card)
     );
@@ -444,10 +446,13 @@ const ProxiesBuilder = ({
       }
     };
 
-    // Create print modal
-    const printModal = document.createElement("div");
-    printModal.className = "print-modal";
-    printModal.innerHTML = `
+    const printModal = isMobileViewport
+      ? null
+      : document.createElement("div");
+
+    if (printModal) {
+      printModal.className = "print-modal";
+      printModal.innerHTML = `
       <style>
         .print-modal {
           position: fixed;
@@ -611,34 +616,35 @@ const ProxiesBuilder = ({
       </div>
     `;
 
-    document.body.appendChild(printModal);
+      document.body.appendChild(printModal);
 
-    const closeModal = () => {
-      printModal.remove();
-      document.removeEventListener("keydown", handleEsc);
-    };
+      const closeModal = () => {
+        printModal.remove();
+        document.removeEventListener("keydown", handleEsc);
+      };
 
-    const closeBtn = document.getElementById("close-modal-btn");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", closeModal);
+      const closeBtn = document.getElementById("close-modal-btn");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", closeModal);
+      }
+
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          closeModal();
+        }
+      };
+      document.addEventListener("keydown", handleEsc);
+
+      printModal.addEventListener("click", (e) => {
+        if (e.target === printModal) {
+          closeModal();
+        }
+      });
     }
 
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeModal();
-      }
-    };
-    document.addEventListener("keydown", handleEsc);
+    generatePDFContent(printModal);
 
-    printModal.addEventListener("click", (e) => {
-      if (e.target === printModal) {
-        closeModal();
-      }
-    });
-
-    generatePDFContent();
-
-    async function generatePDFContent() {
+    async function generatePDFContent(modal: HTMLDivElement | null) {
       try {
         const script = document.createElement("script");
         script.src =
@@ -651,9 +657,9 @@ const ProxiesBuilder = ({
 
         const { jsPDF } = (window as any).jspdf;
 
-        const loadingProgress = printModal.querySelector(
-          ".loading-progress"
-        ) as HTMLElement;
+        const loadingProgress = modal
+          ? (modal.querySelector(".loading-progress") as HTMLElement)
+          : null;
 
         if (loadingProgress) {
           loadingProgress.textContent = `Loading ${expandedCards.length} images...`;
@@ -802,7 +808,26 @@ const ProxiesBuilder = ({
         const pdfBlob = pdf.output("blob");
         const pdfUrl = URL.createObjectURL(pdfBlob);
 
-        const previewContainer = printModal.querySelector(
+        if (!modal) {
+          if (navigator.share && typeof File !== "undefined") {
+            try {
+              const file = new File([pdfBlob], "ohara-proxies.pdf", {
+                type: "application/pdf",
+              });
+              await navigator.share({
+                files: [file],
+                title: "Proxy PDF",
+              });
+              return;
+            } catch (error) {
+              console.warn("Share failed, opening PDF instead.", error);
+            }
+          }
+          window.open(pdfUrl, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        const previewContainer = modal.querySelector(
           ".print-preview-container"
         ) as HTMLElement;
 
@@ -830,20 +855,22 @@ const ProxiesBuilder = ({
         }
       } catch (error) {
         console.error("Error generating PDF:", error);
-        const previewContainer = printModal.querySelector(
-          ".print-preview-container"
-        ) as HTMLElement;
+        if (modal) {
+          const previewContainer = modal.querySelector(
+            ".print-preview-container"
+          ) as HTMLElement;
 
-        if (previewContainer) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          previewContainer.innerHTML = `
-            <div class="loading-container">
-              <div style="color: #f44336; font-size: 18px;">Error generating PDF</div>
-              <div style="color: #666; margin-top: 10px;">Please try again</div>
-              <div style="color: #999; margin-top: 5px; font-size: 12px;">${errorMessage}</div>
-            </div>
-          `;
+          if (previewContainer) {
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+            previewContainer.innerHTML = `
+              <div class="loading-container">
+                <div style="color: #f44336; font-size: 18px;">Error generating PDF</div>
+                <div style="color: #666; margin-top: 10px;">Please try again</div>
+                <div style="color: #999; margin-top: 5px; font-size: 12px;">${errorMessage}</div>
+              </div>
+            `;
+          }
         }
       }
     }

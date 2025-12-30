@@ -26,6 +26,7 @@ import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
 import StoreCard from "@/components/StoreCard";
 import ViewSwitch from "@/components/ViewSwitch";
 import SortSelect, { SortOption } from "@/components/SortSelect";
+import MultiSelect from "@/components/MultiSelect";
 import DropdownSearch from "@/components/DropdownSearch";
 import { rarityFormatter } from "@/helpers/formatters";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";
@@ -205,6 +206,14 @@ const CardListClient = ({
       },
     ],
     [t]
+  );
+  const sortOptionsForSelect = useMemo(
+    () =>
+      sortOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+      })),
+    [sortOptions]
   );
   const searchExamples = useMemo(
     () => [
@@ -1549,12 +1558,30 @@ const CardListClient = ({
             isActive={showOnlyBaseCards}
             onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
           /> */}
-          <SortSelect
-            options={sortOptions}
-            selected={selectedSort}
-            setSelected={setSelectedSort}
-            buttonLabel={t("common.sort")}
-          />
+          {isDesktop ? (
+            <MultiSelect
+              options={sortOptionsForSelect}
+              selected={selectedSort ? [selectedSort] : []}
+              setSelected={(values) => {
+                const lastValue = values[values.length - 1];
+                setSelectedSort(lastValue ?? "");
+              }}
+              buttonLabel={t("common.sort")}
+              displaySelectedAs={(values) => {
+                const current = sortOptionsForSelect.find(
+                  (option) => option.value === values[0]
+                );
+                return current?.label || t("common.sort");
+              }}
+            />
+          ) : (
+            <SortSelect
+              options={sortOptions}
+              selected={selectedSort}
+              setSelected={setSelectedSort}
+              buttonLabel={t("common.sort")}
+            />
+          )}
 
           <div className="hidden md:flex justify-center items-center">
             <ViewSwitch
@@ -1663,7 +1690,7 @@ const CardListClient = ({
                                 onContextMenu={(e) => e.preventDefault()}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
-                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col">
                                   <LazyImage
                                     src={card.src}
                                     fallbackSrc="/assets/images/backcard.webp"
@@ -1673,30 +1700,22 @@ const CardListClient = ({
                                     size={imageSize}
                                   />
 
-                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                                  {card.code && (
-                                    <div
-                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                        isDesktop
-                                          ? "opacity-100 translate-y-0"
-                                          : touchedCardId === card.id
-                                          ? "opacity-100 translate-y-0"
-                                          : "opacity-0 -translate-y-2 pointer-events-none"
-                                      }`}
-                                    >
-                                      {card.code}
-                                    </div>
-                                  )}
-
-                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                                  {getCardPriceValue(card) !== null && (
-                                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                      {formatCurrency(
-                                        getCardPriceValue(card)!,
-                                        card.priceCurrency
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Info section - Code and Price */}
+                                  <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
+                                    {card.code && (
+                                      <span className="text-xs font-bold text-gray-800 truncate">
+                                        {card.code}
+                                      </span>
+                                    )}
+                                    {getCardPriceValue(card) !== null && (
+                                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                                        {formatCurrency(
+                                          getCardPriceValue(card)!,
+                                          card.priceCurrency
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -1721,7 +1740,7 @@ const CardListClient = ({
                                 onContextMenu={(e) => e.preventDefault()}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
-                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative">
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col">
                                   <LazyImage
                                     src={alt.src}
                                     fallbackSrc="/assets/images/backcard.webp"
@@ -1731,30 +1750,22 @@ const CardListClient = ({
                                     size={imageSize}
                                   />
 
-                                  {/* Code Badge - Esquina superior izquierda - Solo desktop o touch en mobile */}
-                                  {card.code && (
-                                    <div
-                                      className={`absolute top-0 left-0 bg-black text-white rounded-tl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10 transition-all duration-300 ease-in-out ${
-                                        isDesktop
-                                          ? "opacity-100 translate-y-0"
-                                          : touchedCardId === alt.id
-                                          ? "opacity-100 translate-y-0"
-                                          : "opacity-0 -translate-y-2 pointer-events-none"
-                                      }`}
-                                    >
-                                      {card.code}
-                                    </div>
-                                  )}
-
-                                  {/* Price Badge - Esquina inferior izquierda - Siempre visible */}
-                                  {getCardPriceValue(alt) !== null && (
-                                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                                      {formatCurrency(
-                                        getCardPriceValue(alt)!,
-                                        alt.priceCurrency
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Info section - Code and Price */}
+                                  <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
+                                    {card.code && (
+                                      <span className="text-xs font-bold text-gray-800 truncate">
+                                        {card.code}
+                                      </span>
+                                    )}
+                                    {getCardPriceValue(alt) !== null && (
+                                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                                        {formatCurrency(
+                                          getCardPriceValue(alt)!,
+                                          alt.priceCurrency
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ))}

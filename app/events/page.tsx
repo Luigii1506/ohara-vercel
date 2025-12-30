@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,6 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import EventPreviewDrawer from "@/components/events/EventPreviewDrawer";
 
 interface PublicEvent {
   id: number;
@@ -55,25 +55,11 @@ const EventsPage = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Drawer state for event preview
-  const [selectedEvent, setSelectedEvent] = useState<PublicEvent | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
   // Filter drawer state for mobile
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Detectar si es mobile para cambiar imagen del hero
   const isMobile = !useMediaQuery("(min-width: 768px)", false);
-
-  // Handler to open event preview
-  const handleEventClick = (event: PublicEvent) => {
-    setSelectedEvent(event);
-    setIsDrawerOpen(true);
-  };
-
-  const handleCloseDrawer = () => {
-    setIsDrawerOpen(false);
-  };
 
   useEffect(() => {
     fetchEvents();
@@ -545,115 +531,110 @@ const EventsPage = () => {
               const thumbnail = event.eventThumbnail ?? event.imageUrl;
 
               return (
-                <Card
+                <Link
                   key={event.id}
-                  onClick={() => handleEventClick(event)}
-                  className="group h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-border/50 flex flex-1 flex-col cursor-pointer active:scale-[0.98]"
+                  href={`/events/${event.slug}`}
+                  className="group h-full"
                 >
-                  {/* Image Container */}
-                  <div className="relative aspect-[16/10] overflow-hidden bg-muted/30">
-                    {thumbnail ? (
-                      <Image
-                        src={thumbnail}
-                        alt={event.title}
-                        fill
-                        className="object-contain transition-all duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-                        <ImageIcon className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/40" />
-                      </div>
-                    )}
+                  <Card className="h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-border/50 flex flex-1 flex-col cursor-pointer active:scale-[0.98]">
+                    {/* Image Container */}
+                    <div className="relative aspect-[16/10] overflow-hidden bg-muted/30">
+                      {thumbnail ? (
+                        <Image
+                          src={thumbnail}
+                          alt={event.title}
+                          fill
+                          className="object-contain transition-all duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                          <ImageIcon className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/40" />
+                        </div>
+                      )}
 
-                    {/* Overlay gradient for better badge visibility */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      {/* Overlay gradient for better badge visibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                    {/* Status badge */}
-                    <div className="absolute right-2 top-2 sm:right-3 sm:top-3 z-10">
-                      <Badge
-                        className={`text-[10px] sm:text-xs font-semibold shadow-lg border ${
-                          event.status === "UPCOMING"
-                            ? "bg-slate-900 text-white border-slate-900"
-                            : event.status === "ONGOING"
-                            ? "bg-amber-200 text-amber-900 border-amber-200"
-                            : "bg-emerald-200 text-emerald-900 border-emerald-200"
-                        }`}
-                      >
-                        {event.status}
-                      </Badge>
-                    </div>
-
-                    {/* Category badge */}
-                    {event.category && (
-                      <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-10">
+                      {/* Status badge */}
+                      <div className="absolute right-2 top-2 sm:right-3 sm:top-3 z-10">
                         <Badge
-                          variant="outline"
-                          className="text-[10px] sm:text-xs font-semibold shadow-lg border bg-background/80 backdrop-blur-sm"
+                          className={`text-[10px] sm:text-xs font-semibold shadow-lg border ${
+                            event.status === "UPCOMING"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : event.status === "ONGOING"
+                              ? "bg-amber-200 text-amber-900 border-amber-200"
+                              : "bg-emerald-200 text-emerald-900 border-emerald-200"
+                          }`}
                         >
-                          {event.category}
+                          {event.status}
                         </Badge>
                       </div>
-                    )}
-                  </div>
 
-                  <CardContent className="flex h-full flex-col p-3 sm:p-4 flex-1">
-                    <div className="flex flex-1 flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-col gap-0.5">
-                          <h3 className="text-sm sm:text-base font-bold leading-snug line-clamp-2 transition-colors group-hover:text-primary">
-                            {event.title}
-                          </h3>
-                          {event.eventTxt && (
-                            <p className="line-clamp-1 text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
-                              {event.eventTxt}
-                            </p>
-                          )}
+                      {/* Category badge */}
+                      {event.category && (
+                        <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-10">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] sm:text-xs font-semibold shadow-lg border bg-background/80 backdrop-blur-sm"
+                          >
+                            {event.category}
+                          </Badge>
                         </div>
-                        <div className="border-t border-border/50" />
-                        <div className="space-y-2 text-xs sm:text-sm">
-                          <div className="flex items-start gap-2">
-                            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
-                            <span className="line-clamp-1 text-foreground/80 font-medium">
-                              {event.rawDateText || "Date TBA"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-start gap-2">
-                            <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
-                            <span className="line-clamp-1 text-foreground/80">
-                              {event.location || "Location TBA"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-start gap-2">
-                            <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
-                            <span className="line-clamp-1 text-foreground/80">
-                              {event.region}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex justify-end pt-2">
-                        <div className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold text-primary transition-all group-hover:gap-2">
-                          <span>View Details</span>
-                          <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+
+                    <CardContent className="flex h-full flex-col p-3 sm:p-4 flex-1">
+                      <div className="flex flex-1 flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-col gap-0.5">
+                            <h3 className="text-sm sm:text-base font-bold leading-snug line-clamp-2 transition-colors group-hover:text-primary">
+                              {event.title}
+                            </h3>
+                            {event.eventTxt && (
+                              <p className="line-clamp-1 text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
+                                {event.eventTxt}
+                              </p>
+                            )}
+                          </div>
+                          <div className="border-t border-border/50" />
+                          <div className="space-y-2 text-xs sm:text-sm">
+                            <div className="flex items-start gap-2">
+                              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-1 text-foreground/80 font-medium">
+                                {event.rawDateText || "Date TBA"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-1 text-foreground/80">
+                                {event.location || "Location TBA"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                              <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-primary mt-0.5" />
+                              <span className="line-clamp-1 text-foreground/80">
+                                {event.region}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex justify-end pt-2">
+                          <div className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold text-primary transition-all group-hover:gap-2">
+                            <span>View Details</span>
+                            <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Event Preview Drawer */}
-      <EventPreviewDrawer
-        isOpen={isDrawerOpen}
-        onClose={handleCloseDrawer}
-        event={selectedEvent}
-      />
     </div>
   );
 };

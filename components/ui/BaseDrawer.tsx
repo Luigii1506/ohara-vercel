@@ -50,7 +50,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
     if (typeof window !== "undefined") {
-      return window.innerWidth < 1024;
+      return window.innerWidth < 768;
     }
     return true;
   });
@@ -96,7 +96,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   // Cleanup on unmount if drawer was open
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileViewport(window.innerWidth < 1024);
+      setIsMobileViewport(window.innerWidth < 768);
     };
 
     handleResize();
@@ -218,17 +218,15 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
         />
 
         {/* Drawer / Modal */}
-        <div
-          className="fixed inset-0 z-50 flex items-end lg:items-center lg:justify-center pointer-events-none"
-        >
+        <div className="fixed inset-0 z-50 flex items-end md:items-center md:justify-center pointer-events-none">
           <div
             ref={drawerRef}
             className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
               isDragging ? "transition-none" : "transition-all duration-300"
-            } ease-out lg:max-h-[85vh] lg:${desktopMaxWidth} lg:rounded-3xl ${
+            } ease-out md:max-h-[85vh] md:${desktopMaxWidth} md:rounded-3xl ${
               isVisible
-                ? "translate-y-0 lg:translate-y-0 lg:scale-100 lg:opacity-100"
-                : "translate-y-full lg:translate-y-0 lg:scale-95 lg:opacity-0"
+                ? "translate-y-0 md:translate-y-0 md:scale-100 md:opacity-100"
+                : "translate-y-full md:translate-y-0 md:scale-95 md:opacity-0"
             } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
             style={{
               maxHeight: `min(${maxHeight}, 90vh)`,

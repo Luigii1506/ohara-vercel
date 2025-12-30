@@ -51,6 +51,7 @@ import {
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { useCardStore } from "@/store/cardStore";
 import type { CardsFilters } from "@/lib/cards/types";
+import { useRegion } from "@/components/region/RegionProvider";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -133,10 +134,22 @@ const EditCard = () => {
   const setAllCards = useCardStore((state) => state.setAllCards);
   const isFullyLoaded = useCardStore((state) => state.isFullyLoaded);
   const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
+  const resetCards = useCardStore((state) => state.resetCards);
   const allCardsSignatureRef = useRef<string | null>(null);
+  const { region } = useRegion();
 
   // Filtros vacíos para traer TODAS las cartas
-  const fullQueryFilters = useMemo<CardsFilters>(() => ({}), []);
+  const fullQueryFilters = useMemo<CardsFilters>(
+    () => ({
+      region: region || undefined,
+    }),
+    [region]
+  );
+
+  useEffect(() => {
+    resetCards();
+    allCardsSignatureRef.current = null;
+  }, [region, resetCards]);
 
   const {
     data: allCardsData,

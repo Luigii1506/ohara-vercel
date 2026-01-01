@@ -254,9 +254,11 @@ export async function POST(
       .map(([url, value]) => ({ url, cardId: value.cardId }));
 
     const createdProducts: number[] = [];
-    for (const [index, url] of productImages.entries()) {
-      const nameSuffix = productImages.length > 1 ? ` ${index + 1}` : "";
-      const filename = `${sanitizeForFilename(finalTitle)}-${index + 1}-${Date.now()}`;
+    for (let index = 0; index < productImages.length; index += 1) {
+      const url = productImages[index];
+      const displayIndex = index + 1;
+      const nameSuffix = productImages.length > 1 ? ` ${displayIndex}` : "";
+      const filename = `${sanitizeForFilename(finalTitle)}-${displayIndex}-${Date.now()}`;
       const uploaded = await uploadImageToR2(url, filename);
       const child = await prisma.product.create({
         data: {

@@ -66,6 +66,7 @@ model Card {
   alternateCards        Card[]              @relation("CardAlternates") // Las alternativas de esta carta base
   eventCards            EventCard[]
   leaderTournamentDecks TournamentDeck[]    @relation("TournamentLeaderCard")
+  productCards          ProductCard[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -510,6 +511,7 @@ model Set {
   createdAt   DateTime?  @default(now()) @map("created_at")
   updatedAt   DateTime?  @updatedAt @map("updated_at")
   version     String?
+  aliasesJson Json?
   cards       CardSet[]
   events      EventSet[]
   products    Product[]
@@ -521,10 +523,15 @@ model Product {
   name        String
   description String?     @db.Text
   imageUrl    String?
+  thumbnailUrl String?
   imageKey    String?
   productType ProductType
   releaseDate DateTime?
+  officialPrice Decimal?
+  officialPriceCurrency String?
   metadata    Json?
+  isArchived Boolean    @default(false)
+  archivedAt DateTime?
 
   // TCGplayer linking (same pattern as Card model)
   tcgUrl              String?   @default("")
@@ -542,6 +549,9 @@ model Product {
 
   // Many-to-many relationship with Events
   events EventProduct[]
+  cards  ProductCard[]
+  relatedProducts ProductLink[] @relation("ProductLinkSource")
+  relatedToProducts ProductLink[] @relation("ProductLinkTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -550,6 +560,45 @@ model Product {
   @@index([setId])
   @@index([tcgplayerProductId])
   @@index([releaseDate])
+  @@index([isArchived])
+}
+
+model ProductCard {
+  productId Int
+  cardId    Int
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@id([productId, cardId])
+  @@index([cardId])
+}
+
+model ProductLink {
+  sourceProductId Int
+  targetProductId Int
+  createdAt       DateTime @default(now())
+  sourceProduct   Product  @relation("ProductLinkSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
+  targetProduct   Product  @relation("ProductLinkTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+
+  @@id([sourceProductId, targetProductId])
+  @@index([targetProductId])
+}
+
+model MissingProduct {
+  id                     Int      @id @default(autoincrement())
+  title                  String
+  sourceUrl              String?
+  productType            ProductType?
+  category               String?
+  releaseDate            DateTime?
+  officialPrice          Decimal?
+  officialPriceCurrency  String?
+  thumbnailUrl           String?
+  imagesJson             Json?
+  isApproved             Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 model EventSet {
@@ -589,6 +638,8 @@ model MissingSet {
   translatedTitle  String?
   imagesJson       Json?
   versionSignature String?
+  isProduct        Boolean           @default(false)
+  productType      ProductType?
   isApproved       Boolean           @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -792,6 +843,12 @@ enum ProductType {
   PROMO_PACK
   DISPLAY_BOX
   COLLECTORS_SET
+  TIN_PACK
+  ILLUSTRATION_BOX
+  ANNIVERSARY_SET
+  PREMIUM_CARD_COLLECTION
+  DOUBLE_PACK
+  DEVIL_FRUIT
   OTHER
 }
 

@@ -23,6 +23,8 @@ function serializeMissingSet(entry: any) {
     title: entry.title,
     translatedTitle: entry.translatedTitle,
     versionSignature: entry.versionSignature,
+    isProduct: entry.isProduct,
+    productType: entry.productType,
     isApproved: entry.isApproved,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
@@ -90,7 +92,10 @@ export async function POST(req: NextRequest) {
       translatedTitle,
       versionSignature,
       images = [],
+      isProduct,
+      productType,
     } = body;
+    const normalizedIsProduct = Boolean(isProduct);
 
     if (!eventId || !title) {
       return NextResponse.json(
@@ -106,11 +111,22 @@ export async function POST(req: NextRequest) {
         translatedTitle,
         versionSignature,
         imagesJson: Array.isArray(images) ? images : [],
+        isProduct: normalizedIsProduct,
+        productType: normalizedIsProduct ? productType ?? null : null,
       },
       update: {
         translatedTitle: translatedTitle ?? undefined,
         versionSignature: versionSignature ?? undefined,
         imagesJson: Array.isArray(images) ? images : undefined,
+        isProduct: typeof isProduct === "boolean" ? isProduct : undefined,
+        productType:
+          typeof isProduct === "boolean"
+            ? isProduct
+              ? productType ?? undefined
+              : null
+            : typeof productType === "string" || productType === null
+            ? productType
+            : undefined,
       },
     });
 

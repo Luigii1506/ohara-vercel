@@ -17,6 +17,8 @@ const serializeEventMissingSet = (entry: any) => {
     title: entry.missingSet?.title ?? "",
     translatedTitle: entry.missingSet?.translatedTitle,
     versionSignature: entry.missingSet?.versionSignature,
+    isProduct: entry.missingSet?.isProduct ?? false,
+    productType: entry.missingSet?.productType ?? null,
     isApproved: entry.missingSet?.isApproved ?? false,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,

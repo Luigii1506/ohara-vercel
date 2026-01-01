@@ -652,11 +652,6 @@ const buildWhere = (
       OR: [
         { setCode: { in: filters.sets } },
         {
-          sets: {
-            some: { set: { code: { in: filters.sets } } },
-          },
-        },
-        {
           alternateCards: {
             some: {
               AND: [
@@ -664,11 +659,6 @@ const buildWhere = (
                 {
                   OR: [
                     { setCode: { in: filters.sets } },
-                    {
-                      sets: {
-                        some: { set: { code: { in: filters.sets } } },
-                      },
-                    },
                   ],
                 },
               ],
@@ -1545,11 +1535,6 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
     andConditions.push({
       OR: [
         { setCode: { in: filters.sets } },
-        {
-          sets: {
-            some: { set: { code: { in: filters.sets } } },
-          },
-        },
       ],
     });
   }
@@ -1662,9 +1647,11 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
 export const countCardsByFilters = async (
   filters: CardsFilters
 ): Promise<number> => {
-  // Count cards that directly match the filters (both base and alternates individually)
-  // This avoids the "withAlternates" OR pattern that counts base cards when only alternates match
-  const directWhere = buildDirectWhere(filters);
+  const shouldCountBaseOnly = Boolean(filters.baseOnly);
 
-  return prisma.card.count({ where: directWhere });
+  const where = shouldCountBaseOnly
+    ? buildWhere(filters, false)
+    : buildDirectWhere(filters);
+
+  return prisma.card.count({ where });
 };

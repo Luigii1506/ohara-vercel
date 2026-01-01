@@ -89,12 +89,12 @@ export async function POST(
 
     console.log(`✅ All EventMissingCard entries deleted`);
 
-    // Eliminar el MissingCard
-    await prisma.missingCard.delete({
+    await prisma.missingCard.update({
       where: { id: missingCardId },
+      data: { isApproved: true },
     });
 
-    console.log(`✅ MissingCard deleted completely`);
+    console.log(`✅ MissingCard approved`);
 
     return NextResponse.json({
       success: true,

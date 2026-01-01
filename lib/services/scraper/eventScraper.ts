@@ -149,6 +149,11 @@ interface CachedSet {
   code: string | null;
   normalizedTitle: string;
   versionSignature: string | null;
+  aliases: Array<{
+    title: string;
+    normalizedTitle: string;
+    versionSignature: string | null;
+  }>;
 }
 
 interface ScrapeEventDetailOptions {
@@ -259,6 +264,11 @@ const SET_KEYWORDS = [
   "Participation Pack",
   "Celebration Pack",
   "Card Set",
+  "Storage Box",
+  "Deck Box",
+  "Devil Fruit",
+  "Collector Set",
+  "Double Pack",
   "Sleeve",
   "OP-",
   "ST-",
@@ -641,6 +651,28 @@ const JAPANESE_SET_KEYWORDS = [
   "マット",
 ];
 
+const CHINESE_SET_KEYWORDS = [
+  "卡套",
+  "保护套",
+  "桌垫",
+  "对战桌垫",
+  "游戏垫",
+  "收纳盒",
+  "卡盒",
+  "卡组盒",
+  "补充包",
+  "基本卡组",
+  "起始牌组",
+  "宣传卡",
+  "限定商品",
+  "收藏套装",
+  "双包",
+  "卡牌收藏",
+  "卡牌套装",
+  "卡组",
+  "卡包",
+];
+
 const BASE_SET_TEXT_HINTS = [
   "pack",
   "deck",
@@ -660,6 +692,7 @@ const BASE_SET_TEXT_HINTS = [
   "playmat",
   "uncut sheet",
   ...JAPANESE_SET_KEYWORDS,
+  ...CHINESE_SET_KEYWORDS,
 ];
 
 const BASE_SET_INDICATOR_KEYWORDS = [
@@ -675,6 +708,7 @@ const BASE_SET_INDICATOR_KEYWORDS = [
   "playmat",
   "uncut sheet",
   ...JAPANESE_SET_KEYWORDS,
+  ...CHINESE_SET_KEYWORDS,
 ];
 
 const ALL_SET_HINTS = Array.from(
@@ -682,6 +716,7 @@ const ALL_SET_HINTS = Array.from(
     ...BASE_SET_TEXT_HINTS,
     ...BASE_SET_INDICATOR_KEYWORDS,
     ...JAPANESE_SET_KEYWORDS,
+    ...CHINESE_SET_KEYWORDS,
   ])
 );
 
@@ -696,6 +731,7 @@ const BASE_SET_PRIMARY_KEYWORDS = [
   "playmat",
   "uncut sheet",
   ...JAPANESE_SET_KEYWORDS,
+  ...CHINESE_SET_KEYWORDS,
 ];
 
 const BASE_SET_BANNED_KEYWORDS = ["booster pack"];
@@ -710,6 +746,7 @@ const LOCALE_SPECIFIC_SET_KEYWORDS: Record<string, string[]> = {
   jp: JAPANESE_SET_KEYWORDS,
   ja: JAPANESE_SET_KEYWORDS,
   japan: JAPANESE_SET_KEYWORDS,
+  cn: CHINESE_SET_KEYWORDS,
 };
 
 const LOCALE_NOISE_PREFIXES: Record<string, string[]> = {
@@ -728,6 +765,7 @@ const LOCALE_NOISE_PREFIXES: Record<string, string[]> = {
     "one piece カードゲーム",
     "ワンピースカードゲーム",
   ],
+  cn: ["海贼王卡牌游戏", "海贼王 卡牌游戏", "航海王卡牌游戏", "航海王 卡牌游戏"],
 };
 
 const SET_TEXT_STOP_PHRASES = [
@@ -932,6 +970,7 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           id: true,
           title: true,
           code: true,
+          aliasesJson: true,
         },
       })
       .then((sets) =>
@@ -941,6 +980,17 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           code: set.code,
           normalizedTitle: normalizeString(set.title),
           versionSignature: extractVersionSignature(set.title),
+          aliases: (Array.isArray(set.aliasesJson) ? set.aliasesJson : [])
+            .filter((alias) => typeof alias === "string" && alias.trim().length > 0)
+            .map((alias) => {
+              const cleaned = alias.trim();
+              return {
+                title: cleaned,
+                normalizedTitle: normalizeString(cleaned),
+                versionSignature: extractVersionSignature(cleaned),
+              };
+            })
+            .filter((alias) => alias.normalizedTitle.length > 0),
         }))
       );
   }
@@ -1961,57 +2011,70 @@ export async function findMatchingSets(
       }
 
       const matches = setsCache.filter((set) => {
-        if (!set.normalizedTitle) return false;
-        const baseNormalizedSet = stripVersionSuffix(set.normalizedTitle);
-        if (
-          set.normalizedTitle === normalizedDetected &&
-          versionSignaturesCompatible(
-            candidateVersionSignature,
-            set.versionSignature
-          )
-        ) {
-          return true;
-        }
+        const normalizedCandidates = [
+          {
+            normalizedTitle: set.normalizedTitle,
+            versionSignature: set.versionSignature,
+          },
+          ...set.aliases.map((alias) => ({
+            normalizedTitle: alias.normalizedTitle,
+            versionSignature: alias.versionSignature ?? set.versionSignature,
+          })),
+        ];
 
-        if (
-          baseNormalizedSet &&
-          baseNormalizedDetected &&
-          baseNormalizedSet === baseNormalizedDetected &&
-          versionSignaturesCompatible(
-            candidateVersionSignature,
-            set.versionSignature
-          )
-        ) {
-          return true;
-        }
+        return normalizedCandidates.some((setEntry) => {
+          if (!setEntry.normalizedTitle) return false;
+          const baseNormalizedSet = stripVersionSuffix(setEntry.normalizedTitle);
+          if (
+            setEntry.normalizedTitle === normalizedDetected &&
+            versionSignaturesCompatible(
+              candidateVersionSignature,
+              setEntry.versionSignature
+            )
+          ) {
+            return true;
+          }
 
-        if (
-          set.normalizedTitle.includes(normalizedDetected) &&
-          versionSignaturesCompatible(
-            candidateVersionSignature,
-            set.versionSignature
-          )
-        ) {
-          return hasSufficientOverlap(
-            normalizedDetected.length,
-            set.normalizedTitle.length
-          );
-        }
+          if (
+            baseNormalizedSet &&
+            baseNormalizedDetected &&
+            baseNormalizedSet === baseNormalizedDetected &&
+            versionSignaturesCompatible(
+              candidateVersionSignature,
+              setEntry.versionSignature
+            )
+          ) {
+            return true;
+          }
 
-        if (
-          normalizedDetected.includes(set.normalizedTitle) &&
-          versionSignaturesCompatible(
-            candidateVersionSignature,
-            set.versionSignature
-          )
-        ) {
-          return hasSufficientOverlap(
-            set.normalizedTitle.length,
-            normalizedDetected.length
-          );
-        }
+          if (
+            setEntry.normalizedTitle.includes(normalizedDetected) &&
+            versionSignaturesCompatible(
+              candidateVersionSignature,
+              setEntry.versionSignature
+            )
+          ) {
+            return hasSufficientOverlap(
+              normalizedDetected.length,
+              setEntry.normalizedTitle.length
+            );
+          }
 
-        return false;
+          if (
+            normalizedDetected.includes(setEntry.normalizedTitle) &&
+            versionSignaturesCompatible(
+              candidateVersionSignature,
+              setEntry.versionSignature
+            )
+          ) {
+            return hasSufficientOverlap(
+              setEntry.normalizedTitle.length,
+              normalizedDetected.length
+            );
+          }
+
+          return false;
+        });
       });
 
       if (matches.length > 0) {
@@ -2044,18 +2107,25 @@ export async function findMatchingSets(
           }
           const normalizedKeyword = normalizeString(keyword);
           const setsByKeyword = setsCache.filter((set) => {
-            if (
-              set.normalizedTitle &&
-              set.normalizedTitle.includes(normalizedKeyword) &&
-              versionSignaturesCompatible(
-                candidateVersionSignature,
-                set.versionSignature
-              )
-            ) {
-              return true;
-            }
-
-            return false;
+            const normalizedCandidates = [
+              {
+                normalizedTitle: set.normalizedTitle,
+                versionSignature: set.versionSignature,
+              },
+              ...set.aliases.map((alias) => ({
+                normalizedTitle: alias.normalizedTitle,
+                versionSignature: alias.versionSignature ?? set.versionSignature,
+              })),
+            ];
+            return normalizedCandidates.some(
+              (setEntry) =>
+                setEntry.normalizedTitle &&
+                setEntry.normalizedTitle.includes(normalizedKeyword) &&
+                versionSignaturesCompatible(
+                  candidateVersionSignature,
+                  setEntry.versionSignature
+                )
+            );
           });
 
           if (setsByKeyword.length > 0) {

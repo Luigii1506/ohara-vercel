@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import MultiSelect from "@/components/MultiSelect";
 import SingleSelect from "@/components/SingleSelect";
-import { allRegions, altArtOptions } from "@/helpers/constants";
+import { altArtOptions } from "@/helpers/constants";
+import { REGION_OPTIONS } from "@/lib/regions";
 import { Save, Loader2, Plus } from "lucide-react";
 import LazyImage from "@/components/LazyImage";
 import AddSetModal from "./AddSetModal";
@@ -29,6 +30,8 @@ interface AlternateCard {
   order?: string;
   isPro?: boolean;
   region?: string;
+  language?: string;
+  isRegionalExclusive?: boolean;
   isFirstEdition?: boolean;
   code?: string;
   setCode?: string;
@@ -137,6 +140,23 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
     setEditingAlternate({
       ...editingAlternate,
       [field]: value,
+    });
+  };
+
+  const handleRegionChange = (value: string) => {
+    if (!editingAlternate) return;
+    const languageByRegion: Record<string, string> = {
+      US: "en",
+      JP: "ja",
+      FR: "fr",
+      KR: "ko",
+      CN: "zh",
+    };
+    const normalizedRegion = value || "";
+    setEditingAlternate({
+      ...editingAlternate,
+      region: normalizedRegion,
+      language: languageByRegion[normalizedRegion] || "",
     });
   };
 
@@ -455,15 +475,33 @@ const EditAlternateModal: React.FC<EditAlternateModalProps> = ({
             <div>
               <Label>Región</Label>
               <SingleSelect
-                options={allRegions}
+                options={REGION_OPTIONS.map((option) => ({
+                  value: option.code,
+                  label: option.label,
+                }))}
                 selected={editingAlternate.region || ""}
-                setSelected={(value) => handleFieldChange("region", value)}
+                setSelected={handleRegionChange}
                 buttonLabel="Seleccionar región"
                 isSearchable={true}
                 isSolid={true}
                 isFullWidth={true}
                 isDisabled={loading || localLoading}
               />
+            </div>
+
+            {/* Exclusiva regional */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isRegionalExclusive"
+                checked={editingAlternate.isRegionalExclusive || false}
+                onChange={(e) =>
+                  handleFieldChange("isRegionalExclusive", e.target.checked)
+                }
+                disabled={loading}
+                className="rounded"
+              />
+              <Label htmlFor="isRegionalExclusive">Exclusiva regional</Label>
             </div>
 
             {/* Es Pro */}

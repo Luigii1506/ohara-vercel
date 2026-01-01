@@ -216,6 +216,12 @@ const NavBar = () => {
           description: "Aprueba cartas detectadas",
         },
         {
+          href: "/admin/missing-products",
+          label: "Missing Products",
+          icon: AlertTriangle,
+          description: "Aprueba productos detectados",
+        },
+        {
           href: "/admin/event-scraper",
           label: "Scraper Lab",
           icon: RefreshCw,
@@ -232,6 +238,12 @@ const NavBar = () => {
     {
       category: "Shop & Decks",
       items: [
+        {
+          href: "/admin/products",
+          label: "Productos",
+          icon: ShoppingBag,
+          description: "Gestiona productos aprobados",
+        },
         {
           href: "/admin/create-decks",
           label: "Crear Decks",

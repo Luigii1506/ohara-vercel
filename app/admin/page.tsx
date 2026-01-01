@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   BellRing,
   Activity,
+  Sparkles,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -115,6 +116,12 @@ export default function AdminDashboard() {
           label: "Region Alternates",
           icon: Layers,
           description: "Sync alternateArt for non-US cards",
+        },
+        {
+          href: "/admin/dotgg-cards",
+          label: "DotGG Cards",
+          icon: Sparkles,
+          description: "Explora DotGG y crea alternas",
         },
       ],
     },

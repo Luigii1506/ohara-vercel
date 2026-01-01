@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const DEFAULT_LIMIT = 24;
 
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
       where.isArchived = archived === "true";
     }
 
-    const orderBy =
+    const orderBy: Prisma.ProductOrderByWithRelationInput =
       sort === "name"
         ? { name: "asc" }
         : sort === "type"
@@ -56,6 +57,12 @@ export async function GET(req: NextRequest) {
           releaseDate: true,
           officialPrice: true,
           officialPriceCurrency: true,
+          set: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
           createdAt: true,
         },
       }),

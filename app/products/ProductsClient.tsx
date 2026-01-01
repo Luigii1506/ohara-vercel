@@ -31,6 +31,7 @@ type ProductItem = {
   releaseDate?: string | null;
   officialPrice?: string | number | null;
   officialPriceCurrency?: string | null;
+  set?: { id: number; title: string } | null;
   createdAt: string;
 };
 
@@ -71,6 +72,12 @@ const SORT_OPTIONS = [
   { key: "recent", label: "Recientes" },
   { key: "name", label: "Nombre" },
   { key: "type", label: "Tipo" },
+];
+
+const SECTION_ORDER = [
+  { key: "SLEEVE", label: "Sleeves" },
+  { key: "PLAYMAT", label: "Playmats" },
+  { key: "UNCUT_SHEET", label: "Uncut Sheets" },
 ];
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -171,6 +178,86 @@ const ProductsClient = () => {
   const selectedSortLabel = useMemo(() => {
     return SORT_OPTIONS.find((item) => item.key === sort)?.label ?? "";
   }, [sort]);
+
+  const sections = useMemo(() => {
+    const hasQuery = debouncedSearch.trim().length > 0;
+    if (typeFilter !== "all" || hasQuery) {
+      return [
+        {
+          key: "results",
+          label: "Resultados",
+          products,
+          layoutKey: typeFilter !== "all" ? typeFilter : "mixed",
+        },
+      ];
+    }
+
+    const grouped = new Map<string, ProductItem[]>();
+    const other: ProductItem[] = [];
+
+    products.forEach((product) => {
+      if (SECTION_ORDER.some((section) => section.key === product.productType)) {
+        const list = grouped.get(product.productType) ?? [];
+        list.push(product);
+        grouped.set(product.productType, list);
+      } else {
+        other.push(product);
+      }
+    });
+
+    const ordered = SECTION_ORDER.map((section) => ({
+      key: section.key,
+      label: section.label,
+      products: grouped.get(section.key) ?? [],
+      layoutKey: section.key,
+    })).filter((section) => section.products.length > 0);
+
+    if (other.length > 0) {
+      ordered.push({
+        key: "OTHER",
+        label: "Otros",
+        products: other,
+        layoutKey: "mixed",
+      });
+    }
+
+    return ordered;
+  }, [products, typeFilter, debouncedSearch]);
+
+  const groupBySet = useCallback((items: ProductItem[]) => {
+    const groups = new Map<string, ProductItem[]>();
+    const order: string[] = [];
+    items.forEach((product) => {
+      const key = product.set?.title?.trim() || "Sin set";
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        order.push(key);
+      }
+      groups.get(key)?.push(product);
+    });
+    return order.map((key) => ({ key, title: key, products: groups.get(key) || [] }));
+  }, []);
+
+  const resolveImageClass = (productType: string, isList: boolean) => {
+    if (isList) {
+      if (productType === "PLAYMAT") return "h-20 w-28";
+      if (productType === "UNCUT_SHEET") return "h-20 w-24";
+      return "h-24 w-20";
+    }
+    if (productType === "PLAYMAT") return "aspect-[16/10]";
+    if (productType === "UNCUT_SHEET") return "aspect-[4/3]";
+    return "aspect-[3/4]";
+  };
+
+  const resolveGridClass = (productType: string) => {
+    if (productType === "PLAYMAT") {
+      return "grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
+    }
+    if (productType === "UNCUT_SHEET") {
+      return "grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
+    }
+    return "grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4";
+  };
 
   const clearFilters = () => {
     setSearch("");
@@ -366,68 +453,103 @@ const ProductsClient = () => {
               No se encontraron productos con esos filtros.
             </div>
           ) : (
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
-                  : "w-full space-y-4"
-              }
-            >
-              {products.map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => setSelectedProduct(product)}
-                  className="w-full text-left"
-                >
-                  <div
-                    className={`overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg ${
-                      viewMode === "list" ? "flex items-center gap-4" : ""
-                    }`}
-                  >
-                    <div
-                      className={`relative ${
-                        viewMode === "list"
-                          ? "h-24 w-20 flex-shrink-0"
-                          : "aspect-[3/4]"
-                      }`}
-                    >
-                      <div className="h-full w-full">
-                        {product.imageUrl || product.thumbnailUrl ? (
-                          <img
-                            src={product.imageUrl || product.thumbnailUrl || ""}
-                            alt={product.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
-                            Sin imagen
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-1 flex-col gap-2 px-4 py-3">
-                      <div className="flex items-start justify-between gap-2 flex-col">
-                        <h3 className="text-sm font-semibold text-slate-900">
-                          {product.name}
-                        </h3>
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 text-[10px]"
-                        >
-                          {product.productType}
-                        </Badge>
-                      </div>
-                      {product.description && (
-                        <p className="text-xs text-slate-500 line-clamp-2">
-                          {product.description}
-                        </p>
-                      )}
-                      {/* <Badge variant="secondary" className="w-fit text-[10px]">
-                        Producto oficial
-                      </Badge> */}
-                    </div>
+            <div className="space-y-10">
+              {sections.map((section) => (
+                <div key={section.key} className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      {section.label}
+                    </h2>
+                    <span className="text-xs text-slate-500">
+                      {section.products.length} item(s)
+                    </span>
                   </div>
-                </button>
+                  <div className="space-y-5">
+                    {groupBySet(section.products).map((group) => (
+                      <div key={group.key} className="space-y-3">
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span className="font-semibold uppercase tracking-[0.18em]">
+                            {group.title}
+                          </span>
+                          <span>{group.products.length} item(s)</span>
+                        </div>
+                        <div
+                          className={
+                            viewMode === "grid"
+                              ? resolveGridClass(section.layoutKey)
+                              : "w-full space-y-4"
+                          }
+                        >
+                          {group.products.map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => setSelectedProduct(product)}
+                              className="w-full text-left"
+                            >
+                              <div
+                                className={`overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg ${
+                                  viewMode === "list"
+                                    ? "flex items-center gap-4"
+                                    : ""
+                                }`}
+                              >
+                                <div
+                                  className={`relative ${
+                                    viewMode === "list"
+                                      ? `${resolveImageClass(
+                                          product.productType,
+                                          true
+                                        )} flex-shrink-0`
+                                      : resolveImageClass(
+                                          product.productType,
+                                          false
+                                        )
+                                  }`}
+                                >
+                                  <div className="h-full w-full">
+                                    {product.imageUrl || product.thumbnailUrl ? (
+                                      <img
+                                        src={
+                                          product.imageUrl ||
+                                          product.thumbnailUrl ||
+                                          ""
+                                        }
+                                        alt={product.name}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
+                                        Sin imagen
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-1 flex-col gap-2 px-4 py-3">
+                                  <div className="flex items-start justify-between gap-2 flex-col">
+                                    <h3 className="text-sm font-semibold text-slate-900">
+                                      {product.name}
+                                    </h3>
+                                    <Badge
+                                      variant="outline"
+                                      className="shrink-0 text-[10px]"
+                                    >
+                                      {product.productType}
+                                    </Badge>
+                                  </div>
+                                  {product.description && (
+                                    <p className="text-xs text-slate-500 line-clamp-2">
+                                      {product.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

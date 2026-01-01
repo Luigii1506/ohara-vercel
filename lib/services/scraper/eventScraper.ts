@@ -981,9 +981,10 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           normalizedTitle: normalizeString(set.title),
           versionSignature: extractVersionSignature(set.title),
           aliases: (Array.isArray(set.aliasesJson) ? set.aliasesJson : [])
-            .filter((alias) => typeof alias === "string" && alias.trim().length > 0)
+            .map((alias) => (typeof alias === "string" ? alias.trim() : ""))
+            .filter((alias) => alias.length > 0)
             .map((alias) => {
-              const cleaned = alias.trim();
+              const cleaned = alias;
               return {
                 title: cleaned,
                 normalizedTitle: normalizeString(cleaned),

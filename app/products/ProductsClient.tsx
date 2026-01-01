@@ -7,6 +7,7 @@ import {
   X,
   Grid3X3,
   LayoutList,
+  ZoomIn,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -259,6 +260,16 @@ const ProductsClient = () => {
     return "grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4";
   };
 
+  const resolvePreviewSize = (productType: string) => {
+    if (productType === "PLAYMAT") {
+      return "w-72 sm:w-80 aspect-[16/10]";
+    }
+    if (productType === "UNCUT_SHEET") {
+      return "w-64 sm:w-72 aspect-[4/3]";
+    }
+    return "w-52 sm:w-60 aspect-[2.5/3.5]";
+  };
+
   const clearFilters = () => {
     setSearch("");
     setTypeFilter("all");
@@ -309,20 +320,6 @@ const ProductsClient = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 w-full">
-      <style jsx global>{`
-        @keyframes product-float {
-          0%,
-          100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-6px);
-          }
-        }
-        .product-float {
-          animation: product-float 6s ease-in-out infinite;
-        }
-      `}</style>
       <div className="mx-auto max-w-6xl px-4 pb-12 pt-6">
         <div className="space-y-6">
           <div className="space-y-2">
@@ -650,7 +647,7 @@ const ProductsClient = () => {
                         ""
                       }
                       alt={selectedProduct.name}
-                      className="h-full w-full object-cover product-float"
+                      className="h-full w-full object-cover animate-card-float"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
@@ -706,7 +703,10 @@ const ProductsClient = () => {
                     onTouchEnd={handleLeave}
                     onClick={() => setShowLargeImage(true)}
                   >
-                    <div className={!isHovering ? "product-float" : ""}>
+                    <div
+                      className={!isHovering ? "animate-card-float" : ""}
+                      style={{ transformStyle: "preserve-3d" }}
+                    >
                       <div
                         className="relative transition-transform duration-150 ease-out"
                         style={{
@@ -717,12 +717,14 @@ const ProductsClient = () => {
                         }}
                       >
                         <div
-                          className="relative w-44 aspect-[2.5/3.5] overflow-hidden rounded-xl"
+                          className={`relative ${resolvePreviewSize(
+                            selectedProduct.productType
+                          )} overflow-hidden rounded-xl`}
                           style={{
                             boxShadow: isHovering
-                              ? "0 24px 40px -12px rgba(15, 23, 42, 0.45)"
-                              : "0 16px 30px -12px rgba(15, 23, 42, 0.35)",
-                            transition: "box-shadow 0.2s ease",
+                              ? "0 30px 60px -15px rgba(0, 0, 0, 0.45), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
+                              : "0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -8px rgba(0, 0, 0, 0.2)",
+                            transition: "box-shadow 0.3s ease",
                           }}
                         >
                           {selectedProduct.imageUrl ||
@@ -743,18 +745,42 @@ const ProductsClient = () => {
                             </div>
                           )}
                           <div
-                            className="pointer-events-none absolute inset-0"
+                            className="absolute inset-0 pointer-events-none transition-opacity duration-300"
                             style={{
-                              background: `radial-gradient(circle at ${glarePosition.x}% ${glarePosition.y}%, rgba(255,255,255,0.45), transparent 55%)`,
-                              opacity: isHovering ? 0.7 : 0,
-                              transition: "opacity 0.2s ease",
+                              opacity: isHovering ? 0.6 : 0,
+                              background: `radial-gradient(circle at ${glarePosition.x}% ${glarePosition.y}%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.4) 20%, transparent 60%)`,
+                            }}
+                          />
+                          <div
+                            className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-color-dodge"
+                            style={{
+                              opacity: isHovering ? 0.15 : 0,
+                              background: `linear-gradient(
+                                ${45 + tilt.y * 2}deg,
+                                rgba(255, 0, 0, 0.5) 0%,
+                                rgba(255, 154, 0, 0.5) 10%,
+                                rgba(208, 222, 33, 0.5) 20%,
+                                rgba(79, 220, 74, 0.5) 30%,
+                                rgba(63, 218, 216, 0.5) 40%,
+                                rgba(47, 201, 226, 0.5) 50%,
+                                rgba(28, 127, 238, 0.5) 60%,
+                                rgba(95, 21, 242, 0.5) 70%,
+                                rgba(186, 12, 248, 0.5) 80%,
+                                rgba(251, 7, 217, 0.5) 90%,
+                                rgba(255, 0, 0, 0.5) 100%
+                              )`,
                             }}
                           />
                         </div>
+                        <div
+                          className={`absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-opacity duration-200 ${
+                            isHovering ? "opacity-100" : "opacity-0"
+                          }`}
+                        >
+                          <ZoomIn className="h-3 w-3" />
+                          <span>Toca para ampliar</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="mt-3 text-center text-[11px] text-slate-500">
-                      Toca la carta para ampliar
                     </div>
                   </div>
                 </div>
@@ -785,27 +811,43 @@ const ProductsClient = () => {
         </BaseDrawer>
       )}
 
-      <Dialog open={showLargeImage} onOpenChange={setShowLargeImage}>
-        <DialogContent className="max-w-md bg-slate-900/95 p-4">
-          {selectedProduct && (
-            <div className="flex justify-center">
-              {selectedProduct.imageUrl || selectedProduct.thumbnailUrl ? (
-                <img
-                  src={
-                    selectedProduct.imageUrl ||
-                    selectedProduct.thumbnailUrl ||
-                    ""
-                  }
-                  alt={selectedProduct.name}
-                  className="max-h-[70vh] w-auto rounded-xl"
-                />
-              ) : (
-                <div className="text-sm text-slate-200">Sin imagen</div>
-              )}
+      {showLargeImage && selectedProduct && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-[9999] px-5 cursor-pointer"
+          onClick={() => setShowLargeImage(false)}
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            setShowLargeImage(false);
+          }}
+        >
+          <div className="w-full max-w-md pointer-events-none animate-in zoom-in-95 fade-in duration-200">
+            <div className="text-white/80 text-sm font-medium text-center py-3">
+              Toca para cerrar
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            <div className="flex flex-col items-center gap-4">
+              <img
+                src={
+                  selectedProduct.imageUrl ||
+                  selectedProduct.thumbnailUrl ||
+                  ""
+                }
+                className="max-w-full max-h-[calc(100dvh-150px)] object-contain rounded-lg shadow-2xl"
+                alt={selectedProduct.name}
+              />
+              <div className="text-white text-center">
+                <span className="font-medium text-lg">
+                  {selectedProduct.name}
+                </span>
+                {selectedProduct.set?.title && (
+                  <p className="text-white/70 text-sm mt-1">
+                    {selectedProduct.set.title}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

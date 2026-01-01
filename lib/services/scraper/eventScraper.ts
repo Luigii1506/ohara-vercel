@@ -983,14 +983,11 @@ async function loadSetsCache(): Promise<CachedSet[]> {
           aliases: (Array.isArray(set.aliasesJson) ? set.aliasesJson : [])
             .map((alias) => (typeof alias === "string" ? alias.trim() : ""))
             .filter((alias) => alias.length > 0)
-            .map((alias) => {
-              const cleaned = alias;
-              return {
-                title: cleaned,
-                normalizedTitle: normalizeString(cleaned),
-                versionSignature: extractVersionSignature(cleaned),
-              };
-            })
+            .map((alias) => ({
+              title: alias,
+              normalizedTitle: normalizeString(alias),
+              versionSignature: extractVersionSignature(alias),
+            }))
             .filter((alias) => alias.normalizedTitle.length > 0),
         }))
       );

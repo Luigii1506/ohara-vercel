@@ -656,10 +656,12 @@ export async function POST(
 
       const createdProducts = [];
 
-      for (const [index, imageUrl] of imageUrls.entries()) {
+      for (let index = 0; index < imageUrls.length; index += 1) {
+        const imageUrl = imageUrls[index];
+        const displayIndex = index + 1;
         const productName =
           imageUrls.length > 1
-            ? `${finalTitle} ${index + 1}`
+            ? `${finalTitle} ${displayIndex}`
             : finalTitle;
         const resolvedImage = await resolveProductImageUrl(
           imageUrl,
@@ -678,7 +680,7 @@ export async function POST(
               source: "missing-set",
               missingSetId: missingSetData.id,
               version: finalVersion,
-              index,
+              index: displayIndex,
               total: imageUrls.length,
             },
           },

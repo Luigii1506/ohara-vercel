@@ -216,6 +216,12 @@ const NavBar = () => {
           description: "Aprueba cartas detectadas",
         },
         {
+          href: "/admin/missing-products",
+          label: "Missing Products",
+          icon: AlertTriangle,
+          description: "Aprueba productos detectados",
+        },
+        {
           href: "/admin/event-scraper",
           label: "Scraper Lab",
           icon: RefreshCw,
@@ -232,6 +238,12 @@ const NavBar = () => {
     {
       category: "Shop & Decks",
       items: [
+        {
+          href: "/admin/products",
+          label: "Productos",
+          icon: ShoppingBag,
+          description: "Gestiona productos aprobados",
+        },
         {
           href: "/admin/create-decks",
           label: "Crear Decks",
@@ -437,6 +449,18 @@ const NavBar = () => {
                     {item.label}
                   </Link>
                 ))}
+                {showAdminMenu && !loading && (
+                  <Link
+                    href="/products"
+                    className={`relative text-white hover:text-gray-300 transition-colors font-medium !no-underline ${
+                      pathname[0] === "products"
+                        ? "after:absolute after:bottom-[-20px] after:left-0 after:w-full after:h-[2px] after:bg-white after:transition-transform after:duration-300"
+                        : ""
+                    }`}
+                  >
+                    Products
+                  </Link>
+                )}
 
                 <div className="flex items-center gap-4 min-w-[240px] flex-shrink-0">
                   {privateDesktopMenuItems.map((item) => {
@@ -700,6 +724,22 @@ const NavBar = () => {
                   </Link>
                 );
               })}
+              {showAdminMenu && !loading && (
+                <Link
+                  href="/products"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
+                    pathname[0] === "products"
+                      ? "bg-white/10 text-white"
+                      : "text-gray-300 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <ShoppingBag size={20} className="text-white" />
+                  <span className="font-medium text-white">Products</span>
+                  {pathname[0] === "products" && (
+                    <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
+                  )}
+                </Link>
+              )}
 
               {loading && !showPrivateMenus
                 ? privateMobileMenuItems.slice(0, 2).map((_, index) => (

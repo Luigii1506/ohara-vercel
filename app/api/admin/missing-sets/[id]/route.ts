@@ -25,6 +25,8 @@ function serializeMissingSet(entry: any) {
     title: entry.title,
     translatedTitle: entry.translatedTitle,
     versionSignature: entry.versionSignature,
+    isProduct: entry.isProduct,
+    productType: entry.productType,
     isApproved: entry.isApproved,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
@@ -105,6 +107,8 @@ export async function PATCH(
       versionSignature,
       images,
       isApproved,
+      isProduct,
+      productType,
     } = body;
 
     const data: any = {};
@@ -122,6 +126,18 @@ export async function PATCH(
     }
     if (typeof isApproved === "boolean") {
       data.isApproved = isApproved;
+    }
+    if (typeof isProduct === "boolean") {
+      data.isProduct = isProduct;
+      if (!isProduct) {
+        data.productType = null;
+      }
+    }
+    if (
+      typeof productType === "string" ||
+      (productType === null && typeof isProduct !== "boolean")
+    ) {
+      data.productType = productType;
     }
 
     if (Object.keys(data).length === 0) {
@@ -175,8 +191,9 @@ export async function DELETE(
       );
     }
 
-    await prisma.missingSet.delete({
+    await prisma.missingSet.update({
       where: { id },
+      data: { isApproved: true },
     });
 
     return NextResponse.json({ success: true }, { status: 200 });

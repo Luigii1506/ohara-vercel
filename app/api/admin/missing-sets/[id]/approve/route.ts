@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from "@aws-sdk/client-s3";
+import { ProductType } from "@prisma/client";
 import sharp from "sharp";
 
 // Initialize S3 client for R2
@@ -33,6 +34,28 @@ const IMAGE_SIZES = {
   original: { width: null, height: null, quality: 90, suffix: "" },
 } as const;
 
+const PRODUCT_TYPE_VALUES = new Set([
+  "BOOSTER",
+  "DECK",
+  "STARTER_DECK",
+  "PREMIUM_BOOSTER_BOX",
+  "PLAYMAT",
+  "SLEEVE",
+  "DECK_BOX",
+  "STORAGE_BOX",
+  "UNCUT_SHEET",
+  "PROMO_PACK",
+  "DISPLAY_BOX",
+  "COLLECTORS_SET",
+  "TIN_PACK",
+  "ILLUSTRATION_BOX",
+  "ANNIVERSARY_SET",
+  "PREMIUM_CARD_COLLECTION",
+  "DOUBLE_PACK",
+  "DEVIL_FRUIT",
+  "OTHER",
+]);
+
 interface ImageClassificationData {
   type: "CARD" | "DON" | "UNCUT_SHEET" | "PLAYMAT" | "SLEEVE" | "COVER";
   cardId?: number;
@@ -42,17 +65,22 @@ type ApprovalAction =
   | "createNew"
   | "linkExisting"
   | "createAndReassign"
-  | "eventCardOnly";
+  | "eventCardOnly"
+  | "createProduct"
+  | "linkExistingProduct";
 
 interface ApprovalRequestBody {
   imageClassifications: Record<string, ImageClassificationData>;
   eventLinkId?: number | null;
   action?: ApprovalAction;
   existingSetId?: number | null;
+  existingProductId?: number | null;
   overrideTitle?: string | null;
   overrideVersion?: string | null;
   setCode?: string | null;
   reassignCardIds?: number[];
+  productType?: string | null;
+  productImageUrls?: string[] | null;
   eventCardPayload?: {
     imageUrl: string;
     mode: "existing" | "alternate";
@@ -182,6 +210,21 @@ async function resolveCoverImageUrl(
     : "";
   const filename = `${safeTitle}${versionPart}`;
   return uploadImageToR2(imageUrl, filename);
+}
+
+async function resolveProductImageUrl(
+  imageUrl: string,
+  productName: string,
+  productType: string
+) {
+  const safeTitle = sanitizeForFilename(productName);
+  const safeType = sanitizeForFilename(productType);
+  const filename = `${safeTitle}-${safeType}-${Date.now()}`;
+  const publicUrl = await uploadImageToR2(imageUrl, filename, "products");
+  return {
+    publicUrl,
+    imageKey: `products/${filename}`,
+  };
 }
 
 async function linkEventsToSet(
@@ -370,12 +413,63 @@ async function reassignCardsToSet(
   return updated;
 }
 
-async function finalizeMissingSet(missingSetId: number) {
+async function finalizeMissingSet(
+  missingSetId: number,
+  options: { isProduct?: boolean; productType?: string | null } = {}
+) {
   await prisma.eventMissingSet.deleteMany({
     where: { missingSetId },
   });
-  await prisma.missingSet.delete({
+  const data: {
+    isApproved: boolean;
+    isProduct?: boolean;
+    productType?: ProductType | null;
+  } = { isApproved: true };
+  if (typeof options.isProduct === "boolean") {
+    data.isProduct = options.isProduct;
+    data.productType = options.isProduct
+      ? (options.productType as ProductType | null)
+      : null;
+  }
+  await prisma.missingSet.update({
     where: { id: missingSetId },
+    data,
+  });
+}
+
+const normalizeAlias = (value: string) => value.trim().toLowerCase();
+
+async function mergeSetAliases(setId: number, aliases: string[]) {
+  const normalizedAliases = aliases
+    .map((alias) => alias.trim())
+    .filter((alias) => alias.length > 0);
+  if (!normalizedAliases.length) return;
+
+  const set = await prisma.set.findUnique({
+    where: { id: setId },
+    select: { aliasesJson: true, title: true },
+  });
+  if (!set) return;
+
+  const existing = Array.isArray(set.aliasesJson)
+    ? set.aliasesJson.filter((alias) => typeof alias === "string")
+    : [];
+  const seen = new Set(
+    [set.title, ...existing].map((alias) => normalizeAlias(String(alias)))
+  );
+  const merged = [...existing];
+
+  for (const alias of normalizedAliases) {
+    const normalized = normalizeAlias(alias);
+    if (!normalized || seen.has(normalized)) continue;
+    merged.push(alias);
+    seen.add(normalized);
+  }
+
+  if (merged.length === existing.length) return;
+  await prisma.set.update({
+    where: { id: setId },
+    data: { aliasesJson: merged },
   });
 }
 
@@ -391,10 +485,13 @@ export async function POST(
       imageClassifications = {},
       action = "createNew",
       existingSetId,
+      existingProductId,
       overrideTitle,
       overrideVersion,
       setCode,
       reassignCardIds = [],
+      productType,
+      productImageUrls,
       eventCardPayload,
     } = body;
 
@@ -432,6 +529,10 @@ export async function POST(
       typeof setCode === "string" && setCode.trim().length > 0
         ? setCode.trim()
         : null;
+    const finalProductType =
+      typeof productType === "string" && productType.trim().length > 0
+        ? productType.trim()
+        : missingSetData.productType ?? null;
 
     if (action === "linkExisting") {
       if (!existingSetId) {
@@ -465,14 +566,158 @@ export async function POST(
         });
       }
 
+      await mergeSetAliases(existingSet.id, [
+        missingSetData.title,
+        missingSetData.translatedTitle ?? "",
+      ]);
       await linkEventsToSet(missingSet.events, existingSet.id);
-      await finalizeMissingSet(missingSetData.id);
+      await finalizeMissingSet(missingSetData.id, { isProduct: false });
 
       return NextResponse.json({
         success: true,
         mode: "linkExisting",
         setId: existingSet.id,
         setTitle: finalTitle,
+      });
+    }
+
+    if (action === "linkExistingProduct") {
+      if (!existingProductId || !Number.isFinite(existingProductId)) {
+        return NextResponse.json(
+          { error: "existingProductId is required for this action" },
+          { status: 400 }
+        );
+      }
+
+      const existingProduct = await prisma.product.findUnique({
+        where: { id: existingProductId },
+        select: { id: true },
+      });
+
+      if (!existingProduct) {
+        return NextResponse.json(
+          { error: "Selected product not found" },
+          { status: 404 }
+        );
+      }
+
+      if (missingSet.events.length > 0) {
+        for (const link of missingSet.events) {
+          await prisma.eventProduct.upsert({
+            where: {
+              eventId_productId: {
+                eventId: link.eventId,
+                productId: existingProduct.id,
+              },
+            },
+            create: {
+              eventId: link.eventId,
+              productId: existingProduct.id,
+            },
+            update: {},
+          });
+        }
+      }
+
+      await finalizeMissingSet(missingSetData.id, {
+        isProduct: true,
+        productType: finalProductType,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "linkExistingProduct",
+        productId: existingProduct.id,
+      });
+    }
+
+    if (action === "createProduct") {
+      if (!finalProductType) {
+        return NextResponse.json(
+          { error: "productType is required for createProduct" },
+          { status: 400 }
+        );
+      }
+      if (!PRODUCT_TYPE_VALUES.has(finalProductType)) {
+        return NextResponse.json(
+          { error: "Invalid productType for createProduct" },
+          { status: 400 }
+        );
+      }
+      const imageUrls = Array.isArray(productImageUrls)
+        ? productImageUrls.map((url) => url.trim()).filter(Boolean)
+        : [];
+      if (!imageUrls.length) {
+        return NextResponse.json(
+          { error: "productImageUrls is required for createProduct" },
+          { status: 400 }
+        );
+      }
+
+      const createdProducts = [];
+
+      for (let index = 0; index < imageUrls.length; index += 1) {
+        const imageUrl = imageUrls[index];
+        const displayIndex = index + 1;
+        const productName =
+          imageUrls.length > 1
+            ? `${finalTitle} ${displayIndex}`
+            : finalTitle;
+        const resolvedImage = await resolveProductImageUrl(
+          imageUrl,
+          productName,
+          finalProductType
+        );
+        const product = await prisma.product.create({
+          data: {
+            name: productName,
+            description: finalVersion || null,
+            imageUrl: resolvedImage.publicUrl,
+            imageKey: resolvedImage.imageKey,
+            productType: finalProductType as any,
+            releaseDate: missingSet.events[0]?.event?.startDate ?? null,
+            metadata: {
+              source: "missing-set",
+              missingSetId: missingSetData.id,
+              version: finalVersion,
+              index: displayIndex,
+              total: imageUrls.length,
+            },
+          },
+        });
+        createdProducts.push(product);
+      }
+
+      if (missingSet.events.length > 0) {
+        for (const product of createdProducts) {
+          for (const link of missingSet.events) {
+            await prisma.eventProduct.upsert({
+              where: {
+                eventId_productId: {
+                  eventId: link.eventId,
+                  productId: product.id,
+                },
+              },
+              create: {
+                eventId: link.eventId,
+                productId: product.id,
+              },
+              update: {},
+            });
+          }
+        }
+      }
+
+      await finalizeMissingSet(missingSetData.id, {
+        isProduct: true,
+        productType: finalProductType,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "createProduct",
+        productCount: createdProducts.length,
+        productIds: createdProducts.map((item) => item.id),
       });
     }
 
@@ -649,7 +894,7 @@ export async function POST(
         });
       }
 
-      await finalizeMissingSet(missingSetData.id);
+      await finalizeMissingSet(missingSetData.id, { isProduct: false });
 
       return NextResponse.json({
         success: true,
@@ -676,6 +921,16 @@ export async function POST(
     );
 
     // 2. Crear el Set
+    const aliasCandidates = [
+      missingSetData.title,
+      missingSetData.translatedTitle ?? "",
+    ]
+      .map((alias) => alias.trim())
+      .filter((alias) => alias.length > 0)
+      .filter(
+        (alias) => normalizeAlias(alias) !== normalizeAlias(finalTitle)
+      );
+
     const newSet = await prisma.set.create({
       data: {
         title: finalTitle,
@@ -684,6 +939,7 @@ export async function POST(
         releaseDate: new Date(),
         isOpen: false,
         version: finalVersion,
+        aliasesJson: aliasCandidates.length > 0 ? aliasCandidates : undefined,
       },
     });
 
@@ -698,7 +954,7 @@ export async function POST(
         finalSetCode
       );
 
-      await finalizeMissingSet(missingSetData.id);
+      await finalizeMissingSet(missingSetData.id, { isProduct: false });
 
       return NextResponse.json({
         success: true,
@@ -718,7 +974,7 @@ export async function POST(
       finalSetCode
     );
 
-    await finalizeMissingSet(missingSetData.id);
+    await finalizeMissingSet(missingSetData.id, { isProduct: false });
 
     return NextResponse.json({
       success: true,

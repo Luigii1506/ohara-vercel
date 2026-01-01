@@ -1020,8 +1020,8 @@ const CardListClient = ({
 
   const totalResults =
     countData ??
-    totalCount ??
     (matchesInitialFilters ? initialData?.totalCount : undefined) ??
+    totalCount ??
     filteredCards.length;
   const showInitialOverlay =
     dataSource.length === 0 && (isLoading || isFetching);

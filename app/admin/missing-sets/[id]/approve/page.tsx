@@ -29,6 +29,8 @@ interface MissingSet {
   title: string;
   translatedTitle?: string | null;
   versionSignature?: string | null;
+  isProduct?: boolean;
+  productType?: string | null;
   isApproved: boolean;
   images: string[];
   createdAt: string;
@@ -99,12 +101,21 @@ type ImageClassificationPayload = Record<
 
 interface ApprovalRequestPayload {
   imageClassifications: ImageClassificationPayload;
-  action: "createNew" | "linkExisting" | "createAndReassign" | "eventCardOnly";
+  action:
+    | "createNew"
+    | "linkExisting"
+    | "createAndReassign"
+    | "eventCardOnly"
+    | "createProduct"
+    | "linkExistingProduct";
   existingSetId?: number | null;
   overrideTitle?: string | null;
   overrideVersion?: string | null;
   setCode?: string | null;
   reassignCardIds?: number[];
+  productType?: string | null;
+  productImageUrls?: string[] | null;
+  existingProductId?: number | null;
   eventCardPayload?: {
     imageUrl: string;
     mode: "existing" | "alternate";
@@ -122,7 +133,43 @@ interface ExistingSetPreview {
   image?: string | null;
 }
 
-type ApprovalMode = "createNew" | "linkExisting" | "reassign" | "eventCardOnly";
+interface ExistingProductPreview {
+  id: number;
+  name: string;
+  productType: string;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+}
+
+type ApprovalMode =
+  | "createNew"
+  | "linkExisting"
+  | "reassign"
+  | "eventCardOnly"
+  | "createProduct"
+  | "linkExistingProduct";
+
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "PLAYMAT", label: "Playmat" },
+  { value: "SLEEVE", label: "Sleeve" },
+  { value: "DECK_BOX", label: "Deck Box" },
+  { value: "STORAGE_BOX", label: "Storage Box" },
+  { value: "UNCUT_SHEET", label: "Uncut Sheet" },
+  { value: "PROMO_PACK", label: "Promo Pack" },
+  { value: "DISPLAY_BOX", label: "Display Box" },
+  { value: "COLLECTORS_SET", label: "Collector Set" },
+  { value: "TIN_PACK", label: "Tin Pack" },
+  { value: "ILLUSTRATION_BOX", label: "Illustration Box" },
+  { value: "ANNIVERSARY_SET", label: "Anniversary Set" },
+  { value: "PREMIUM_CARD_COLLECTION", label: "Premium Card Collection" },
+  { value: "DOUBLE_PACK", label: "Double Pack" },
+  { value: "DEVIL_FRUIT", label: "Devil Fruit" },
+  { value: "BOOSTER", label: "Booster" },
+  { value: "DECK", label: "Deck" },
+  { value: "STARTER_DECK", label: "Starter Deck" },
+  { value: "PREMIUM_BOOSTER_BOX", label: "Premium Booster Box" },
+  { value: "OTHER", label: "Other" },
+];
 
 export default function ApproveMissingSetPage() {
   const router = useRouter();
@@ -136,6 +183,16 @@ export default function ApproveMissingSetPage() {
   const [customTitle, setCustomTitle] = useState("");
   const [customVersion, setCustomVersion] = useState("");
   const [customSetCode, setCustomSetCode] = useState("");
+  const [productType, setProductType] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [productTypeFilter, setProductTypeFilter] = useState("all");
+  const [existingProducts, setExistingProducts] = useState<
+    ExistingProductPreview[]
+  >([]);
+  const [loadingExistingProducts, setLoadingExistingProducts] = useState(false);
+  const [selectedExistingProductId, setSelectedExistingProductId] = useState<
+    string | null
+  >(null);
   const [imageClassifications, setImageClassifications] = useState<
     Record<string, ImageClassification>
   >({});
@@ -244,6 +301,7 @@ export default function ApproveMissingSetPage() {
       setCustomTitle(data.translatedTitle || data.title || "");
       setCustomVersion(data.versionSignature || "");
       setCustomSetCode("");
+      setProductType(data.productType || "");
       setSelectedExistingSetId(null);
       setSelectedExistingSetCards([]);
       setVariantOptions({});
@@ -254,7 +312,7 @@ export default function ApproveMissingSetPage() {
       setEventCardOptions([]);
       setEventCardSelectedCardId(null);
       setEventCardSearchExecuted(false);
-      setApprovalMode("createNew");
+      setApprovalMode(data.isProduct ? "createProduct" : "createNew");
 
       // Inicializar clasificaciones vacías para cada imagen
       const initialClassifications: Record<string, ImageClassification> = {};
@@ -332,6 +390,45 @@ export default function ApproveMissingSetPage() {
       setEventCardSearchExecuted(false);
     }
   }, [approvalMode]);
+
+  useEffect(() => {
+    if (approvalMode !== "linkExistingProduct") {
+      setExistingProducts([]);
+      setSelectedExistingProductId(null);
+      setProductSearch("");
+      setProductTypeFilter("all");
+    }
+  }, [approvalMode]);
+
+  const fetchExistingProducts = async () => {
+    try {
+      setLoadingExistingProducts(true);
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", "50");
+      params.set("sort", "recent");
+      if (productSearch.trim()) {
+        params.set("search", productSearch.trim());
+      }
+      if (productTypeFilter && productTypeFilter !== "all") {
+        params.set("type", productTypeFilter);
+      }
+      const response = await fetch(`/api/products?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch products");
+      }
+      const data = (await response.json()) as {
+        items: ExistingProductPreview[];
+      };
+      setExistingProducts(data.items || []);
+    } catch (error) {
+      console.error(error);
+      showErrorToast("Error al cargar productos");
+    } finally {
+      setLoadingExistingProducts(false);
+    }
+  };
+
 
   const handleClassificationChange = (
     url: string,
@@ -636,7 +733,8 @@ export default function ApproveMissingSetPage() {
     }));
   }, [allSets]);
 
-  const classificationEditable = approvalMode !== "linkExisting";
+  const classificationEditable =
+    approvalMode !== "linkExisting" && approvalMode !== "linkExistingProduct";
   const requiresClassification =
     approvalMode === "createNew" || approvalMode === "reassign";
   const meetsClassification = requiresClassification
@@ -646,12 +744,22 @@ export default function ApproveMissingSetPage() {
     eventCardModeOption === "existing"
       ? Boolean(eventCardSelectedCardId && eventCardImageUrl)
       : Boolean(eventCardBaseCardId && eventCardImageUrl);
+  const productSelectionValid =
+    approvalMode === "createProduct"
+      ? Boolean(productType)
+      : approvalMode === "linkExistingProduct"
+      ? Boolean(selectedExistingProductId)
+      : true;
 
   const modeConstraintsMet =
     approvalMode === "linkExisting"
       ? Boolean(selectedExistingSetId)
       : approvalMode === "eventCardOnly"
       ? eventCardSelectionValid
+      : approvalMode === "createProduct"
+      ? productSelectionValid
+      : approvalMode === "linkExistingProduct"
+      ? productSelectionValid
       : approvalMode === "reassign"
       ? selectedReassignCards.length > 0
       : true;
@@ -701,6 +809,10 @@ export default function ApproveMissingSetPage() {
         ? "linkExisting"
         : approvalMode === "eventCardOnly"
         ? "eventCardOnly"
+        : approvalMode === "createProduct"
+        ? "createProduct"
+        : approvalMode === "linkExistingProduct"
+        ? "linkExistingProduct"
         : approvalMode === "reassign"
         ? "createAndReassign"
         : "createNew";
@@ -713,6 +825,13 @@ export default function ApproveMissingSetPage() {
       overrideVersion: customVersion.trim(),
       setCode: customSetCode.trim(),
       reassignCardIds: approvalMode === "reassign" ? selectedReassignCards : [],
+      productType: approvalMode === "createProduct" ? productType : null,
+      productImageUrls:
+        approvalMode === "createProduct" ? missingSet?.images ?? [] : null,
+      existingProductId:
+        approvalMode === "linkExistingProduct"
+          ? Number(selectedExistingProductId)
+          : null,
       eventCardPayload,
     };
   };
@@ -741,6 +860,12 @@ export default function ApproveMissingSetPage() {
       showSuccessToast(
         `Set "${result.setTitle}" vinculado correctamente a los eventos seleccionados.`
       );
+    } else if (payload.action === "createProduct") {
+      showSuccessToast(
+        `Producto(s) creados: ${result.productCount ?? 0}.`
+      );
+    } else if (payload.action === "linkExistingProduct") {
+      showSuccessToast("Producto vinculado correctamente al evento.");
     } else if (payload.action === "eventCardOnly") {
       showSuccessToast(
         `Carta del evento registrada correctamente para "${result.setTitle}".`
@@ -867,6 +992,12 @@ export default function ApproveMissingSetPage() {
                     <span>Versión: {missingSet.versionSignature}</span>
                   </>
                 )}
+                {missingSet.isProduct && (
+                  <>
+                    <span>•</span>
+                    <span>Producto</span>
+                  </>
+                )}
               </div>
             </div>
             {missingSet.isApproved && (
@@ -977,14 +1108,161 @@ export default function ApproveMissingSetPage() {
                     value={customSetCode}
                     onChange={(event) => setCustomSetCode(event.target.value)}
                     placeholder="Ej. OP08, EB01..."
+                    disabled={
+                      approvalMode === "createProduct" ||
+                      approvalMode === "linkExistingProduct"
+                    }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Opcional. Si lo dejas vacío, el set se creará sin código
-                    asignado.
+                    {approvalMode === "createProduct" ||
+                    approvalMode === "linkExistingProduct"
+                      ? "No aplica para productos."
+                      : "Opcional. Si lo dejas vacío, el set se creará sin código asignado."}
                   </p>
                 </div>
+                {approvalMode === "createProduct" && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">
+                      Tipo de producto
+                    </label>
+                    <Select
+                      value={productType}
+                      onValueChange={(value) => setProductType(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona tipo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRODUCT_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            {approvalMode === "linkExistingProduct" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Producto existente</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-muted-foreground">
+                        Buscar producto
+                      </label>
+                      <Input
+                        value={productSearch}
+                        onChange={(event) =>
+                          setProductSearch(event.target.value)
+                        }
+                        placeholder="Nombre del producto..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-muted-foreground">
+                        Filtrar por tipo
+                      </label>
+                      <Select
+                        value={productTypeFilter}
+                        onValueChange={setProductTypeFilter}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          {PRODUCT_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={fetchExistingProducts}
+                    disabled={loadingExistingProducts}
+                  >
+                    {loadingExistingProducts ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Buscando...
+                      </>
+                    ) : (
+                      "Buscar productos"
+                    )}
+                  </Button>
+                  {loadingExistingProducts ? (
+                    <div className="text-sm text-muted-foreground">
+                      Cargando productos...
+                    </div>
+                  ) : existingProducts.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      No hay productos disponibles.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {existingProducts.map((product) => {
+                        const isSelected =
+                          selectedExistingProductId ===
+                          product.id.toString();
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedExistingProductId(
+                                product.id.toString()
+                              )
+                            }
+                            className={`rounded-lg border p-2 text-left transition ${
+                              isSelected
+                                ? "border-primary bg-primary/5"
+                                : "hover:border-muted-foreground/40"
+                            }`}
+                          >
+                            <div className="aspect-[4/3] overflow-hidden rounded-md border bg-muted">
+                              {product.thumbnailUrl || product.imageUrl ? (
+                                <img
+                                  src={
+                                    product.thumbnailUrl ||
+                                    product.imageUrl ||
+                                    ""
+                                  }
+                                  alt={product.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                                  Sin imagen
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              <p className="text-xs font-semibold line-clamp-2">
+                                {product.name}
+                              </p>
+                              <Badge variant="outline" className="text-[10px]">
+                                {product.productType}
+                              </Badge>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {approvalMode === "linkExisting" && (
               <Card>
@@ -1086,83 +1364,155 @@ export default function ApproveMissingSetPage() {
                         </div>
 
                         {/* Selector de clasificación */}
-                        <div className="space-y-2">
-                          <div className="space-y-1 flex flex-col">
-                            <Select
-                              value={imageClassifications[image] || ""}
-                              onValueChange={(value) =>
-                                handleClassificationChange(
-                                  image,
-                                  value as ImageClassification
-                                )
-                              }
-                              disabled={!classificationEditable}
-                            >
-                              <SelectTrigger
-                                className={
-                                  requiresClassification &&
-                                  !imageClassifications[image]
-                                    ? "border-destructive"
-                                    : ""
+                        {approvalMode !== "createProduct" &&
+                          approvalMode !== "linkExistingProduct" && (
+                          <div className="space-y-2">
+                            <div className="space-y-1 flex flex-col">
+                              <Select
+                                value={imageClassifications[image] || ""}
+                                onValueChange={(value) =>
+                                  handleClassificationChange(
+                                    image,
+                                    value as ImageClassification
+                                  )
                                 }
+                                disabled={!classificationEditable}
                               >
-                                <SelectValue placeholder="Selecciona tipo..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="CARD">Card</SelectItem>
-                                <SelectItem value="DON">Don</SelectItem>
-                                <SelectItem value="UNCUT_SHEET">
-                                  Uncut Sheet
-                                </SelectItem>
-                                <SelectItem value="PLAYMAT">Playmat</SelectItem>
-                                <SelectItem value="SLEEVE">Sleeve</SelectItem>
-                                <SelectItem value="COVER">Cover</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                                <SelectTrigger
+                                  className={
+                                    requiresClassification &&
+                                    !imageClassifications[image]
+                                      ? "border-destructive"
+                                      : ""
+                                  }
+                                >
+                                  <SelectValue placeholder="Selecciona tipo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="CARD">Card</SelectItem>
+                                  <SelectItem value="DON">Don</SelectItem>
+                                  <SelectItem value="UNCUT_SHEET">
+                                    Uncut Sheet
+                                  </SelectItem>
+                                  <SelectItem value="PLAYMAT">Playmat</SelectItem>
+                                  <SelectItem value="SLEEVE">Sleeve</SelectItem>
+                                  <SelectItem value="COVER">Cover</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                          {/* Selectores adicionales para CARD */}
-                          {requiresClassification &&
-                            imageClassifications[image] === "CARD" && (
-                              <div className="space-y-2 pt-2 border-t">
-                                {/* Selector de Set Code */}
-                                <div className="space-y-1 flex flex-col">
-                                  <label className="text-xs font-medium text-muted-foreground">
-                                    Código del Set
-                                  </label>
-                                  <Select
-                                    value={cardSelections[image]?.setCode || ""}
-                                    onValueChange={(value) =>
-                                      handleSetCodeChange(image, value)
-                                    }
-                                  >
-                                    <SelectTrigger
-                                      className={
-                                        !cardSelections[image]?.setCode
-                                          ? "border-destructive"
-                                          : ""
-                                      }
-                                    >
-                                      <SelectValue placeholder="Selecciona set..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {setCodesOptions.map((option) => (
-                                        <SelectItem
-                                          key={option.value}
-                                          value={option.value}
-                                        >
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                {/* Selector de Carta */}
-                                {cardSelections[image]?.setCode && (
+                            {/* Selectores adicionales para CARD */}
+                            {requiresClassification &&
+                              imageClassifications[image] === "CARD" && (
+                                <div className="space-y-2 pt-2 border-t">
+                                  {/* Selector de Set Code */}
                                   <div className="space-y-1 flex flex-col">
                                     <label className="text-xs font-medium text-muted-foreground">
-                                      Carta
+                                      Código del Set
+                                    </label>
+                                    <Select
+                                      value={
+                                        cardSelections[image]?.setCode || ""
+                                      }
+                                      onValueChange={(value) =>
+                                        handleSetCodeChange(image, value)
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        className={
+                                          !cardSelections[image]?.setCode
+                                            ? "border-destructive"
+                                            : ""
+                                        }
+                                      >
+                                        <SelectValue placeholder="Selecciona set..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {setCodesOptions.map((option) => (
+                                          <SelectItem
+                                            key={option.value}
+                                            value={option.value}
+                                          >
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {/* Selector de Carta */}
+                                  {cardSelections[image]?.setCode && (
+                                    <div className="space-y-1 flex flex-col">
+                                      <label className="text-xs font-medium text-muted-foreground">
+                                        Carta
+                                      </label>
+                                      <Select
+                                        value={
+                                          cardSelections[
+                                            image
+                                          ]?.cardId?.toString() || ""
+                                        }
+                                        onValueChange={(value) =>
+                                          handleCardChange(image, value)
+                                        }
+                                      >
+                                        <SelectTrigger
+                                          className={
+                                            !cardSelections[image]?.cardId
+                                              ? "border-destructive"
+                                              : ""
+                                          }
+                                        >
+                                          <SelectValue placeholder="Selecciona carta..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {(availableCards[image] || []).map(
+                                            (card) => (
+                                              <SelectItem
+                                                key={card.id}
+                                                value={card.id.toString()}
+                                              >
+                                                {card.code} - {card.name}
+                                              </SelectItem>
+                                            )
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  )}
+
+                                  {/* Preview de la carta seleccionada */}
+                                  {cardSelections[image]?.cardData && (
+                                    <div className="space-y-1 flex flex-col">
+                                      <label className="text-xs font-medium text-muted-foreground">
+                                        Preview
+                                      </label>
+                                      <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-primary">
+                                        <img
+                                          src={
+                                            cardSelections[image].cardData!.src
+                                          }
+                                          alt={
+                                            cardSelections[image].cardData!.name
+                                          }
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                      <p className="text-xs text-center text-muted-foreground">
+                                        {cardSelections[image].cardData!.code}{" "}
+                                        - {cardSelections[image].cardData!.name}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                            {requiresClassification &&
+                              imageClassifications[image] === "DON" && (
+                                <div className="space-y-2 pt-2 border-t">
+                                  <div className="space-y-1 flex flex-col">
+                                    <label className="text-xs font-medium text-muted-foreground">
+                                      Selecciona el Don!!
                                     </label>
                                     <Select
                                       value={
@@ -1171,8 +1521,9 @@ export default function ApproveMissingSetPage() {
                                         ]?.cardId?.toString() || ""
                                       }
                                       onValueChange={(value) =>
-                                        handleCardChange(image, value)
+                                        handleDonSelect(image, value)
                                       }
+                                      disabled={loadingDonCards}
                                     >
                                       <SelectTrigger
                                         className={
@@ -1181,214 +1532,147 @@ export default function ApproveMissingSetPage() {
                                             : ""
                                         }
                                       >
-                                        <SelectValue placeholder="Selecciona carta..." />
+                                        <SelectValue placeholder="Selecciona Don..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {(availableCards[image] || []).map(
-                                          (card) => (
+                                        {loadingDonCards ? (
+                                          <SelectItem value="loading">
+                                            <div className="flex items-center gap-2">
+                                              <RefreshCw className="h-3 w-3 animate-spin" />
+                                              Cargando Don!!
+                                            </div>
+                                          </SelectItem>
+                                        ) : donCards.length ? (
+                                          donCards.map((card) => (
                                             <SelectItem
                                               key={card.id}
                                               value={card.id.toString()}
                                             >
-                                              {card.code} - {card.name}
+                                              {card.alias || card.name}
                                             </SelectItem>
-                                          )
+                                          ))
+                                        ) : (
+                                          <SelectItem value="empty" disabled>
+                                            No hay Don!! registrados
+                                          </SelectItem>
                                         )}
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                )}
-
-                                {/* Preview de la carta seleccionada */}
-                                {cardSelections[image]?.cardData && (
-                                  <div className="space-y-1 flex flex-col">
-                                    <label className="text-xs font-medium text-muted-foreground">
-                                      Preview
-                                    </label>
-                                    <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-primary">
-                                      <img
-                                        src={
-                                          cardSelections[image].cardData!.src
-                                        }
-                                        alt={
-                                          cardSelections[image].cardData!.name
-                                        }
-                                        className="w-full h-full object-cover"
-                                      />
+                                  {cardSelections[image]?.cardData && (
+                                    <div className="space-y-1 flex flex-col">
+                                      <label className="text-xs font-medium text-muted-foreground">
+                                        Preview
+                                      </label>
+                                      <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-primary">
+                                        <img
+                                          src={
+                                            cardSelections[image].cardData!.src
+                                          }
+                                          alt={
+                                            cardSelections[image].cardData!.name
+                                          }
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                      <p className="text-xs text-center text-muted-foreground">
+                                        {cardSelections[image].cardData!.name}
+                                      </p>
                                     </div>
-                                    <p className="text-xs text-center text-muted-foreground">
-                                      {cardSelections[image].cardData!.code} -{" "}
-                                      {cardSelections[image].cardData!.name}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                          {requiresClassification &&
-                            imageClassifications[image] === "DON" && (
-                              <div className="space-y-2 pt-2 border-t">
-                                <div className="space-y-1 flex flex-col">
-                                  <label className="text-xs font-medium text-muted-foreground">
-                                    Selecciona el Don!!
-                                  </label>
-                                  <Select
-                                    value={
-                                      cardSelections[
-                                        image
-                                      ]?.cardId?.toString() || ""
-                                    }
-                                    onValueChange={(value) =>
-                                      handleDonSelect(image, value)
-                                    }
-                                    disabled={loadingDonCards}
-                                  >
-                                    <SelectTrigger
-                                      className={
-                                        !cardSelections[image]?.cardId
-                                          ? "border-destructive"
-                                          : ""
-                                      }
-                                    >
-                                      <SelectValue placeholder="Selecciona Don..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {loadingDonCards ? (
-                                        <SelectItem value="loading">
-                                          <div className="flex items-center gap-2">
-                                            <RefreshCw className="h-3 w-3 animate-spin" />
-                                            Cargando Don!!
-                                          </div>
-                                        </SelectItem>
-                                      ) : donCards.length ? (
-                                        donCards.map((card) => (
-                                          <SelectItem
-                                            key={card.id}
-                                            value={card.id.toString()}
-                                          >
-                                            {card.alias || card.name}
-                                          </SelectItem>
-                                        ))
-                                      ) : (
-                                        <SelectItem value="empty" disabled>
-                                          No hay Don!! registrados
-                                        </SelectItem>
-                                      )}
-                                    </SelectContent>
-                                  </Select>
+                                  )}
                                 </div>
-                                {cardSelections[image]?.cardData && (
-                                  <div className="space-y-1 flex flex-col">
-                                    <label className="text-xs font-medium text-muted-foreground">
-                                      Preview
-                                    </label>
-                                    <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-primary">
-                                      <img
-                                        src={
-                                          cardSelections[image].cardData!.src
-                                        }
-                                        alt={
-                                          cardSelections[image].cardData!.name
-                                        }
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                    <p className="text-xs text-center text-muted-foreground">
-                                      {cardSelections[image].cardData!.name}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                              )}
 
-                          {approvalMode === "eventCardOnly" && (
-                            <div className="space-y-2 pt-2 border-t">
-                              <Button
-                                type="button"
-                                variant={
-                                  eventCardImageUrl === image
-                                    ? "default"
-                                    : "outline"
-                                }
-                                size="sm"
-                                onClick={() => {
-                                  setEventCardImageUrl(image);
-                                  setEventCardModeOption("existing");
-                                  setImageClassifications((prev) => ({
-                                    ...prev,
-                                    [image]: prev[image] || "CARD",
-                                  }));
-                                }}
-                              >
-                                {eventCardImageUrl === image
-                                  ? "Carta de evento seleccionada"
-                                  : "Usar para carta del evento"}
-                              </Button>
-                            </div>
-                          )}
-
-                          {approvalMode === "reassign" &&
-                            cardSelections[image]?.cardId &&
-                            imageClassifications[image] === "CARD" && (
+                            {approvalMode === "eventCardOnly" && (
                               <div className="space-y-2 pt-2 border-t">
-                                <label className="text-xs font-medium text-muted-foreground">
-                                  Selecciona la carta exacta
-                                </label>
-                                {variantLoading[image] ? (
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <RefreshCw className="h-3 w-3 animate-spin" />
-                                    Cargando variantes...
-                                  </div>
-                                ) : (variantOptions[image] || []).length ? (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {(variantOptions[image] || []).map(
-                                      (variant) => {
-                                        const isSelected =
-                                          cardSelections[image]
-                                            ?.selectedVariantId === variant.id;
-                                        return (
-                                          <button
-                                            key={variant.id}
-                                            type="button"
-                                            onClick={() =>
-                                              handleVariantSelect(
-                                                image,
-                                                variant
-                                              )
-                                            }
-                                            className={`rounded-lg border p-2 text-left text-xs transition ${
-                                              isSelected
-                                                ? "border-primary ring-2 ring-primary/40"
-                                                : "hover:border-primary/50"
-                                            }`}
-                                          >
-                                            <div className="aspect-[3/4] overflow-hidden rounded bg-muted mb-2">
-                                              <img
-                                                src={variant.src}
-                                                alt={variant.name}
-                                                className="h-full w-full object-contain"
-                                              />
-                                            </div>
-                                            <p className="font-semibold">
-                                              {variant.code}
-                                            </p>
-                                            <p className="text-[11px] text-muted-foreground line-clamp-2">
-                                              {variant.name}
-                                            </p>
-                                          </button>
-                                        );
-                                      }
-                                    )}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">
-                                    Selecciona una carta base para cargar sus
-                                    variantes y elegir la correcta.
-                                  </p>
-                                )}
+                                <Button
+                                  type="button"
+                                  variant={
+                                    eventCardImageUrl === image
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => {
+                                    setEventCardImageUrl(image);
+                                    setEventCardModeOption("existing");
+                                    setImageClassifications((prev) => ({
+                                      ...prev,
+                                      [image]: prev[image] || "CARD",
+                                    }));
+                                  }}
+                                >
+                                  {eventCardImageUrl === image
+                                    ? "Carta de evento seleccionada"
+                                    : "Usar para carta del evento"}
+                                </Button>
                               </div>
                             )}
-                        </div>
+
+                            {approvalMode === "reassign" &&
+                              cardSelections[image]?.cardId &&
+                              imageClassifications[image] === "CARD" && (
+                                <div className="space-y-2 pt-2 border-t">
+                                  <label className="text-xs font-medium text-muted-foreground">
+                                    Selecciona la carta exacta
+                                  </label>
+                                  {variantLoading[image] ? (
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <RefreshCw className="h-3 w-3 animate-spin" />
+                                      Cargando variantes...
+                                    </div>
+                                  ) : (variantOptions[image] || []).length ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(variantOptions[image] || []).map(
+                                        (variant) => {
+                                          const isSelected =
+                                            cardSelections[image]
+                                              ?.selectedVariantId ===
+                                            variant.id;
+                                          return (
+                                            <button
+                                              key={variant.id}
+                                              type="button"
+                                              onClick={() =>
+                                                handleVariantSelect(
+                                                  image,
+                                                  variant
+                                                )
+                                              }
+                                              className={`rounded-lg border p-2 text-left text-xs transition ${
+                                                isSelected
+                                                  ? "border-primary ring-2 ring-primary/40"
+                                                  : "hover:border-primary/50"
+                                              }`}
+                                            >
+                                              <div className="aspect-[3/4] overflow-hidden rounded bg-muted mb-2">
+                                                <img
+                                                  src={variant.src}
+                                                  alt={variant.name}
+                                                  className="h-full w-full object-contain"
+                                                />
+                                              </div>
+                                              <p className="font-semibold">
+                                                {variant.code}
+                                              </p>
+                                              <p className="text-[11px] text-muted-foreground line-clamp-2">
+                                                {variant.name}
+                                              </p>
+                                            </button>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                      Selecciona una carta base para cargar sus
+                                      variantes y elegir la correcta.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1454,6 +1738,42 @@ export default function ApproveMissingSetPage() {
                         Este missing set corresponde a un producto especial como
                         playmat/sleeve; selecciona o crea la carta y solo
                         registraremos la relación de EventCard.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <RadioGroupItem
+                      value="createProduct"
+                      id="mode-product"
+                    />
+                    <div>
+                      <label
+                        htmlFor="mode-product"
+                        className="text-sm font-medium leading-none"
+                      >
+                        Registrar producto
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        Crea un producto (playmat, sleeve, deck box, etc.) y lo
+                        vincula a los eventos cuando aplique.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <RadioGroupItem
+                      value="linkExistingProduct"
+                      id="mode-product-existing"
+                    />
+                    <div>
+                      <label
+                        htmlFor="mode-product-existing"
+                        className="text-sm font-medium leading-none"
+                      >
+                        Vincular producto existente
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        Usa un producto ya creado y solo lo relaciona con el
+                        evento, sin duplicarlo.
                       </p>
                     </div>
                   </div>
@@ -1768,6 +2088,31 @@ export default function ApproveMissingSetPage() {
                   </div>
                 )}
 
+                {approvalMode === "createProduct" && (
+                  <div className="rounded-lg border p-3 space-y-3 text-sm">
+                    <div className="space-y-1">
+                      <p className="font-semibold">Registrar producto</p>
+                      <p className="text-xs text-muted-foreground">
+                        Todas las imágenes de este missing set se registrarán
+                        como productos del tipo seleccionado.
+                      </p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Se crearán {missingSet?.images.length ?? 0} producto(s).
+                    </div>
+                  </div>
+                )}
+
+                {approvalMode === "linkExistingProduct" && (
+                  <div className="rounded-lg border p-3 space-y-2 text-sm">
+                    <p className="font-semibold">Vincular producto existente</p>
+                    <p className="text-xs text-muted-foreground">
+                      Usaremos el producto seleccionado y lo conectaremos al
+                      evento sin crear un nuevo producto.
+                    </p>
+                  </div>
+                )}
+
                 {approvalMode === "reassign" && (
                   <div className="space-y-3">
                     <p className="text-sm font-medium">
@@ -1848,7 +2193,11 @@ export default function ApproveMissingSetPage() {
                   ) : (
                     <>
                       <Eye className="mr-2 h-5 w-5" />
-                      Aprobar Set
+                      {approvalMode === "createProduct"
+                        ? "Registrar producto"
+                        : approvalMode === "linkExistingProduct"
+                        ? "Vincular producto"
+                        : "Aprobar Set"}
                     </>
                   )}
                 </Button>

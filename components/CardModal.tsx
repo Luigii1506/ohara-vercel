@@ -357,7 +357,7 @@ const CardModal: React.FC<CardModalProps> = ({
 
                     <div className="flex justify-center items-center flex-col gap-0">
                       <div className="text-center text-[16px] leading-[22px] px-2 line-clamp-1 font-[500]">
-                        {selectedCard?.sets[0].set?.title}
+                        {selectedCard?.sets?.[0]?.set?.title ?? "—"}
                       </div>
                       <div className="text-center text-[14px] leading-[18px] font-[400] min-h-[18px]">
                         {selectedCard?.alias?.replace(/^\d+\s*/, "") ||
@@ -416,7 +416,7 @@ const CardModal: React.FC<CardModalProps> = ({
                     }}
                   ></div>
                   <div className="text-center text-[15px] leading-[17px]">
-                    {selectedCard?.sets[0].set?.title}
+                    {selectedCard?.sets?.[0]?.set?.title ?? "—"}
                   </div>
                   <div className="text-center text-[13px] leading-[15px] min-h-[15px]">
                     {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}

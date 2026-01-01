@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   RefreshCw,
   X,
@@ -39,12 +47,36 @@ interface MissingSet {
   title: string;
   translatedTitle?: string | null;
   versionSignature?: string | null;
+  isProduct?: boolean;
+  productType?: string | null;
   isApproved: boolean;
   images: string[];
   createdAt: string;
   updatedAt: string;
   events: MissingSetEventLink[];
 }
+
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "PLAYMAT", label: "Playmat" },
+  { value: "SLEEVE", label: "Sleeve" },
+  { value: "DECK_BOX", label: "Deck Box" },
+  { value: "STORAGE_BOX", label: "Storage Box" },
+  { value: "UNCUT_SHEET", label: "Uncut Sheet" },
+  { value: "PROMO_PACK", label: "Promo Pack" },
+  { value: "DISPLAY_BOX", label: "Display Box" },
+  { value: "COLLECTORS_SET", label: "Collector Set" },
+  { value: "TIN_PACK", label: "Tin Pack" },
+  { value: "ILLUSTRATION_BOX", label: "Illustration Box" },
+  { value: "ANNIVERSARY_SET", label: "Anniversary Set" },
+  { value: "PREMIUM_CARD_COLLECTION", label: "Premium Card Collection" },
+  { value: "DOUBLE_PACK", label: "Double Pack" },
+  { value: "DEVIL_FRUIT", label: "Devil Fruit" },
+  { value: "BOOSTER", label: "Booster" },
+  { value: "DECK", label: "Deck" },
+  { value: "STARTER_DECK", label: "Starter Deck" },
+  { value: "PREMIUM_BOOSTER_BOX", label: "Premium Booster Box" },
+  { value: "OTHER", label: "Other" },
+];
 
 const AdminMissingSetsPage = () => {
   const router = useRouter();
@@ -58,6 +90,8 @@ const AdminMissingSetsPage = () => {
     translatedTitle: "",
     versionSignature: "",
     imagesText: "",
+    isProduct: false,
+    productType: "",
   });
 
   useEffect(() => {
@@ -90,6 +124,8 @@ const AdminMissingSetsPage = () => {
       translatedTitle: missingSet.translatedTitle || "",
       versionSignature: missingSet.versionSignature || "",
       imagesText: missingSet.images.join("\n"),
+      isProduct: Boolean(missingSet.isProduct),
+      productType: missingSet.productType || "",
     });
   };
 
@@ -114,6 +150,8 @@ const AdminMissingSetsPage = () => {
           translatedTitle: editForm.translatedTitle || null,
           versionSignature: editForm.versionSignature || null,
           images,
+          isProduct: editForm.isProduct,
+          productType: editForm.isProduct ? editForm.productType || null : null,
         }),
       });
 
@@ -178,7 +216,7 @@ const AdminMissingSetsPage = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Missing Sets</h1>
         <p className="text-muted-foreground">
-          Gestiona los sets faltantes detectados en eventos
+          Gestiona sets y productos faltantes detectados en eventos
         </p>
       </div>
 
@@ -260,6 +298,53 @@ const AdminMissingSetsPage = () => {
                           placeholder="Versión (opcional)"
                           className="h-9"
                         />
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={editForm.isProduct}
+                            onCheckedChange={(checked) =>
+                              setEditForm({
+                                ...editForm,
+                                isProduct: checked === true,
+                                productType:
+                                  checked === true
+                                    ? editForm.productType
+                                    : "",
+                              })
+                            }
+                            id={`is-product-${missingSet.id}`}
+                          />
+                          <label
+                            htmlFor={`is-product-${missingSet.id}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            Marcar como producto
+                          </label>
+                        </div>
+                        {editForm.isProduct && (
+                          <Select
+                            value={editForm.productType}
+                            onValueChange={(value) =>
+                              setEditForm({
+                                ...editForm,
+                                productType: value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Tipo de producto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PRODUCT_TYPE_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     ) : (
                       <>
@@ -285,6 +370,16 @@ const AdminMissingSetsPage = () => {
                       {missingSet.versionSignature && (
                         <Badge variant="secondary" className="text-xs">
                           {missingSet.versionSignature}
+                        </Badge>
+                      )}
+                      {missingSet.isProduct && (
+                        <Badge variant="outline" className="text-xs">
+                          Producto
+                        </Badge>
+                      )}
+                      {missingSet.productType && (
+                        <Badge variant="outline" className="text-xs">
+                          {missingSet.productType}
                         </Badge>
                       )}
                       {missingSet.isApproved && (

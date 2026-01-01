@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from "@aws-sdk/client-s3";
+import { ProductType } from "@prisma/client";
 import sharp from "sharp";
 
 // Initialize S3 client for R2
@@ -422,11 +423,13 @@ async function finalizeMissingSet(
   const data: {
     isApproved: boolean;
     isProduct?: boolean;
-    productType?: string | null;
+    productType?: ProductType | null;
   } = { isApproved: true };
   if (typeof options.isProduct === "boolean") {
     data.isProduct = options.isProduct;
-    data.productType = options.isProduct ? options.productType ?? null : null;
+    data.productType = options.isProduct
+      ? (options.productType as ProductType | null)
+      : null;
   }
   await prisma.missingSet.update({
     where: { id: missingSetId },

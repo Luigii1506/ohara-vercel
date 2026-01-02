@@ -186,6 +186,12 @@ const NavBar = () => {
           icon: Images,
           description: "Sync alternateArt from US cards",
         },
+        {
+          href: "/admin/card-groups",
+          label: "Card Groups",
+          icon: Layers,
+          description: "Agrupa cartas por region",
+        },
       ],
     },
     {

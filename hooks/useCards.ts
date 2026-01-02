@@ -115,6 +115,11 @@ type FetchCardsPageParams = {
 const normalizeList = (list?: string[]) =>
   list?.map((item) => item.trim()).filter(Boolean);
 
+const normalizeSetCodeList = (list?: string[]) =>
+  normalizeList(list)?.map((item) =>
+    item.toUpperCase() === "PROMO" ? "P-" : item
+  );
+
 const buildQueryString = (
   params: FetchCardsPageParams | { filters: CardsFilters }
 ): string => {
@@ -143,9 +148,12 @@ const buildQueryString = (
 
   entries.forEach(([filterKey, paramKey]) => {
     const filterValue = filters[filterKey];
-    const value = normalizeList(
-      Array.isArray(filterValue) ? filterValue : undefined
-    );
+    const value =
+      filterKey === "setCodes"
+        ? normalizeSetCodeList(
+            Array.isArray(filterValue) ? filterValue : undefined
+          )
+        : normalizeList(Array.isArray(filterValue) ? filterValue : undefined);
     if (value && value.length) {
       searchParams.set(paramKey, value.join(","));
     }
@@ -237,9 +245,12 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
 
   entries.forEach(([filterKey, paramKey]) => {
     const filterValue = filters[filterKey];
-    const value = normalizeList(
-      Array.isArray(filterValue) ? filterValue : undefined
-    );
+    const value =
+      filterKey === "setCodes"
+        ? normalizeSetCodeList(
+            Array.isArray(filterValue) ? filterValue : undefined
+          )
+        : normalizeList(Array.isArray(filterValue) ? filterValue : undefined);
     if (value && value.length) {
       searchParams.set(paramKey, value.join(","));
     }

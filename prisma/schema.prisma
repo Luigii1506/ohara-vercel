@@ -67,11 +67,93 @@ model Card {
   eventCards            EventCard[]
   leaderTournamentDecks TournamentDeck[]    @relation("TournamentLeaderCard")
   productCards          ProductCard[]
+  baseGroupLinks        CardGroupLink[]
+  variantGroupLinks     CardVariantLink[]
+  sources               CardSource[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
   @@index([code, region, isFirstEdition]) // Índice para cartas base por region
   @@index([collectionOrder])
+}
+
+model CardGroup {
+  id             Int               @id @default(autoincrement())
+  canonicalCode  String
+  canonicalName  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  variantGroups  CardVariantGroup[]
+  links          CardGroupLink[]
+
+  @@unique([canonicalCode])
+}
+
+model CardVariantGroup {
+  id            Int               @id @default(autoincrement())
+  baseGroupId   Int
+  variantKey    String?
+  alternateArt  String?
+  illustrator   String?
+  imageHash     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  baseGroup     CardGroup         @relation(fields: [baseGroupId], references: [id], onDelete: Cascade)
+  links         CardVariantLink[]
+
+  @@index([baseGroupId])
+  @@index([alternateArt])
+  @@index([illustrator])
+}
+
+model CardGroupLink {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  cardId    Int
+  region    String?
+  language  String?
+  source    String?
+  sourceId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  group     CardGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, cardId])
+  @@index([cardId])
+  @@index([source, sourceId])
+}
+
+model CardVariantLink {
+  id             Int      @id @default(autoincrement())
+  variantGroupId Int
+  cardId         Int
+  region         String?
+  language       String?
+  source         String?
+  sourceId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  variantGroup   CardVariantGroup @relation(fields: [variantGroupId], references: [id], onDelete: Cascade)
+  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([variantGroupId, cardId])
+  @@index([cardId])
+  @@index([source, sourceId])
+}
+
+model CardSource {
+  id        Int      @id @default(autoincrement())
+  cardId    Int
+  source    String
+  sourceId  String
+  offerType String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([source, sourceId])
+  @@index([cardId])
 }
 
 model Deck {
@@ -505,7 +587,10 @@ model Set {
   id          Int        @id @default(autoincrement())
   image       String
   title       String
+  originalTitle String?
+  translatedTitle String?
   code        String?
+  region      String?
   releaseDate DateTime   @map("release_date")
   isOpen      Boolean    @default(false) @map("is_open")
   createdAt   DateTime?  @default(now()) @map("created_at")
@@ -515,6 +600,7 @@ model Set {
   cards       CardSet[]
   events      EventSet[]
   products    Product[]
+  @@index([region])
 }
 
 model Product {

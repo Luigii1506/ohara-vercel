@@ -740,11 +740,19 @@ const CompleteDeckBuilderLayout = ({
             ? card.triggerCard === null
             : card.triggerCard !== null;
 
+        const normalizedCodes = selectedCodes.map((code) =>
+          code === "PROMO" ? "" : code
+        );
+        const cardSetCodes = (card.setCode ?? "")
+          .split(",")
+          .map((code) => code.trim());
+        const matchesPromo =
+          selectedCodes.includes("PROMO") &&
+          cardSetCodes.every((code) => code.length === 0);
         const matchedCode =
           selectedCodes?.length === 0 ||
-          (card.setCode ?? "")
-            .split(",")
-            .some((code) => selectedCodes.includes(code.trim()));
+          matchesPromo ||
+          cardSetCodes.some((code) => normalizedCodes.includes(code));
 
         return (
           matchesSearch &&

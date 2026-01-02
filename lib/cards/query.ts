@@ -100,6 +100,11 @@ const splitParam = (value: string | null | undefined) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
+const normalizeSetCodesParam = (value: string | null | undefined) =>
+  splitParam(value).map((code) =>
+    code.toUpperCase() === "PROMO" ? "P-" : code
+  );
+
 const normalizeRegion = (value?: string | null): string =>
   value && value.trim() ? value.trim() : DEFAULT_REGION;
 
@@ -147,7 +152,7 @@ export const buildFiltersFromSearchParams = (
   return {
     search: params.get("search") ?? undefined,
     sets: splitParam(params.get("sets")),
-    setCodes: splitParam(params.get("codes")),
+    setCodes: normalizeSetCodesParam(params.get("codes")),
     colors: splitParam(params.get("colors")),
     rarities: splitParam(params.get("rarities")),
     categories: splitParam(params.get("categories")),

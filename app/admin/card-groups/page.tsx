@@ -249,9 +249,9 @@ const AdminCardGroupsPage = () => {
       }
       map.get(key)!.push(group);
     }
-    for (const entries of map.values()) {
+    Array.from(map.values()).forEach((entries) => {
       entries.sort((a, b) => a.canonicalCode.localeCompare(b.canonicalCode));
-    }
+    });
     return map;
   }, [groups]);
 

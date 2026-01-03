@@ -43,8 +43,8 @@ model Card {
   order                 String              @default("0")
   collectionOrder       String              @default("")
   isPro                 Boolean             @default(false)
-  region                String?             // US, JP, CN, KR, TH, FR
-  language              String?             // en, ja, zh-Hans, zh-Hant, ko, th, fr
+  region                String? // US, JP, CN, KR, TH, FR
+  language              String? // en, ja, zh-Hans, zh-Hant, ko, th, fr
   isRegionalExclusive   Boolean             @default(false)
   baseCardId            Int? // NULL si es carta base, ID de la base si es alternativa
   baseCard              Card?               @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
@@ -63,6 +63,7 @@ model Card {
   opponentGameLogs      GameLog[]           @relation("OpponentLeader")
   GameLogCard           GameLogCard[]
   userListCards         UserListCard[]
+  collectionCards       CollectionCard[]
   alternateCards        Card[]              @relation("CardAlternates") // Las alternativas de esta carta base
   eventCards            EventCard[]
   leaderTournamentDecks TournamentDeck[]    @relation("TournamentLeaderCard")
@@ -78,28 +79,30 @@ model Card {
 }
 
 model CardGroup {
-  id             Int               @id @default(autoincrement())
-  canonicalCode  String
-  canonicalName  String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  variantGroups  CardVariantGroup[]
-  links          CardGroupLink[]
+  id            Int                     @id @default(autoincrement())
+  canonicalCode String
+  canonicalName String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  variantGroups CardVariantGroup[]
+  links         CardGroupLink[]
+  regionReviews CardGroupRegionReview[]
 
   @@unique([canonicalCode])
 }
 
 model CardVariantGroup {
-  id            Int               @id @default(autoincrement())
+  id            Int                            @id @default(autoincrement())
   baseGroupId   Int
   variantKey    String?
   alternateArt  String?
   illustrator   String?
   imageHash     String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  baseGroup     CardGroup         @relation(fields: [baseGroupId], references: [id], onDelete: Cascade)
+  createdAt     DateTime                       @default(now())
+  updatedAt     DateTime                       @updatedAt
+  baseGroup     CardGroup                      @relation(fields: [baseGroupId], references: [id], onDelete: Cascade)
   links         CardVariantLink[]
+  regionReviews CardVariantGroupRegionReview[]
 
   @@index([baseGroupId])
   @@index([alternateArt])
@@ -107,17 +110,17 @@ model CardVariantGroup {
 }
 
 model CardGroupLink {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   groupId   Int
   cardId    Int
   region    String?
   language  String?
   source    String?
   sourceId  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   group     CardGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, cardId])
   @@index([cardId])
@@ -125,21 +128,47 @@ model CardGroupLink {
 }
 
 model CardVariantLink {
-  id             Int      @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   variantGroupId Int
   cardId         Int
   region         String?
   language       String?
   source         String?
   sourceId       String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   variantGroup   CardVariantGroup @relation(fields: [variantGroupId], references: [id], onDelete: Cascade)
-  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card           Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([variantGroupId, cardId])
   @@index([cardId])
   @@index([source, sourceId])
+}
+
+model CardGroupRegionReview {
+  id        Int                    @id @default(autoincrement())
+  groupId   Int
+  region    String
+  status    CardRegionReviewStatus @default(UNKNOWN)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  group     CardGroup              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, region])
+  @@index([region])
+}
+
+model CardVariantGroupRegionReview {
+  id             Int                    @id @default(autoincrement())
+  variantGroupId Int
+  region         String
+  status         CardRegionReviewStatus @default(UNKNOWN)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  variantGroup   CardVariantGroup       @relation(fields: [variantGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([variantGroupId, region])
+  @@index([region])
 }
 
 model CardSource {
@@ -147,12 +176,13 @@ model CardSource {
   cardId    Int
   source    String
   sourceId  String
+  sourceImageUrl String?
   offerType String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  @@unique([source, sourceId])
+  @@unique([source, sourceId, sourceImageUrl])
   @@index([cardId])
 }
 
@@ -378,35 +408,36 @@ model TournamentDeck {
 }
 
 model Player {
-  id                Int             @id @default(autoincrement())
-  name              String
-  playerUrl         String?
-  source            String
-  sourcePlayerId    String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  tournamentDecks   TournamentDeck[]
+  id              Int              @id @default(autoincrement())
+  name            String
+  playerUrl       String?
+  source          String
+  sourcePlayerId  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tournamentDecks TournamentDeck[]
 
   @@unique([source, sourcePlayerId])
   @@index([name])
 }
 
 model User {
-  id            Int        @id @default(autoincrement())
-  email         String     @unique
-  name          String
-  createdAt     DateTime?  @default(now()) @map("createdAt")
-  updatedAt     DateTime?  @updatedAt @map("updatedAt")
-  role          String     @default("USER")
-  emailVerified DateTime?
-  image         String?
-  uuid          String     @unique @default(uuid())
-  accounts      Account[]
-  decks         Deck[]
-  gameLogs      GameLog[]
-  sessions      Session[]
-  lists         UserList[]
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  name               String
+  createdAt          DateTime?           @default(now()) @map("createdAt")
+  updatedAt          DateTime?           @updatedAt @map("updatedAt")
+  role               String              @default("USER")
+  emailVerified      DateTime?
+  image              String?
+  uuid               String              @unique @default(uuid())
+  accounts           Account[]
+  decks              Deck[]
+  gameLogs           GameLog[]
+  sessions           Session[]
+  lists              UserList[]
   announcementEvents AnnouncementEvent[]
+  collection         Collection?
 }
 
 model Account {
@@ -471,22 +502,22 @@ model UserList {
 }
 
 model UserListCard {
-  id        Int      @id @default(autoincrement())
-  listId    Int
-  cardId    Int
-  quantity  Int      @default(1)
-  sortOrder Int?
-  page      Int?
-  row       Int?
-  column    Int?
-  notes     String?
-  condition String?
-  customPrice   Decimal?
+  id             Int      @id @default(autoincrement())
+  listId         Int
+  cardId         Int
+  quantity       Int      @default(1)
+  sortOrder      Int?
+  page           Int?
+  row            Int?
+  column         Int?
+  notes          String?
+  condition      String?
+  customPrice    Decimal?
   customCurrency String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  list      UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  list           UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   @@unique([listId, page, row, column], name: "unique_physical_position")
   @@index([listId, cardId])
@@ -509,8 +540,37 @@ model UserListBackcard {
   @@index([listId])
 }
 
+model Collection {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @unique
+  isPublic  Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards     CollectionCard[]
+}
+
+model CollectionCard {
+  id             Int        @id @default(autoincrement())
+  collectionId   Int
+  cardId         Int
+  quantity       Int        @default(1)
+  sortOrder      Int?
+  notes          String?
+  condition      String?
+  customPrice    Decimal?
+  customCurrency String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  collection     Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  card           Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, cardId])
+  @@index([cardId])
+}
+
 model Announcement {
-  id         Int                   @id @default(autoincrement())
+  id         Int                  @id @default(autoincrement())
   titleEn    String
   bodyEn     String
   ctaLabelEn String?
@@ -584,40 +644,41 @@ model Event {
 }
 
 model Set {
-  id          Int        @id @default(autoincrement())
-  image       String
-  title       String
-  originalTitle String?
+  id              Int        @id @default(autoincrement())
+  image           String
+  title           String
+  originalTitle   String?
   translatedTitle String?
-  code        String?
-  region      String?
-  releaseDate DateTime   @map("release_date")
-  isOpen      Boolean    @default(false) @map("is_open")
-  createdAt   DateTime?  @default(now()) @map("created_at")
-  updatedAt   DateTime?  @updatedAt @map("updated_at")
-  version     String?
-  aliasesJson Json?
-  cards       CardSet[]
-  events      EventSet[]
-  products    Product[]
+  code            String?
+  region          String?
+  releaseDate     DateTime   @map("release_date")
+  isOpen          Boolean    @default(false) @map("is_open")
+  createdAt       DateTime?  @default(now()) @map("created_at")
+  updatedAt       DateTime?  @updatedAt @map("updated_at")
+  version         String?
+  aliasesJson     Json?
+  cards           CardSet[]
+  events          EventSet[]
+  products        Product[]
+
   @@index([region])
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  uuid        String      @unique @default(uuid())
-  name        String
-  description String?     @db.Text
-  imageUrl    String?
-  thumbnailUrl String?
-  imageKey    String?
-  productType ProductType
-  releaseDate DateTime?
-  officialPrice Decimal?
+  id                    Int         @id @default(autoincrement())
+  uuid                  String      @unique @default(uuid())
+  name                  String
+  description           String?     @db.Text
+  imageUrl              String?
+  thumbnailUrl          String?
+  imageKey              String?
+  productType           ProductType
+  releaseDate           DateTime?
+  officialPrice         Decimal?
   officialPriceCurrency String?
-  metadata    Json?
-  isArchived Boolean    @default(false)
-  archivedAt DateTime?
+  metadata              Json?
+  isArchived            Boolean     @default(false)
+  archivedAt            DateTime?
 
   // TCGplayer linking (same pattern as Card model)
   tcgUrl              String?   @default("")
@@ -634,10 +695,10 @@ model Product {
   set   Set? @relation(fields: [setId], references: [id], onDelete: SetNull)
 
   // Many-to-many relationship with Events
-  events EventProduct[]
-  cards  ProductCard[]
-  relatedProducts ProductLink[] @relation("ProductLinkSource")
-  relatedToProducts ProductLink[] @relation("ProductLinkTarget")
+  events            EventProduct[]
+  cards             ProductCard[]
+  relatedProducts   ProductLink[]  @relation("ProductLinkSource")
+  relatedToProducts ProductLink[]  @relation("ProductLinkTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -672,19 +733,19 @@ model ProductLink {
 }
 
 model MissingProduct {
-  id                     Int      @id @default(autoincrement())
-  title                  String
-  sourceUrl              String?
-  productType            ProductType?
-  category               String?
-  releaseDate            DateTime?
-  officialPrice          Decimal?
-  officialPriceCurrency  String?
-  thumbnailUrl           String?
-  imagesJson             Json?
-  isApproved             Boolean  @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    Int          @id @default(autoincrement())
+  title                 String
+  sourceUrl             String?
+  productType           ProductType?
+  category              String?
+  releaseDate           DateTime?
+  officialPrice         Decimal?
+  officialPriceCurrency String?
+  thumbnailUrl          String?
+  imagesJson            Json?
+  isApproved            Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }
 
 model EventSet {
@@ -942,6 +1003,12 @@ enum CatalogProductType {
   BOOSTER
   DECK
   OTHER
+}
+
+enum CardRegionReviewStatus {
+  UNKNOWN
+  NOT_EXISTS
+  EXCLUSIVE
 }
 
 enum Role {

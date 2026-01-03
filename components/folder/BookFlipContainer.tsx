@@ -544,28 +544,6 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             {/* Mobile Navigation Buttons - Premium Design */}
             {dimensions.showSinglePage && (
               <>
-                {/* Page Indicator - Top - Mobile shows single page */}
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30">
-                  <div className="px-4 py-2 bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-sm text-white text-sm font-medium rounded-full shadow-xl border border-white/10">
-                    {currentPage === 0 ? (
-                      <>
-                        <span className="text-blue-300">Cubierta</span> Interior
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-blue-300">Página</span>{" "}
-                        {currentPage * 2}
-                        {maxNavigablePage && (
-                          <span className="text-slate-400">
-                            {" "}
-                            / {maxNavigablePage}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
                 {/* Navigation Buttons - Bottom with elegant spacing */}
                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6 z-30">
                   <Button

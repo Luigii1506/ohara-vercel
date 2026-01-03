@@ -7,6 +7,7 @@ import { UserProvider } from "@/app/context/UserContext";
 import ClientLayout from "@/components/ClientLayout";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { ToastProvider } from "@/components/ui/MobileToast";
 import QueryProvider from "@/components/QueryProvider";
 import { DynamicThemeColor } from "@/components/DynamicThemeColor";
 import UnregisterSW from "@/components/UnregisterSW";
@@ -193,7 +194,9 @@ export default function RootLayout({
           <NextAuthProvider>
             <UserProvider>
               <ClientLayout>
-                {children}
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
                 <ToastContainer />
                 <Analytics />
                 <SpeedInsights />

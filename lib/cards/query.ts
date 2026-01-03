@@ -655,7 +655,7 @@ const buildWhere = (
   if (filters.sets?.length) {
     andConditions.push({
       OR: [
-        { setCode: { in: filters.sets } },
+        { sets: { some: { set: { code: { in: filters.sets } } } } },
         {
           alternateCards: {
             some: {
@@ -663,7 +663,7 @@ const buildWhere = (
                 alternateRegionCondition,
                 {
                   OR: [
-                    { setCode: { in: filters.sets } },
+                    { sets: { some: { set: { code: { in: filters.sets } } } } },
                   ],
                 },
               ],
@@ -863,6 +863,7 @@ const buildAlternateSelect = (includeRelations: boolean) => ({
             id: true,
             title: true,
             code: true,
+            region: true,
           },
         },
       },
@@ -892,6 +893,7 @@ const buildInclude = (
             id: true,
             title: true,
             code: true,
+            region: true,
           },
         },
       },
@@ -1539,7 +1541,7 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   if (filters.sets?.length) {
     andConditions.push({
       OR: [
-        { setCode: { in: filters.sets } },
+        { sets: { some: { set: { code: { in: filters.sets } } } } },
       ],
     });
   }

@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { CardWithCollectionData } from "@/types";
 import LazyImage from "@/components/LazyImage";
 import { smartPrefetch } from "@/lib/imageOptimization";
+import { Plus, Check } from "lucide-react";
 
 interface VirtualizedCardGridProps {
   cards: Array<{
@@ -27,6 +28,10 @@ interface VirtualizedCardGridProps {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+  // Collection props
+  collectionCardIds?: Map<string, number>;
+  addingToCollection?: Set<string>;
+  onAddToCollection?: (cardId: string, e: React.MouseEvent) => void;
 }
 
 // Flatten cards data into individual card items for virtualization
@@ -51,6 +56,9 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  collectionCardIds,
+  addingToCollection,
+  onAddToCollection,
 }) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -160,6 +168,10 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
           ? formatCurrency(priceValue, card.priceCurrency)
           : "0";
 
+      const isInCollection = collectionCardIds?.has(card.id);
+      const collectionQty = collectionCardIds?.get(card.id);
+      const isAdding = addingToCollection?.has(card.id);
+
       return (
         <div
           key={card._id || card.id}
@@ -175,14 +187,33 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
           className="w-full cursor-pointer max-w-[450px]"
         >
           <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col overflow-hidden">
-            <LazyImage
-              src={card.src}
-              fallbackSrc="/assets/images/backcard.webp"
-              alt={card.name}
-              className="w-full"
-              priority={globalIndex < priorityLimit}
-              size={imageSize}
-            />
+            <div className="relative w-full">
+              <LazyImage
+                src={card.src}
+                fallbackSrc="/assets/images/backcard.webp"
+                alt={card.name}
+                className="w-full"
+                priority={globalIndex < priorityLimit}
+                size={imageSize}
+              />
+              {/* Collection toggle button */}
+              {onAddToCollection && (
+                <button
+                  onClick={(e) => onAddToCollection(card.id, e)}
+                  className={`absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
+                    isInCollection
+                      ? "bg-emerald-500 text-white"
+                      : "bg-black/50 text-white/90 active:scale-90"
+                  }`}
+                >
+                  {isInCollection ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
 
             {/* Info section - Code and Price (stacked, centered) */}
             <div className="w-full px-2 py-2 flex flex-col items-center justify-center text-center flex-1">
@@ -210,6 +241,9 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
       formatCurrency,
       getCardPriceValue,
       setTouchedCardId,
+      collectionCardIds,
+      addingToCollection,
+      onAddToCollection,
     ]
   );
 

@@ -21,6 +21,19 @@ const authOptions = {
       clientSecret: process.env.DISCORD_CLIENT_SECRET,
     }),
   ],
+  events: {
+    async createUser({ user }) {
+      // Crear Collection vacía para el nuevo usuario
+      try {
+        await prisma.collection.create({
+          data: { userId: parseInt(user.id) },
+        });
+        console.log(`[auth] Collection creada para usuario ${user.id}`);
+      } catch (error) {
+        console.error(`[auth] Error creando Collection para usuario ${user.id}:`, error);
+      }
+    },
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       return true;

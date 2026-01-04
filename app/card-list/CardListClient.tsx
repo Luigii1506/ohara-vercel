@@ -76,11 +76,15 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Check,
+  Plus,
 } from "lucide-react";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { DON_CATEGORY } from "@/helpers/constants";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
+import { toast } from "react-toastify";
+import { useToast } from "@/components/ui/MobileToast";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -162,6 +166,7 @@ const CardListClient = ({
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const { region, setRegion } = useRegion();
+  const { showCollectionToast, showToast } = useToast();
   const sortOptions = useMemo<SortOption[]>(
     () => [
       {
@@ -415,6 +420,131 @@ const CardListClient = ({
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
 
   const { data: session } = useSession();
+
+  // Collection state - tracks which cards are in user's collection with quantities
+  const [collectionCardIds, setCollectionCardIds] = useState<Map<string, number>>(new Map());
+  const [isLoadingCollection, setIsLoadingCollection] = useState(false);
+  const [addingToCollection, setAddingToCollection] = useState<Set<string>>(new Set());
+
+  // Fetch user's collection on mount
+  useEffect(() => {
+    if (!session?.user) {
+      setCollectionCardIds(new Map());
+      return;
+    }
+
+    const fetchCollection = async () => {
+      setIsLoadingCollection(true);
+      try {
+        const response = await fetch("/api/collection?limit=0");
+        if (response.ok) {
+          const data = await response.json();
+          const cardMap = new Map<string, number>();
+          data.cards?.forEach((item: { cardId: number; quantity: number }) => {
+            // Convert cardId to string to match card.id type
+            cardMap.set(String(item.cardId), item.quantity);
+          });
+          setCollectionCardIds(cardMap);
+        }
+      } catch (error) {
+        console.error("Error fetching collection:", error);
+      } finally {
+        setIsLoadingCollection(false);
+      }
+    };
+
+    fetchCollection();
+  }, [session?.user]);
+
+  // Toggle card in collection (add if not present, remove if present)
+  const handleToggleCollection = useCallback(async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    if (!session?.user) {
+      showToast("Inicia sesión", "info");
+      return;
+    }
+
+    if (addingToCollection.has(cardId)) return;
+
+    const isInCollection = collectionCardIds.has(cardId);
+    const currentQty = collectionCardIds.get(cardId) || 0;
+
+    // Optimistic update - update UI immediately
+    setCollectionCardIds(prev => {
+      const newMap = new Map(prev);
+      if (isInCollection) {
+        newMap.delete(cardId);
+      } else {
+        newMap.set(cardId, 1);
+      }
+      return newMap;
+    });
+
+    // Show toast immediately
+    if (!isInCollection) {
+      showCollectionToast(1, true);
+    }
+
+    // Mark as in progress (for subtle indicator, not blocking)
+    setAddingToCollection(prev => new Set(prev).add(cardId));
+
+    try {
+      if (isInCollection) {
+        // Remove from collection
+        const response = await fetch(`/api/collection/cards?cardId=${cardId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          // Revert optimistic update on error
+          setCollectionCardIds(prev => {
+            const newMap = new Map(prev);
+            newMap.set(cardId, currentQty);
+            return newMap;
+          });
+          showToast("Error al quitar", "error");
+        }
+      } else {
+        // Add to collection
+        const response = await fetch("/api/collection/cards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: parseInt(cardId), quantity: 1 }),
+        });
+
+        if (!response.ok) {
+          // Revert optimistic update on error
+          setCollectionCardIds(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(cardId);
+            return newMap;
+          });
+          showToast("Error al agregar", "error");
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling collection:", error);
+      // Revert optimistic update on error
+      setCollectionCardIds(prev => {
+        const newMap = new Map(prev);
+        if (isInCollection) {
+          newMap.set(cardId, currentQty);
+        } else {
+          newMap.delete(cardId);
+        }
+        return newMap;
+      });
+      showToast("Error de conexión", "error");
+    } finally {
+      setAddingToCollection(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cardId);
+        return newSet;
+      });
+    }
+  }, [session?.user, addingToCollection, collectionCardIds, showCollectionToast, showToast]);
 
   const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
 
@@ -1655,6 +1785,9 @@ const CardListClient = ({
                       hasNextPage={hasNextPage}
                       isFetchingNextPage={isFetchingNextPage}
                       fetchNextPage={fetchNextPage}
+                      collectionCardIds={collectionCardIds}
+                      addingToCollection={addingToCollection}
+                      onAddToCollection={handleToggleCollection}
                     />
                   )}
 
@@ -1689,15 +1822,32 @@ const CardListClient = ({
                                 onContextMenu={(e) => e.preventDefault()}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
-                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col">
-                                  <LazyImage
-                                    src={card.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={card.name}
-                                    className="w-full"
-                                    priority={baseCardIndex < priorityLimit}
-                                    size={imageSize}
-                                  />
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col overflow-hidden">
+                                  <div className="relative w-full">
+                                    <LazyImage
+                                      src={card.src}
+                                      fallbackSrc="/assets/images/backcard.webp"
+                                      alt={card.name}
+                                      className="w-full"
+                                      priority={baseCardIndex < priorityLimit}
+                                      size={imageSize}
+                                    />
+                                    {/* Collection toggle button */}
+                                    <button
+                                      onClick={(e) => handleToggleCollection(card.id, e)}
+                                      className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
+                                        collectionCardIds.has(card.id)
+                                          ? "bg-emerald-500 text-white scale-100"
+                                          : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
+                                      }`}
+                                    >
+                                      {collectionCardIds.has(card.id) ? (
+                                        <Check className="w-4 h-4" />
+                                      ) : (
+                                        <Plus className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                  </div>
 
                                   {/* Info section - Code and Price */}
                                   <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
@@ -1739,15 +1889,32 @@ const CardListClient = ({
                                 onContextMenu={(e) => e.preventDefault()}
                                 className="w-full cursor-pointer max-w-[450px]"
                               >
-                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col">
-                                  <LazyImage
-                                    src={alt.src}
-                                    fallbackSrc="/assets/images/backcard.webp"
-                                    alt={alt.name}
-                                    className="w-full"
-                                    priority={alt._globalIndex < priorityLimit}
-                                    size={imageSize}
-                                  />
+                                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col overflow-hidden">
+                                  <div className="relative w-full">
+                                    <LazyImage
+                                      src={alt.src}
+                                      fallbackSrc="/assets/images/backcard.webp"
+                                      alt={alt.name}
+                                      className="w-full"
+                                      priority={alt._globalIndex < priorityLimit}
+                                      size={imageSize}
+                                    />
+                                    {/* Collection toggle button */}
+                                    <button
+                                      onClick={(e) => handleToggleCollection(alt.id, e)}
+                                      className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
+                                        collectionCardIds.has(alt.id)
+                                          ? "bg-emerald-500 text-white scale-100"
+                                          : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
+                                      }`}
+                                    >
+                                      {collectionCardIds.has(alt.id) ? (
+                                        <Check className="w-4 h-4" />
+                                      ) : (
+                                        <Plus className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                  </div>
 
                                   {/* Info section - Code and Price */}
                                   <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">

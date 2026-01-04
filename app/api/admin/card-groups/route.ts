@@ -52,10 +52,21 @@ export async function GET(req: NextRequest) {
               },
             },
           },
+          regionReviews: {
+            select: {
+              region: true,
+              status: true,
+            },
+          },
         },
       }),
       prisma.cardGroup.count({ where }),
     ]);
+
+    const groupIds = items.map((group) => group.id);
+    const canonicalCodes = Array.from(
+      new Set(items.map((group) => group.canonicalCode.toUpperCase()))
+    );
 
     const setCodes = Array.from(
       new Set(
@@ -75,6 +86,57 @@ export async function GET(req: NextRequest) {
       expectedSets.map((set) => `${set.code?.toUpperCase() ?? ""}|${set.region}`)
     );
 
+    const [variantGroups, alternates] = await Promise.all([
+      prisma.cardVariantGroup.findMany({
+        where: { baseGroupId: { in: groupIds } },
+        select: {
+          id: true,
+          baseGroupId: true,
+          regionReviews: {
+            select: { region: true, status: true },
+          },
+          links: {
+            select: {
+              card: {
+                select: { region: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.card.findMany({
+        where: {
+          code: { in: canonicalCodes },
+          isFirstEdition: false,
+        },
+        select: {
+          id: true,
+          code: true,
+          region: true,
+          variantGroupLinks: {
+            select: { variantGroupId: true },
+          },
+        },
+      }),
+    ]);
+
+    const variantGroupsByBase = new Map<number, typeof variantGroups>();
+    for (const group of variantGroups) {
+      if (!variantGroupsByBase.has(group.baseGroupId)) {
+        variantGroupsByBase.set(group.baseGroupId, []);
+      }
+      variantGroupsByBase.get(group.baseGroupId)!.push(group);
+    }
+
+    const alternatesByCode = new Map<string, typeof alternates>();
+    for (const card of alternates) {
+      const key = card.code.toUpperCase();
+      if (!alternatesByCode.has(key)) {
+        alternatesByCode.set(key, []);
+      }
+      alternatesByCode.get(key)!.push(card);
+    }
+
     const payload = items.map((group) => {
       const canonicalSetCode = group.canonicalCode
         .split("-")[0]
@@ -83,15 +145,32 @@ export async function GET(req: NextRequest) {
       const regions = Array.from(
         new Set(group.links.map((link) => link.region).filter(Boolean))
       ) as string[];
+      const reviewStatus = new Map(
+        group.regionReviews.map((review) => [review.region, review.status])
+      );
       const regionStatus: Record<
         string,
         "present" | "missing" | "not-available"
       > = {};
       const missingRegions: string[] = [];
       const notAvailableRegions: string[] = [];
+      const reviewedNotExists = new Set<string>();
+      let hasExclusiveReview = false;
       for (const code of REGION_ORDER) {
         if (regions.includes(code)) {
           regionStatus[code] = "present";
+          continue;
+        }
+        if (reviewStatus.get(code) === "EXCLUSIVE") {
+          regionStatus[code] = "not-available";
+          notAvailableRegions.push(code);
+          hasExclusiveReview = true;
+          continue;
+        }
+        if (reviewStatus.get(code) === "NOT_EXISTS") {
+          regionStatus[code] = "not-available";
+          notAvailableRegions.push(code);
+          reviewedNotExists.add(code);
           continue;
         }
         const expected = canonicalSetCode
@@ -105,6 +184,47 @@ export async function GET(req: NextRequest) {
           notAvailableRegions.push(code);
         }
       }
+      const isExclusive = hasExclusiveReview;
+      const baseComplete = missingRegions.length === 0;
+
+      const groupVariantGroups = variantGroupsByBase.get(group.id) ?? [];
+      const groupVariantIds = new Set(groupVariantGroups.map((vg) => vg.id));
+      const groupAlternates = alternatesByCode.get(
+        group.canonicalCode.toUpperCase()
+      ) ?? [];
+      const hasUnlinkedAlternates = groupAlternates.some((card) => {
+        const links = card.variantGroupLinks ?? [];
+        return !links.some((link) => groupVariantIds.has(link.variantGroupId));
+      });
+      const hasVariantGroups = groupVariantGroups.length > 0;
+      const hasAnyAlternates = groupAlternates.length > 0;
+      let variantCoverageComplete = true;
+      if (hasVariantGroups) {
+        for (const variantGroup of groupVariantGroups) {
+          const linkedRegions = new Set(
+            variantGroup.links
+              .map((link) => link.card?.region)
+              .filter((region): region is string => Boolean(region))
+          );
+          const reviewedRegionsForGroup = new Set(
+            variantGroup.regionReviews.map((review) => review.region)
+          );
+          for (const code of REGION_ORDER) {
+            if (
+              !linkedRegions.has(code) &&
+              !reviewedRegionsForGroup.has(code)
+            ) {
+              variantCoverageComplete = false;
+              break;
+            }
+          }
+          if (!variantCoverageComplete) break;
+        }
+      }
+      const fullComplete =
+        baseComplete &&
+        !hasUnlinkedAlternates &&
+        (!hasAnyAlternates || variantCoverageComplete);
       const heroCard = group.links[0]?.card ?? null;
       return {
         id: group.id,
@@ -114,6 +234,9 @@ export async function GET(req: NextRequest) {
         missingRegions,
         notAvailableRegions,
         regionStatus,
+        isExclusive,
+        baseComplete,
+        fullComplete,
         totalLinks: group.links.length,
         heroCard,
         links: group.links.map((link) => ({

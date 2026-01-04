@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
       types: { select: { type: true } },
       colors: { select: { color: true } },
       texts: { select: { text: true } },
-      sets: { select: { set: { select: { title: true } } } },
+      sets: { select: { set: { select: { title: true, region: true } } } },
       effects: { select: { effect: true } },
     };
 
@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
               select: {
                 title: true,
                 id: true,
+                region: true,
               },
             },
           },

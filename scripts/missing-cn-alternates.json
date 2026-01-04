@@ -1,0 +1,92 @@
+{
+  "unresolvedAlternates": [
+    {
+      "id": "OP05-060_P",
+      "baseCode": "OP05-060",
+      "isAlternate": true,
+      "variantKey": "P",
+      "originTitle": "补充包 新纪元的主角【OPC-05】",
+      "sourceId": "2526",
+      "name": "蒙奇·D·路飞",
+      "rarity": "Leader",
+      "category": "Leader",
+      "cost": null,
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": null,
+      "life": "5 Life",
+      "colors": [
+        "purple"
+      ],
+      "types": [
+        "草帽一伙"
+      ],
+      "text": "【启动主要】【每回合1次】可以将我方生命区最上方的1张卡牌加入手牌：我方场上不存在咚!!，或我方场上存在3张或更多咚!!的场合，从咚!!卡组中追加最多1张活跃状态的咚!!。",
+      "trigger": null,
+      "imageUrl": "https://source.windoent.com/OnePiecePc/Picture/1697799658836OP05-060P.png",
+      "setCode": "OP05",
+      "order": "P",
+      "alias": "P"
+    },
+    {
+      "id": "OP09-061_01",
+      "baseCode": "OP09-061",
+      "isAlternate": true,
+      "variantKey": "01",
+      "originTitle": "补充包 新帝降临【OPC-09】",
+      "sourceId": "3972",
+      "name": "蒙奇·D·路飞",
+      "rarity": "Leader",
+      "category": "Leader",
+      "cost": null,
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": null,
+      "life": "4 Life",
+      "colors": [
+        "purple",
+        "black"
+      ],
+      "types": [
+        "四皇",
+        "草帽一伙"
+      ],
+      "text": "【咚!!×1】我方所有角色费用+1。 【我方的回合中】【每回合1次】当我方场上2张或更多咚!!放回咚!!卡组时，从咚!!卡组中追加最多1张活跃状态的咚!!，再追加最多1张休息状态的咚!!。",
+      "trigger": null,
+      "imageUrl": "https://source.windoent.com/OnePiecePc/Picture/1733812892233OP09-061_01.png",
+      "setCode": "OP09",
+      "order": "01",
+      "alias": "01"
+    },
+    {
+      "id": "OP09-061_01",
+      "baseCode": "OP09-061",
+      "isAlternate": true,
+      "variantKey": "01",
+      "originTitle": "补充包 新帝降临【OPC-09】",
+      "sourceId": "3973",
+      "name": "蒙奇·D·路飞",
+      "rarity": "Leader",
+      "category": "Leader",
+      "cost": null,
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": null,
+      "life": "4 Life",
+      "colors": [
+        "purple",
+        "black"
+      ],
+      "types": [
+        "四皇",
+        "草帽一伙"
+      ],
+      "text": "【咚!!×1】我方所有角色费用+1。 【我方的回合中】【每回合1次】当我方场上2张或更多咚!!放回咚!!卡组时，从咚!!卡组中追加最多1张活跃状态的咚!!，再追加最多1张休息状态的咚!!。",
+      "trigger": null,
+      "imageUrl": "https://source.windoent.com/OnePiecePc/Picture/1728699687835OP09-061_01.png",
+      "setCode": "OP09",
+      "order": "01",
+      "alias": "01"
+    }
+  ]
+}

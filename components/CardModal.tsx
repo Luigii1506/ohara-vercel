@@ -22,7 +22,7 @@ import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 const openTcgplayer = (webUrl: string) => {
   // TCGplayer usa Universal Links y App Links, así que simplemente
   // abrimos la URL web normal y el OS decide si abrir la app o el navegador
-  window.open(webUrl, '_blank', 'noopener,noreferrer');
+  window.open(webUrl, "_blank", "noopener,noreferrer");
 };
 
 const toNumericValue = (value?: number | string | null) => {
@@ -125,6 +125,19 @@ const CardModal: React.FC<CardModalProps> = ({
   const [isTouchable, setIsTouchable] = React.useState(false);
 
   const activeCardForPricing = selectedCard ?? baseCard;
+  const resolveSetTitle = (card?: CardWithCollectionData) => {
+    const sets = card?.sets ?? [];
+    if (!sets.length) return null;
+    const region = card?.region ?? baseCard?.region ?? null;
+    if (region) {
+      const match = sets.find((entry) => entry.set?.region === region);
+      if (match?.set?.title) return match.set.title;
+    }
+    return sets[0]?.set?.title ?? null;
+  };
+  const selectedSetTitle = resolveSetTitle(selectedCard ?? baseCard);
+
+  console.log("selectedSetTitle", selectedSetTitle);
   const formattedMarketPrice = formatPriceValue(
     activeCardForPricing?.marketPrice ?? null,
     activeCardForPricing?.priceCurrency ?? "USD"
@@ -147,7 +160,9 @@ const CardModal: React.FC<CardModalProps> = ({
             {formattedMarketPrice}
           </p>
           <p className="text-[11px] text-gray-500 min-h-[16px]">
-            {formattedPriceUpdatedAt ? `Updated ${formattedPriceUpdatedAt}` : ''}
+            {formattedPriceUpdatedAt
+              ? `Updated ${formattedPriceUpdatedAt}`
+              : ""}
           </p>
         </div>
       );
@@ -357,7 +372,7 @@ const CardModal: React.FC<CardModalProps> = ({
 
                     <div className="flex justify-center items-center flex-col gap-0">
                       <div className="text-center text-[16px] leading-[22px] px-2 line-clamp-1 font-[500]">
-                        {selectedCard?.sets?.[0]?.set?.title ?? "—"}
+                        {selectedSetTitle ?? "—"}
                       </div>
                       <div className="text-center text-[14px] leading-[18px] font-[400] min-h-[18px]">
                         {selectedCard?.alias?.replace(/^\d+\s*/, "") ||
@@ -416,7 +431,7 @@ const CardModal: React.FC<CardModalProps> = ({
                     }}
                   ></div>
                   <div className="text-center text-[15px] leading-[17px]">
-                    {selectedCard?.sets?.[0]?.set?.title ?? "—"}
+                    {selectedSetTitle ?? "—"}
                   </div>
                   <div className="text-center text-[13px] leading-[15px] min-h-[15px]">
                     {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}

@@ -116,6 +116,7 @@ export interface CardWithCollectionData extends CardData {
         title: string;
         id: string;
         code?: string | null;
+        region?: string | null;
       };
     }
   ];

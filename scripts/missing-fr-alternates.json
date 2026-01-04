@@ -1,0 +1,671 @@
+{
+  "unresolvedAlternates": [
+    {
+      "id": "EB04-012_p1",
+      "baseCode": "EB04-012",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-012_p1",
+      "name": "Kikunojo",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "7 Cost",
+      "power": "8000 Power",
+      "attribute": null,
+      "counter": null,
+      "life": null,
+      "colors": [
+        "green"
+      ],
+      "types": [
+        "Pays de Wano",
+        "Neuf fourreaux rouges"
+      ],
+      "text": "[Activation : Principale] [Une fois par tour] Si ce Personnage a été joué ce tour, redressez votre Leader de type {Pays de Wano}.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-012_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-013_p1",
+      "baseCode": "EB04-013",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-013_p1",
+      "name": "Carrot",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "8 Cost",
+      "power": "9000 Power",
+      "attribute": "Special",
+      "counter": null,
+      "life": null,
+      "colors": [
+        "green"
+      ],
+      "types": [
+        "Minks"
+      ],
+      "text": "[Jouée] Si votre Leader est de type {Minks}, redressez jusqu'à 2 de vos Personnages de type {Minks} et votre Leader.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-013_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-018_p1",
+      "baseCode": "EB04-018",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-018_p1",
+      "name": "Mégalo",
+      "rarity": "Rare",
+      "category": "Character",
+      "cost": "4 Cost",
+      "power": "4000 Power",
+      "attribute": "Wisdom",
+      "counter": "+2000 Counter",
+      "life": null,
+      "colors": [
+        "green"
+      ],
+      "types": [
+        "Animal",
+        "Île des hommes-poissons"
+      ],
+      "text": "[Jouée] Vous pouvez épuiser ce Personnage : Mettez KO jusqu'à 1 Personnage adverse épuisé ayant 8000 de puissance ou moins.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-018_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-022_p1",
+      "baseCode": "EB04-022",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-022_p1",
+      "name": "Issho",
+      "rarity": "Rare",
+      "category": "Character",
+      "cost": "5 Cost",
+      "power": "7000 Power",
+      "attribute": null,
+      "counter": null,
+      "life": null,
+      "colors": [
+        "blue"
+      ],
+      "types": [
+        "Dressrosa",
+        "Marine"
+      ],
+      "text": "[Jouée] Vous pouvez défausser 2 cartes de votre main : Si votre adversaire a 6 cartes ou plus dans sa main, il place 2 cartes de sa main au-dessous de son deck dans l'ordre de son choix.[DON!! x1] [En attaquant] Vous pouvez défausser 1 carte de votre main : Jusqu'à 1 Personnage adverse perd −2000 de puissance pour tout le tour.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-022_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-025_p1",
+      "baseCode": "EB04-025",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-025_p1",
+      "name": "Nefertari Vivi",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "7 Cost",
+      "power": "4000 Power",
+      "attribute": null,
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "blue"
+      ],
+      "types": [
+        "Royaume d'Alabasta"
+      ],
+      "text": "[Jouée] Jouez jusqu'à 1 carte Personnage de type {Royaume d'Alabasta} de votre main ayant un coût de 8 ou moins autre que [Nefertari Vivi]. Puis, votre adversaire place 1 carte de sa main au-dessous de son deck.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-025_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-031_p1",
+      "baseCode": "EB04-031",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-031_p1",
+      "name": "King",
+      "rarity": "Rare",
+      "category": "Character",
+      "cost": "6 Cost",
+      "power": "7000 Power",
+      "attribute": "Special",
+      "counter": null,
+      "life": null,
+      "colors": [
+        "purple"
+      ],
+      "types": [
+        "Lunaria",
+        "Équipage des cent bêtes"
+      ],
+      "text": "Si ce Personnage est mis KO, vous pouvez renvoyer à votre deck DON!! 1 carte DON!! de votre terrain à la place.[Activation : Principale] [Une fois par tour] Si votre Leader est de type {Équipage des cent bêtes} et que vous n'avez pas d'autre Personnage [King], ajoutez jusqu'à 1 carte DON!! redressée de votre deck DON!! et ajoutez jusqu'à 1 carte épuisée en plus.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-031_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-036_p1",
+      "baseCode": "EB04-036",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-036_p1",
+      "name": "Foxy",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "8 Cost",
+      "power": "9000 Power",
+      "attribute": "Special",
+      "counter": null,
+      "life": null,
+      "colors": [
+        "purple"
+      ],
+      "types": [
+        "Équipage de Foxy"
+      ],
+      "text": "[Jouée] DON!! −1 : Si votre Leader est de type {Équipage de Foxy}, piochez 2 cartes et défaussez 1 carte de votre main. Puis, épuisez jusqu'à 1 Personnage adverse ayant un coût de 9 ou moins.[Activation : Principale] [Une fois par tour] Ajoutez jusqu'à 1 carte DON!! épuisée de votre deck DON!!.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-036_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-038_p1",
+      "baseCode": "EB04-038",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-038_p1",
+      "name": "Rosinante et Law",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "6 Cost",
+      "power": "8000 Power",
+      "attribute": null,
+      "counter": null,
+      "life": null,
+      "colors": [
+        "purple"
+      ],
+      "types": [
+        "Marine",
+        "Équipage de Don Quijote"
+      ],
+      "text": "Le nom de cette carte est aussi considéré comme [Trafalgar Law] et [Don Quijote Rosinante] selon les règles.[Bloqueur][Jouée] Si le nombre de cartes DON!! sur votre terrain est inférieur ou égal à celui du terrain de votre adversaire, piochez 1 carte. Puis, ajoutez jusqu'à 1 carte DON!! redressée de votre deck DON!!.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-038_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "EB04-039_p1",
+      "baseCode": "EB04-039",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-LES SEPT DE LA MER D'AZUR- [OP14-EB04]",
+      "sourceId": "EB04-039_p1",
+      "name": "Eustass \"Captain\" Kidd",
+      "rarity": "SP CARD",
+      "category": "Character",
+      "cost": "7 Cost",
+      "power": "8000 Power",
+      "attribute": "Special",
+      "counter": null,
+      "life": null,
+      "colors": [
+        "purple"
+      ],
+      "types": [
+        "Supernovae",
+        "Équipage de Kidd"
+      ],
+      "text": "[Jouée] Ajoutez jusqu'à 1 carte DON!! redressée de votre deck DON!!.[Activation : Principale] Vous pouvez placer ce Personnage dans votre Défausse : Jouez jusqu'à 1 carte Personnage de type {Équipage de Kidd} de votre main ayant un coût de 5 ou moins.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/EB04-039_p1.webp?20251126",
+      "setCode": "EB04",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-001_p1",
+      "baseCode": "ST29-001",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-001_p1",
+      "name": "Monkey D. Luffy",
+      "rarity": "Leader",
+      "category": "Leader",
+      "cost": null,
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": null,
+      "life": "6 Life",
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Quatre Empereurs",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[En attaquant] Si vous avez 2 cartes ou moins dans votre Vie, piochez 1 carte et défaussez 1 carte de votre main.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-001_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-002_p1",
+      "baseCode": "ST29-002",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-002_p1",
+      "name": "Usopp",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "3 Cost",
+      "power": "4000 Power",
+      "attribute": null,
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Jouée]/[En attaquant] Épuisez jusqu'à 1 Personnage adverse ayant un coût inférieur ou égal au nombre de cartes dans la Vie adverse.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-002_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-003_p1",
+      "baseCode": "ST29-003",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-003_p1",
+      "name": "Kaku",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "4 Cost",
+      "power": "5000 Power",
+      "attribute": null,
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "CP-0"
+      ],
+      "text": "Si le nombre de cartes de votre Vie est inférieur ou égal à celui de la Vie adverse, ce Personnage gagne +1000 de puissance.",
+      "trigger": "[Déclenchement] Mettez KO jusqu'à 1 Personnage adverse ayant un coût de 3 ou moins.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-003_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-004_p1",
+      "baseCode": "ST29-004",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-004_p1",
+      "name": "Sanji",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "4 Cost",
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Jouée] Regardez 4 cartes du dessus de votre deck, révélez jusqu'à 1 carte de type {Équipage de Chapeau de paille} et ajoutez-la à votre main. Puis, placez les cartes restantes au-dessous de votre deck dans l'ordre de votre choix.",
+      "trigger": "[Déclenchement] Vous pouvez défausser 1 carte de votre main : Jouez cette carte.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-004_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-005_p1",
+      "baseCode": "ST29-005",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-005_p1",
+      "name": "Jinbe",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "6 Cost",
+      "power": "5000 Power",
+      "attribute": "Strike",
+      "counter": "+2000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Hommes-poissons",
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "-",
+      "trigger": "[Déclenchement] Si votre Leader est [Monkey D. Luffy], jouez cette carte.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-005_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-006_p1",
+      "baseCode": "ST29-006",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-006_p1",
+      "name": "Stussy",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "6 Cost",
+      "power": "7000 Power",
+      "attribute": "Special",
+      "counter": "+2000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head"
+      ],
+      "text": "-",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-006_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-007_p1",
+      "baseCode": "ST29-007",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-007_p1",
+      "name": "Tony-Tony Chopper",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "4 Cost",
+      "power": "5000 Power",
+      "attribute": "Wisdom",
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Animal",
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[En cas de KO] Vous pouvez ajouter à votre main 1 carte du dessus ou du dessous de votre Vie : Placez jusqu'à 1 carte de votre main au-dessus de votre Vie.",
+      "trigger": "[Déclenchement] Jusqu'à 1 de vos [Monkey D. Luffy] gagne +2000 de puissance pour tout le tour.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-007_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-008_p1",
+      "baseCode": "ST29-008",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-008_p1",
+      "name": "Nami",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "3 Cost",
+      "power": "1000 Power",
+      "attribute": "Special",
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "Si un de vos Personnages de type {Egg Head} est mis KO par un effet adverse, vous pouvez retourner 1 carte du dessus de votre Vie face visible à la place.",
+      "trigger": "[Déclenchement] Si votre Leader est [Monkey D. Luffy], jouez cette carte.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-008_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-009_p1",
+      "baseCode": "ST29-009",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-009_p1",
+      "name": "Nico Robin",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "4 Cost",
+      "power": "2000 Power",
+      "attribute": "Strike",
+      "counter": "+2000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Bloqueur] (Après que votre adversaire a déclaré une attaque, vous pouvez épuiser cette carte pour qu'elle devienne la cible de l'attaque.)",
+      "trigger": "[Déclenchement] Si votre Leader est [Monkey D. Luffy], jouez cette carte.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-009_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-010_p1",
+      "baseCode": "ST29-010",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-010_p1",
+      "name": "Franky",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "5 Cost",
+      "power": "6000 Power",
+      "attribute": null,
+      "counter": "+2000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "-",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-010_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-011_p1",
+      "baseCode": "ST29-011",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-011_p1",
+      "name": "Brook",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "2 Cost",
+      "power": "2000 Power",
+      "attribute": null,
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Bloqueur] (Après que votre adversaire a déclaré une attaque, vous pouvez épuiser cette carte pour qu'elle devienne la cible de l'attaque.)",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-011_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-012_p1",
+      "baseCode": "ST29-012",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-012_p1",
+      "name": "Monkey D. Luffy",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "1 Cost",
+      "power": null,
+      "attribute": "Strike",
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Quatre Empereurs",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Activation : Principale] [Une fois par tour] Donnez jusqu'à 1 carte DON!! épuisée à 1 de vos [Monkey D. Luffy].",
+      "trigger": "[Déclenchement] Jouez cette carte.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-012_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-013_p1",
+      "baseCode": "ST29-013",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-013_p1",
+      "name": "Rob Lucci",
+      "rarity": "Common",
+      "category": "Character",
+      "cost": "5 Cost",
+      "power": "6000 Power",
+      "attribute": "Strike",
+      "counter": "+1000 Counter",
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "CP-0"
+      ],
+      "text": "-",
+      "trigger": "[Déclenchement] Mettez KO jusqu'à 1 Personnage adverse ayant un coût inférieur ou égal au nombre total de cartes dans votre Vie et celle de votre adversaire.",
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-013_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    },
+    {
+      "id": "ST29-014_p1",
+      "baseCode": "ST29-014",
+      "isAlternate": true,
+      "variantKey": "p1",
+      "originTitle": "-EGG HEAD-[ST-29]",
+      "sourceId": "ST29-014_p1",
+      "name": "Roronoa Zoro",
+      "rarity": "Super Rare",
+      "category": "Character",
+      "cost": "6 Cost",
+      "power": "8000 Power",
+      "attribute": null,
+      "counter": null,
+      "life": null,
+      "colors": [
+        "yellow"
+      ],
+      "types": [
+        "Egg Head",
+        "Équipage de Chapeau de paille"
+      ],
+      "text": "[Initiative : Personnage] (Cette carte peut attaquer un Personnage durant le tour où elle est jouée.)[Activation : Principale] [Une fois par tour] Vous pouvez défausser 1 carte de votre main ayant [Déclenchement] : Piochez 1 carte et donnez jusqu'à 1 carte DON!! épuisée à votre Leader ou à 1 de vos Personnages.",
+      "trigger": null,
+      "imageUrl": "https://fr.onepiece-cardgame.com/images/cardlist/card/ST29-014_p1.webp?20251126",
+      "setCode": "ST29",
+      "order": "1",
+      "alias": "p1"
+    }
+  ]
+}

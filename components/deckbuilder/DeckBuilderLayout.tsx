@@ -88,6 +88,12 @@ const EXCLUDED_ALTERNATE_ARTS = [
   "Not for sale",
 ];
 
+const getRelatedSetCodes = (card?: CardWithCollectionData | null): string[] => {
+  return (card?.sets ?? [])
+    .map((entry) => entry.set.code?.trim().toLowerCase())
+    .filter((code): code is string => Boolean(code));
+};
+
 interface CompleteDeckBuilderLayoutProps {
   onSave: () => void;
   onRestart: () => void;
@@ -665,21 +671,14 @@ const CompleteDeckBuilderLayout = ({
             selectedColors.includes(color)
           );
 
-        // Dividir setCode por comas y verificar si alguno coincide
-        const baseSetCodes = (card.setCode ?? "")
-          .split(",")
-          .map((code) => code.trim().toLowerCase())
-          .filter(Boolean);
+        const baseSetCodes = getRelatedSetCodes(card);
         const matchesBaseSet = baseSetCodes.some((code) =>
           normalizedSelectedSets.includes(code)
         );
 
         const matchesAlternateSet =
           card.alternates?.some((alt) => {
-            const altSetCodes = (alt.setCode ?? "")
-              .split(",")
-              .map((code) => code.trim().toLowerCase())
-              .filter(Boolean);
+            const altSetCodes = getRelatedSetCodes(alt);
             return altSetCodes.some((code) =>
               normalizedSelectedSets.includes(code)
             );
@@ -1342,10 +1341,7 @@ const CompleteDeckBuilderLayout = ({
                     if (!card) return false;
 
                     if (normalizedSelectedSets.length > 0) {
-                      const baseSetCodes = (card.setCode ?? "")
-                        .split(",")
-                        .map((code: string) => code.trim().toLowerCase())
-                        .filter(Boolean);
+                      const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)
@@ -1366,10 +1362,7 @@ const CompleteDeckBuilderLayout = ({
                     if (!card?.alternates) return [];
                     return card.alternates.filter((alt) => {
                       if (normalizedSelectedSets.length > 0) {
-                        const altSetCodes = (alt.setCode ?? "")
-                          .split(",")
-                          .map((code) => code.trim().toLowerCase())
-                          .filter(Boolean);
+                        const altSetCodes = getRelatedSetCodes(alt);
                         if (
                           !altSetCodes.some((code) =>
                             normalizedSelectedSets.includes(code)
@@ -1882,10 +1875,7 @@ const CompleteDeckBuilderLayout = ({
                             if (normalizedSelectedSets.length === 0) {
                               return true;
                             }
-                            const altSetCodes = (alt.setCode ?? "")
-                              .split(",")
-                              .map((code) => code.trim().toLowerCase())
-                              .filter(Boolean);
+                            const altSetCodes = getRelatedSetCodes(alt);
                             return altSetCodes.some((code) =>
                               normalizedSelectedSets.includes(code)
                             );
@@ -1963,10 +1953,7 @@ const CompleteDeckBuilderLayout = ({
                     if (!card) return false;
 
                     if (normalizedSelectedSets.length > 0) {
-                      const baseSetCodes = (card.setCode ?? "")
-                        .split(",")
-                        .map((code: string) => code.trim().toLowerCase())
-                        .filter(Boolean);
+                      const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)
@@ -1988,10 +1975,7 @@ const CompleteDeckBuilderLayout = ({
                     if (!card?.alternates) return [];
                     return card.alternates.filter((alt) => {
                       if (normalizedSelectedSets.length > 0) {
-                        const altSetCodes = (alt.setCode ?? "")
-                          .split(",")
-                          .map((code) => code.trim().toLowerCase())
-                          .filter(Boolean);
+                        const altSetCodes = getRelatedSetCodes(alt);
                         if (
                           !altSetCodes.some((code) =>
                             normalizedSelectedSets.includes(code)
@@ -2148,10 +2132,7 @@ const CompleteDeckBuilderLayout = ({
                     }
 
                     if (normalizedSelectedSets.length > 0) {
-                      const baseSetCodes = (card.setCode ?? "")
-                        .split(",")
-                        .map((code: string) => code.trim().toLowerCase())
-                        .filter(Boolean);
+                      const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)
@@ -2180,10 +2161,7 @@ const CompleteDeckBuilderLayout = ({
                     }
 
                     if (normalizedSelectedSets.length > 0) {
-                      const altSetCodes = (alt.setCode ?? "")
-                        .split(",")
-                        .map((code: string) => code.trim().toLowerCase())
-                        .filter(Boolean);
+                      const altSetCodes = getRelatedSetCodes(alt);
                       if (
                         !altSetCodes.some((code: string) =>
                           normalizedSelectedSets.includes(code)

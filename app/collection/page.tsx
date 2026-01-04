@@ -10,7 +10,6 @@ import DropdownSearch from "@/components/DropdownSearch";
 import SortSelect, { SortOption } from "@/components/SortSelect";
 import {
   LogIn,
-  Grid3X3,
   ChevronLeft,
   ChevronRight,
   Package,
@@ -24,6 +23,7 @@ import {
   MoreHorizontal,
   GripVertical,
   Info,
+  LayoutList,
 } from "lucide-react";
 import {
   DndContext,
@@ -78,6 +78,14 @@ interface CollectionCard {
   };
 }
 
+interface CollectionSlot {
+  id: number;
+  collectionCardId: number;
+  sortOrder: number;
+  cardId: number;
+  card: CollectionCard["card"];
+}
+
 interface Collection {
   id: number;
   userId: number;
@@ -92,6 +100,7 @@ interface Collection {
 interface CollectionResponse {
   collection: Collection;
   cards: CollectionCard[];
+  slots?: CollectionSlot[];
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -110,12 +119,14 @@ const CollectionPage = () => {
   // States
   const [collection, setCollection] = useState<Collection | null>(null);
   const [cards, setCards] = useState<CollectionCard[]>([]);
+  const [slots, setSlots] = useState<CollectionSlot[]>([]);
   const [loading, setLoading] = useState(true);
+  const pageLimit = 60;
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
     totalCards: 0,
-    limit: 60,
+    limit: pageLimit,
     hasNext: false,
     hasPrev: false,
   });
@@ -124,9 +135,9 @@ const CollectionPage = () => {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortOrder, setSortOrder] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "expanded">("grid");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
 
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
@@ -202,14 +213,14 @@ const CollectionPage = () => {
     setSortOrder(order);
   };
 
-  const handleReorder = async (nextCards: CollectionCard[]) => {
-    setCards(nextCards);
+  const handleReorder = async (nextSlots: CollectionSlot[]) => {
+    setSlots(nextSlots);
     try {
       await fetch("/api/collection/cards/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderedIds: nextCards.map((item) => item.id),
+          orderedIds: nextSlots.map((item) => item.id),
         }),
       });
     } catch (error) {
@@ -219,21 +230,28 @@ const CollectionPage = () => {
   };
 
   const handleDragEnd = (event: any) => {
+    if (!isReorderMode || slots.length === 0) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = cards.findIndex((item) => item.id === active.id);
-    const newIndex = cards.findIndex((item) => item.id === over.id);
+    const oldIndex = slots.findIndex((item) => item.id === active.id);
+    const newIndex = slots.findIndex((item) => item.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(cards, oldIndex, newIndex);
+    const reordered = arrayMove(slots, oldIndex, newIndex);
     handleReorder(reordered);
   };
 
-  const SortableRow = ({
+  const SortableGridCard = ({
     item,
     onSelect,
+    quantity,
   }: {
-    item: CollectionCard;
-    onSelect: (item: CollectionCard) => void;
+    item: {
+      id: number;
+      card: CollectionCard["card"];
+      cardId: number;
+    };
+    onSelect: () => void;
+    quantity?: number;
   }) => {
     const {
       attributes,
@@ -242,7 +260,10 @@ const CollectionPage = () => {
       transform,
       transition,
       isDragging,
-    } = useSortable({ id: item.id });
+    } = useSortable({
+      id: item.id,
+      disabled: !isReorderMode || slots.length === 0,
+    });
     const style = {
       transform: CSS.Transform.toString(transform),
       transition,
@@ -251,70 +272,48 @@ const CollectionPage = () => {
       <div
         ref={setNodeRef}
         style={style}
-        className={`flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm ${
+        className={`w-full cursor-pointer max-w-[450px] ${
           isDragging ? "opacity-70" : ""
         }`}
       >
-        <button
-          type="button"
-          className="text-slate-400 active:scale-95"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelect(item)}
-          className="h-20 w-14 overflow-hidden rounded-xl border bg-slate-50"
+        <div
+          className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group"
+          onClick={() => {
+            onSelect();
+          }}
+          {...(isReorderMode ? attributes : {})}
+          {...(isReorderMode ? listeners : {})}
         >
           <img
             src={item.card.src}
             alt={item.card.name}
-            className="h-full w-full object-cover"
+            className="w-full rounded-t-lg"
+            loading="lazy"
           />
-        </button>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-slate-900">
-            {item.card.name}
-          </p>
-          <p className="text-xs text-slate-500">{item.card.code}</p>
-          {item.card.marketPrice !== null && (
-            <p className="text-xs font-semibold text-emerald-600">
-              {formatPrice(item.card.marketPrice, item.card.priceCurrency)}
-            </p>
+
+          {quantity !== undefined && quantity > 1 && (
+            <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full min-w-[24px] h-6 flex items-center justify-center text-xs font-bold shadow-lg px-1.5">
+              x{quantity}
+            </div>
+          )}
+
+          <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-gray-800 truncate">
+              {item.card.code}
+            </span>
+            {item.card.marketPrice !== null && (
+              <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                {formatPrice(item.card.marketPrice, item.card.priceCurrency)}
+              </span>
+            )}
+          </div>
+
+          {isReorderMode && (
+            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow">
+              {slots.length === 0 ? "Configura" : "Arrastra"}
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => updateQuantity(item.cardId, item.quantity - 1)}
-            disabled={item.quantity <= 1}
-            className="h-8 w-8 p-0"
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <span className="min-w-[28px] text-center text-sm font-semibold">
-            {item.quantity}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => updateQuantity(item.cardId, item.quantity + 1)}
-            className="h-8 w-8 p-0"
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
-          onClick={() => removeCard(item.cardId)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
     );
   };
@@ -367,9 +366,10 @@ const CollectionPage = () => {
     async (page = 1) => {
       try {
         setLoading(true);
+        const effectiveLimit = isReorderMode ? 0 : pageLimit;
         const params = new URLSearchParams({
           page: page.toString(),
-          limit: pagination.limit.toString(),
+          limit: effectiveLimit.toString(),
           search,
         });
         if (sortBy) params.set("sortBy", sortBy);
@@ -395,6 +395,7 @@ const CollectionPage = () => {
         if (selectedRegion) params.set("region", selectedRegion);
         if (selectedCounter) params.set("counter", selectedCounter);
         if (selectedTrigger) params.set("trigger", selectedTrigger);
+        if (isReorderMode) params.set("includeSlots", "1");
 
         const response = await fetch(`/api/collection?${params}`);
         if (!response.ok) throw new Error("Failed to fetch collection");
@@ -403,6 +404,7 @@ const CollectionPage = () => {
 
         setCollection(data.collection);
         setCards(data.cards);
+        setSlots(data.slots ?? []);
         setPagination(data.pagination);
       } catch (error) {
         console.error("Error fetching collection:", error);
@@ -415,7 +417,7 @@ const CollectionPage = () => {
       search,
       sortBy,
       sortOrder,
-      pagination.limit,
+      pageLimit,
       selectedSets,
       selectedCodes,
       selectedColors,
@@ -430,6 +432,7 @@ const CollectionPage = () => {
       selectedRegion,
       selectedCounter,
       selectedTrigger,
+      isReorderMode,
     ]
   );
 
@@ -459,6 +462,7 @@ const CollectionPage = () => {
     selectedRegion,
     selectedCounter,
     selectedTrigger,
+    isReorderMode,
   ]);
 
   // Update quantity
@@ -647,10 +651,7 @@ const CollectionPage = () => {
             setSelectedEffects={setSelectedEffects}
             selectedTypes={selectedTypes}
             setSelectedTypes={setSelectedTypes}
-            setViewSelected={(view) => {
-              if (view === "grid") setViewMode("grid");
-              if (view === "list") setViewMode("expanded");
-            }}
+            setViewSelected={() => {}}
             selectedSets={selectedSets}
             setSelectedSets={setSelectedSets}
             selectedCosts={selectedCosts}
@@ -685,6 +686,17 @@ const CollectionPage = () => {
                 <MoreHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline">Acciones</span>
               </Button>
+              <Button
+                variant={isReorderMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsReorderMode((prev) => !prev)}
+                className="gap-2"
+              >
+                <GripVertical className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {isReorderMode ? "Ordenando" : "Ordenar"}
+                </span>
+              </Button>
               {collection && collection.stats.totalUniqueCards > 0 && (
                 <Button
                   variant="outline"
@@ -699,24 +711,6 @@ const CollectionPage = () => {
               <p className="text-xs text-slate-500">
                 {pagination.totalCards.toLocaleString()} cartas
               </p>
-              <div className="flex border border-slate-200 rounded-lg overflow-hidden h-[42px] bg-white">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="rounded-none h-full px-3"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "expanded" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("expanded")}
-                  className="rounded-none h-full px-3"
-                >
-                  <LayoutList className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
         </div>
@@ -766,24 +760,6 @@ const CollectionPage = () => {
               <MoreHorizontal className="h-4 w-4" />
               <span>Acciones</span>
             </button>
-            {/* <div className="ml-auto flex border border-slate-200 rounded-lg overflow-hidden h-[42px] bg-white">
-              <Button
-                variant={viewMode === "grid" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("grid")}
-                className="rounded-none h-full px-3"
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "expanded" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("expanded")}
-                className="rounded-none h-full px-3"
-              >
-                <LayoutList className="h-4 w-4" />
-              </Button>
-            </div> */}
           </div>
 
           <div className="flex justify-between items-center">
@@ -797,6 +773,18 @@ const CollectionPage = () => {
               buttonLabel="Ordenar"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setIsReorderMode((prev) => !prev)}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all ${
+              isReorderMode
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-slate-200 bg-white text-slate-700"
+            }`}
+          >
+            <GripVertical className="h-4 w-4" />
+            {isReorderMode ? "Ordenando" : "Ordenar"}
+          </button>
         </div>
 
         <div className="md:hidden">
@@ -881,71 +869,49 @@ const CollectionPage = () => {
               )}
             </div>
           </div>
-        ) : viewMode === "grid" ? (
-          // Grid View - Like CardListClient
-          <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 justify-items-center">
-            {cards.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedCard(item)}
-                className="w-full cursor-pointer max-w-[450px]"
-              >
-                <div className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group">
-                  <img
-                    src={item.card.src}
-                    alt={item.card.name}
-                    className="w-full rounded-t-lg"
-                    loading="lazy"
-                  />
-
-                  {/* Quantity badge */}
-                  {item.quantity > 1 && (
-                    <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full min-w-[24px] h-6 flex items-center justify-center text-xs font-bold shadow-lg px-1.5">
-                      x{item.quantity}
-                    </div>
-                  )}
-
-                  {/* Info section - Code and Price */}
-                  <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
-                    <span className="text-xs font-bold text-gray-800 truncate">
-                      {item.card.code}
-                    </span>
-                    {item.card.marketPrice !== null && (
-                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
-                        {formatPrice(
-                          item.card.marketPrice,
-                          item.card.priceCurrency
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Info className="h-3.5 w-3.5" />
-              Arrastra para ordenar tu carpeta.
-            </div>
+            {isReorderMode && (
+              <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <Info className="h-3.5 w-3.5" />
+                {slots.length === 0
+                  ? "Falta crear los slots. Corre el backfill para ordenar por copias."
+                  : "Arrastra las cartas para acomodar tu carpeta."}
+              </div>
+            )}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={cards.map((item) => item.id)}
-                strategy={verticalListSortingStrategy}
+                items={(isReorderMode && slots.length ? slots : cards).map(
+                  (item) => item.id
+                )}
+                strategy={rectSortingStrategy}
               >
-                <div className="space-y-3">
-                  {cards.map((item) => (
-                    <SortableRow
-                      key={item.id}
-                      item={item}
-                      onSelect={setSelectedCard}
-                    />
-                  ))}
+                <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 justify-items-center">
+                  {isReorderMode && slots.length
+                    ? slots.map((slot) => (
+                        <SortableGridCard
+                          key={slot.id}
+                          item={slot}
+                          onSelect={() => {
+                            const match = cards.find(
+                              (item) => item.id === slot.collectionCardId
+                            );
+                            if (match) setSelectedCard(match);
+                          }}
+                        />
+                      ))
+                    : cards.map((item) => (
+                        <SortableGridCard
+                          key={item.id}
+                          item={item}
+                          quantity={item.quantity}
+                          onSelect={() => setSelectedCard(item)}
+                        />
+                      ))}
                 </div>
               </SortableContext>
             </DndContext>
@@ -953,7 +919,7 @@ const CollectionPage = () => {
         )}
 
         {/* Pagination */}
-        {pagination.totalPages > 1 && (
+        {!isReorderMode && pagination.totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-6 pb-4">
             <Button
               variant="outline"
@@ -1292,25 +1258,17 @@ const CollectionPage = () => {
               <FolderOpen className="h-4 w-4" />
             </Button>
             <Button
-              variant={viewMode === "expanded" ? "default" : "outline"}
+              variant={isReorderMode ? "default" : "outline"}
               className="w-full justify-between"
-              onClick={() => setViewMode("expanded")}
+              onClick={() => setIsReorderMode((prev) => !prev)}
             >
-              <span>Vista expandida</span>
-              <LayoutList className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "grid" ? "default" : "outline"}
-              className="w-full justify-between"
-              onClick={() => setViewMode("grid")}
-            >
-              <span>Vista en grid</span>
-              <Grid3X3 className="h-4 w-4" />
+              <span>{isReorderMode ? "Ordenando" : "Ordenar cartas"}</span>
+              <GripVertical className="h-4 w-4" />
             </Button>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-            Arrastra tarjetas en vista expandida para ordenar tu carpeta.
+            Usa el modo ordenar para acomodar tus cartas en el grid.
           </div>
         </div>
       </BaseDrawer>

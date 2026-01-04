@@ -63,6 +63,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   const touchStartYRef = useRef<number | null>(null);
   const activeScrollRef = useRef<HTMLElement | null>(null);
   const lastDragDeltaRef = useRef(0);
+  const [touchBindKey, setTouchBindKey] = useState(0);
 
   const findScrollableParent = useCallback((node: HTMLElement | null) => {
     if (typeof window === "undefined") return contentRef.current;
@@ -259,8 +260,14 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   }, [dragOffset, isDragging, onClose, preventClose, isMobileViewport]);
 
   useEffect(() => {
+    if (!shouldRender) return;
     const target = contentRef.current ?? drawerRef.current;
-    if (!target) return;
+    if (!target) {
+      const retry = setTimeout(() => {
+        setTouchBindKey((prev) => prev + 1);
+      }, 50);
+      return () => clearTimeout(retry);
+    }
     const onStart = (event: TouchEvent) => handleTouchStart(event);
     const onMove = (event: TouchEvent) => handleTouchMove(event);
     const onEnd = () => handleTouchEnd();
@@ -274,7 +281,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       target.removeEventListener("touchend", onEnd);
       target.removeEventListener("touchcancel", onEnd);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, shouldRender, touchBindKey]);
 
   const drawerTransform = isVisible
     ? `translateY(${dragOffset}px)`

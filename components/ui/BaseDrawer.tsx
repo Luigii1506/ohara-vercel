@@ -57,10 +57,27 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wasOpenRef = useRef(false);
   const dragStartRef = useRef<number | null>(null);
+  const pointerCanDragRef = useRef(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef<number | null>(null);
-  const isAtTopRef = useRef(true);
+  const activeScrollRef = useRef<HTMLElement | null>(null);
+  const lastDragDeltaRef = useRef(0);
+
+  const findScrollableParent = useCallback((node: HTMLElement | null) => {
+    if (typeof window === "undefined") return contentRef.current;
+    let current = node;
+    while (current && current !== drawerRef.current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+      const canScroll =
+        (overflowY === "auto" || overflowY === "scroll") &&
+        current.scrollHeight > current.clientHeight;
+      if (canScroll) return current;
+      current = current.parentElement;
+    }
+    return contentRef.current;
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -117,9 +134,11 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   const handleDragStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (preventClose) return;
+      if (preventClose || event.pointerType === "touch") return;
+      const scrollContainer = contentRef.current;
+      pointerCanDragRef.current =
+        !scrollContainer || scrollContainer.scrollTop <= 0;
       dragStartRef.current = event.clientY;
-      setIsDragging(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
     [preventClose]
@@ -134,11 +153,28 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
     [isDragging]
   );
 
+  const handleDragMovePending = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (isDragging || dragStartRef.current === null) return;
+      if (!pointerCanDragRef.current) return;
+      const delta = event.clientY - dragStartRef.current;
+      if (delta <= 8) return;
+      setIsDragging(true);
+      setDragOffset(delta);
+    },
+    [isDragging]
+  );
+
   const handleDragEnd = useCallback(() => {
-    if (!isDragging) return;
+    if (!isDragging) {
+      dragStartRef.current = null;
+      pointerCanDragRef.current = false;
+      return;
+    }
     const shouldClose = dragOffset > 70;
     setIsDragging(false);
     dragStartRef.current = null;
+    pointerCanDragRef.current = false;
     setDragOffset(0);
     if (shouldClose && !preventClose) {
       onClose();
@@ -147,45 +183,70 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   // Touch handlers for overscroll-to-dismiss behavior
   const handleTouchStart = useCallback(
-    (event: React.TouchEvent<HTMLDivElement>) => {
+    (event: TouchEvent) => {
       if (preventClose || !isMobileViewport) return;
-      const scrollContainer = contentRef.current;
-      // Check if we're at the top of scroll
-      isAtTopRef.current = !scrollContainer || scrollContainer.scrollTop <= 0;
+      const target = event.target as HTMLElement | null;
+      const scrollContainer =
+        findScrollableParent(target) ?? contentRef.current;
+      activeScrollRef.current = scrollContainer;
       touchStartYRef.current = event.touches[0].clientY;
+      lastDragDeltaRef.current = 0;
     },
-    [preventClose, isMobileViewport]
+    [preventClose, isMobileViewport, findScrollableParent]
   );
 
   const handleTouchMove = useCallback(
-    (event: React.TouchEvent<HTMLDivElement>) => {
-      if (preventClose || !isMobileViewport || touchStartYRef.current === null) return;
+    (event: TouchEvent) => {
+      if (preventClose || !isMobileViewport || touchStartYRef.current === null) {
+        return;
+      }
 
-      const scrollContainer = contentRef.current;
+      const scrollContainer = activeScrollRef.current ?? contentRef.current;
       const currentY = event.touches[0].clientY;
       const deltaY = currentY - touchStartYRef.current;
+      const canScroll =
+        !!scrollContainer &&
+        scrollContainer.scrollHeight > scrollContainer.clientHeight;
+      const isCurrentlyAtTop =
+        !scrollContainer || scrollContainer.scrollTop <= 0;
 
-      // Only trigger drag if:
-      // 1. We started at the top of scroll
-      // 2. User is pulling down (deltaY > 0)
-      // 3. We're currently at top or already dragging
-      const isCurrentlyAtTop = !scrollContainer || scrollContainer.scrollTop <= 0;
+      if (isDragging) {
+        if (deltaY <= 0) {
+          setIsDragging(false);
+          setDragOffset(0);
+          lastDragDeltaRef.current = 0;
+          touchStartYRef.current = currentY;
+          return;
+        }
+        event.preventDefault();
+        const resistance = 0.7;
+        const nextOffset = Math.max(0, deltaY * resistance);
+        setDragOffset(nextOffset);
+        lastDragDeltaRef.current = deltaY;
+        return;
+      }
 
-      if (isAtTopRef.current && deltaY > 0 && isCurrentlyAtTop) {
-        // Prevent default scroll and start dragging
+      if (canScroll && !isCurrentlyAtTop) {
+        touchStartYRef.current = currentY;
+        return;
+      }
+
+      if (isCurrentlyAtTop && deltaY > 8) {
         event.preventDefault();
         setIsDragging(true);
-        // Apply resistance to make it feel more natural
         const resistance = 0.7;
-        setDragOffset(deltaY * resistance);
+        const nextOffset = Math.max(0, deltaY * resistance);
+        setDragOffset(nextOffset);
+        lastDragDeltaRef.current = deltaY;
       }
     },
-    [preventClose, isMobileViewport]
+    [preventClose, isMobileViewport, isDragging]
   );
 
   const handleTouchEnd = useCallback(() => {
     if (!isMobileViewport) return;
     touchStartYRef.current = null;
+    activeScrollRef.current = null;
 
     if (isDragging) {
       const shouldClose = dragOffset > 60;
@@ -196,6 +257,24 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       }
     }
   }, [dragOffset, isDragging, onClose, preventClose, isMobileViewport]);
+
+  useEffect(() => {
+    const target = contentRef.current ?? drawerRef.current;
+    if (!target) return;
+    const onStart = (event: TouchEvent) => handleTouchStart(event);
+    const onMove = (event: TouchEvent) => handleTouchMove(event);
+    const onEnd = () => handleTouchEnd();
+    target.addEventListener("touchstart", onStart, { passive: true });
+    target.addEventListener("touchmove", onMove, { passive: false });
+    target.addEventListener("touchend", onEnd, { passive: true });
+    target.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      target.removeEventListener("touchstart", onStart);
+      target.removeEventListener("touchmove", onMove);
+      target.removeEventListener("touchend", onEnd);
+      target.removeEventListener("touchcancel", onEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   const drawerTransform = isVisible
     ? `translateY(${dragOffset}px)`
@@ -232,21 +311,17 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
               maxHeight: `min(${maxHeight}, 90vh)`,
               ...drawerStyle,
             }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
+            onPointerDown={handleDragStart}
+            onPointerMove={(event) => {
+              handleDragMovePending(event);
+              handleDragMove(event);
+            }}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragEnd}
           >
             {/* Handle - mobile only */}
             {showHandle && (
-              <div
-                className="flex justify-center py-3 lg:hidden"
-                onPointerDown={handleDragStart}
-                onPointerMove={handleDragMove}
-                onPointerUp={handleDragEnd}
-                onPointerCancel={handleDragEnd}
-                style={{ touchAction: "none" }}
-              >
+              <div className="flex justify-center py-3 lg:hidden">
                 <div className="h-1.5 w-12 rounded-full bg-slate-300" />
               </div>
             )}
@@ -285,21 +360,17 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
             isVisible ? "translate-y-0" : "translate-y-full"
           } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
           style={{ maxHeight, ...drawerStyle }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
+          onPointerDown={handleDragStart}
+          onPointerMove={(event) => {
+            handleDragMovePending(event);
+            handleDragMove(event);
+          }}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
         >
           {/* Handle for mobile */}
           {showHandle && (
-            <div
-              className="flex justify-center py-3"
-              onPointerDown={handleDragStart}
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              onPointerCancel={handleDragEnd}
-              style={{ touchAction: "none" }}
-            >
+            <div className="flex justify-center py-3">
               <div className="h-1.5 w-12 rounded-full bg-slate-300" />
             </div>
           )}

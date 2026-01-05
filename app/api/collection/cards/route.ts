@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const user = await requireAuth();
+    const slotClient = (prisma as any).collectionCardSlot;
     const { searchParams } = new URL(request.url);
     const cardId = searchParams.get("cardId");
     const cardIds = searchParams.get("cardIds");
@@ -191,6 +192,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: "Colección no encontrada" },
         { status: 404 }
+      );
+    }
+    if (!slotClient) {
+      return NextResponse.json(
+        {
+          error: "Collection slots not available. Run prisma migrate/generate.",
+        },
+        { status: 500 }
       );
     }
 

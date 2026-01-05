@@ -321,13 +321,20 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      slots = slotRows.map((slot) => ({
-        id: slot.id,
-        collectionCardId: slot.collectionCardId,
-        sortOrder: slot.sortOrder,
-        cardId: slot.collectionCard.cardId,
-        card: slot.collectionCard.card,
-      }));
+      slots = slotRows.map(
+        (slot: {
+          id: number;
+          collectionCardId: number;
+          sortOrder: number;
+          collectionCard: { cardId: number; card: any };
+        }) => ({
+          id: slot.id,
+          collectionCardId: slot.collectionCardId,
+          sortOrder: slot.sortOrder,
+          cardId: slot.collectionCard.cardId,
+          card: slot.collectionCard.card,
+        })
+      );
     }
 
     return NextResponse.json({

@@ -7,7 +7,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DropdownSearch from "@/components/DropdownSearch";
-import SortSelect, { SortOption } from "@/components/SortSelect";
 import {
   LogIn,
   ChevronLeft,
@@ -23,8 +22,14 @@ import {
   MoreHorizontal,
   GripVertical,
   Info,
-  LayoutList,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DndContext,
   closestCenter,
@@ -41,6 +46,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Oswald } from "next/font/google";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -163,6 +175,8 @@ const CollectionPage = () => {
   const [selectedSlotIds, setSelectedSlotIds] = useState<number[]>([]);
   const [showMoveInput, setShowMoveInput] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
+  const [isMoveMode, setIsMoveMode] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CollectionSlot | null>(null);
 
   // Card preview states (like CardPreviewDialog)
   const [showLargeImage, setShowLargeImage] = useState(false);
@@ -173,19 +187,6 @@ const CollectionPage = () => {
 
   // Binder view drawer
   const [showBinderDrawer, setShowBinderDrawer] = useState(false);
-  const sortOptions = useRef<SortOption[]>([
-    { value: "name_asc", label: "Nombre A-Z" },
-    { value: "name_desc", label: "Nombre Z-A" },
-    { value: "rarity_asc", label: "Rareza A-Z" },
-    { value: "rarity_desc", label: "Rareza Z-A" },
-    { value: "cost_asc", label: "Coste menor" },
-    { value: "cost_desc", label: "Coste mayor" },
-    { value: "quantity_asc", label: "Cantidad menor" },
-    { value: "quantity_desc", label: "Cantidad mayor" },
-    { value: "createdAt_desc", label: "Mas recientes" },
-    { value: "createdAt_asc", label: "Mas antiguas" },
-  ]);
-  const selectedSort = sortBy && sortOrder ? `${sortBy}_${sortOrder}` : "";
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
   });
@@ -200,6 +201,69 @@ const CollectionPage = () => {
     }, 0);
   }, [cards]);
 
+  const sortOptions = [
+    { value: "collection", label: "Orden de colección" },
+    { value: "name-asc", label: "Nombre A-Z", sortBy: "name", sortOrder: "asc" },
+    { value: "name-desc", label: "Nombre Z-A", sortBy: "name", sortOrder: "desc" },
+    { value: "cost-asc", label: "Coste: menor a mayor", sortBy: "cost", sortOrder: "asc" },
+    { value: "cost-desc", label: "Coste: mayor a menor", sortBy: "cost", sortOrder: "desc" },
+    {
+      value: "rarity-asc",
+      label: "Rareza: menor a mayor",
+      sortBy: "rarity",
+      sortOrder: "asc",
+    },
+    {
+      value: "rarity-desc",
+      label: "Rareza: mayor a menor",
+      sortBy: "rarity",
+      sortOrder: "desc",
+    },
+    {
+      value: "quantity-desc",
+      label: "Cantidad: mayor a menor",
+      sortBy: "quantity",
+      sortOrder: "desc",
+    },
+    {
+      value: "quantity-asc",
+      label: "Cantidad: menor a mayor",
+      sortBy: "quantity",
+      sortOrder: "asc",
+    },
+    {
+      value: "createdAt-desc",
+      label: "Agregadas: más nuevas",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    },
+    {
+      value: "createdAt-asc",
+      label: "Agregadas: más antiguas",
+      sortBy: "createdAt",
+      sortOrder: "asc",
+    },
+  ];
+  const selectedSortValue = React.useMemo(() => {
+    if (!sortBy) return "collection";
+    const normalizedOrder = sortOrder || "asc";
+    const match = sortOptions.find(
+      (option) =>
+        option.sortBy === sortBy && option.sortOrder === normalizedOrder
+    );
+    return match?.value ?? "collection";
+  }, [sortBy, sortOrder, sortOptions]);
+  const handleSortChange = (value: string) => {
+    const option = sortOptions.find((item) => item.value === value);
+    if (!option || option.value === "collection") {
+      setSortBy("");
+      setSortOrder("");
+      return;
+    }
+    setSortBy(option.sortBy || "");
+    setSortOrder(option.sortOrder || "asc");
+  };
+
   // Grid options for binder view
   const gridOptions = [
     { rows: 2, cols: 2, label: "2×2", description: "4 cartas por página" },
@@ -213,17 +277,6 @@ const CollectionPage = () => {
     setShowBinderDrawer(false);
     router.push(`/collection/binder?rows=${rows}&cols=${cols}`);
   };
-  const handleSortChange = (value: string) => {
-    if (!value) {
-      setSortBy("");
-      setSortOrder("");
-      return;
-    }
-    const [field, order] = value.split("_");
-    setSortBy(field);
-    setSortOrder(order);
-  };
-
   const handleReorder = async (nextSlots: CollectionSlot[]) => {
     setSlots(nextSlots);
     try {
@@ -241,7 +294,7 @@ const CollectionPage = () => {
   };
 
   const handleDragEnd = (event: any) => {
-    if (!isReorderMode || slots.length === 0) return;
+    if (!isReorderMode || slots.length === 0 || isMoveMode) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = slots.findIndex((item) => item.id === active.id);
@@ -251,9 +304,7 @@ const CollectionPage = () => {
     if (selectedSlotIds.includes(active.id) && selectedSlotIds.length > 0) {
       if (selectedSlotIds.includes(over.id)) return;
       const selectedSet = new Set(selectedSlotIds);
-      const selectedOrdered = selectedSlotIds
-        .map((id) => slots.find((slot) => slot.id === id))
-        .filter(Boolean) as CollectionSlot[];
+      const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
       const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
       const insertIndex = remaining.findIndex((slot) => slot.id === over.id);
       if (insertIndex === -1) return;
@@ -277,6 +328,10 @@ const CollectionPage = () => {
     quantity,
     onDelete,
     selectionOrder,
+    isSelected,
+    hasSelection,
+    isMoveMode,
+    onMoveHere,
     onToggleSelect,
     showSelection,
   }: {
@@ -289,6 +344,10 @@ const CollectionPage = () => {
     quantity?: number;
     onDelete?: () => void;
     selectionOrder?: number | null;
+    isSelected?: boolean;
+    hasSelection?: boolean;
+    isMoveMode?: boolean;
+    onMoveHere?: () => void;
     onToggleSelect?: () => void;
     showSelection?: boolean;
   }) => {
@@ -301,7 +360,7 @@ const CollectionPage = () => {
       isDragging,
     } = useSortable({
       id: item.id,
-      disabled: !isReorderMode || slots.length === 0,
+      disabled: !isReorderMode || slots.length === 0 || isMoveMode,
     });
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -320,11 +379,15 @@ const CollectionPage = () => {
             isReorderMode ? "animate-card-wiggle" : ""
           }`}
           onClick={() => {
-            if (isReorderMode && onToggleSelect) {
-              onToggleSelect();
+            if (isReorderMode) {
+              if (isMoveMode && hasSelection && !isSelected && onMoveHere) {
+                onMoveHere();
+                return;
+              }
+              onToggleSelect?.();
               return;
             }
-            if (!isReorderMode) onSelect();
+            onSelect();
           }}
           style={{ touchAction: isReorderMode ? "pan-y" : "auto" }}
           {...(isReorderMode ? attributes : {})}
@@ -356,7 +419,11 @@ const CollectionPage = () => {
 
           {isReorderMode && (
             <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow">
-              {slots.length === 0 ? "Configura" : "Arrastra"}
+              {slots.length === 0
+                ? "Configura"
+                : isMoveMode
+                  ? "Destino"
+                  : "Arrastra"}
             </div>
           )}
           {isReorderMode && onDelete && (
@@ -366,9 +433,10 @@ const CollectionPage = () => {
                 event.stopPropagation();
                 onDelete();
               }}
-              className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/70 bg-black/70 text-white shadow hover:bg-black/80"
+              className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
             >
               <Trash2 className="h-3 w-3" />
+              <span>Eliminar</span>
             </button>
           )}
           {isReorderMode && showSelection && (
@@ -468,6 +536,12 @@ const CollectionPage = () => {
     }
   };
 
+  const confirmDeleteSlot = async () => {
+    if (!deleteTarget) return;
+    await handleDeleteSlot(deleteTarget);
+    setDeleteTarget(null);
+  };
+
   const toggleSlotSelection = (slotId: number) => {
     setSelectedSlotIds((prev) => {
       if (prev.includes(slotId)) {
@@ -481,6 +555,22 @@ const CollectionPage = () => {
     setSelectedSlotIds([]);
   };
 
+  const selectedSlotIdsOrdered = React.useMemo(() => {
+    if (!selectedSlotIds.length) return [];
+    const selectedSet = new Set(selectedSlotIds);
+    return slots
+      .filter((slot) => selectedSet.has(slot.id))
+      .map((slot) => slot.id);
+  }, [selectedSlotIds, slots]);
+
+  const selectedSlotOrderMap = React.useMemo(() => {
+    const map = new Map<number, number>();
+    selectedSlotIdsOrdered.forEach((id, index) => {
+      map.set(id, index + 1);
+    });
+    return map;
+  }, [selectedSlotIdsOrdered]);
+
   const moveSelectedSlotsTo = (targetIndex: number) => {
     if (!selectedSlotIds.length) return;
     const maxIndex = slots.length - selectedSlotIds.length + 1;
@@ -489,9 +579,7 @@ const CollectionPage = () => {
       return;
     }
     const selectedSet = new Set(selectedSlotIds);
-    const selectedOrdered = selectedSlotIds
-      .map((id) => slots.find((slot) => slot.id === id))
-      .filter(Boolean) as CollectionSlot[];
+    const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
     const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
     const insertIndex = targetIndex - 1;
     const nextSlots = [
@@ -503,6 +591,26 @@ const CollectionPage = () => {
     clearSelection();
     setShowMoveInput(false);
     setMoveTarget("");
+  };
+
+  const moveSelectedSlotsToTarget = (targetSlotId: number) => {
+    if (!selectedSlotIds.length) return;
+    const selectedSet = new Set(selectedSlotIds);
+    if (selectedSet.has(targetSlotId)) return;
+    const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
+    const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
+    const insertIndexRaw = remaining.findIndex(
+      (slot) => slot.id === targetSlotId
+    );
+    if (insertIndexRaw === -1) return;
+    const insertIndex = insertIndexRaw;
+    const nextSlots = [
+      ...remaining.slice(0, insertIndex),
+      ...selectedOrdered,
+      ...remaining.slice(insertIndex),
+    ];
+    handleReorder(nextSlots);
+    clearSelection();
   };
 
   // 3D tilt effect handlers (like CardPreviewDialog)
@@ -657,8 +765,21 @@ const CollectionPage = () => {
       clearSelection();
       setShowMoveInput(false);
       setMoveTarget("");
+      setIsMoveMode(false);
     }
   }, [isReorderMode]);
+
+  useEffect(() => {
+    if (!selectedSlotIds.length) {
+      setIsMoveMode(false);
+    }
+  }, [selectedSlotIds]);
+
+  useEffect(() => {
+    if (isMoveMode) {
+      setShowMoveInput(false);
+    }
+  }, [isMoveMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -872,6 +993,24 @@ const CollectionPage = () => {
 
           <div className="flex items-center gap-4">
             <div className="ml-auto flex items-center gap-3">
+              <div className="hidden lg:block min-w-[210px]">
+                <Select
+                  value={selectedSortValue}
+                  onValueChange={handleSortChange}
+                  disabled={isReorderMode}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -957,11 +1096,11 @@ const CollectionPage = () => {
             </button>
           </div>
 
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-slate-500">
-              {pagination.totalCards.toLocaleString()} cartas
-            </p>
-          </div>
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-slate-500">
+                {pagination.totalCards.toLocaleString()} cartas
+              </p>
+            </div>
           <button
             type="button"
             onClick={() => setIsReorderMode((prev) => !prev)}
@@ -1065,7 +1204,70 @@ const CollectionPage = () => {
                 <Info className="h-3.5 w-3.5" />
                 {slots.length === 0
                   ? "Falta crear los slots. Corre el backfill para ordenar por copias."
-                  : "Mantén presionado para mover. El scroll sigue normal."}
+                  : selectedSlotIds.length
+                    ? isMoveMode
+                      ? "Elige la carta destino para mover el lote."
+                      : "Toca las cartas que quieras mover."
+                    : "Toca para seleccionar. Mantén presionado para mover."}
+              </div>
+            )}
+            {isReorderMode && slots.length > 0 && (
+              <div className="hidden md:flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="text-xs text-slate-500">
+                  {selectedSlotIds.length
+                    ? `${selectedSlotIds.length} seleccionadas`
+                    : "Selecciona cartas para mover."}
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMoveMode((prev) => !prev)}
+                    disabled={!selectedSlotIds.length}
+                  >
+                    {isMoveMode ? "Cancelar mover" : "Mover lote"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMoveInput((prev) => !prev)}
+                    disabled={!selectedSlotIds.length || isMoveMode}
+                  >
+                    Mover a posición
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSelection}
+                    disabled={!selectedSlotIds.length}
+                  >
+                    Limpiar
+                  </Button>
+                </div>
+                {showMoveInput && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={moveTarget}
+                      onChange={(event) => setMoveTarget(event.target.value)}
+                      placeholder="Posición"
+                      inputMode="numeric"
+                      className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const target = Number.parseInt(moveTarget, 10);
+                        if (!Number.isFinite(target)) {
+                          toast.error("Posición inválida");
+                          return;
+                        }
+                        moveSelectedSlotsTo(target);
+                      }}
+                    >
+                      Mover
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
             {isReorderMode ? (
@@ -1091,13 +1293,15 @@ const CollectionPage = () => {
                               );
                               if (match) setSelectedCard(match);
                             }}
-                            onDelete={() => handleDeleteSlot(slot)}
+                            onDelete={() => setDeleteTarget(slot)}
                             showSelection={true}
                             selectionOrder={
-                              selectedSlotIds.includes(slot.id)
-                                ? selectedSlotIds.indexOf(slot.id) + 1
-                                : null
+                              selectedSlotOrderMap.get(slot.id) ?? null
                             }
+                            isSelected={selectedSlotIds.includes(slot.id)}
+                            hasSelection={selectedSlotIds.length > 0}
+                            isMoveMode={isMoveMode}
+                            onMoveHere={() => moveSelectedSlotsToTarget(slot.id)}
                             onToggleSelect={() => toggleSlotSelection(slot.id)}
                           />
                         ))
@@ -1158,30 +1362,40 @@ const CollectionPage = () => {
 
       {isReorderMode && (
         <div className="fixed bottom-3 left-0 right-0 z-40 px-3 md:hidden">
-              <div className="mx-auto flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-lg backdrop-blur">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowMoveInput((prev) => !prev)}
-                    disabled={!selectedSlotIds.length}
-                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-                  >
-                    Mover lote
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    disabled={!selectedSlotIds.length}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-                  >
-                    Limpiar
-                  </button>
-                </div>
-                <div className="text-xs text-slate-500">
-                  {selectedSlotIds.length
-                    ? `${selectedSlotIds.length} seleccionadas`
-                    : "Toca para seleccionar. Mantén presionado para mover."}
-                </div>
+          <div className="mx-auto flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-lg backdrop-blur">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMoveMode((prev) => !prev)}
+                disabled={!selectedSlotIds.length}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                {isMoveMode ? "Cancelar mover" : "Mover lote"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMoveInput((prev) => !prev)}
+                disabled={!selectedSlotIds.length || isMoveMode}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Mover a posición
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={!selectedSlotIds.length}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Limpiar
+              </button>
+            </div>
+            <div className="text-xs text-slate-500">
+              {selectedSlotIds.length
+                ? isMoveMode
+                  ? "Toca la carta destino para mover."
+                  : `${selectedSlotIds.length} seleccionadas`
+                : "Toca para seleccionar. Mantén presionado para mover."}
+            </div>
             {showMoveInput && (
               <div className="flex items-center gap-2">
                 <input
@@ -1468,6 +1682,63 @@ const CollectionPage = () => {
         </div>
       )}
 
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md rounded-2xl p-0 overflow-hidden">
+          <div className="bg-rose-50 px-5 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-lg text-rose-900">
+                Eliminar carta
+              </DialogTitle>
+              <DialogDescription className="text-rose-700">
+                Se eliminara una copia de tu coleccion.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-5 py-4">
+            {deleteTarget && (
+              <div className="flex items-center gap-3 rounded-xl border border-rose-100 bg-white px-3 py-2">
+                <img
+                  src={deleteTarget.card.src}
+                  alt={deleteTarget.card.name}
+                  className="h-16 w-12 rounded-md object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {deleteTarget.card.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {deleteTarget.card.code}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="mt-4 grid gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-11"
+                onClick={confirmDeleteSlot}
+              >
+                Eliminar copia
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Actions Drawer */}
       <BaseDrawer
         isOpen={isActionsOpen}
@@ -1507,6 +1778,31 @@ const CollectionPage = () => {
             <div className="mt-3 text-xs text-slate-500">
               Unicas: {collection?.stats.totalUniqueCards ?? 0}
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+            <p className="text-xs text-slate-500">Orden</p>
+            <Select
+              value={selectedSortValue}
+              onValueChange={handleSortChange}
+              disabled={isReorderMode}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isReorderMode && (
+              <p className="text-[11px] text-slate-500">
+                Desactiva el modo reordenar para cambiar el orden.
+              </p>
+            )}
           </div>
 
           <div className="grid gap-3">

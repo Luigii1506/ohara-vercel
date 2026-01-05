@@ -8,6 +8,7 @@ import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth();
+    const slotClient = (prisma as any).collectionCardSlot;
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
   const sortBy = searchParams.get("sortBy") || "";
   const sortOrder = searchParams.get("sortOrder") || "asc";
+  const includeSlots = searchParams.get("includeSlots") === "1";
   const parseList = (key: string) =>
     (searchParams.get(key) ?? "")
       .split(",")
@@ -275,6 +277,66 @@ export async function GET(request: NextRequest) {
       {}
     );
 
+    let slots: Array<{
+      id: number;
+      collectionCardId: number;
+      sortOrder: number;
+      cardId: number;
+      card: any;
+    }> = [];
+
+    if (includeSlots && cards.length) {
+      if (!slotClient) {
+        return NextResponse.json(
+          {
+            error:
+              "Collection slots not available. Run prisma migrate/generate.",
+          },
+          { status: 500 }
+        );
+      }
+      const slotRows = await slotClient.findMany({
+        where: {
+          collectionId: collection.id,
+          collectionCardId: { in: cards.map((item) => item.id) },
+        },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          collectionCard: {
+            include: {
+              card: {
+                include: {
+                  colors: true,
+                  types: true,
+                  effects: true,
+                  sets: {
+                    include: {
+                      set: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      slots = slotRows.map(
+        (slot: {
+          id: number;
+          collectionCardId: number;
+          sortOrder: number;
+          collectionCard: { cardId: number; card: any };
+        }) => ({
+          id: slot.id,
+          collectionCardId: slot.collectionCardId,
+          sortOrder: slot.sortOrder,
+          cardId: slot.collectionCard.cardId,
+          card: slot.collectionCard.card,
+        })
+      );
+    }
+
     return NextResponse.json({
       collection: {
         id: collection.id,
@@ -289,6 +351,7 @@ export async function GET(request: NextRequest) {
         },
       },
       cards,
+      slots,
       pagination: {
         currentPage: page,
         totalPages,

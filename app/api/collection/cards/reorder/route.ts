@@ -8,6 +8,7 @@ import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
+    const slotClient = (prisma as any).collectionCardSlot;
     const body = await request.json();
     const orderedIds = Array.isArray(body?.orderedIds) ? body.orderedIds : [];
 
@@ -30,29 +31,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.collectionCard.findMany({
+    if (!slotClient) {
+      return NextResponse.json(
+        {
+          error: "Collection slots not available. Run prisma migrate/generate.",
+        },
+        { status: 500 }
+      );
+    }
+    const existing = await slotClient.findMany({
       where: {
         id: { in: orderedIds },
         collectionId: collection.id,
       },
-      select: { id: true },
+      select: { id: true, collectionCardId: true },
     });
 
     if (existing.length !== orderedIds.length) {
       return NextResponse.json(
-        { error: "Invalid card ids for this collection" },
+        { error: "Invalid slot ids for this collection" },
         { status: 400 }
       );
     }
 
+    const slotToCard = new Map<number, number>();
+    existing.forEach((slot: { id: number; collectionCardId: number }) => {
+      slotToCard.set(slot.id, slot.collectionCardId);
+    });
+
+    const cardSortMap = new Map<number, number>();
+
     await prisma.$transaction(
-      orderedIds.map((id: number, index: number) =>
-        prisma.collectionCard.update({
+      orderedIds.map((id: number, index: number) => {
+        const sortOrder = (index + 1) * 10;
+        const cardId = slotToCard.get(id);
+        if (cardId !== undefined && !cardSortMap.has(cardId)) {
+          cardSortMap.set(cardId, sortOrder);
+        }
+        return slotClient.update({
           where: { id },
-          data: { sortOrder: (index + 1) * 10 },
-        })
-      )
+          data: { sortOrder },
+        });
+      })
     );
+
+    if (cardSortMap.size) {
+      await prisma.$transaction(
+        Array.from(cardSortMap.entries()).map(([cardId, sortOrder]) =>
+          prisma.collectionCard.update({
+            where: { id: cardId },
+            data: { sortOrder },
+          })
+        )
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

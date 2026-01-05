@@ -7,7 +7,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DropdownSearch from "@/components/DropdownSearch";
-import SortSelect, { SortOption } from "@/components/SortSelect";
 import {
   LogIn,
   ChevronLeft,
@@ -23,12 +22,20 @@ import {
   MoreHorizontal,
   GripVertical,
   Info,
-  LayoutList,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -40,6 +47,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Oswald } from "next/font/google";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -52,6 +66,7 @@ import FAB from "@/components/Fab";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import SearchFilters from "@/components/home/SearchFilters";
 import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
+import { useToast } from "@/components/ui/MobileToast";
 
 interface CollectionCard {
   id: number;
@@ -115,6 +130,7 @@ const CollectionPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { showToast, showCollectionToast } = useToast();
 
   // States
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -158,6 +174,16 @@ const CollectionPage = () => {
   const [selectedCard, setSelectedCard] = useState<CollectionCard | null>(null);
   const [showFab, setShowFab] = useState(false);
   const [showHeader, setShowHeader] = useState(true);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [selectedSlotIds, setSelectedSlotIds] = useState<number[]>([]);
+  const [showMoveInput, setShowMoveInput] = useState(false);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [isMoveMode, setIsMoveMode] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CollectionSlot | null>(null);
+  const lastOverRef = useRef<{
+    id: number | null;
+    position: "before" | "after" | null;
+  }>({ id: null, position: null });
 
   // Card preview states (like CardPreviewDialog)
   const [showLargeImage, setShowLargeImage] = useState(false);
@@ -168,26 +194,82 @@ const CollectionPage = () => {
 
   // Binder view drawer
   const [showBinderDrawer, setShowBinderDrawer] = useState(false);
-  const sortOptions = useRef<SortOption[]>([
-    { value: "name_asc", label: "Nombre A-Z" },
-    { value: "name_desc", label: "Nombre Z-A" },
-    { value: "rarity_asc", label: "Rareza A-Z" },
-    { value: "rarity_desc", label: "Rareza Z-A" },
-    { value: "cost_asc", label: "Coste menor" },
-    { value: "cost_desc", label: "Coste mayor" },
-    { value: "quantity_asc", label: "Cantidad menor" },
-    { value: "quantity_desc", label: "Cantidad mayor" },
-    { value: "createdAt_desc", label: "Mas recientes" },
-    { value: "createdAt_asc", label: "Mas antiguas" },
-  ]);
-  const selectedSort = sortBy && sortOrder ? `${sortBy}_${sortOrder}` : "";
-  const sensors = useSensors(useSensor(PointerSensor));
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 8 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 8 },
+  });
+  const sensors = useSensors(...(isTouchDevice ? [touchSensor] : [pointerSensor]));
   const collectionValue = React.useMemo(() => {
     return cards.reduce((sum, item) => {
       const price = item.card.marketPrice ?? 0;
       return sum + price * item.quantity;
     }, 0);
   }, [cards]);
+
+  const sortOptions = [
+    { value: "collection", label: "Orden de colección" },
+    { value: "name-asc", label: "Nombre A-Z", sortBy: "name", sortOrder: "asc" },
+    { value: "name-desc", label: "Nombre Z-A", sortBy: "name", sortOrder: "desc" },
+    { value: "cost-asc", label: "Coste: menor a mayor", sortBy: "cost", sortOrder: "asc" },
+    { value: "cost-desc", label: "Coste: mayor a menor", sortBy: "cost", sortOrder: "desc" },
+    {
+      value: "rarity-asc",
+      label: "Rareza: menor a mayor",
+      sortBy: "rarity",
+      sortOrder: "asc",
+    },
+    {
+      value: "rarity-desc",
+      label: "Rareza: mayor a menor",
+      sortBy: "rarity",
+      sortOrder: "desc",
+    },
+    {
+      value: "quantity-desc",
+      label: "Cantidad: mayor a menor",
+      sortBy: "quantity",
+      sortOrder: "desc",
+    },
+    {
+      value: "quantity-asc",
+      label: "Cantidad: menor a mayor",
+      sortBy: "quantity",
+      sortOrder: "asc",
+    },
+    {
+      value: "createdAt-desc",
+      label: "Agregadas: más nuevas",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    },
+    {
+      value: "createdAt-asc",
+      label: "Agregadas: más antiguas",
+      sortBy: "createdAt",
+      sortOrder: "asc",
+    },
+  ];
+  const selectedSortValue = React.useMemo(() => {
+    if (!sortBy) return "collection";
+    const normalizedOrder = sortOrder || "asc";
+    const match = sortOptions.find(
+      (option) =>
+        option.sortBy === sortBy && option.sortOrder === normalizedOrder
+    );
+    return match?.value ?? "collection";
+  }, [sortBy, sortOrder, sortOptions]);
+  const handleSortChange = (value: string) => {
+    const option = sortOptions.find((item) => item.value === value);
+    if (!option || option.value === "collection") {
+      setSortBy("");
+      setSortOrder("");
+      return;
+    }
+    setSortBy(option.sortBy || "");
+    setSortOrder(option.sortOrder || "asc");
+  };
 
   // Grid options for binder view
   const gridOptions = [
@@ -202,17 +284,6 @@ const CollectionPage = () => {
     setShowBinderDrawer(false);
     router.push(`/collection/binder?rows=${rows}&cols=${cols}`);
   };
-  const handleSortChange = (value: string) => {
-    if (!value) {
-      setSortBy("");
-      setSortOrder("");
-      return;
-    }
-    const [field, order] = value.split("_");
-    setSortBy(field);
-    setSortOrder(order);
-  };
-
   const handleReorder = async (nextSlots: CollectionSlot[]) => {
     setSlots(nextSlots);
     try {
@@ -229,21 +300,84 @@ const CollectionPage = () => {
     }
   };
 
+  const collisionDetectionStrategy = useCallback(
+    (args: any) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) {
+        return pointerCollisions;
+      }
+      return closestCenter(args);
+    },
+    []
+  );
+
+  const handleDragOver = (event: any) => {
+    if (!isReorderMode || slots.length === 0 || isMoveMode) return;
+    if (!event.over?.rect || !event.active?.rect?.current?.translated) return;
+    const activeRect = event.active.rect.current.translated;
+    const overRect = event.over.rect;
+    const activeCenterY = activeRect.top + activeRect.height / 2;
+    const overCenterY = overRect.top + overRect.height / 2;
+    const position = activeCenterY > overCenterY ? "after" : "before";
+    lastOverRef.current = {
+      id: Number(event.over.id),
+      position,
+    };
+  };
+
   const handleDragEnd = (event: any) => {
-    if (!isReorderMode || slots.length === 0) return;
+    if (!isReorderMode || slots.length === 0 || isMoveMode) return;
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      lastOverRef.current = { id: null, position: null };
+      return;
+    }
     const oldIndex = slots.findIndex((item) => item.id === active.id);
     const newIndex = slots.findIndex((item) => item.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
+
+    if (selectedSlotIds.includes(active.id) && selectedSlotIds.length > 0) {
+      const overId = lastOverRef.current.id ?? Number(over.id);
+      const position = lastOverRef.current.position ?? "before";
+      if (selectedSlotIds.includes(overId)) return;
+      const selectedSet = new Set(selectedSlotIdsOrdered);
+      const selectedOrdered = selectedSlotIdsOrdered
+        .map((id) => slots.find((slot) => slot.id === id))
+        .filter(Boolean) as CollectionSlot[];
+      const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
+      const insertIndexRaw = remaining.findIndex(
+        (slot) => slot.id === overId
+      );
+      if (insertIndexRaw === -1) return;
+      const insertIndex = insertIndexRaw;
+      const nextSlots = [
+        ...remaining.slice(0, insertIndex),
+        ...selectedOrdered,
+        ...remaining.slice(insertIndex),
+      ];
+      handleReorder(nextSlots);
+      clearSelection();
+      lastOverRef.current = { id: null, position: null };
+      return;
+    }
+
     const reordered = arrayMove(slots, oldIndex, newIndex);
     handleReorder(reordered);
+    lastOverRef.current = { id: null, position: null };
   };
 
   const SortableGridCard = ({
     item,
     onSelect,
     quantity,
+    onDelete,
+    selectionOrder,
+    isSelected,
+    hasSelection,
+    isMoveMode,
+    onMoveHere,
+    onToggleSelect,
+    showSelection,
   }: {
     item: {
       id: number;
@@ -252,6 +386,14 @@ const CollectionPage = () => {
     };
     onSelect: () => void;
     quantity?: number;
+    onDelete?: () => void;
+    selectionOrder?: number | null;
+    isSelected?: boolean;
+    hasSelection?: boolean;
+    isMoveMode?: boolean;
+    onMoveHere?: () => void;
+    onToggleSelect?: () => void;
+    showSelection?: boolean;
   }) => {
     const {
       attributes,
@@ -262,7 +404,7 @@ const CollectionPage = () => {
       isDragging,
     } = useSortable({
       id: item.id,
-      disabled: !isReorderMode || slots.length === 0,
+      disabled: !isReorderMode || slots.length === 0 || isMoveMode,
     });
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -272,17 +414,47 @@ const CollectionPage = () => {
       <div
         ref={setNodeRef}
         style={style}
-        className={`w-full cursor-pointer max-w-[450px] ${
+        className={`w-full cursor-pointer max-w-[450px] card-stable ${
           isDragging ? "opacity-70" : ""
         }`}
       >
         <div
-          className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group"
-          onClick={() => {
+          className={`border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group card-stable ${
+            isReorderMode ? "animate-card-wiggle" : ""
+          }`}
+          onClick={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+            if (isReorderMode) {
+              if (isMoveMode && hasSelection && !isSelected && onMoveHere) {
+                onMoveHere();
+                return;
+              }
+              onToggleSelect?.();
+              return;
+            }
             onSelect();
           }}
+          onMouseDown={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
+          onTouchStart={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
+          onPointerDown={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
+          style={{ touchAction: isReorderMode ? "pan-y" : "auto" }}
           {...(isReorderMode ? attributes : {})}
           {...(isReorderMode ? listeners : {})}
+          tabIndex={-1}
         >
           <img
             src={item.card.src}
@@ -292,7 +464,7 @@ const CollectionPage = () => {
           />
 
           {quantity !== undefined && quantity > 1 && (
-            <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full min-w-[24px] h-6 flex items-center justify-center text-xs font-bold shadow-lg px-1.5">
+            <div className="absolute bottom-2 right-2 rounded-lg bg-gray-900 px-2 py-1 text-xs font-bold text-white shadow-lg">
               x{quantity}
             </div>
           )}
@@ -310,12 +482,240 @@ const CollectionPage = () => {
 
           {isReorderMode && (
             <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow">
-              {slots.length === 0 ? "Configura" : "Arrastra"}
+              {slots.length === 0
+                ? "Configura"
+                : isMoveMode
+                  ? "Destino"
+                  : "Arrastra"}
+            </div>
+          )}
+          {isReorderMode && onDelete && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+              className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
+            >
+              <Trash2 className="h-3 w-3" />
+              <span>Eliminar</span>
+            </button>
+          )}
+          {isReorderMode && showSelection && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleSelect?.();
+              }}
+              className={`absolute left-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold shadow ${
+                selectionOrder
+                  ? "border-white/70 bg-white text-slate-900"
+                  : "border-white/70 bg-black/60 text-white"
+              }`}
+            >
+              {selectionOrder ?? ""}
+            </button>
+          )}
+          {isReorderMode && selectionOrder && (
+            <div className="absolute inset-0 rounded-lg bg-emerald-500/20 ring-2 ring-emerald-300/80">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="rounded-full bg-emerald-600/90 px-3 py-1 text-sm font-bold text-white shadow-lg">
+                  {selectionOrder}
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
     );
+  };
+
+  const SimpleGridCard = ({
+    item,
+    quantity,
+    onSelect,
+    onIncrement,
+    onDecrement,
+  }: {
+    item: {
+      id: number;
+      card: CollectionCard["card"];
+      cardId: number;
+    };
+    quantity?: number;
+    onSelect: () => void;
+    onIncrement?: () => void;
+    onDecrement?: () => void;
+  }) => {
+    return (
+      <div className="w-full cursor-pointer max-w-[450px] card-stable">
+        <div
+          className="border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group card-stable"
+          onClick={onSelect}
+        >
+          <img
+            src={item.card.src}
+            alt={item.card.name}
+            className="w-full rounded-t-lg"
+            loading="lazy"
+          />
+
+          {quantity !== undefined && (
+            <div className="w-full px-2 pb-2 pt-1">
+              <div className="flex items-center justify-between rounded-lg bg-gray-900 px-2 py-1 text-white">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (quantity > 1) {
+                      onDecrement?.();
+                    }
+                  }}
+                  disabled={quantity <= 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95 disabled:opacity-60"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <div className="flex items-center justify-center">
+                  <span className="text-base font-bold text-white">
+                    {quantity}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onIncrement?.();
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="w-full px-2 py-1.5 flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-gray-800 truncate">
+              {item.card.code}
+            </span>
+            {item.card.marketPrice !== null && (
+              <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                {formatPrice(item.card.marketPrice, item.card.priceCurrency)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleDeleteSlot = async (slot: CollectionSlot) => {
+    try {
+      await fetch(`/api/collection/slots/${slot.id}`, { method: "DELETE" });
+      setSlots((prev) => prev.filter((item) => item.id !== slot.id));
+      setCards((prev) => {
+        const next = prev
+          .map((item) =>
+            item.id === slot.collectionCardId
+              ? { ...item, quantity: item.quantity - 1 }
+              : item
+          )
+          .filter((item) => item.quantity > 0);
+        return next;
+      });
+      showToast("-1", "info", 1500);
+    } catch (error) {
+      console.error("Error removing slot:", error);
+      toast.error("Error al eliminar la carta");
+    }
+  };
+
+  const confirmDeleteSlot = async () => {
+    if (!deleteTarget) return;
+    const slotToDelete =
+      [...slots]
+        .reverse()
+        .find(
+          (slot) => slot.collectionCardId === deleteTarget.collectionCardId
+        ) ?? deleteTarget;
+    await handleDeleteSlot(slotToDelete);
+    setDeleteTarget(null);
+  };
+
+  const toggleSlotSelection = (slotId: number) => {
+    setSelectedSlotIds((prev) => {
+      if (prev.includes(slotId)) {
+        return prev.filter((id) => id !== slotId);
+      }
+      return [...prev, slotId];
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedSlotIds([]);
+  };
+
+  const selectedSlotIdsOrdered = React.useMemo(() => {
+    if (!selectedSlotIds.length) return [];
+    const slotIds = new Set(slots.map((slot) => slot.id));
+    return selectedSlotIds.filter((id) => slotIds.has(id));
+  }, [selectedSlotIds, slots]);
+
+  const selectedSlotOrderMap = React.useMemo(() => {
+    const map = new Map<number, number>();
+    selectedSlotIdsOrdered.forEach((id, index) => {
+      map.set(id, index + 1);
+    });
+    return map;
+  }, [selectedSlotIdsOrdered]);
+
+  const moveSelectedSlotsTo = (targetIndex: number) => {
+    if (!selectedSlotIds.length) return;
+    const maxIndex = slots.length - selectedSlotIds.length + 1;
+    if (targetIndex < 1 || targetIndex > maxIndex) {
+      toast.error(`Posición válida: 1 - ${maxIndex}`);
+      return;
+    }
+    const selectedSet = new Set(selectedSlotIdsOrdered);
+    const selectedOrdered = selectedSlotIdsOrdered
+      .map((id) => slots.find((slot) => slot.id === id))
+      .filter(Boolean) as CollectionSlot[];
+    const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
+    const insertIndex = targetIndex - 1;
+    const nextSlots = [
+      ...remaining.slice(0, insertIndex),
+      ...selectedOrdered,
+      ...remaining.slice(insertIndex),
+    ];
+    handleReorder(nextSlots);
+    clearSelection();
+    setShowMoveInput(false);
+    setMoveTarget("");
+  };
+
+  const moveSelectedSlotsToTarget = (targetSlotId: number) => {
+    if (!selectedSlotIds.length) return;
+    const selectedSet = new Set(selectedSlotIdsOrdered);
+    if (selectedSet.has(targetSlotId)) return;
+    const selectedOrdered = selectedSlotIdsOrdered
+      .map((id) => slots.find((slot) => slot.id === id))
+      .filter(Boolean) as CollectionSlot[];
+    const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
+    const insertIndexRaw = remaining.findIndex(
+      (slot) => slot.id === targetSlotId
+    );
+    if (insertIndexRaw === -1) return;
+    const insertIndex = insertIndexRaw;
+    const nextSlots = [
+      ...remaining.slice(0, insertIndex),
+      ...selectedOrdered,
+      ...remaining.slice(insertIndex),
+    ];
+    handleReorder(nextSlots);
+    clearSelection();
   };
 
   // 3D tilt effect handlers (like CardPreviewDialog)
@@ -465,9 +865,40 @@ const CollectionPage = () => {
     isReorderMode,
   ]);
 
+  useEffect(() => {
+    if (!isReorderMode) {
+      clearSelection();
+      setShowMoveInput(false);
+      setMoveTarget("");
+      setIsMoveMode(false);
+    }
+  }, [isReorderMode]);
+
+  useEffect(() => {
+    if (!selectedSlotIds.length) {
+      setIsMoveMode(false);
+    }
+  }, [selectedSlotIds]);
+
+  useEffect(() => {
+    if (isMoveMode) {
+      setShowMoveInput(false);
+    }
+  }, [isMoveMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasTouch =
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia?.("(pointer: coarse)")?.matches;
+    setIsTouchDevice(Boolean(hasTouch));
+  }, []);
+
   // Update quantity
   const updateQuantity = async (cardId: number, newQuantity: number) => {
     if (newQuantity < 1) return;
+    const previousQuantity =
+      cards.find((c) => c.cardId === cardId)?.quantity ?? newQuantity;
 
     try {
       const response = await fetch(`/api/collection/cards/${cardId}`, {
@@ -496,6 +927,11 @@ const CollectionPage = () => {
             totalCardsCount: collection.stats.totalCardsCount + diff,
           },
         });
+      }
+      if (newQuantity > previousQuantity) {
+        showCollectionToast(newQuantity, previousQuantity === 0);
+      } else if (newQuantity < previousQuantity) {
+        showToast("-1", "info", 1500);
       }
     } catch (error) {
       console.error("Error updating quantity:", error);
@@ -530,6 +966,7 @@ const CollectionPage = () => {
       }
 
       toast.success("Carta eliminada de la colección");
+      showToast("Eliminada", "info", 1500);
     } catch (error) {
       console.error("Error removing card:", error);
       toast.error("Error al eliminar carta");
@@ -549,7 +986,6 @@ const CollectionPage = () => {
     const target = e.target as HTMLDivElement;
     const { scrollTop } = target;
     setShowFab(scrollTop > 100);
-    setShowHeader(scrollTop < 40);
   }, []);
 
   const handleScrollToTop = useCallback(() => {
@@ -593,8 +1029,8 @@ const CollectionPage = () => {
     <div className="bg-[#f2eede] flex-1 min-h-0 overflow-hidden flex flex-col">
       {/* Header */}
       <div
-        className={`bg-white border-b border-[#e5e5e5] transition-all duration-300 ${
-          showHeader ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0"
+        className={`bg-white border-b border-[#e5e5e5] transition-opacity duration-300 ${
+          showHeader ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
         <div className="px-4 py-3">
@@ -603,8 +1039,8 @@ const CollectionPage = () => {
               <h1 className="text-xl font-bold text-slate-900">Mi Colección</h1>
               {collection && (
                 <p className="text-slate-500 text-sm">
-                  {collection.stats.totalUniqueCards} cartas únicas •{" "}
-                  {collection.stats.totalCardsCount} cartas en total
+                  {collection.stats.totalCardsCount} cartas •{" "}
+                  {formatPrice(collectionValue, "USD") || "—"}
                 </p>
               )}
             </div>
@@ -669,14 +1105,25 @@ const CollectionPage = () => {
           />
 
           <div className="flex items-center gap-4">
-            <SortSelect
-              options={sortOptions.current}
-              selected={selectedSort}
-              setSelected={handleSortChange}
-              buttonLabel="Ordenar"
-            />
-
             <div className="ml-auto flex items-center gap-3">
+              <div className="hidden lg:block min-w-[210px]">
+                <Select
+                  value={selectedSortValue}
+                  onValueChange={handleSortChange}
+                  disabled={isReorderMode}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -694,7 +1141,7 @@ const CollectionPage = () => {
               >
                 <GripVertical className="h-4 w-4" />
                 <span className="hidden sm:inline">
-                  {isReorderMode ? "Ordenando" : "Ordenar"}
+                  {isReorderMode ? "Reordenando" : "Reordenar"}
                 </span>
               </Button>
               {collection && collection.stats.totalUniqueCards > 0 && (
@@ -762,17 +1209,11 @@ const CollectionPage = () => {
             </button>
           </div>
 
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-slate-500">
-              {pagination.totalCards.toLocaleString()} cartas
-            </p>
-            <SortSelect
-              options={sortOptions.current}
-              selected={selectedSort}
-              setSelected={handleSortChange}
-              buttonLabel="Ordenar"
-            />
-          </div>
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-slate-500">
+                {pagination.totalCards.toLocaleString()} cartas
+              </p>
+            </div>
           <button
             type="button"
             onClick={() => setIsReorderMode((prev) => !prev)}
@@ -783,7 +1224,7 @@ const CollectionPage = () => {
             }`}
           >
             <GripVertical className="h-4 w-4" />
-            {isReorderMode ? "Ordenando" : "Ordenar"}
+            {isReorderMode ? "Reordenando" : "Reordenar"}
           </button>
         </div>
 
@@ -825,7 +1266,7 @@ const CollectionPage = () => {
 
       {/* Content */}
       <div
-        className="p-3 md:p-5 overflow-y-auto flex-1 min-h-0 relative"
+        className="p-3 md:p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 relative"
         ref={scrollContainerRef}
         onScroll={handleScroll}
       >
@@ -876,45 +1317,139 @@ const CollectionPage = () => {
                 <Info className="h-3.5 w-3.5" />
                 {slots.length === 0
                   ? "Falta crear los slots. Corre el backfill para ordenar por copias."
-                  : "Arrastra las cartas para acomodar tu carpeta."}
+                  : selectedSlotIds.length
+                    ? isMoveMode
+                      ? "Elige la carta destino para mover el lote."
+                      : "Toca las cartas que quieras mover."
+                    : "Toca para seleccionar. Mantén presionado para mover."}
               </div>
             )}
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={(isReorderMode && slots.length ? slots : cards).map(
-                  (item) => item.id
-                )}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 justify-items-center">
-                  {isReorderMode && slots.length
-                    ? slots.map((slot) => (
-                        <SortableGridCard
-                          key={slot.id}
-                          item={slot}
-                          onSelect={() => {
-                            const match = cards.find(
-                              (item) => item.id === slot.collectionCardId
-                            );
-                            if (match) setSelectedCard(match);
-                          }}
-                        />
-                      ))
-                    : cards.map((item) => (
-                        <SortableGridCard
-                          key={item.id}
-                          item={item}
-                          quantity={item.quantity}
-                          onSelect={() => setSelectedCard(item)}
-                        />
-                      ))}
+            {isReorderMode && slots.length > 0 && (
+              <div className="hidden md:flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="text-xs text-slate-500">
+                  {selectedSlotIds.length
+                    ? `${selectedSlotIds.length} seleccionadas`
+                    : "Selecciona cartas para mover."}
                 </div>
-              </SortableContext>
-            </DndContext>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMoveMode((prev) => !prev)}
+                    disabled={!selectedSlotIds.length}
+                  >
+                    {isMoveMode ? "Cancelar mover" : "Mover lote"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMoveInput((prev) => !prev)}
+                    disabled={!selectedSlotIds.length || isMoveMode}
+                  >
+                    Mover a posición
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSelection}
+                    disabled={!selectedSlotIds.length}
+                  >
+                    Limpiar
+                  </Button>
+                </div>
+                {showMoveInput && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={moveTarget}
+                      onChange={(event) => setMoveTarget(event.target.value)}
+                      placeholder="Posición"
+                      inputMode="numeric"
+                      className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const target = Number.parseInt(moveTarget, 10);
+                        if (!Number.isFinite(target)) {
+                          toast.error("Posición inválida");
+                          return;
+                        }
+                        moveSelectedSlotsTo(target);
+                      }}
+                    >
+                      Mover
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            {isReorderMode ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={collisionDetectionStrategy}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                autoScroll={false}
+              >
+                <SortableContext
+                  items={(slots.length ? slots : cards).map((item) => item.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 justify-items-center">
+                    {slots.length
+                      ? slots.map((slot) => (
+                          <SortableGridCard
+                            key={slot.id}
+                            item={slot}
+                            onSelect={() => {
+                              const match = cards.find(
+                                (item) => item.id === slot.collectionCardId
+                              );
+                              if (match) setSelectedCard(match);
+                            }}
+                            onDelete={() => setDeleteTarget(slot)}
+                            showSelection={true}
+                            selectionOrder={
+                              selectedSlotOrderMap.get(slot.id) ?? null
+                            }
+                            isSelected={selectedSlotIds.includes(slot.id)}
+                            hasSelection={selectedSlotIds.length > 0}
+                            isMoveMode={isMoveMode}
+                            onMoveHere={() => moveSelectedSlotsToTarget(slot.id)}
+                            onToggleSelect={() => toggleSlotSelection(slot.id)}
+                          />
+                        ))
+                      : cards.map((item) => (
+                          <SortableGridCard
+                            key={item.id}
+                            item={item}
+                            quantity={item.quantity}
+                            onSelect={() => setSelectedCard(item)}
+                            showSelection={true}
+                          />
+                        ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="grid gap-2 md:gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 justify-items-center">
+                {cards.map((item) => (
+                  <SimpleGridCard
+                    key={item.id}
+                    item={item}
+                    quantity={item.quantity}
+                    onSelect={() => setSelectedCard(item)}
+                    onIncrement={() => {
+                      updateQuantity(item.cardId, item.quantity + 1);
+                    }}
+                    onDecrement={() => {
+                      if (item.quantity <= 1) return;
+                      updateQuantity(item.cardId, item.quantity - 1);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -945,6 +1480,71 @@ const CollectionPage = () => {
           </div>
         )}
       </div>
+
+      {isReorderMode && (
+        <div className="fixed bottom-3 left-0 right-0 z-40 px-3 md:hidden">
+          <div className="mx-auto flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-lg backdrop-blur">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMoveMode((prev) => !prev)}
+                disabled={!selectedSlotIds.length}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                {isMoveMode ? "Cancelar mover" : "Mover lote"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMoveInput((prev) => !prev)}
+                disabled={!selectedSlotIds.length || isMoveMode}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Mover a posición
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={!selectedSlotIds.length}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Limpiar
+              </button>
+            </div>
+            <div className="text-xs text-slate-500">
+              {selectedSlotIds.length
+                ? isMoveMode
+                  ? "Toca la carta destino para mover."
+                  : `${selectedSlotIds.length} seleccionadas`
+                : "Toca para seleccionar. Mantén presionado para mover."}
+            </div>
+            {showMoveInput && (
+              <div className="flex items-center gap-2">
+                <input
+                  value={moveTarget}
+                  onChange={(event) => setMoveTarget(event.target.value)}
+                  placeholder="Posición"
+                  inputMode="numeric"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = Number.parseInt(moveTarget, 10);
+                    if (!Number.isFinite(target)) {
+                      toast.error("Posición inválida");
+                      return;
+                    }
+                    moveSelectedSlotsTo(target);
+                  }}
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  Mover
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Card Detail Drawer/Modal - Like CardPreviewDialog */}
       <BaseDrawer
@@ -1203,6 +1803,63 @@ const CollectionPage = () => {
         </div>
       )}
 
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md rounded-2xl p-0 overflow-hidden">
+          <div className="bg-rose-50 px-5 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-lg text-rose-900">
+                Eliminar carta
+              </DialogTitle>
+              <DialogDescription className="text-rose-700">
+                Se eliminara una copia de tu coleccion.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-5 py-4">
+            {deleteTarget && (
+              <div className="flex items-center gap-3 rounded-xl border border-rose-100 bg-white px-3 py-2">
+                <img
+                  src={deleteTarget.card.src}
+                  alt={deleteTarget.card.name}
+                  className="h-16 w-12 rounded-md object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {deleteTarget.card.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {deleteTarget.card.code}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="mt-4 grid gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-11"
+                onClick={confirmDeleteSlot}
+              >
+                Eliminar copia
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Actions Drawer */}
       <BaseDrawer
         isOpen={isActionsOpen}
@@ -1244,6 +1901,31 @@ const CollectionPage = () => {
             </div>
           </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+            <p className="text-xs text-slate-500">Orden</p>
+            <Select
+              value={selectedSortValue}
+              onValueChange={handleSortChange}
+              disabled={isReorderMode}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isReorderMode && (
+              <p className="text-[11px] text-slate-500">
+                Desactiva el modo reordenar para cambiar el orden.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-3">
             <Button
               variant="outline"
@@ -1262,7 +1944,7 @@ const CollectionPage = () => {
               className="w-full justify-between"
               onClick={() => setIsReorderMode((prev) => !prev)}
             >
-              <span>{isReorderMode ? "Ordenando" : "Ordenar cartas"}</span>
+              <span>{isReorderMode ? "Reordenando" : "Reordenar cartas"}</span>
               <GripVertical className="h-4 w-4" />
             </Button>
           </div>

@@ -65,6 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const user = await requireAuth();
+    const slotClient = (prisma as any).collectionCardSlot;
     const { cardId } = await params;
     const body = await request.json();
 
@@ -89,6 +90,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const existing = await prisma.collectionCard.findUnique({
+      where: {
+        collectionId_cardId: {
+          collectionId: collection.id,
+          cardId: parseInt(cardId),
+        },
+      },
+      select: {
+        id: true,
+        quantity: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Carta no encontrada en la colección" },
+        { status: 404 }
+      );
+    }
+
     const collectionCard = await prisma.collectionCard.update({
       where: {
         collectionId_cardId: {
@@ -107,6 +128,54 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         card: true,
       },
     });
+
+    if (quantity !== undefined && quantity !== existing.quantity) {
+      if (!slotClient) {
+        return NextResponse.json(
+          {
+            error:
+              "Collection slots not available. Run prisma migrate/generate.",
+          },
+          { status: 500 }
+        );
+      }
+      if (quantity > existing.quantity) {
+        const diff = quantity - existing.quantity;
+        const maxSort = await slotClient.aggregate({
+          where: { collectionId: collection.id },
+          _max: { sortOrder: true },
+        });
+        const nextSortOrder = (maxSort._max.sortOrder ?? 0) + 10;
+        const slotsToCreate = Array.from({ length: diff }, (_, slotIdx) => ({
+          collectionId: collection.id,
+          collectionCardId: existing.id,
+          sortOrder: nextSortOrder + slotIdx * 10,
+        }));
+        await slotClient.createMany({
+          data: slotsToCreate,
+        });
+      } else {
+        const diff = existing.quantity - quantity;
+        const slotsToRemove = await slotClient.findMany({
+          where: {
+            collectionId: collection.id,
+            collectionCardId: existing.id,
+          },
+          orderBy: { sortOrder: "desc" },
+          take: diff,
+          select: { id: true },
+        });
+        if (slotsToRemove.length) {
+          await slotClient.deleteMany({
+            where: {
+              id: {
+                in: slotsToRemove.map((slot: { id: number }) => slot.id),
+              },
+            },
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       message: "Carta actualizada",

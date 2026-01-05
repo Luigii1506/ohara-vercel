@@ -431,9 +431,20 @@ const parseSearchTokens = (search: string) => {
       }
     }
 
+    // Check for full card codes like "OP04-058", "ST01-001", etc.
+    // Supports both "OP04-058" (with hyphen) and "OP04058" (without hyphen)
     const normalizedCodeToken = token.replace(/-/g, "");
-    if (/^(op|st|eb|prb|p)\d+$/i.test(normalizedCodeToken)) {
-      codeTokens.add(normalizedCodeToken.toUpperCase());
+    const fullCodeMatch = normalizedCodeToken.match(/^(op|st|eb|prb|p)(\d{2,3})(\d{3})$/i);
+    if (fullCodeMatch) {
+      // Format as "PREFIX##-###" (e.g., "OP04-058") for database matching
+      const [, prefix, setNum, cardNum] = fullCodeMatch;
+      const formattedCode = `${prefix.toUpperCase()}${setNum}-${cardNum}`;
+      codeTokens.add(formattedCode);
+      return;
+    }
+    // Also handle shorter set codes like "OP04", "ST01" without card number
+    if (/^(op|st|eb|prb|p)\d{1,3}$/i.test(normalizedCodeToken)) {
+      codeTokens.add(token.toUpperCase());
       return;
     }
 

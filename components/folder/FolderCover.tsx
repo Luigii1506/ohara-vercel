@@ -25,23 +25,24 @@ export const FolderCover: React.FC<FolderCoverProps> = ({
         maxHeight: "100%",
       }}
     >
-      <div
-        className="relative overflow-hidden transition-colors duration-300 rounded-lg w-full h-full"
-        style={{
-          backgroundColor: color || "rgb(30, 41, 59)",
-        }}
-      >
-        {/* External folder cover design (front of folder) */}
-        <div className="flex items-center justify-center h-full p-4 sm:p-8">
-          <div className="text-center">
-            <div className="text-6xl sm:text-8xl mb-4 sm:mb-6">📂</div>
-            <div className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-3">
-              {name}
-            </div>
-            <div className="text-base sm:text-lg text-gray-200 mb-1 sm:mb-2">
-              {cardCount} cartas
-            </div>
-            <div className="text-sm text-gray-300">Carpeta de colección</div>
+      <div className="relative overflow-hidden rounded-lg w-full h-full bg-[#11180f]">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#11180f] via-[#1f2b1a] to-[#0f1510] opacity-95" />
+        <div className="relative flex flex-col items-center justify-center h-full px-6 text-center">
+          <div className="mb-4 sm:mb-6">
+            <img
+              src="/assets/images/LOGO_OHARA.svg"
+              alt="Ohara"
+              className="mx-auto h-auto w-44 sm:w-60 drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] brightness-125 contrast-110"
+            />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold uppercase tracking-[0.18em] text-white">
+            {name}
+          </div>
+          <div className="mt-3 text-sm sm:text-base text-slate-200">
+            {cardCount} cartas
+          </div>
+          <div className="mt-1 text-xs uppercase tracking-[0.3em] text-slate-400">
+            Carpeta Oficial
           </div>
         </div>
       </div>

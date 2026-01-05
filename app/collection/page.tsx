@@ -1031,7 +1031,7 @@ const CollectionPage = () => {
       <div
         className={`bg-white border-b border-[#e5e5e5] transition-opacity duration-300 ${
           showHeader ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        } ${isReorderMode ? "hidden md:block" : ""}`}
       >
         <div className="px-4 py-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -1163,72 +1163,81 @@ const CollectionPage = () => {
         </div>
 
         <div className="md:hidden p-3 flex flex-col gap-3 border-t border-[#f5f5f5]">
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <DropdownSearch
-                search={search}
-                setSearch={setSearch}
-                placeholder="Buscar cartas..."
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center">
+          {isReorderMode ? (
             <button
               type="button"
-              onClick={() => setIsFiltersOpen(true)}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
-                selectedColors.length > 0 ||
-                selectedRarities.length > 0 ||
-                selectedCategories.length > 0 ||
-                selectedCounter !== "" ||
-                selectedTrigger !== "" ||
-                selectedEffects.length > 0 ||
-                selectedTypes.length > 0 ||
-                selectedSets.length > 0 ||
-                selectedCosts.length > 0 ||
-                selectedPower.length > 0 ||
-                selectedAttributes.length > 0 ||
-                selectedCodes.length > 0 ||
-                selectedAltArts.length > 0 ||
-                selectedRegion !== ""
-                  ? "border-blue-300 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
+              onClick={() => setIsReorderMode((prev) => !prev)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-blue-300 bg-blue-50 text-blue-700"
             >
-              <SlidersHorizontal className="h-4 w-4" />
-              <span>Filtros</span>
+              <GripVertical className="h-4 w-4" />
+              Reordenando
             </button>
-            <button
-              type="button"
-              onClick={() => setIsActionsOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-              <span>Acciones</span>
-            </button>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <DropdownSearch
+                    search={search}
+                    setSearch={setSearch}
+                    placeholder="Buscar cartas..."
+                  />
+                </div>
+              </div>
 
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-slate-500">
-                {pagination.totalCards.toLocaleString()} cartas
-              </p>
-            </div>
-          <button
-            type="button"
-            onClick={() => setIsReorderMode((prev) => !prev)}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all ${
-              isReorderMode
-                ? "border-blue-300 bg-blue-50 text-blue-700"
-                : "border-slate-200 bg-white text-slate-700"
-            }`}
-          >
-            <GripVertical className="h-4 w-4" />
-            {isReorderMode ? "Reordenando" : "Reordenar"}
-          </button>
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsFiltersOpen(true)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
+                    selectedColors.length > 0 ||
+                    selectedRarities.length > 0 ||
+                    selectedCategories.length > 0 ||
+                    selectedCounter !== "" ||
+                    selectedTrigger !== "" ||
+                    selectedEffects.length > 0 ||
+                    selectedTypes.length > 0 ||
+                    selectedSets.length > 0 ||
+                    selectedCosts.length > 0 ||
+                    selectedPower.length > 0 ||
+                    selectedAttributes.length > 0 ||
+                    selectedCodes.length > 0 ||
+                    selectedAltArts.length > 0 ||
+                    selectedRegion !== ""
+                      ? "border-blue-300 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Filtros</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsActionsOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span>Acciones</span>
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-slate-500">
+                  {pagination.totalCards.toLocaleString()} cartas
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReorderMode((prev) => !prev)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-slate-200 bg-white text-slate-700"
+              >
+                <GripVertical className="h-4 w-4" />
+                Reordenar
+              </button>
+            </>
+          )}
         </div>
 
-        <div className="md:hidden">
+        <div className={`md:hidden ${isReorderMode ? "hidden" : ""}`}>
           <MobileFiltersDrawer
             isOpen={isFiltersOpen}
             onClose={() => setIsFiltersOpen(false)}

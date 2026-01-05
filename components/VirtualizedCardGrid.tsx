@@ -142,6 +142,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
+  const lastFetchTriggerRef = useRef<number | null>(null);
 
   // Infinite scroll: fetch more when approaching the end
   useEffect(() => {
@@ -152,10 +153,11 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
 
     // If the last visible row is within 5 rows of the end, fetch more
     const isNearEnd = lastVirtualRow.index >= rows.length - 5;
+    if (!isNearEnd) return;
 
-    if (isNearEnd) {
-      fetchNextPage();
-    }
+    if (lastFetchTriggerRef.current === lastVirtualRow.index) return;
+    lastFetchTriggerRef.current = lastVirtualRow.index;
+    fetchNextPage();
   }, [virtualRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Render individual card
@@ -168,9 +170,10 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
           ? formatCurrency(priceValue, card.priceCurrency)
           : "0";
 
-      const isInCollection = collectionCardIds?.has(card.id);
-      const collectionQty = collectionCardIds?.get(card.id);
-      const isAdding = addingToCollection?.has(card.id);
+      const cardKey = String(card.id);
+      const isInCollection = collectionCardIds?.has(cardKey);
+      const collectionQty = collectionCardIds?.get(cardKey);
+      const isAdding = addingToCollection?.has(cardKey);
 
       return (
         <div
@@ -199,7 +202,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
               {/* Collection toggle button */}
               {onAddToCollection && (
                 <button
-                  onClick={(e) => onAddToCollection(card.id, e)}
+                  onClick={(e) => onAddToCollection(String(card.id), e)}
                   className={`absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
                     isInCollection
                       ? "bg-emerald-500 text-white"

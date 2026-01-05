@@ -112,6 +112,7 @@ const REGION_OPTIONS = [
 ];
 
 const setCodesOptions = [
+  // OP sets first
   { value: "OP01", label: "OP01" },
   { value: "OP02", label: "OP02" },
   { value: "OP03", label: "OP03" },
@@ -126,11 +127,7 @@ const setCodesOptions = [
   { value: "OP12", label: "OP12" },
   { value: "OP13", label: "OP13" },
   { value: "OP14", label: "OP14" },
-  { value: "EB01", label: "EB01" },
-  { value: "EB02", label: "EB02" },
-  { value: "EB03", label: "EB03" },
-  { value: "PRB01", label: "PRB01" },
-  { value: "PRB02", label: "PRB02" },
+  // ST sets second
   { value: "ST01", label: "ST01" },
   { value: "ST02", label: "ST02" },
   { value: "ST03", label: "ST03" },
@@ -159,6 +156,14 @@ const setCodesOptions = [
   { value: "ST26", label: "ST26" },
   { value: "ST27", label: "ST27" },
   { value: "ST28", label: "ST28" },
+  // EB sets third
+  { value: "EB01", label: "EB01" },
+  { value: "EB02", label: "EB02" },
+  { value: "EB03", label: "EB03" },
+  // PRB sets fourth
+  { value: "PRB01", label: "PRB01" },
+  { value: "PRB02", label: "PRB02" },
+  // Promo last
   { value: "PROMO", label: "Promo" },
 ];
 

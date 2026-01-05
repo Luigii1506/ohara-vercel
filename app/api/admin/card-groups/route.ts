@@ -4,6 +4,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const REGION_ORDER = ["CN", "JP", "US", "FR", "KR"];
+const SET_PREFIX_ORDER = ["OP", "ST", "EB", "PRB", "P"];
+
+function getSetPrefixOrder(code: string): number {
+  const prefix = code.split("-")[0]?.toUpperCase() ?? "";
+  const idx = SET_PREFIX_ORDER.indexOf(prefix);
+  return idx === -1 ? SET_PREFIX_ORDER.length : idx;
+}
+
+function parseCardNumber(code: string): number {
+  const match = code.match(/-(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+function compareCanonicalCodes(a: string, b: string): number {
+  const prefixA = a.split("-")[0]?.toUpperCase() ?? "";
+  const prefixB = b.split("-")[0]?.toUpperCase() ?? "";
+
+  // First compare by prefix order (OP, ST, EB, PRB, P)
+  const prefixOrderA = getSetPrefixOrder(a);
+  const prefixOrderB = getSetPrefixOrder(b);
+  if (prefixOrderA !== prefixOrderB) {
+    return prefixOrderA - prefixOrderB;
+  }
+
+  // If same prefix type, compare full set code alphabetically (OP01 vs OP02)
+  if (prefixA !== prefixB) {
+    return prefixA.localeCompare(prefixB);
+  }
+
+  // Same set, compare card number
+  const numA = parseCardNumber(a);
+  const numB = parseCardNumber(b);
+  return numA - numB;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -247,6 +281,9 @@ export async function GET(req: NextRequest) {
         })),
       };
     });
+
+    // Sort payload by custom order: OP, ST, EB, PRB, P
+    payload.sort((a, b) => compareCanonicalCodes(a.canonicalCode, b.canonicalCode));
 
     return NextResponse.json(
       {

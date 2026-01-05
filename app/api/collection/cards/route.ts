@@ -8,6 +8,7 @@ import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
+    const slotClient = (prisma as any).collectionCardSlot;
     const body = await request.json();
 
     const { cardId, cardIds, quantity = 1 } = body;
@@ -22,7 +23,15 @@ export async function POST(request: NextRequest) {
         data: { userId: user.id },
       });
     }
-    const maxSort = await prisma.collectionCard.aggregate({
+    if (!slotClient) {
+      return NextResponse.json(
+        {
+          error: "Collection slots not available. Run prisma migrate/generate.",
+        },
+        { status: 500 }
+      );
+    }
+    const maxSort = await slotClient.aggregate({
       where: { collectionId: collection.id },
       _max: { sortOrder: true },
     });
@@ -31,25 +40,52 @@ export async function POST(request: NextRequest) {
     // Si se envía un array de cardIds, agregar múltiples cartas
     if (cardIds && Array.isArray(cardIds)) {
       const results = await Promise.all(
-        cardIds.map(async (id: number, index: number) => {
-          const sortOrder = nextSortOrder + index * 10;
-          return prisma.collectionCard.upsert({
+        cardIds.map(async (id: number) => {
+          const existing = await prisma.collectionCard.findUnique({
             where: {
               collectionId_cardId: {
                 collectionId: collection.id,
                 cardId: id,
               },
             },
-            update: {
-              quantity: { increment: quantity },
-            },
-            create: {
-              collectionId: collection.id,
-              cardId: id,
-              quantity,
-              sortOrder,
-            },
+            select: { id: true },
           });
+
+          const collectionCard = existing
+            ? await prisma.collectionCard.update({
+                where: {
+                  collectionId_cardId: {
+                    collectionId: collection.id,
+                    cardId: id,
+                  },
+                },
+                data: {
+                  quantity: { increment: quantity },
+                },
+              })
+            : await prisma.collectionCard.create({
+                data: {
+                  collectionId: collection.id,
+                  cardId: id,
+                  quantity,
+                  sortOrder: nextSortOrder,
+                },
+              });
+
+          const slotsToCreate = Array.from({ length: quantity }, (_, slotIdx) => ({
+            collectionId: collection.id,
+            collectionCardId: collectionCard.id,
+            sortOrder: nextSortOrder + slotIdx * 10,
+          }));
+
+          if (slotsToCreate.length) {
+            await slotClient.createMany({
+              data: slotsToCreate,
+            });
+          }
+
+          nextSortOrder += quantity * 10;
+          return collectionCard;
         })
       );
 
@@ -80,26 +116,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Agregar o actualizar la carta en la colección
-    const collectionCard = await prisma.collectionCard.upsert({
+    const existing = await prisma.collectionCard.findUnique({
       where: {
         collectionId_cardId: {
           collectionId: collection.id,
           cardId,
         },
       },
-      update: {
-        quantity: { increment: quantity },
-      },
-      create: {
-        collectionId: collection.id,
-        cardId,
-        quantity,
-        sortOrder: nextSortOrder,
-      },
-      include: {
-        card: true,
-      },
+      select: { id: true },
     });
+
+    const collectionCard = existing
+      ? await prisma.collectionCard.update({
+          where: {
+            collectionId_cardId: {
+              collectionId: collection.id,
+              cardId,
+            },
+          },
+          data: {
+            quantity: { increment: quantity },
+          },
+          include: {
+            card: true,
+          },
+        })
+      : await prisma.collectionCard.create({
+          data: {
+            collectionId: collection.id,
+            cardId,
+            quantity,
+            sortOrder: nextSortOrder,
+          },
+          include: {
+            card: true,
+          },
+        });
+
+    const slotsToCreate = Array.from({ length: quantity }, (_, slotIdx) => ({
+      collectionId: collection.id,
+      collectionCardId: collectionCard.id,
+      sortOrder: nextSortOrder + slotIdx * 10,
+    }));
+
+    if (slotsToCreate.length) {
+      await slotClient.createMany({
+        data: slotsToCreate,
+      });
+    }
 
     return NextResponse.json({
       message: "Carta agregada a la colección",
@@ -134,6 +198,15 @@ export async function DELETE(request: NextRequest) {
     if (cardIds) {
       const ids = cardIds.split(",").map((id) => parseInt(id.trim()));
 
+      await slotClient.deleteMany({
+        where: {
+          collectionId: collection.id,
+          collectionCard: {
+            cardId: { in: ids },
+          },
+        },
+      });
+
       const result = await prisma.collectionCard.deleteMany({
         where: {
           collectionId: collection.id,
@@ -154,6 +227,15 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    await slotClient.deleteMany({
+      where: {
+        collectionId: collection.id,
+        collectionCard: {
+          cardId: parseInt(cardId),
+        },
+      },
+    });
 
     await prisma.collectionCard.delete({
       where: {

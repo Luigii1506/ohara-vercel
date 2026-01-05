@@ -54,6 +54,7 @@ interface BookFlipContainerProps {
   }) => void;
   // 🔄 Navigation controls inside folder
   showNavigationButtons?: boolean;
+  showMobileNavigationButtons?: boolean;
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
   maxNavigablePage?: number;
@@ -109,6 +110,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onNavigationReady,
   // 🔄 Navigation controls
   showNavigationButtons = false,
+  showMobileNavigationButtons = true,
   onNavigatePrev,
   onNavigateNext,
   maxNavigablePage,
@@ -526,14 +528,13 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
                       </>
                     ) : (
                       <>
+                        {/* In desktop mode, currentPage is the flip book index */}
+                        {/* Index 0 = Interior+Page1, Index 2 = Page2+Page3, Index 4 = Page4+Page5... */}
+                        {/* So left page number = currentPage, right page = currentPage + 1 */}
                         <span className="text-blue-300">Páginas</span>{" "}
-                        {currentPage * 2}-{currentPage * 2 + 1}
-                        {maxNavigablePage && (
-                          <span className="text-slate-400">
-                            {" "}
-                            / {maxNavigablePage}
-                          </span>
-                        )}
+                        {Math.min(currentPage, totalPages)}-
+                        {Math.min(currentPage + 1, totalPages)}
+                        <span className="text-slate-400"> de {totalPages}</span>
                       </>
                     )}
                   </div>
@@ -542,7 +543,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             )}
 
             {/* Mobile Navigation Buttons - Premium Design */}
-            {dimensions.showSinglePage && (
+            {dimensions.showSinglePage && showMobileNavigationButtons && (
               <>
                 {/* Navigation Buttons - Bottom with elegant spacing */}
                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6 z-30">

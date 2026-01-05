@@ -198,7 +198,11 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   const handleTouchMove = useCallback(
     (event: TouchEvent) => {
-      if (preventClose || !isMobileViewport || touchStartYRef.current === null) {
+      if (
+        preventClose ||
+        !isMobileViewport ||
+        touchStartYRef.current === null
+      ) {
         return;
       }
 
@@ -281,7 +285,13 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       target.removeEventListener("touchend", onEnd);
       target.removeEventListener("touchcancel", onEnd);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, shouldRender, touchBindKey]);
+  }, [
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    shouldRender,
+    touchBindKey,
+  ]);
 
   const drawerTransform = isVisible
     ? `translateY(${dragOffset}px)`
@@ -356,16 +366,14 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       />
 
       {/* Drawer */}
-      <div
-        className="fixed inset-0 z-50 flex items-end pointer-events-none"
-      >
+      <div className="fixed inset-0 z-50 flex items-end pointer-events-none">
         <div
           ref={drawerRef}
           className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
             isDragging ? "transition-none" : "transition-all duration-300"
-          } ease-out ${
-            isVisible ? "translate-y-0" : "translate-y-full"
-          } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
+          } ease-out ${isVisible ? "translate-y-0" : "translate-y-full"} ${
+            isVisible ? "pointer-events-auto" : "pointer-events-none"
+          }`}
           style={{ maxHeight, ...drawerStyle }}
           onPointerDown={handleDragStart}
           onPointerMove={(event) => {

@@ -33,6 +33,19 @@ interface CollectionCard {
   card: CardWithCollectionData;
 }
 
+interface CollectionSlot {
+  id: number;
+  collectionCardId: number;
+  sortOrder: number;
+  cardId: number;
+  card: CardWithCollectionData;
+}
+
+interface SlotCard {
+  id: number;
+  card: CardWithCollectionData;
+}
+
 interface CollectionResponse {
   collection: {
     id: number;
@@ -44,6 +57,7 @@ interface CollectionResponse {
     };
   };
   cards: CollectionCard[];
+  slots?: CollectionSlot[];
   pagination: {
     totalCards: number;
   };
@@ -58,7 +72,7 @@ const CollectionBinderContent = () => {
   const cols = parseInt(searchParams.get("cols") || "3");
 
   // States
-  const [cards, setCards] = useState<CollectionCard[]>([]);
+  const [cards, setCards] = useState<SlotCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
@@ -114,7 +128,7 @@ const CollectionBinderContent = () => {
   const folderDimensions = useFolderDimensions(rows, cols, windowSize, false);
 
   // Create grid from cards for a specific page
-  const createGrid = (pageCards: CollectionCard[]): GridCard[][] => {
+  const createGrid = (pageCards: SlotCard[]): GridCard[][] => {
     const grid = Array(rows)
       .fill(null)
       .map(() => Array(cols).fill(null));
@@ -127,7 +141,7 @@ const CollectionBinderContent = () => {
       if (row < rows) {
         const gridCard: GridCard = {
           card: collectionCard.card,
-          quantity: collectionCard.quantity,
+          quantity: 1,
         };
         grid[row][col] = gridCard;
       }
@@ -256,15 +270,31 @@ const CollectionBinderContent = () => {
   // Fetch all collection cards
   const fetchCollection = async () => {
     try {
-      const response = await fetch(`/api/collection?limit=0`);
+      const response = await fetch(`/api/collection?limit=0&includeSlots=1`);
       if (!response.ok) throw new Error("Failed to fetch collection");
       const data: CollectionResponse = await response.json();
 
-      setCards(data.cards);
+      if (data.slots && data.slots.length) {
+        setCards(
+          data.slots.map((slot) => ({
+            id: slot.id,
+            card: slot.card,
+          }))
+        );
+      } else {
+        const expanded = data.cards.flatMap((item) =>
+          Array.from({ length: item.quantity }, (_, idx) => ({
+            id: item.id * 1000 + idx,
+            card: item.card,
+          }))
+        );
+        setCards(expanded);
+      }
 
       // Calculate total pages based on grid size
       const cardsPerPage = rows * cols;
-      const calculatedPages = Math.ceil(data.cards.length / cardsPerPage);
+      const totalCount = data.slots?.length ?? data.cards.length;
+      const calculatedPages = Math.ceil(totalCount / cardsPerPage);
       setTotalPages(Math.max(1, calculatedPages));
     } catch (error) {
       console.error("Error fetching collection:", error);
@@ -369,8 +399,29 @@ const CollectionBinderContent = () => {
         onTouchEnd={handleTouchEnd}
       >
         <div className="h-full overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col relative w-full">
-          {/* Back button */}
-          <div className="absolute top-4 left-4 z-20">
+          {/* Mobile header */}
+          <div className="md:hidden fixed top-0 left-0 right-0 z-30 px-3 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/90 px-3 py-2 shadow-lg backdrop-blur">
+              <button
+                type="button"
+                onClick={() => router.push("/collection")}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Volver
+              </button>
+              {dims.showSinglePage && (
+                <div className="text-xs font-semibold text-slate-700">
+                  {safePage === 0
+                    ? "Cubierta"
+                    : `Página ${safePage} de ${totalPages}`}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop back button */}
+          <div className="absolute top-4 left-4 z-20 hidden md:block">
             <Button
               onClick={() => router.push("/collection")}
               variant="secondary"
@@ -384,7 +435,7 @@ const CollectionBinderContent = () => {
 
           {/* Mobile Page Info - Top */}
           {dims.showSinglePage && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block">
               <div className="bg-black/80 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">
                 {safePage === 0
                   ? "Cubierta Interior"
@@ -394,7 +445,7 @@ const CollectionBinderContent = () => {
           )}
 
           {/* Folder Container */}
-          <div className="flex-1 flex items-center justify-center p-2 sm:p-4 relative min-h-0">
+          <div className="flex-1 flex items-center justify-center p-1 pt-16 sm:p-4 relative min-h-0 md:pt-4">
             <BookFlipContainer
               name="Mi Colección"
               color="blue"
@@ -412,10 +463,41 @@ const CollectionBinderContent = () => {
               onPageChange={handlePageChange}
               onNavigationReady={setNavigationFunctions}
               showNavigationButtons={true}
+              showMobileNavigationButtons={false}
               onNavigatePrev={navigatePrev}
               onNavigateNext={navigateNext}
               maxNavigablePage={totalPagesWithCover}
             />
+          </div>
+
+          {/* Mobile nav */}
+          <div className="md:hidden pb-[calc(env(safe-area-inset-bottom)+12px)] px-3">
+            <div className="mx-auto flex items-center justify-between gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
+              <button
+                type="button"
+                onClick={navigatePrev}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              >
+                Anterior
+              </button>
+              <div className="flex flex-col items-center px-2 text-[11px] font-semibold text-slate-600">
+                <span className="uppercase tracking-wide text-[10px] text-slate-400">
+                  Página
+                </span>
+                <span>
+                  {safePage === 0
+                    ? "Cubierta"
+                    : `${safePage} / ${totalPages}`}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={navigateNext}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         </div>
       </div>

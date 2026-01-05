@@ -548,6 +548,7 @@ model Collection {
   updatedAt DateTime         @updatedAt
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards     CollectionCard[]
+  slots     CollectionCardSlot[]
 }
 
 model CollectionCard {
@@ -564,9 +565,24 @@ model CollectionCard {
   updatedAt      DateTime   @updatedAt
   collection     Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   card           Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  slots          CollectionCardSlot[]
 
   @@unique([collectionId, cardId])
   @@index([cardId])
+}
+
+model CollectionCardSlot {
+  id               Int             @id @default(autoincrement())
+  collectionId     Int
+  collectionCardId Int
+  sortOrder        Int
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  collection       Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionCard   CollectionCard  @relation(fields: [collectionCardId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId, sortOrder])
+  @@index([collectionCardId])
 }
 
 model Announcement {

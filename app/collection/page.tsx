@@ -871,13 +871,6 @@ const CollectionPage = () => {
           />
 
           <div className="flex items-center gap-4">
-            <SortSelect
-              options={sortOptions.current}
-              selected={selectedSort}
-              setSelected={handleSortChange}
-              buttonLabel="Ordenar por"
-            />
-
             <div className="ml-auto flex items-center gap-3">
               <Button
                 variant="outline"
@@ -968,12 +961,6 @@ const CollectionPage = () => {
             <p className="text-xs text-slate-500">
               {pagination.totalCards.toLocaleString()} cartas
             </p>
-            <SortSelect
-              options={sortOptions.current}
-              selected={selectedSort}
-              setSelected={handleSortChange}
-              buttonLabel="Ordenar por"
-            />
           </div>
           <button
             type="button"

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const slotToCard = new Map<number, number>();
-    existing.forEach((slot) => {
+    existing.forEach((slot: { id: number; collectionCardId: number }) => {
       slotToCard.set(slot.id, slot.collectionCardId);
     });
 

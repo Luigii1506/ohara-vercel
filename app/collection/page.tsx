@@ -66,6 +66,7 @@ import FAB from "@/components/Fab";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import SearchFilters from "@/components/home/SearchFilters";
 import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
+import { useToast } from "@/components/ui/MobileToast";
 
 interface CollectionCard {
   id: number;
@@ -129,6 +130,7 @@ const CollectionPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { showToast, showCollectionToast } = useToast();
 
   // States
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -462,7 +464,7 @@ const CollectionPage = () => {
           />
 
           {quantity !== undefined && quantity > 1 && (
-            <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full min-w-[24px] h-6 flex items-center justify-center text-xs font-bold shadow-lg px-1.5">
+            <div className="absolute bottom-2 right-2 rounded-lg bg-gray-900 px-2 py-1 text-xs font-bold text-white shadow-lg">
               x{quantity}
             </div>
           )}
@@ -534,6 +536,8 @@ const CollectionPage = () => {
     item,
     quantity,
     onSelect,
+    onIncrement,
+    onDecrement,
   }: {
     item: {
       id: number;
@@ -542,6 +546,8 @@ const CollectionPage = () => {
     };
     quantity?: number;
     onSelect: () => void;
+    onIncrement?: () => void;
+    onDecrement?: () => void;
   }) => {
     return (
       <div className="w-full cursor-pointer max-w-[450px] card-stable">
@@ -556,9 +562,38 @@ const CollectionPage = () => {
             loading="lazy"
           />
 
-          {quantity !== undefined && quantity > 1 && (
-            <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full min-w-[24px] h-6 flex items-center justify-center text-xs font-bold shadow-lg px-1.5">
-              x{quantity}
+          {quantity !== undefined && (
+            <div className="w-full px-2 pb-2 pt-1">
+              <div className="flex items-center justify-between rounded-lg bg-gray-900 px-2 py-1 text-white">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (quantity > 1) {
+                      onDecrement?.();
+                    }
+                  }}
+                  disabled={quantity <= 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95 disabled:opacity-60"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <div className="flex items-center justify-center">
+                  <span className="text-base font-bold text-white">
+                    {quantity}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onIncrement?.();
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -591,6 +626,7 @@ const CollectionPage = () => {
           .filter((item) => item.quantity > 0);
         return next;
       });
+      showToast("-1", "info", 1500);
     } catch (error) {
       console.error("Error removing slot:", error);
       toast.error("Error al eliminar la carta");
@@ -599,7 +635,13 @@ const CollectionPage = () => {
 
   const confirmDeleteSlot = async () => {
     if (!deleteTarget) return;
-    await handleDeleteSlot(deleteTarget);
+    const slotToDelete =
+      [...slots]
+        .reverse()
+        .find(
+          (slot) => slot.collectionCardId === deleteTarget.collectionCardId
+        ) ?? deleteTarget;
+    await handleDeleteSlot(slotToDelete);
     setDeleteTarget(null);
   };
 
@@ -855,6 +897,8 @@ const CollectionPage = () => {
   // Update quantity
   const updateQuantity = async (cardId: number, newQuantity: number) => {
     if (newQuantity < 1) return;
+    const previousQuantity =
+      cards.find((c) => c.cardId === cardId)?.quantity ?? newQuantity;
 
     try {
       const response = await fetch(`/api/collection/cards/${cardId}`, {
@@ -883,6 +927,11 @@ const CollectionPage = () => {
             totalCardsCount: collection.stats.totalCardsCount + diff,
           },
         });
+      }
+      if (newQuantity > previousQuantity) {
+        showCollectionToast(newQuantity, previousQuantity === 0);
+      } else if (newQuantity < previousQuantity) {
+        showToast("-1", "info", 1500);
       }
     } catch (error) {
       console.error("Error updating quantity:", error);
@@ -917,6 +966,7 @@ const CollectionPage = () => {
       }
 
       toast.success("Carta eliminada de la colección");
+      showToast("Eliminada", "info", 1500);
     } catch (error) {
       console.error("Error removing card:", error);
       toast.error("Error al eliminar carta");
@@ -1389,6 +1439,13 @@ const CollectionPage = () => {
                     item={item}
                     quantity={item.quantity}
                     onSelect={() => setSelectedCard(item)}
+                    onIncrement={() => {
+                      updateQuantity(item.cardId, item.quantity + 1);
+                    }}
+                    onDecrement={() => {
+                      if (item.quantity <= 1) return;
+                      updateQuantity(item.cardId, item.quantity - 1);
+                    }}
                   />
                 ))}
               </div>

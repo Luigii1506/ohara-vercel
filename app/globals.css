@@ -80,6 +80,30 @@ input::-webkit-inner-spin-button {
   animation: cardFloat 4s ease-in-out infinite;
 }
 
+@keyframes cardWiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-0.6deg);
+  }
+  50% {
+    transform: rotate(0.6deg);
+  }
+  75% {
+    transform: rotate(-0.4deg);
+  }
+}
+
+.animate-card-wiggle {
+  animation: cardWiggle 1.4s ease-in-out infinite;
+}
+
+.card-stable {
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }

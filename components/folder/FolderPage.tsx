@@ -14,6 +14,7 @@ interface FolderPageProps {
   isInteriorCover?: boolean;
   tabLabel?: string;
   listName?: string;
+  cardCount?: number;
   isEditing?: boolean;
   isMobile?: boolean;
   onCardClick?: (card: CardWithCollectionData) => void;
@@ -48,6 +49,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   isInteriorCover = false,
   tabLabel,
   listName,
+  cardCount,
   isEditing = false,
   isMobile = false,
   onCardClick,
@@ -60,9 +62,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
     <div
       className="relative rounded-lg  h-full flex flex-col"
       style={{
-        backgroundColor: isInteriorCover
-          ? color || "rgb(30, 41, 59)"
-          : "#000000",
+        //backgroundColor: isInteriorCover ? color || "#1b2416" : "#141b12",
+        backgroundColor: "black",
       }}
     >
       {/* Folder holes removed - now using center divider line */}
@@ -78,12 +79,23 @@ export const FolderPage: React.FC<FolderPageProps> = ({
         {isInteriorCover ? (
           // Inside folder cover design
           <div className="flex items-center justify-center h-full">
-            <div className="text-center opacity-40">
-              <div className="text-6xl mb-4">📁</div>
-              <div className="text-lg font-medium text-white mb-2">
+            <div className="text-center">
+              <img
+                src="/assets/images/LOGO_OHARA.svg"
+                alt="Ohara"
+                className="mx-auto h-auto w-64 sm:w-72 opacity-90 drop-shadow-[0_10px_24px_rgba(0,0,0,0.7)]"
+              />
+              <div className="mt-4 text-lg font-medium text-white">
                 {listName}
               </div>
-              <div className="text-sm text-gray-200">Cubierta interior</div>
+              {typeof cardCount === "number" && (
+                <div className="mt-1 text-sm text-slate-200">
+                  {cardCount} cartas
+                </div>
+              )}
+              {/* <div className="mt-1 text-sm text-gray-300">
+                Cubierta interior
+              </div> */}
             </div>
           </div>
         ) : (

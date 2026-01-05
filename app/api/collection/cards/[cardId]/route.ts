@@ -167,7 +167,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         });
         if (slotsToRemove.length) {
           await slotClient.deleteMany({
-            where: { id: { in: slotsToRemove.map((slot) => slot.id) } },
+            where: {
+              id: {
+                in: slotsToRemove.map((slot: { id: number }) => slot.id),
+              },
+            },
           });
         }
       }

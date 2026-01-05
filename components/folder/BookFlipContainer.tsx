@@ -354,6 +354,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             isInteriorCover={true}
             tabLabel="Cubierta"
             listName={name}
+            cardCount={cardCount}
             isEditing={isEditing}
             isMobile={dimensions.showSinglePage}
             onCardClick={onCardClick}

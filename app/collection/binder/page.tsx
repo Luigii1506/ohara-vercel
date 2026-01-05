@@ -123,6 +123,8 @@ const CollectionBinderContent = () => {
   const [selectedCard, setSelectedCard] =
     useState<CardWithCollectionData | null>(null);
   const [showLargeImage, setShowLargeImage] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(rows, cols, windowSize, false);
@@ -315,6 +317,8 @@ const CollectionBinderContent = () => {
   const handleCardClick = (card: CardWithCollectionData) => {
     setSelectedCard(card);
     setShowLargeImage(true);
+    setPreviewVisible(false);
+    setPreviewReady(false);
   };
 
   const handlePageChange = (pageNumber: number) => {
@@ -448,7 +452,7 @@ const CollectionBinderContent = () => {
           <div className="flex-1 flex items-center justify-center p-1 pt-16 sm:p-4 relative min-h-0 md:pt-4">
             <BookFlipContainer
               name="Mi Colección"
-              color="blue"
+              color="#1b2416"
               dimensions={dims}
               currentPage={safePage}
               totalPages={totalPages}
@@ -505,18 +509,35 @@ const CollectionBinderContent = () => {
       {/* Card preview modal - view only */}
       {showLargeImage && selectedCard && (
         <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[999999] px-5 overflow-auto"
-          onClick={() => setShowLargeImage(false)}
+          className={`fixed inset-0 flex items-center justify-center bg-black/75 z-[999999] px-5 overflow-auto transition-opacity duration-300 ${
+            previewVisible ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => {
+            setPreviewVisible(false);
+            setTimeout(() => setShowLargeImage(false), 180);
+          }}
         >
-          <div className="w-full max-w-3xl">
+          <div
+            className={`w-full max-w-3xl transition-all duration-300 ease-out ${
+              previewVisible
+                ? "translate-y-0 scale-100 opacity-100"
+                : "translate-y-8 scale-95 opacity-0"
+            }`}
+          >
             <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
               Tap to close
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
                 src={selectedCard.src}
-                className="max-w-full max-h-[calc(100dvh-200px)] object-contain rounded-lg shadow-2xl"
+                className={`max-w-full max-h-[calc(100dvh-200px)] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ${
+                  previewReady ? "opacity-100" : "opacity-0"
+                }`}
                 alt={selectedCard.name}
+                onLoad={() => {
+                  setPreviewReady(true);
+                  requestAnimationFrame(() => setPreviewVisible(true));
+                }}
               />
               <div className="text-white text-lg font-[400] text-center px-5">
                 <span className={`${oswald.className} font-[500]`}>
@@ -527,13 +548,22 @@ const CollectionBinderContent = () => {
                 {(() => {
                   const priceValue = getCardPriceValue(selectedCard);
                   if (priceValue !== null) {
+                    const tcgUrl = selectedCard.tcgUrl;
                     return (
-                      <>
-                        <br />
-                        <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (tcgUrl) {
+                              window.open(tcgUrl, "_blank", "noopener,noreferrer");
+                            }
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-5 py-2 text-lg font-bold text-white shadow-lg transition hover:bg-emerald-500"
+                        >
                           {formatCurrency(priceValue, selectedCard.priceCurrency)}
-                        </span>
-                      </>
+                        </button>
+                      </div>
                     );
                   }
                   return null;

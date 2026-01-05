@@ -229,7 +229,7 @@ const AdminCardGroupsPage = () => {
       setLoading(true);
       const params = new URLSearchParams();
       params.set("page", "1");
-      params.set("limit", "500");
+      params.set("limit", "3000");
       if (search.trim()) params.set("search", search.trim());
       if (regionFilter !== "all") params.set("region", regionFilter);
       const response = await fetch(
@@ -237,6 +237,8 @@ const AdminCardGroupsPage = () => {
       );
       if (!response.ok) throw new Error("Failed to fetch groups");
       const data = (await response.json()) as GroupResponse;
+      console.log("[fetchGroups] total from API:", data.total, "items received:", data.items.length);
+      console.log("[fetchGroups] first 10 codes:", data.items.slice(0, 10).map(g => g.canonicalCode));
       setGroups(data.items);
       setRegionOrder(data.regionOrder ?? []);
     } catch (error) {
@@ -244,6 +246,28 @@ const AdminCardGroupsPage = () => {
       showErrorToast("Error al cargar grupos");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshSingleGroup = async (groupId: number) => {
+    try {
+      const response = await fetch(
+        `/api/admin/card-groups?search=&limit=1&groupId=${groupId}`
+      );
+      if (!response.ok) return;
+      const data = (await response.json()) as GroupResponse;
+      const updatedGroup = data.items[0];
+      if (!updatedGroup) return;
+
+      setGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? updatedGroup : g))
+      );
+
+      if (selectedGroup?.id === groupId) {
+        setSelectedGroup(updatedGroup);
+      }
+    } catch (error) {
+      console.error("Error refreshing single group:", error);
     }
   };
 
@@ -612,6 +636,8 @@ const AdminCardGroupsPage = () => {
     Array.from(map.values()).forEach((entries) => {
       entries.sort((a, b) => a.canonicalCode.localeCompare(b.canonicalCode));
     });
+    console.log("[groupsBySet] keys:", Array.from(map.keys()));
+    console.log("[groupsBySet] sizes:", Array.from(map.entries()).map(([k, v]) => `${k}:${v.length}`));
     return map;
   }, [groups]);
 
@@ -732,7 +758,7 @@ const AdminCardGroupsPage = () => {
                 const section = groupsBySet.get(setKey) ?? [];
                 if (!section.length) return null;
 
-                console.log("312", section);
+                console.log(`[setKey=${setKey}] cards:`, section.length, section.map(g => g.canonicalCode));
 
                 return (
                   <div key={setKey} className="space-y-2">
@@ -762,51 +788,51 @@ const AdminCardGroupsPage = () => {
                                 : ""
                             }`}
                           >
-                          <div className="flex items-center gap-3">
-                            <div className="h-16 w-12 overflow-hidden rounded-lg border bg-muted">
-                              <img
-                                src={
-                                  group.heroCard?.src ??
-                                  "/assets/images/backcard.webp"
-                                }
-                                alt={group.heroCard?.name || "Backcard"}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-slate-900">
-                                  {group.canonicalCode}
-                                </span>
-                                {group.missingRegions.length > 0 && (
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-[10px]"
-                                  >
-                                    {group.missingRegions.length} faltantes
-                                  </Badge>
-                                )}
+                            <div className="flex items-center gap-3">
+                              <div className="h-16 w-12 overflow-hidden rounded-lg border bg-muted">
+                                <img
+                                  src={
+                                    group.heroCard?.src ??
+                                    "/assets/images/backcard.webp"
+                                  }
+                                  alt={group.heroCard?.name || "Backcard"}
+                                  className="h-full w-full object-cover"
+                                />
                               </div>
-                              <p className="text-xs text-slate-500">
-                                {group.canonicalName || "Sin nombre canonico"}
-                              </p>
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {resolvedRegionOrder.map((region) => {
-                                  const status =
-                                    group.regionStatus?.[region] ??
-                                    "not-available";
-                                  return (
-                                    <span
-                                      key={`${group.id}-${region}`}
-                                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusStyles[status]}`}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-slate-900">
+                                    {group.canonicalCode}
+                                  </span>
+                                  {group.missingRegions.length > 0 && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-[10px]"
                                     >
-                                      {region}
-                                    </span>
-                                  );
-                                })}
+                                      {group.missingRegions.length} faltantes
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  {group.canonicalName || "Sin nombre canonico"}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {resolvedRegionOrder.map((region) => {
+                                    const status =
+                                      group.regionStatus?.[region] ??
+                                      "not-available";
+                                    return (
+                                      <span
+                                        key={`${group.id}-${region}`}
+                                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusStyles[status]}`}
+                                      >
+                                        {region}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
-                          </div>
                           </button>
                         );
                       })}

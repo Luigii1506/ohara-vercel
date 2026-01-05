@@ -66,6 +66,7 @@ import FAB from "@/components/Fab";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import SearchFilters from "@/components/home/SearchFilters";
 import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useToast } from "@/components/ui/MobileToast";
 
 interface CollectionCard {
@@ -175,6 +176,7 @@ const CollectionPage = () => {
   const [showFab, setShowFab] = useState(false);
   const [showHeader, setShowHeader] = useState(true);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const isDesktopViewport = useMediaQuery("(min-width: 768px)");
   const [selectedSlotIds, setSelectedSlotIds] = useState<number[]>([]);
   const [showMoveInput, setShowMoveInput] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
@@ -200,7 +202,9 @@ const CollectionPage = () => {
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: { delay: 250, tolerance: 8 },
   });
-  const sensors = useSensors(...(isTouchDevice ? [touchSensor] : [pointerSensor]));
+  const sensors = useSensors(
+    ...(isTouchDevice ? [touchSensor] : [pointerSensor])
+  );
   const collectionValue = React.useMemo(() => {
     return cards.reduce((sum, item) => {
       const price = item.card.marketPrice ?? 0;
@@ -210,10 +214,30 @@ const CollectionPage = () => {
 
   const sortOptions = [
     { value: "collection", label: "Orden de colección" },
-    { value: "name-asc", label: "Nombre A-Z", sortBy: "name", sortOrder: "asc" },
-    { value: "name-desc", label: "Nombre Z-A", sortBy: "name", sortOrder: "desc" },
-    { value: "cost-asc", label: "Coste: menor a mayor", sortBy: "cost", sortOrder: "asc" },
-    { value: "cost-desc", label: "Coste: mayor a menor", sortBy: "cost", sortOrder: "desc" },
+    {
+      value: "name-asc",
+      label: "Nombre A-Z",
+      sortBy: "name",
+      sortOrder: "asc",
+    },
+    {
+      value: "name-desc",
+      label: "Nombre Z-A",
+      sortBy: "name",
+      sortOrder: "desc",
+    },
+    {
+      value: "cost-asc",
+      label: "Coste: menor a mayor",
+      sortBy: "cost",
+      sortOrder: "asc",
+    },
+    {
+      value: "cost-desc",
+      label: "Coste: mayor a menor",
+      sortBy: "cost",
+      sortOrder: "desc",
+    },
     {
       value: "rarity-asc",
       label: "Rareza: menor a mayor",
@@ -300,16 +324,13 @@ const CollectionPage = () => {
     }
   };
 
-  const collisionDetectionStrategy = useCallback(
-    (args: any) => {
-      const pointerCollisions = pointerWithin(args);
-      if (pointerCollisions.length > 0) {
-        return pointerCollisions;
-      }
-      return closestCenter(args);
-    },
-    []
-  );
+  const collisionDetectionStrategy = useCallback((args: any) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+    return closestCenter(args);
+  }, []);
 
   const handleDragOver = (event: any) => {
     if (!isReorderMode || slots.length === 0 || isMoveMode) return;
@@ -345,9 +366,7 @@ const CollectionPage = () => {
         .map((id) => slots.find((slot) => slot.id === id))
         .filter(Boolean) as CollectionSlot[];
       const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
-      const insertIndexRaw = remaining.findIndex(
-        (slot) => slot.id === overId
-      );
+      const insertIndexRaw = remaining.findIndex((slot) => slot.id === overId);
       if (insertIndexRaw === -1) return;
       const insertIndex = insertIndexRaw;
       const nextSlots = [
@@ -485,8 +504,8 @@ const CollectionPage = () => {
               {slots.length === 0
                 ? "Configura"
                 : isMoveMode
-                  ? "Destino"
-                  : "Arrastra"}
+                ? "Destino"
+                : "Arrastra"}
             </div>
           )}
           {isReorderMode && onDelete && (
@@ -992,6 +1011,150 @@ const CollectionPage = () => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
+  const actionsPanel = (
+    <div className="p-5 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <MoreHorizontal className="h-6 w-6 text-slate-600" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Acciones</h2>
+          <p className="text-xs text-slate-500">
+            Resumen y accesos rapidos de tu coleccion
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <p className="text-xs text-slate-500">Valor estimado</p>
+            <p className="text-lg font-semibold text-emerald-600">
+              {formatPrice(collectionValue, "USD") || "—"}
+            </p>
+          </div>
+          <div className="text-right flex flex-col">
+            <p className="text-xs text-slate-500">Cartas totales</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {collection?.stats.totalCardsCount ?? 0}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 text-xs text-slate-500">
+          Unicas: {collection?.stats.totalUniqueCards ?? 0}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+        <p className="text-xs text-slate-500">Orden</p>
+        <Select
+          value={selectedSortValue}
+          onValueChange={handleSortChange}
+          disabled={isReorderMode}
+        >
+          <SelectTrigger className="h-10">
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isReorderMode && (
+          <p className="text-[11px] text-slate-500">
+            Desactiva el modo reordenar para cambiar el orden.
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-3">
+        <Button
+          variant="outline"
+          className="w-full justify-between"
+          onClick={() => {
+            setIsActionsOpen(false);
+            setShowBinderDrawer(true);
+          }}
+          disabled={!collection || collection.stats.totalUniqueCards === 0}
+        >
+          <span>Ver carpeta</span>
+          <FolderOpen className="h-4 w-4" />
+        </Button>
+        <Button
+          variant={isReorderMode ? "default" : "outline"}
+          className="w-full justify-between"
+          onClick={() => setIsReorderMode((prev) => !prev)}
+        >
+          <span>{isReorderMode ? "Reordenando" : "Reordenar cartas"}</span>
+          <GripVertical className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+        Usa el modo ordenar para acomodar tus cartas en el grid.
+      </div>
+    </div>
+  );
+
+  const binderPanel = (
+    <div className="p-5">
+      <div className="text-center mb-6">
+        <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <FolderOpen className="h-7 w-7 text-slate-600" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Ver como carpeta</h2>
+        <p className="text-slate-500 text-sm mt-1">
+          Selecciona el tamaño de la cuadrícula
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {gridOptions.map((option) => (
+          <button
+            key={option.label}
+            onClick={() => handleOpenBinder(option.rows, option.cols)}
+            className="p-4 rounded-xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-left group"
+          >
+            {/* Grid preview */}
+            <div className="mb-3 flex justify-center">
+              <div
+                className="grid gap-1 p-2 bg-slate-100 rounded-lg group-hover:bg-blue-100 transition-colors"
+                style={{
+                  gridTemplateColumns: `repeat(${option.cols}, 1fr)`,
+                  width: `${option.cols * 16 + (option.cols - 1) * 4 + 16}px`,
+                }}
+              >
+                {Array.from({ length: option.rows * option.cols }).map(
+                  (_, i) => (
+                    <div
+                      key={i}
+                      className="w-4 h-5 bg-slate-300 rounded-sm group-hover:bg-blue-300 transition-colors"
+                    />
+                  )
+                )}
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="font-bold text-lg text-slate-900">{option.label}</p>
+              <p className="text-xs text-slate-500">{option.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <Button
+        variant="ghost"
+        className="w-full mt-4"
+        onClick={() => setShowBinderDrawer(false)}
+      >
+        Cancelar
+      </Button>
+    </div>
+  );
+
   // Not authenticated view
   if (status === "unauthenticated") {
     return (
@@ -1105,59 +1268,54 @@ const CollectionPage = () => {
           />
 
           <div className="flex items-center gap-4">
-            <div className="ml-auto flex items-center gap-3">
-              <div className="hidden lg:block min-w-[210px]">
-                <Select
-                  value={selectedSortValue}
-                  onValueChange={handleSortChange}
-                  disabled={isReorderMode}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Ordenar por" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="ml-auto flex items-center gap-3 justify-between flex-1">
+              <div>
+                <p className="text-xs text-slate-500">
+                  {pagination.totalCards.toLocaleString()} cartas
+                </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsActionsOpen(true)}
-                className="gap-2"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="hidden sm:inline">Acciones</span>
-              </Button>
-              <Button
-                variant={isReorderMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => setIsReorderMode((prev) => !prev)}
-                className="gap-2"
-              >
-                <GripVertical className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {isReorderMode ? "Reordenando" : "Reordenar"}
-                </span>
-              </Button>
-              {collection && collection.stats.totalUniqueCards > 0 && (
+              <div className="flex gap-2">
+                <div className="hidden lg:block min-w-[210px]">
+                  <Select
+                    value={selectedSortValue}
+                    onValueChange={handleSortChange}
+                    disabled={isReorderMode}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
-                  variant="outline"
+                  variant={isReorderMode ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setShowBinderDrawer(true)}
+                  onClick={() => setIsReorderMode((prev) => !prev)}
                   className="gap-2"
                 >
-                  <FolderOpen className="h-4 w-4" />
-                  <span className="hidden sm:inline">Ver carpeta</span>
+                  <GripVertical className="h-4 w-4" />
+                  <span className="hidden sm:inline">
+                    {isReorderMode ? "Reordenando" : "Reordenar"}
+                  </span>
                 </Button>
-              )}
-              <p className="text-xs text-slate-500">
-                {pagination.totalCards.toLocaleString()} cartas
-              </p>
+                {collection && collection.stats.totalUniqueCards > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBinderDrawer(true)}
+                    className="gap-2"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">Ver carpeta</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1327,10 +1485,10 @@ const CollectionPage = () => {
                 {slots.length === 0
                   ? "Falta crear los slots. Corre el backfill para ordenar por copias."
                   : selectedSlotIds.length
-                    ? isMoveMode
-                      ? "Elige la carta destino para mover el lote."
-                      : "Toca las cartas que quieras mover."
-                    : "Toca para seleccionar. Mantén presionado para mover."}
+                  ? isMoveMode
+                    ? "Elige la carta destino para mover el lote."
+                    : "Toca las cartas que quieras mover."
+                  : "Toca para seleccionar. Mantén presionado para mover."}
               </div>
             )}
             {isReorderMode && slots.length > 0 && (
@@ -1424,7 +1582,9 @@ const CollectionPage = () => {
                             isSelected={selectedSlotIds.includes(slot.id)}
                             hasSelection={selectedSlotIds.length > 0}
                             isMoveMode={isMoveMode}
-                            onMoveHere={() => moveSelectedSlotsToTarget(slot.id)}
+                            onMoveHere={() =>
+                              moveSelectedSlotsToTarget(slot.id)
+                            }
                             onToggleSelect={() => toggleSlotSelection(slot.id)}
                           />
                         ))
@@ -1869,169 +2029,49 @@ const CollectionPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Actions Drawer */}
-      <BaseDrawer
-        isOpen={isActionsOpen}
-        onClose={() => setIsActionsOpen(false)}
-        desktopModal
-        desktopMaxWidth="max-w-md"
-        maxHeight="75vh"
-      >
-        <div className="p-5 space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-              <MoreHorizontal className="h-6 w-6 text-slate-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Acciones</h2>
-              <p className="text-xs text-slate-500">
-                Resumen y accesos rapidos de tu coleccion
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <p className="text-xs text-slate-500">Valor estimado</p>
-                <p className="text-lg font-semibold text-emerald-600">
-                  {formatPrice(collectionValue, "USD") || "—"}
-                </p>
-              </div>
-              <div className="text-right flex flex-col">
-                <p className="text-xs text-slate-500">Cartas totales</p>
-                <p className="text-lg font-semibold text-slate-900">
-                  {collection?.stats.totalCardsCount ?? 0}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-slate-500">
-              Unicas: {collection?.stats.totalUniqueCards ?? 0}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-            <p className="text-xs text-slate-500">Orden</p>
-            <Select
-              value={selectedSortValue}
-              onValueChange={handleSortChange}
-              disabled={isReorderMode}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                {sortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {isReorderMode && (
-              <p className="text-[11px] text-slate-500">
-                Desactiva el modo reordenar para cambiar el orden.
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-3">
-            <Button
-              variant="outline"
-              className="w-full justify-between"
-              onClick={() => {
-                setIsActionsOpen(false);
-                setShowBinderDrawer(true);
-              }}
-              disabled={!collection || collection.stats.totalUniqueCards === 0}
-            >
-              <span>Ver carpeta</span>
-              <FolderOpen className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={isReorderMode ? "default" : "outline"}
-              className="w-full justify-between"
-              onClick={() => setIsReorderMode((prev) => !prev)}
-            >
-              <span>{isReorderMode ? "Reordenando" : "Reordenar cartas"}</span>
-              <GripVertical className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-            Usa el modo ordenar para acomodar tus cartas en el grid.
-          </div>
-        </div>
-      </BaseDrawer>
+      {/* Actions Drawer/Modal */}
+      {isDesktopViewport ? (
+        <Dialog
+          open={isActionsOpen}
+          onOpenChange={(open) => {
+            if (!open) setIsActionsOpen(false);
+          }}
+        >
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            {actionsPanel}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <BaseDrawer
+          isOpen={isActionsOpen}
+          onClose={() => setIsActionsOpen(false)}
+          maxHeight="75vh"
+        >
+          {actionsPanel}
+        </BaseDrawer>
+      )}
 
       {/* Binder Grid Selection Drawer/Modal */}
-      <BaseDrawer
-        isOpen={showBinderDrawer}
-        onClose={() => setShowBinderDrawer(false)}
-        desktopModal={true}
-        desktopMaxWidth="max-w-md"
-        maxHeight="70vh"
-      >
-        <div className="p-5">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <FolderOpen className="h-7 w-7 text-slate-600" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900">
-              Ver como carpeta
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">
-              Selecciona el tamaño de la cuadrícula
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {gridOptions.map((option) => (
-              <button
-                key={option.label}
-                onClick={() => handleOpenBinder(option.rows, option.cols)}
-                className="p-4 rounded-xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-left group"
-              >
-                {/* Grid preview */}
-                <div className="mb-3 flex justify-center">
-                  <div
-                    className="grid gap-1 p-2 bg-slate-100 rounded-lg group-hover:bg-blue-100 transition-colors"
-                    style={{
-                      gridTemplateColumns: `repeat(${option.cols}, 1fr)`,
-                      width: `${
-                        option.cols * 16 + (option.cols - 1) * 4 + 16
-                      }px`,
-                    }}
-                  >
-                    {Array.from({ length: option.rows * option.cols }).map(
-                      (_, i) => (
-                        <div
-                          key={i}
-                          className="w-4 h-5 bg-slate-300 rounded-sm group-hover:bg-blue-300 transition-colors"
-                        />
-                      )
-                    )}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-lg text-slate-900">
-                    {option.label}
-                  </p>
-                  <p className="text-xs text-slate-500">{option.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <Button
-            variant="ghost"
-            className="w-full mt-4"
-            onClick={() => setShowBinderDrawer(false)}
-          >
-            Cancelar
-          </Button>
-        </div>
-      </BaseDrawer>
+      {isDesktopViewport ? (
+        <Dialog
+          open={showBinderDrawer}
+          onOpenChange={(open) => {
+            if (!open) setShowBinderDrawer(false);
+          }}
+        >
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            {binderPanel}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <BaseDrawer
+          isOpen={showBinderDrawer}
+          onClose={() => setShowBinderDrawer(false)}
+          maxHeight="70vh"
+        >
+          {binderPanel}
+        </BaseDrawer>
+      )}
     </div>
   );
 };

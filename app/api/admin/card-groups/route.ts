@@ -43,21 +43,30 @@ export async function GET(req: NextRequest) {
   try {
     const search = req.nextUrl.searchParams.get("search")?.trim() ?? "";
     const region = req.nextUrl.searchParams.get("region")?.trim() ?? "all";
+    const groupIdParam = req.nextUrl.searchParams.get("groupId");
     const pageParam = req.nextUrl.searchParams.get("page");
     const limitParam = req.nextUrl.searchParams.get("limit");
-    const limit = Math.min(Math.max(Number(limitParam) || 30, 10), 100);
+    const limit = Math.min(Math.max(Number(limitParam) || 30, 10), 3000);
     const page = Math.max(Number(pageParam) || 1, 1);
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (search.length > 0) {
-      where.OR = [
-        { canonicalCode: { contains: search, mode: "insensitive" } },
-        { canonicalName: { contains: search, mode: "insensitive" } },
-      ];
-    }
-    if (region !== "all") {
-      where.links = { some: { region } };
+    // If groupId is provided, fetch only that specific group
+    if (groupIdParam) {
+      const groupId = parseInt(groupIdParam, 10);
+      if (!isNaN(groupId)) {
+        where.id = groupId;
+      }
+    } else {
+      if (search.length > 0) {
+        where.OR = [
+          { canonicalCode: { contains: search, mode: "insensitive" } },
+          { canonicalName: { contains: search, mode: "insensitive" } },
+        ];
+      }
+      if (region !== "all") {
+        where.links = { some: { region } };
+      }
     }
 
     const [items, total] = await Promise.all([

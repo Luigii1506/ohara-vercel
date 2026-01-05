@@ -33,6 +33,7 @@ import {
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -177,6 +178,10 @@ const CollectionPage = () => {
   const [moveTarget, setMoveTarget] = useState("");
   const [isMoveMode, setIsMoveMode] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CollectionSlot | null>(null);
+  const lastOverRef = useRef<{
+    id: number | null;
+    position: "before" | "after" | null;
+  }>({ id: null, position: null });
 
   // Card preview states (like CardPreviewDialog)
   const [showLargeImage, setShowLargeImage] = useState(false);
@@ -293,21 +298,56 @@ const CollectionPage = () => {
     }
   };
 
+  const collisionDetectionStrategy = useCallback(
+    (args: any) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) {
+        return pointerCollisions;
+      }
+      return closestCenter(args);
+    },
+    []
+  );
+
+  const handleDragOver = (event: any) => {
+    if (!isReorderMode || slots.length === 0 || isMoveMode) return;
+    if (!event.over?.rect || !event.active?.rect?.current?.translated) return;
+    const activeRect = event.active.rect.current.translated;
+    const overRect = event.over.rect;
+    const activeCenterY = activeRect.top + activeRect.height / 2;
+    const overCenterY = overRect.top + overRect.height / 2;
+    const position = activeCenterY > overCenterY ? "after" : "before";
+    lastOverRef.current = {
+      id: Number(event.over.id),
+      position,
+    };
+  };
+
   const handleDragEnd = (event: any) => {
     if (!isReorderMode || slots.length === 0 || isMoveMode) return;
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      lastOverRef.current = { id: null, position: null };
+      return;
+    }
     const oldIndex = slots.findIndex((item) => item.id === active.id);
     const newIndex = slots.findIndex((item) => item.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
     if (selectedSlotIds.includes(active.id) && selectedSlotIds.length > 0) {
-      if (selectedSlotIds.includes(over.id)) return;
-      const selectedSet = new Set(selectedSlotIds);
-      const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
+      const overId = lastOverRef.current.id ?? Number(over.id);
+      const position = lastOverRef.current.position ?? "before";
+      if (selectedSlotIds.includes(overId)) return;
+      const selectedSet = new Set(selectedSlotIdsOrdered);
+      const selectedOrdered = selectedSlotIdsOrdered
+        .map((id) => slots.find((slot) => slot.id === id))
+        .filter(Boolean) as CollectionSlot[];
       const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
-      const insertIndex = remaining.findIndex((slot) => slot.id === over.id);
-      if (insertIndex === -1) return;
+      const insertIndexRaw = remaining.findIndex(
+        (slot) => slot.id === overId
+      );
+      if (insertIndexRaw === -1) return;
+      const insertIndex = insertIndexRaw;
       const nextSlots = [
         ...remaining.slice(0, insertIndex),
         ...selectedOrdered,
@@ -315,11 +355,13 @@ const CollectionPage = () => {
       ];
       handleReorder(nextSlots);
       clearSelection();
+      lastOverRef.current = { id: null, position: null };
       return;
     }
 
     const reordered = arrayMove(slots, oldIndex, newIndex);
     handleReorder(reordered);
+    lastOverRef.current = { id: null, position: null };
   };
 
   const SortableGridCard = ({
@@ -378,7 +420,10 @@ const CollectionPage = () => {
           className={`border rounded-lg shadow bg-white justify-center items-center flex flex-col relative group card-stable ${
             isReorderMode ? "animate-card-wiggle" : ""
           }`}
-          onClick={() => {
+          onClick={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
             if (isReorderMode) {
               if (isMoveMode && hasSelection && !isSelected && onMoveHere) {
                 onMoveHere();
@@ -389,9 +434,25 @@ const CollectionPage = () => {
             }
             onSelect();
           }}
+          onMouseDown={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
+          onTouchStart={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
+          onPointerDown={(event) => {
+            if (isReorderMode) {
+              event.preventDefault();
+            }
+          }}
           style={{ touchAction: isReorderMode ? "pan-y" : "auto" }}
           {...(isReorderMode ? attributes : {})}
           {...(isReorderMode ? listeners : {})}
+          tabIndex={-1}
         >
           <img
             src={item.card.src}
@@ -557,10 +618,8 @@ const CollectionPage = () => {
 
   const selectedSlotIdsOrdered = React.useMemo(() => {
     if (!selectedSlotIds.length) return [];
-    const selectedSet = new Set(selectedSlotIds);
-    return slots
-      .filter((slot) => selectedSet.has(slot.id))
-      .map((slot) => slot.id);
+    const slotIds = new Set(slots.map((slot) => slot.id));
+    return selectedSlotIds.filter((id) => slotIds.has(id));
   }, [selectedSlotIds, slots]);
 
   const selectedSlotOrderMap = React.useMemo(() => {
@@ -578,8 +637,10 @@ const CollectionPage = () => {
       toast.error(`Posición válida: 1 - ${maxIndex}`);
       return;
     }
-    const selectedSet = new Set(selectedSlotIds);
-    const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
+    const selectedSet = new Set(selectedSlotIdsOrdered);
+    const selectedOrdered = selectedSlotIdsOrdered
+      .map((id) => slots.find((slot) => slot.id === id))
+      .filter(Boolean) as CollectionSlot[];
     const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
     const insertIndex = targetIndex - 1;
     const nextSlots = [
@@ -595,9 +656,11 @@ const CollectionPage = () => {
 
   const moveSelectedSlotsToTarget = (targetSlotId: number) => {
     if (!selectedSlotIds.length) return;
-    const selectedSet = new Set(selectedSlotIds);
+    const selectedSet = new Set(selectedSlotIdsOrdered);
     if (selectedSet.has(targetSlotId)) return;
-    const selectedOrdered = slots.filter((slot) => selectedSet.has(slot.id));
+    const selectedOrdered = selectedSlotIdsOrdered
+      .map((id) => slots.find((slot) => slot.id === id))
+      .filter(Boolean) as CollectionSlot[];
     const remaining = slots.filter((slot) => !selectedSet.has(slot.id));
     const insertIndexRaw = remaining.findIndex(
       (slot) => slot.id === targetSlotId
@@ -1273,7 +1336,8 @@ const CollectionPage = () => {
             {isReorderMode ? (
               <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={collisionDetectionStrategy}
+                onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
                 autoScroll={false}
               >

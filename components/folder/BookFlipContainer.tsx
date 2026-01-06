@@ -8,6 +8,7 @@ import { FolderDimensions, GridCard } from "./types";
 import { CardWithCollectionData } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface BookFlipContainerProps {
   name: string;
@@ -115,6 +116,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onNavigateNext,
   maxNavigablePage,
 }) => {
+  const { t } = useI18n();
   const bookRef = useRef<any>(null);
   const interceptorRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -352,7 +354,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
               .fill(null)
               .map(() => Array(maxColumns).fill(null))}
             isInteriorCover={true}
-            tabLabel="Cubierta"
+            tabLabel={t("folder.cover")}
             listName={name}
             cardCount={cardCount}
             isEditing={isEditing}
@@ -386,7 +388,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             maxColumns={maxColumns}
             cards={grid}
             isInteriorCover={false}
-            tabLabel={`Página ${pageNum}`}
+            tabLabel={`${t("folder.page")} ${pageNum}`}
             listName={name}
             isEditing={isEditing}
             isMobile={dimensions.showSinglePage}
@@ -524,18 +526,26 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
                   <div className="px-4 py-2 bg-gradient-to-r from-slate-800 to-slate-900 text-white text-sm font-medium rounded-full shadow-lg border border-white/10">
                     {currentPage === 0 ? (
                       <>
-                        <span className="text-blue-300">Cubierta Interior</span>{" "}
-                        - <span className="text-blue-300">Página</span> 1
+                        <span className="text-blue-300">
+                          {t("folder.insideCover")}
+                        </span>{" "}
+                        - <span className="text-blue-300">{t("folder.page")}</span>{" "}
+                        1
                       </>
                     ) : (
                       <>
                         {/* In desktop mode, currentPage is the flip book index */}
                         {/* Index 0 = Interior+Page1, Index 2 = Page2+Page3, Index 4 = Page4+Page5... */}
                         {/* So left page number = currentPage, right page = currentPage + 1 */}
-                        <span className="text-blue-300">Páginas</span>{" "}
+                        <span className="text-blue-300">
+                          {t("folder.pages")}
+                        </span>{" "}
                         {Math.min(currentPage, totalPages)}-
                         {Math.min(currentPage + 1, totalPages)}
-                        <span className="text-slate-400"> de {totalPages}</span>
+                        <span className="text-slate-400">
+                          {" "}
+                          {t("folder.of")} {totalPages}
+                        </span>
                       </>
                     )}
                   </div>

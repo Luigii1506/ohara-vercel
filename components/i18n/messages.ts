@@ -237,6 +237,112 @@ export type MessageKey =
   | "announcement.ctaDefault"
   | "announcement.ctaSecondary"
   | "announcement.badge"
+  | "collection.actions.title"
+  | "collection.actions.subtitle"
+  | "collection.stats.estimatedValue"
+  | "collection.stats.totalCards"
+  | "collection.stats.uniqueCards"
+  | "collection.sort.label"
+  | "collection.sort.placeholder"
+  | "collection.sort.collectionOrder"
+  | "collection.sort.nameAsc"
+  | "collection.sort.nameDesc"
+  | "collection.sort.costAsc"
+  | "collection.sort.costDesc"
+  | "collection.sort.rarityAsc"
+  | "collection.sort.rarityDesc"
+  | "collection.sort.quantityDesc"
+  | "collection.sort.quantityAsc"
+  | "collection.sort.addedNew"
+  | "collection.sort.addedOld"
+  | "collection.reorder.disableHint"
+  | "collection.viewBinder"
+  | "collection.reorder.reordering"
+  | "collection.reorder.cards"
+  | "collection.reorder.short"
+  | "collection.reorder.hint"
+  | "collection.login.title"
+  | "collection.login.subtitle"
+  | "collection.login.button"
+  | "collection.login.popupBlocked"
+  | "collection.title"
+  | "collection.cardsCount"
+  | "collection.search.placeholder"
+  | "collection.filters"
+  | "collection.binder"
+  | "collection.empty.title.noResults"
+  | "collection.empty.title.noCards"
+  | "collection.empty.subtitle.noResults"
+  | "collection.empty.subtitle.noCards"
+  | "collection.empty.cta"
+  | "collection.reorder.slotsMissing"
+  | "collection.reorder.pickDestination"
+  | "collection.reorder.tapToMove"
+  | "collection.reorder.tapToSelect"
+  | "collection.reorder.selectToMove"
+  | "collection.reorder.selectedCount"
+  | "collection.reorder.moveBatch"
+  | "collection.reorder.moveToPosition"
+  | "collection.reorder.clear"
+  | "collection.position"
+  | "collection.invalidPosition"
+  | "collection.move"
+  | "collection.move.cancel"
+  | "collection.move.target"
+  | "collection.move.short"
+  | "collection.positionRange"
+  | "collection.selectCardsToMove"
+  | "collection.start"
+  | "collection.end"
+  | "collection.delete"
+  | "collection.configure"
+  | "collection.drag"
+  | "collection.quantityInCollection"
+  | "collection.removeFromCollection"
+  | "collection.tapToExpand"
+  | "collection.tapToClose"
+  | "collection.deleteCardTitle"
+  | "collection.deleteCardDesc"
+  | "collection.deleteCopy"
+  | "collection.cancel"
+  | "collection.accept"
+  | "collection.errors.orderSave"
+  | "collection.errors.slotRemove"
+  | "collection.errors.collectionLoad"
+  | "collection.errors.quantityUpdate"
+  | "collection.success.removedFromCollection"
+  | "collection.errors.removeCard"
+  | "collection.toast.removed"
+  | "collection.cardsPerPage"
+  | "collection.binder.title"
+  | "collection.binder.subtitle"
+  | "collection.binder.loginTitle"
+  | "collection.binder.loginSubtitle"
+  | "collection.binder.loginButton"
+  | "collection.binder.emptyTitle"
+  | "collection.binder.emptySubtitle"
+  | "collection.binder.backToCollection"
+  | "collection.binder.back"
+  | "collection.binder.cover"
+  | "collection.binder.pageOf"
+  | "collection.binder.insideCover"
+  | "collection.binder.collectionName"
+  | "collection.binder.previous"
+  | "collection.binder.next"
+  | "collection.binder.page"
+  | "collection.binder.tapToClose"
+  | "collection.binder.collectionLoadError"
+  | "collection.binder.share"
+  | "collection.binder.shareTitle"
+  | "collection.binder.shareText"
+  | "collection.binder.shareSelectGrid"
+  | "collection.binder.shareCopied"
+  | "collection.binder.shareError"
+  | "folder.cover"
+  | "folder.insideCover"
+  | "folder.page"
+  | "folder.pages"
+  | "folder.of"
   | "language.title"
   | "language.subtitle";
 
@@ -489,6 +595,125 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "deckStats.counterLabel": "Counter",
     "deckStats.typeLabel": "Tipo",
     "deckStats.empty": "Agrega cartas para ver stats",
+    "collection.actions.title": "Acciones",
+    "collection.actions.subtitle": "Resumen y accesos rápidos de tu colección",
+    "collection.stats.estimatedValue": "Valor estimado",
+    "collection.stats.totalCards": "Cartas totales",
+    "collection.stats.uniqueCards": "Únicas",
+    "collection.sort.label": "Orden",
+    "collection.sort.placeholder": "Ordenar por",
+    "collection.sort.collectionOrder": "Orden de colección",
+    "collection.sort.nameAsc": "Nombre A-Z",
+    "collection.sort.nameDesc": "Nombre Z-A",
+    "collection.sort.costAsc": "Coste: menor a mayor",
+    "collection.sort.costDesc": "Coste: mayor a menor",
+    "collection.sort.rarityAsc": "Rareza: menor a mayor",
+    "collection.sort.rarityDesc": "Rareza: mayor a menor",
+    "collection.sort.quantityDesc": "Cantidad: mayor a menor",
+    "collection.sort.quantityAsc": "Cantidad: menor a mayor",
+    "collection.sort.addedNew": "Agregadas: más nuevas",
+    "collection.sort.addedOld": "Agregadas: más antiguas",
+    "collection.reorder.disableHint":
+      "Desactiva el modo reordenar para cambiar el orden.",
+    "collection.viewBinder": "Ver carpeta",
+    "collection.reorder.reordering": "Reordenando",
+    "collection.reorder.cards": "Reordenar cartas",
+    "collection.reorder.short": "Reordenar",
+    "collection.reorder.hint":
+      "Usa el modo ordenar para acomodar tus cartas en el grid.",
+    "collection.login.title": "Tu Colección",
+    "collection.login.subtitle":
+      "Inicia sesión para ver y gestionar tu colección de cartas",
+    "collection.login.button": "Iniciar sesión con Google",
+    "collection.login.popupBlocked":
+      "Activa los pop-ups para iniciar sesión",
+    "collection.title": "Mi Colección",
+    "collection.cardsCount": "{count} cartas",
+    "collection.search.placeholder": "Buscar cartas...",
+    "collection.filters": "Filtros",
+    "collection.binder": "Carpeta",
+    "collection.empty.title.noResults": "No se encontraron cartas",
+    "collection.empty.title.noCards": "Tu colección está vacía",
+    "collection.empty.subtitle.noResults": "Intenta con otra búsqueda",
+    "collection.empty.subtitle.noCards":
+      "Empieza a agregar cartas desde el catálogo",
+    "collection.empty.cta": "Explorar cartas",
+    "collection.reorder.slotsMissing":
+      "Falta crear los slots. Corre el backfill para ordenar por copias.",
+    "collection.reorder.pickDestination":
+      "Elige la carta destino para mover el lote.",
+    "collection.reorder.tapToMove": "Toca las cartas que quieras mover.",
+    "collection.reorder.tapToSelect":
+      "Toca para seleccionar. Mantén presionado para mover.",
+    "collection.reorder.selectToMove": "Selecciona cartas para mover.",
+    "collection.reorder.selectedCount": "{count} seleccionadas",
+    "collection.reorder.moveBatch": "Mover lote",
+    "collection.reorder.moveToPosition": "Mover a posición",
+    "collection.reorder.clear": "Limpiar",
+    "collection.position": "Posición",
+    "collection.invalidPosition": "Posición inválida",
+    "collection.move": "Mover",
+    "collection.move.cancel": "Cancelar mover",
+    "collection.move.target": "Destino",
+    "collection.move.short": "Mover",
+    "collection.positionRange": "Posición válida: 1 - {max}",
+    "collection.selectCardsToMove": "Selecciona cartas para mover",
+    "collection.start": "Inicio",
+    "collection.end": "Final",
+    "collection.delete": "Eliminar",
+    "collection.configure": "Configura",
+    "collection.drag": "Arrastra",
+    "collection.quantityInCollection": "Cantidad en colección",
+    "collection.removeFromCollection": "Eliminar de la colección",
+    "collection.tapToExpand": "Tap para expandir",
+    "collection.tapToClose": "Tap para cerrar",
+    "collection.deleteCardTitle": "Eliminar carta",
+    "collection.deleteCardDesc": "Se eliminará una copia de tu colección.",
+    "collection.deleteCopy": "Eliminar copia",
+    "collection.cancel": "Cancelar",
+    "collection.accept": "Aceptar",
+    "collection.errors.orderSave": "Error al guardar el orden",
+    "collection.errors.slotRemove": "Error al eliminar la carta",
+    "collection.errors.collectionLoad": "Error al cargar la colección",
+    "collection.errors.quantityUpdate": "Error al actualizar cantidad",
+    "collection.success.removedFromCollection":
+      "Carta eliminada de la colección",
+    "collection.errors.removeCard": "Error al eliminar carta",
+    "collection.toast.removed": "Eliminada",
+    "collection.cardsPerPage": "{count} cartas por página",
+    "collection.binder.title": "Ver como carpeta",
+    "collection.binder.subtitle": "Selecciona el tamaño de la cuadrícula",
+    "collection.binder.loginTitle": "Ver Carpeta",
+    "collection.binder.loginSubtitle":
+      "Inicia sesión para ver tu colección como carpeta",
+    "collection.binder.loginButton": "Iniciar sesión con Google",
+    "collection.binder.emptyTitle": "Colección vacía",
+    "collection.binder.emptySubtitle":
+      "Agrega cartas a tu colección para verlas en la carpeta.",
+    "collection.binder.backToCollection": "Volver a la colección",
+    "collection.binder.back": "Volver",
+    "collection.binder.cover": "Cubierta",
+    "collection.binder.pageOf": "Página {page} de {total}",
+    "collection.binder.insideCover": "Cubierta Interior",
+    "collection.binder.collectionName": "Mi Colección",
+    "collection.binder.previous": "Anterior",
+    "collection.binder.next": "Siguiente",
+    "collection.binder.page": "Página",
+    "collection.binder.tapToClose": "Tap para cerrar",
+    "collection.binder.collectionLoadError": "Error al cargar la colección",
+    "collection.binder.share": "Compartir",
+    "collection.binder.shareTitle": "Mi colección en Ohara TCG",
+    "collection.binder.shareText":
+      "Mira mi colección de One Piece TCG en formato carpeta.",
+    "collection.binder.shareSelectGrid":
+      "Selecciona el tamaño de la cuadrícula para compartir",
+    "collection.binder.shareCopied": "Enlace copiado",
+    "collection.binder.shareError": "No se pudo compartir el enlace",
+    "folder.cover": "Cubierta",
+    "folder.insideCover": "Cubierta Interior",
+    "folder.page": "Página",
+    "folder.pages": "Páginas",
+    "folder.of": "de",
     "announcement.dismiss": "Ahora no",
     "announcement.ctaDefault": "Ver novedades",
     "announcement.ctaSecondary": "Entendido",
@@ -739,6 +964,121 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "deckStats.counterLabel": "Counter",
     "deckStats.typeLabel": "Type",
     "deckStats.empty": "Add cards to see stats",
+    "collection.actions.title": "Actions",
+    "collection.actions.subtitle": "Summary and quick access to your collection",
+    "collection.stats.estimatedValue": "Estimated value",
+    "collection.stats.totalCards": "Total cards",
+    "collection.stats.uniqueCards": "Unique",
+    "collection.sort.label": "Sort",
+    "collection.sort.placeholder": "Sort by",
+    "collection.sort.collectionOrder": "Collection order",
+    "collection.sort.nameAsc": "Name A-Z",
+    "collection.sort.nameDesc": "Name Z-A",
+    "collection.sort.costAsc": "Cost: low to high",
+    "collection.sort.costDesc": "Cost: high to low",
+    "collection.sort.rarityAsc": "Rarity: low to high",
+    "collection.sort.rarityDesc": "Rarity: high to low",
+    "collection.sort.quantityDesc": "Quantity: high to low",
+    "collection.sort.quantityAsc": "Quantity: low to high",
+    "collection.sort.addedNew": "Added: newest",
+    "collection.sort.addedOld": "Added: oldest",
+    "collection.reorder.disableHint":
+      "Disable reorder mode to change the order.",
+    "collection.viewBinder": "View binder",
+    "collection.reorder.reordering": "Reordering",
+    "collection.reorder.cards": "Reorder cards",
+    "collection.reorder.short": "Reorder",
+    "collection.reorder.hint":
+      "Use reorder mode to arrange your cards in the grid.",
+    "collection.login.title": "Your Collection",
+    "collection.login.subtitle":
+      "Sign in to view and manage your card collection",
+    "collection.login.button": "Sign in with Google",
+    "collection.login.popupBlocked": "Enable pop-ups to sign in",
+    "collection.title": "My Collection",
+    "collection.cardsCount": "{count} cards",
+    "collection.search.placeholder": "Search cards...",
+    "collection.filters": "Filters",
+    "collection.binder": "Binder",
+    "collection.empty.title.noResults": "No cards found",
+    "collection.empty.title.noCards": "Your collection is empty",
+    "collection.empty.subtitle.noResults": "Try another search",
+    "collection.empty.subtitle.noCards": "Start adding cards from the catalog",
+    "collection.empty.cta": "Browse cards",
+    "collection.reorder.slotsMissing":
+      "Slots are missing. Run the backfill to reorder by copies.",
+    "collection.reorder.pickDestination":
+      "Choose the destination card to move the batch.",
+    "collection.reorder.tapToMove": "Tap the cards you want to move.",
+    "collection.reorder.tapToSelect": "Tap to select. Press and hold to move.",
+    "collection.reorder.selectToMove": "Select cards to move.",
+    "collection.reorder.selectedCount": "{count} selected",
+    "collection.reorder.moveBatch": "Move batch",
+    "collection.reorder.moveToPosition": "Move to position",
+    "collection.reorder.clear": "Clear",
+    "collection.position": "Position",
+    "collection.invalidPosition": "Invalid position",
+    "collection.move": "Move",
+    "collection.move.cancel": "Cancel move",
+    "collection.move.target": "Target",
+    "collection.move.short": "Move",
+    "collection.positionRange": "Valid position: 1 - {max}",
+    "collection.selectCardsToMove": "Select cards to move",
+    "collection.start": "Start",
+    "collection.end": "End",
+    "collection.delete": "Delete",
+    "collection.configure": "Set up",
+    "collection.drag": "Drag",
+    "collection.quantityInCollection": "Quantity in collection",
+    "collection.removeFromCollection": "Remove from collection",
+    "collection.tapToExpand": "Tap to expand",
+    "collection.tapToClose": "Tap to close",
+    "collection.deleteCardTitle": "Delete card",
+    "collection.deleteCardDesc": "One copy will be removed from your collection.",
+    "collection.deleteCopy": "Delete copy",
+    "collection.cancel": "Cancel",
+    "collection.accept": "Accept",
+    "collection.errors.orderSave": "Error saving order",
+    "collection.errors.slotRemove": "Error removing card",
+    "collection.errors.collectionLoad": "Error loading collection",
+    "collection.errors.quantityUpdate": "Error updating quantity",
+    "collection.success.removedFromCollection": "Card removed from collection",
+    "collection.errors.removeCard": "Error removing card",
+    "collection.toast.removed": "Removed",
+    "collection.cardsPerPage": "{count} cards per page",
+    "collection.binder.title": "View as binder",
+    "collection.binder.subtitle": "Select the grid size",
+    "collection.binder.loginTitle": "View Binder",
+    "collection.binder.loginSubtitle":
+      "Sign in to view your collection as a binder",
+    "collection.binder.loginButton": "Sign in with Google",
+    "collection.binder.emptyTitle": "Empty collection",
+    "collection.binder.emptySubtitle":
+      "Add cards to your collection to view them in the binder.",
+    "collection.binder.backToCollection": "Back to collection",
+    "collection.binder.back": "Back",
+    "collection.binder.cover": "Cover",
+    "collection.binder.pageOf": "Page {page} of {total}",
+    "collection.binder.insideCover": "Inside cover",
+    "collection.binder.collectionName": "My Collection",
+    "collection.binder.previous": "Previous",
+    "collection.binder.next": "Next",
+    "collection.binder.page": "Page",
+    "collection.binder.tapToClose": "Tap to close",
+    "collection.binder.collectionLoadError": "Error loading collection",
+    "collection.binder.share": "Share",
+    "collection.binder.shareTitle": "My collection on Ohara TCG",
+    "collection.binder.shareText":
+      "Check out my One Piece TCG collection in binder view.",
+    "collection.binder.shareSelectGrid":
+      "Select a grid size to share",
+    "collection.binder.shareCopied": "Link copied",
+    "collection.binder.shareError": "Could not share the link",
+    "folder.cover": "Cover",
+    "folder.insideCover": "Inside cover",
+    "folder.page": "Page",
+    "folder.pages": "Pages",
+    "folder.of": "of",
     "announcement.dismiss": "Not now",
     "announcement.ctaDefault": "See what's new",
     "announcement.ctaSecondary": "Got it",

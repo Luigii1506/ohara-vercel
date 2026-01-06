@@ -434,7 +434,7 @@ const NavBar = () => {
                   height={120}
                   width={120}
                   alt="logo"
-                  className="invert w-[100px] md:w-[120px] h-auto"
+                  className="w-[100px] md:w-[120px] h-auto"
                 />
               </Link>
 

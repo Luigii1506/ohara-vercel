@@ -287,6 +287,7 @@ const NavBar = () => {
   ];
 
   const privateDesktopMenuItems = [
+    { href: "/collection", label: t("nav.collection"), icon: FolderOpen },
     { href: "/decks", label: t("nav.decks"), icon: FolderOpen },
   ];
 
@@ -300,6 +301,7 @@ const NavBar = () => {
   ];
 
   const privateMobileMenuItems = [
+    { href: "/collection", label: t("nav.collection"), icon: FolderOpen },
     { href: "/decks", label: t("nav.decks"), icon: FolderOpen },
   ];
 

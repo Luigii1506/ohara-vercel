@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Link2, RefreshCw, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  Check,
+  Link2,
+  Pencil,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +43,15 @@ type CardGroupItem = {
   regions: string[];
   missingRegions: string[];
   notAvailableRegions: string[];
-  regionStatus: Record<string, "present" | "missing" | "not-available">;
+  regionStatus: Record<
+    string,
+    | "present"
+    | "missing"
+    | "not-available"
+    | "unknown"
+    | "exclusive"
+    | "not-exists"
+  >;
   isExclusive: boolean;
   baseComplete: boolean;
   fullComplete: boolean;
@@ -181,6 +198,9 @@ const getSetKey = (canonicalCode: string) => {
 const statusStyles = {
   present: "bg-emerald-100 text-emerald-800 border-emerald-200",
   missing: "bg-rose-100 text-rose-700 border-rose-200",
+  unknown: "bg-amber-100 text-amber-800 border-amber-200",
+  exclusive: "bg-purple-100 text-purple-800 border-purple-200",
+  "not-exists": "bg-rose-100 text-rose-700 border-rose-200",
   "not-available": "bg-slate-100 text-slate-500 border-slate-200",
 };
 
@@ -210,6 +230,14 @@ const AdminCardGroupsPage = () => {
     Record<number, Record<string, string>>
   >({});
   const [creatingVariant, setCreatingVariant] = useState(false);
+  const [selectedVariantRegion, setSelectedVariantRegion] = useState<
+    string | null
+  >(null);
+  const [editingVariantGroupId, setEditingVariantGroupId] = useState<
+    number | null
+  >(null);
+  const [variantNameDraft, setVariantNameDraft] = useState("");
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resolvedRegionOrder = regionOrder.length
     ? regionOrder
@@ -362,6 +390,7 @@ const AdminCardGroupsPage = () => {
   }, [selectedGroup]);
 
   useEffect(() => {
+    if (creatingVariant) return;
     if (!variantGroups.length) {
       setSelectedVariantGroupId(null);
       return;
@@ -373,7 +402,135 @@ const AdminCardGroupsPage = () => {
       if (exists) return;
     }
     setSelectedVariantGroupId(variantGroups[0].id);
-  }, [variantGroups, selectedVariantGroupId]);
+  }, [creatingVariant, variantGroups, selectedVariantGroupId]);
+
+  useEffect(() => {
+    if (!selectedGroup) {
+      setEditingVariantGroupId(null);
+      setVariantNameDraft("");
+    }
+  }, [selectedGroup]);
+
+  useEffect(() => {
+    if (!resolvedRegionOrder.length) return;
+    if (!selectedVariantRegion) {
+      setSelectedVariantRegion(resolvedRegionOrder[0]);
+      return;
+    }
+    if (!resolvedRegionOrder.includes(selectedVariantRegion)) {
+      setSelectedVariantRegion(resolvedRegionOrder[0]);
+    }
+  }, [resolvedRegionOrder, selectedVariantRegion]);
+
+  const handleRenameVariantGroup = async (
+    variantGroupId: number,
+    name: string
+  ) => {
+    if (!selectedGroup) return;
+    try {
+      const response = await fetch(
+        `/api/admin/card-variant-groups/${variantGroupId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update variant group");
+      }
+      showSuccessToast("Nombre actualizado");
+      await fetchRegionCards(selectedGroup.id);
+    } catch (error) {
+      console.error(error);
+      showErrorToast(
+        error instanceof Error ? error.message : "Error al actualizar"
+      );
+    }
+  };
+
+  const handleDeleteVariantGroup = async (variantGroupId: number) => {
+    if (!selectedGroup) return;
+    const confirmed = window.confirm(
+      "Eliminar este grupo alterno borrara todas sus vinculaciones. Continuar?"
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetch(
+        `/api/admin/card-variant-groups/${variantGroupId}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete variant group");
+      }
+      if (selectedVariantGroupId === variantGroupId) {
+        setSelectedVariantGroupId(null);
+      }
+      setEditingVariantGroupId(null);
+      setVariantNameDraft("");
+      showSuccessToast("Grupo alterno eliminado");
+      await fetchRegionCards(selectedGroup.id);
+    } catch (error) {
+      console.error(error);
+      showErrorToast(
+        error instanceof Error ? error.message : "Error al eliminar"
+      );
+    }
+  };
+
+  const handleMarkVariantGroupExclusive = async (variantGroupId: number) => {
+    if (!selectedGroup) return;
+    const linkedRegions = Array.from(
+      linkedVariantRegions.get(variantGroupId) ?? []
+    );
+    if (linkedRegions.length === 0) {
+      showErrorToast("Vincula una alterna primero");
+      return;
+    }
+    if (linkedRegions.length > 1) {
+      showErrorToast("Solo una region puede estar vinculada para exclusivas");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Marcar exclusivo pondra No existe en las demas regiones. Continuar?"
+    );
+    if (!confirmed) return;
+    const exclusiveRegion = linkedRegions[0];
+    try {
+      await Promise.all(
+        resolvedRegionOrder.map((region) =>
+          fetch(`/api/admin/card-variant-groups/${variantGroupId}/region-status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              region,
+              status: region === exclusiveRegion ? "EXCLUSIVE" : "NOT_EXISTS",
+            }),
+          })
+        )
+      );
+      showSuccessToast("Grupo marcado como exclusivo");
+      setVariantRegionStatus((prev) => {
+        const next = { ...(prev[variantGroupId] ?? {}) };
+        resolvedRegionOrder.forEach((region) => {
+          next[region] =
+            region === exclusiveRegion ? "EXCLUSIVE" : "NOT_EXISTS";
+        });
+        return { ...prev, [variantGroupId]: next };
+      });
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = setTimeout(() => {
+        refreshSingleGroup(selectedGroup.id);
+      }, 500);
+    } catch (error) {
+      console.error(error);
+      showErrorToast("Error al marcar exclusivo");
+    }
+  };
 
   const handleLink = async () => {
     if (!selectedGroup || !selectedCardId) return;
@@ -475,6 +632,11 @@ const AdminCardGroupsPage = () => {
           throw new Error(error.error || "Failed to unlink");
         }
         showSuccessToast("Alterna desvinculada");
+        setRegionCards((prev) =>
+          prev.map((card) =>
+            card.id === cardId ? { ...card, variantGroupId: null } : card
+          )
+        );
       } else if (variantGroupId === "new") {
         const response = await fetch(`/api/admin/card-variant-groups`, {
           method: "POST",
@@ -490,7 +652,33 @@ const AdminCardGroupsPage = () => {
         }
         const created = (await response.json()) as { variantGroupId?: number };
         if (created?.variantGroupId) {
-          setSelectedVariantGroupId(created.variantGroupId);
+          const targetId = created.variantGroupId;
+          setSelectedVariantGroupId(targetId);
+          const card = regionCards.find((item) => item.id === cardId);
+          if (card) {
+            setVariantGroups((prev) => [
+              ...prev,
+              {
+                id: targetId,
+                variantKey: card.alias ?? null,
+                alternateArt: card.alternateArt ?? null,
+                illustrator: card.illustrator ?? null,
+                links: [],
+              },
+            ]);
+            setRegionCards((prev) =>
+              prev.map((item) => {
+                if (item.region && item.region === card.region) {
+                  if (item.variantGroupId === targetId && item.id !== card.id) {
+                    return { ...item, variantGroupId: null };
+                  }
+                }
+                return item.id === card.id
+                  ? { ...item, variantGroupId: targetId }
+                  : item;
+              })
+            );
+          }
         }
         showSuccessToast("Grupo de alterna creado");
       } else {
@@ -507,9 +695,30 @@ const AdminCardGroupsPage = () => {
           throw new Error(error.error || "Failed to link variant");
         }
         showSuccessToast("Alterna vinculada");
+        const card = regionCards.find((item) => item.id === cardId);
+        if (card?.region) {
+          setRegionCards((prev) =>
+            prev.map((item) => {
+              if (
+                item.region === card.region &&
+                item.variantGroupId === variantGroupId &&
+                item.id !== card.id
+              ) {
+                return { ...item, variantGroupId: null };
+              }
+              return item.id === card.id
+                ? { ...item, variantGroupId: variantGroupId }
+                : item;
+            })
+          );
+        }
       }
-      await refreshSingleGroup(selectedGroup.id);
-      await fetchRegionCards(selectedGroup.id);
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = setTimeout(() => {
+        refreshSingleGroup(selectedGroup.id);
+      }, 500);
     } catch (error) {
       console.error(error);
       showErrorToast(
@@ -536,8 +745,21 @@ const AdminCardGroupsPage = () => {
         const error = await response.json();
         throw new Error(error.error || "Failed to update status");
       }
-      await refreshSingleGroup(selectedGroup.id);
-      await fetchRegionCards(selectedGroup.id);
+      setBaseRegionStatus((prev) => {
+        const next = { ...prev };
+        if (status === "RESET") {
+          delete next[region];
+        } else {
+          next[region] = status;
+        }
+        return next;
+      });
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = setTimeout(() => {
+        refreshSingleGroup(selectedGroup.id);
+      }, 500);
     } catch (error) {
       console.error(error);
       showErrorToast(
@@ -564,9 +786,16 @@ const AdminCardGroupsPage = () => {
         const error = await response.json();
         throw new Error(error.error || "Failed to update status");
       }
-      if (selectedGroup) {
-        await fetchRegionCards(selectedGroup.id);
-      }
+      setVariantRegionStatus((prev) => {
+        const current = prev[variantGroupId] ?? {};
+        const nextGroup = { ...current };
+        if (status === "RESET") {
+          delete nextGroup[region];
+        } else {
+          nextGroup[region] = status;
+        }
+        return { ...prev, [variantGroupId]: nextGroup };
+      });
     } catch (error) {
       console.error(error);
       showErrorToast(
@@ -611,6 +840,53 @@ const AdminCardGroupsPage = () => {
     });
     return map;
   }, [regionCards, resolvedRegionOrder]);
+
+  const hasAlternates = useMemo(
+    () => regionCards.some((card) => !card.isFirstEdition),
+    [regionCards]
+  );
+  const unlinkedAlternatesCount = useMemo(
+    () =>
+      regionCards.filter((card) => !card.isFirstEdition && !card.variantGroupId)
+        .length,
+    [regionCards]
+  );
+  const linkedVariantRegions = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    regionCards.forEach((card) => {
+      if (card.isFirstEdition || !card.variantGroupId) return;
+      if (!card.region) return;
+      if (!map.has(card.variantGroupId)) {
+        map.set(card.variantGroupId, new Set());
+      }
+      map.get(card.variantGroupId)!.add(card.region);
+    });
+    return map;
+  }, [regionCards]);
+  const variantMissingCountByGroup = useMemo(() => {
+    const counts = new Map<number, number>();
+    variantGroups.forEach((group) => {
+      const linkedRegions = linkedVariantRegions.get(group.id) ?? new Set();
+      const statusByRegion = variantRegionStatus[group.id] ?? {};
+      let missing = 0;
+      resolvedRegionOrder.forEach((region) => {
+        const linked = linkedRegions.has(region);
+        const status = statusByRegion[region];
+        const ok =
+          linked || status === "NOT_EXISTS" || status === "EXCLUSIVE";
+        if (!ok) missing += 1;
+      });
+      counts.set(group.id, missing);
+    });
+    return counts;
+  }, [linkedVariantRegions, resolvedRegionOrder, variantGroups, variantRegionStatus]);
+  const totalVariantMissing = useMemo(() => {
+    let total = 0;
+    variantMissingCountByGroup.forEach((value) => {
+      total += value;
+    });
+    return total;
+  }, [variantMissingCountByGroup]);
 
   const isBaseExclusive = useMemo(() => {
     const hasBase = resolvedRegionOrder.some(
@@ -888,6 +1164,12 @@ const AdminCardGroupsPage = () => {
                         ? "OK"
                         : status === "missing"
                         ? "MISSING"
+                        : status === "unknown"
+                        ? "REVIEW"
+                        : status === "exclusive"
+                        ? "EXCLUSIVE"
+                        : status === "not-exists"
+                        ? "NO EXISTE"
                         : "N/A";
                     return (
                       <div
@@ -1091,328 +1373,560 @@ const AdminCardGroupsPage = () => {
                         })}
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800">
-                              Alternas por grupo
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              Selecciona un grupo alterno para asignar por
-                              region.
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant={
-                                creatingVariant ? "secondary" : "outline"
-                              }
-                              size="sm"
-                              onClick={() =>
-                                setCreatingVariant((prev) => {
-                                  const next = !prev;
-                                  if (next) {
-                                    setSelectedVariantGroupId(null);
-                                  }
-                                  return next;
-                                })
-                              }
-                            >
-                              {creatingVariant ? "Cancelar" : "+ Crear grupo"}
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {variantGroups.length === 0 ? (
-                            <Badge variant="outline">Sin grupos</Badge>
-                          ) : (
-                            variantGroups.map((group) => (
-                              <button
-                                key={group.id}
-                                onClick={() => {
-                                  setSelectedVariantGroupId(group.id);
-                                  setCreatingVariant(false);
-                                }}
-                                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                                  selectedVariantGroupId === group.id
-                                    ? "border-slate-900 bg-slate-900 text-white"
-                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                                }`}
-                              >
-                                {formatVariantLabel(group)}
-                              </button>
-                            ))
-                          )}
-                        </div>
-
-                        {creatingVariant ? (
-                          <div className="mt-6 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-                            Selecciona una alterna en cualquier region para
-                            crear el grupo.
-                          </div>
-                        ) : null}
-
-                        <div className="mt-6 space-y-4">
-                          {!selectedVariantGroupId && !creatingVariant ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                              Selecciona un grupo alterno o crea uno para
-                              asignar cartas.
+                      {hasAlternates ? (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">
+                                Alternas por grupo
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Elige una alterna para crear o abrir su grupo y
+                                completa una por region.
+                              </p>
                             </div>
-                          ) : null}
-                          <div className="flex items-center gap-2">
-                            {selectedVariantGroupId
-                              ? (() => {
-                                  const hasLinks =
-                                    variantGroups.find(
-                                      (group) =>
-                                        group.id === selectedVariantGroupId
-                                    )?.links?.length ?? 0;
+                            <div className="flex items-center gap-2">
+                              {unlinkedAlternatesCount > 0 ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {unlinkedAlternatesCount} sin vincular
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-emerald-200 bg-emerald-50 text-emerald-700"
+                                >
+                                  Alternas completas
+                                </Badge>
+                              )}
+                              {totalVariantMissing > 0 ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {totalVariantMissing} por revisar
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-emerald-200 bg-emerald-50 text-emerald-700"
+                                >
+                                  Regiones completas
+                                </Badge>
+                              )}
+                              <Button
+                                variant={
+                                  creatingVariant ? "secondary" : "outline"
+                                }
+                                size="sm"
+                                onClick={() =>
+                                  setCreatingVariant((prev) => {
+                                    const next = !prev;
+                                    if (next) {
+                                      setSelectedVariantGroupId(null);
+                                    }
+                                    return next;
+                                  })
+                                }
+                              >
+                                {creatingVariant ? "Cancelar" : "+ Crear grupo"}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-col">
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Grupos alternos
+                                </p>
+                                {variantGroups.length === 0 ? (
+                                  <Badge variant="outline">Sin grupos</Badge>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {variantGroups.map((group) => {
+                                      const isEditing =
+                                        editingVariantGroupId === group.id;
+                                      return (
+                                        <div
+                                          key={group.id}
+                                          className="flex items-center gap-2"
+                                        >
+                                          {isEditing ? (
+                                            <>
+                                              <Input
+                                                value={variantNameDraft}
+                                                onChange={(event) =>
+                                                  setVariantNameDraft(
+                                                    event.target.value
+                                                  )
+                                                }
+                                                placeholder="Nombre del grupo"
+                                                className="h-8"
+                                              />
+                                              <Button
+                                                size="icon"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                  handleRenameVariantGroup(
+                                                    group.id,
+                                                    variantNameDraft
+                                                  );
+                                                  setEditingVariantGroupId(
+                                                    null
+                                                  );
+                                                }}
+                                              >
+                                                <Check className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                  setEditingVariantGroupId(
+                                                    null
+                                                  );
+                                                  setVariantNameDraft("");
+                                                }}
+                                              >
+                                                <X className="h-4 w-4" />
+                                              </Button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <button
+                                                onClick={() => {
+                                                  setSelectedVariantGroupId(
+                                                    group.id
+                                                  );
+                                                  setCreatingVariant(false);
+                                                }}
+                                                className={`flex-1 rounded-full border px-3 py-1 text-left text-xs font-semibold transition ${
+                                                  selectedVariantGroupId ===
+                                                  group.id
+                                                    ? "border-slate-900 bg-slate-900 text-white"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                                                }`}
+                                              >
+                                                {formatVariantLabel(group)}
+                                              </button>
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={(event) => {
+                                                  event.preventDefault();
+                                                  event.stopPropagation();
+                                                  setEditingVariantGroupId(
+                                                    group.id
+                                                  );
+                                                  setVariantNameDraft(
+                                                    group.variantKey ?? ""
+                                                  );
+                                                }}
+                                              >
+                                                <Pencil className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={(event) => {
+                                                  event.preventDefault();
+                                                  event.stopPropagation();
+                                                  handleDeleteVariantGroup(
+                                                    group.id
+                                                  );
+                                                }}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
 
-                                  const hasReviewed = Object.values(
-                                    variantRegionStatus?.[
-                                      selectedVariantGroupId
-                                    ] ?? {}
-                                  ).includes("NOT_EXISTS");
+                              {creatingVariant ? (
+                                <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700">
+                                  Selecciona una alterna en cualquier region
+                                  para crear el grupo.
+                                </div>
+                              ) : null}
 
-                                  return hasLinks && hasReviewed ? (
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {creatingVariant ? (
                                     <Badge
                                       variant="outline"
-                                      className="text-xs"
+                                      className="border-emerald-200 bg-emerald-50 text-emerald-700"
                                     >
-                                      Exclusive
+                                      Crear grupo: toca una alterna
                                     </Badge>
-                                  ) : null;
-                                })()
-                              : null}
-                          </div>
-                          <div className="space-y-4">
-                            {resolvedRegionOrder.map((region) => {
-                              const entry = cardsByRegion[region] ?? {
-                                base: null,
-                                alternates: [],
-                              };
-
-                              const status = selectedVariantGroupId
-                                ? variantRegionStatus?.[
-                                    selectedVariantGroupId
-                                  ]?.[region] ?? "VIRGIN"
-                                : "VIRGIN";
-                              const hasLinkedAlternate = selectedVariantGroupId
-                                ? entry.alternates.some(
-                                    (card) =>
-                                      card.variantGroupId ===
-                                      selectedVariantGroupId
-                                  )
-                                : false;
-
-                              return (
-                                <div
-                                  key={`variant-${region}`}
-                                  className="rounded-2xl border border-slate-200 bg-white p-3"
-                                >
-                                  <div className="mb-2 flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-600">
-                                      {region}
-                                    </span>
-
-                                    {selectedVariantGroupId &&
-                                      !hasLinkedAlternate && (
-                                        <Select
-                                          value={status}
-                                          onValueChange={(value) =>
-                                            handleUpdateVariantRegionStatus(
-                                              selectedVariantGroupId,
-                                              region,
-                                              value === "VIRGIN"
-                                                ? "RESET"
-                                                : (value as
-                                                    | "UNKNOWN"
-                                                    | "NOT_EXISTS"
-                                                    | "EXCLUSIVE")
-                                            )
-                                          }
-                                        >
-                                          <SelectTrigger className="h-7 w-[140px] rounded-full text-[10px]">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="VIRGIN">
-                                              Sin revisar
-                                            </SelectItem>
-                                            <SelectItem value="UNKNOWN">
-                                              Revisado
-                                            </SelectItem>
-                                            <SelectItem value="NOT_EXISTS">
-                                              No existe
-                                            </SelectItem>
-                                            <SelectItem value="EXCLUSIVE">
-                                              Exclusiva
-                                            </SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      )}
-                                  </div>
-
-                                  {entry.alternates.length === 0 ||
-                                  status === "NOT_EXISTS" ? (
-                                    <div className="space-y-3">
-                                      <div
-                                        className={`relative overflow-hidden rounded-xl border ${
-                                          status === "NOT_EXISTS"
-                                            ? "border-rose-200 bg-rose-50"
-                                            : status === "EXCLUSIVE"
-                                            ? "border-emerald-200 bg-emerald-50"
-                                            : status === "UNKNOWN"
-                                            ? "border-amber-200 bg-amber-50"
-                                            : "border-slate-200 bg-slate-50"
-                                        }`}
-                                      >
-                                        <div className="aspect-[63/88] w-full">
-                                          <img
-                                            src="/assets/images/backcard.webp"
-                                            alt="Backcard"
-                                            className={`h-full w-full object-contain ${
-                                              status === "VIRGIN"
-                                                ? ""
-                                                : "grayscale"
-                                            }`}
-                                          />
-                                        </div>
-                                        <span
-                                          className={`absolute left-3 top-3 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                                            status === "NOT_EXISTS"
-                                              ? "border-rose-200 bg-rose-50 text-rose-700"
-                                              : status === "EXCLUSIVE"
-                                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                              : status === "UNKNOWN"
-                                              ? "border-amber-200 bg-amber-50 text-amber-700"
-                                              : "border-slate-200 bg-white/90 text-slate-600"
-                                          }`}
-                                        >
-                                          {status === "NOT_EXISTS"
-                                            ? "No existe"
-                                            : status === "EXCLUSIVE"
-                                            ? "Exclusiva"
-                                            : status === "UNKNOWN"
-                                            ? "Revisado"
-                                            : "Sin revisar"}
-                                        </span>
-                                      </div>
-                                      <div className="text-xs text-slate-500">
-                                        Sin alternas en esta region.
-                                      </div>
-                                    </div>
+                                  ) : selectedVariantGroupId ? (
+                                    <Badge variant="outline">
+                                      Grupo activo:{" "}
+                                      {variantLabelById.get(
+                                        selectedVariantGroupId
+                                      ) ?? `Grupo ${selectedVariantGroupId}`}
+                                    </Badge>
                                   ) : (
-                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
-                                      {entry.alternates.map((card) => {
-                                        const effectiveGroupId = creatingVariant
-                                          ? null
-                                          : selectedVariantGroupId;
-                                        const isLinked =
-                                          effectiveGroupId !== null &&
-                                          card.variantGroupId ===
-                                            effectiveGroupId;
-                                        const isLinkedOther =
-                                          effectiveGroupId !== null &&
-                                          card.variantGroupId !== null &&
-                                          card.variantGroupId !==
-                                            effectiveGroupId;
-                                        const linkedLabel = card.variantGroupId
-                                          ? variantLabelById.get(
-                                              card.variantGroupId
-                                            ) ?? `Grupo ${card.variantGroupId}`
-                                          : null;
+                                    <Badge variant="outline">
+                                      Sin grupo seleccionado
+                                    </Badge>
+                                  )}
+                                  {selectedVariantGroupId ? (
+                                    <Badge variant="outline" className="text-xs">
+                                      {variantMissingCountByGroup.get(
+                                        selectedVariantGroupId
+                                      ) ?? resolvedRegionOrder.length}{" "}
+                                      faltan
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                {selectedVariantGroupId ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() =>
+                                      handleMarkVariantGroupExclusive(
+                                        selectedVariantGroupId
+                                      )
+                                    }
+                                  >
+                                    Marcar grupo exclusivo
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
 
-                                        return (
-                                          <button
-                                            key={card.id}
-                                            onClick={() => {
-                                              if (creatingVariant) {
-                                                handleAssignVariant(
-                                                  card.id,
-                                                  "new"
-                                                );
-                                                setCreatingVariant(false);
-                                                return;
+                            <div className="space-y-4 mt-5">
+                              {!selectedVariantGroupId && !creatingVariant ? (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                                  Selecciona una alterna o un grupo alterno para
+                                  empezar.
+                                </div>
+                              ) : null}
+                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 justify-items-center">
+                                {resolvedRegionOrder.map((region) => {
+                                  const entry = cardsByRegion[region] ?? {
+                                    base: null,
+                                    alternates: [],
+                                  };
+                                  const status = selectedVariantGroupId
+                                    ? variantRegionStatus?.[
+                                        selectedVariantGroupId
+                                      ]?.[region] ?? "VIRGIN"
+                                    : "VIRGIN";
+                                  const linkedAlternate = selectedVariantGroupId
+                                    ? entry.alternates.find(
+                                        (card) =>
+                                          card.variantGroupId ===
+                                          selectedVariantGroupId
+                                      ) ?? null
+                                    : null;
+                                  const isActive =
+                                    selectedVariantRegion === region;
+
+                                  return (
+                                    <button
+                                      key={`variant-${region}`}
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedVariantRegion(region)
+                                      }
+                                      className={`w-full max-w-[180px] rounded-2xl border p-3 text-left transition ${
+                                        isActive
+                                          ? "border-slate-900 bg-slate-50 ring-1 ring-slate-900/10"
+                                          : "border-slate-200 bg-white hover:border-slate-300"
+                                      }`}
+                                    >
+                                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                        <span className="text-xs font-semibold text-slate-600">
+                                          {region}
+                                        </span>
+                                        {selectedVariantGroupId &&
+                                          !linkedAlternate && (
+                                            <div
+                                              onClick={(event) =>
+                                                event.stopPropagation()
                                               }
-                                              if (!selectedVariantGroupId) {
-                                                showErrorToast(
-                                                  "Selecciona o crea un grupo alterno"
-                                                );
-                                                return;
+                                              onPointerDown={(event) =>
+                                                event.stopPropagation()
                                               }
-                                              handleAssignVariant(
-                                                card.id,
-                                                isLinked
-                                                  ? "none"
-                                                  : selectedVariantGroupId
-                                              );
-                                            }}
-                                            className={`w-full rounded-xl border p-2 text-left transition ${
-                                              isLinked
-                                                ? "border-emerald-300 bg-emerald-50"
-                                                : isLinkedOther
-                                                ? "border-amber-300 bg-amber-50"
-                                                : "border-slate-200 bg-white hover:border-slate-300"
+                                            >
+                                              <Select
+                                                value={status}
+                                                onValueChange={(value) =>
+                                                  handleUpdateVariantRegionStatus(
+                                                    selectedVariantGroupId,
+                                                    region,
+                                                    value === "VIRGIN"
+                                                      ? "RESET"
+                                                      : (value as
+                                                          | "UNKNOWN"
+                                                          | "NOT_EXISTS"
+                                                          | "EXCLUSIVE")
+                                                  )
+                                                }
+                                              >
+                                                <SelectTrigger className="h-7 w-[140px] rounded-full text-[10px]">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="VIRGIN">
+                                                    Sin revisar
+                                                  </SelectItem>
+                                                  <SelectItem value="UNKNOWN">
+                                                    Revisado
+                                                  </SelectItem>
+                                                  <SelectItem value="NOT_EXISTS">
+                                                    No existe
+                                                  </SelectItem>
+                                                  <SelectItem value="EXCLUSIVE">
+                                                    Exclusiva
+                                                  </SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                          )}
+                                      </div>
+                                      <div className="space-y-2">
+                                        <div className="relative overflow-hidden rounded-xl border bg-slate-50">
+                                          <div className="aspect-[63/88] w-full">
+                                            <img
+                                              src={
+                                                linkedAlternate?.src ||
+                                                "/assets/images/backcard.webp"
+                                              }
+                                              alt={
+                                                linkedAlternate?.name ||
+                                                "Backcard"
+                                              }
+                                              className="h-full w-full object-contain"
+                                            />
+                                          </div>
+                                          <span
+                                            className={`absolute left-3 top-3 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                                              status === "NOT_EXISTS"
+                                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                                : status === "EXCLUSIVE"
+                                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                : status === "UNKNOWN"
+                                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                : "border-slate-200 bg-white/90 text-slate-600"
                                             }`}
                                           >
-                                            <div className="flex flex-col gap-2">
-                                              <div className="mx-auto w-full max-w-[110px] overflow-hidden rounded-xl border bg-slate-50">
-                                                <div className="aspect-[63/88] w-full">
-                                                  <img
-                                                    src={
-                                                      card.src ||
-                                                      "/assets/images/backcard.webp"
-                                                    }
-                                                    alt={card.name}
-                                                    className="h-full w-full object-contain"
-                                                  />
-                                                </div>
-                                              </div>
+                                            {linkedAlternate
+                                              ? "Linked"
+                                              : status === "NOT_EXISTS"
+                                              ? "No existe"
+                                              : status === "EXCLUSIVE"
+                                              ? "Exclusiva"
+                                              : status === "UNKNOWN"
+                                              ? "Revisado"
+                                              : "Sin alterna"}
+                                          </span>
+                                        </div>
+                                        {linkedAlternate ? (
+                                          <div className="space-y-0.5">
+                                            <p className="text-xs font-semibold text-slate-900">
+                                              {linkedAlternate.code}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500 line-clamp-2">
+                                              {linkedAlternate.name}
+                                            </p>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
 
-                                              <div className="space-y-0.5">
-                                                <p className="text-xs font-semibold text-slate-900">
-                                                  {card.code}
-                                                </p>
-                                                <p className="text-[11px] text-slate-500">
-                                                  {card.name}
-                                                </p>
-                                                {card.alternateArt ? (
-                                                  <p className="text-[10px] text-slate-400">
-                                                    {card.alternateArt}
-                                                  </p>
-                                                ) : null}
-                                              </div>
+                              {(() => {
+                                const activeRegion =
+                                  selectedVariantRegion ??
+                                  resolvedRegionOrder[0];
+                                if (!activeRegion) return null;
+                                const entry = cardsByRegion[activeRegion] ?? {
+                                  base: null,
+                                  alternates: [],
+                                };
 
-                                              <Badge
-                                                variant="outline"
-                                                className="w-fit text-[10px]"
-                                              >
-                                                {creatingVariant
-                                                  ? linkedLabel
-                                                    ? `En ${linkedLabel}`
-                                                    : "Crear grupo"
-                                                  : isLinked
-                                                  ? "Linked"
-                                                  : isLinkedOther
-                                                  ? `En ${
-                                                      linkedLabel ?? "otro"
-                                                    }`
-                                                  : "Select"}
-                                              </Badge>
-                                            </div>
-                                          </button>
-                                        );
-                                      })}
+                                return (
+                                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-sm font-semibold text-slate-800">
+                                          Alternas en {activeRegion}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          Selecciona la carta para vincularla al
+                                          grupo activo.
+                                        </p>
+                                      </div>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {entry.alternates.length}
+                                      </Badge>
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>{" "}
-                          {/* ✅ cierre del listado */}
+
+                                    {entry.alternates.filter((card) =>
+                                      creatingVariant
+                                        ? !card.variantGroupId
+                                        : true
+                                    ).length === 0 ? (
+                                      <div className="text-xs text-slate-500">
+                                        {creatingVariant
+                                          ? "No hay alternas disponibles en esta region."
+                                          : "No hay alternas en esta region."}
+                                      </div>
+                                    ) : (
+                                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 justify-items-center">
+                                        {entry.alternates
+                                          .filter((card) =>
+                                            creatingVariant
+                                              ? !card.variantGroupId
+                                              : true
+                                          )
+                                          .map((card) => {
+                                          const effectiveGroupId =
+                                            creatingVariant
+                                              ? null
+                                              : selectedVariantGroupId;
+                                          const isLinked =
+                                            effectiveGroupId !== null &&
+                                            card.variantGroupId ===
+                                              effectiveGroupId;
+                                          const isLinkedOther =
+                                            effectiveGroupId !== null &&
+                                            card.variantGroupId !== null &&
+                                            card.variantGroupId !==
+                                              effectiveGroupId;
+                                          const linkedLabel =
+                                            card.variantGroupId
+                                              ? variantLabelById.get(
+                                                  card.variantGroupId
+                                                ) ??
+                                                `Grupo ${card.variantGroupId}`
+                                              : null;
+
+                                          return (
+                                            <button
+                                              key={card.id}
+                                              onClick={() => {
+                                                if (creatingVariant) {
+                                                  if (card.variantGroupId) {
+                                                    showErrorToast(
+                                                      "Esa alterna ya pertenece a un grupo"
+                                                    );
+                                                    return;
+                                                  }
+                                                  handleAssignVariant(
+                                                    card.id,
+                                                    "new"
+                                                  );
+                                                  setCreatingVariant(false);
+                                                  setSelectedVariantRegion(
+                                                    card.region ?? null
+                                                  );
+                                                  return;
+                                                }
+                                                if (!selectedVariantGroupId) {
+                                                  if (card.variantGroupId) {
+                                                    setSelectedVariantGroupId(
+                                                      card.variantGroupId
+                                                    );
+                                                    setSelectedVariantRegion(
+                                                      card.region ?? null
+                                                    );
+                                                    return;
+                                                  }
+                                                  handleAssignVariant(
+                                                    card.id,
+                                                    "new"
+                                                  );
+                                                  setSelectedVariantRegion(
+                                                    card.region ?? null
+                                                  );
+                                                  return;
+                                                }
+                                                handleAssignVariant(
+                                                  card.id,
+                                                  isLinked
+                                                    ? "none"
+                                                    : selectedVariantGroupId
+                                                );
+                                              }}
+                                              className={`mx-auto w-full max-w-[170px] rounded-xl border p-2 text-left transition ${
+                                                isLinked
+                                                  ? "border-emerald-300 bg-emerald-50"
+                                                  : isLinkedOther
+                                                  ? "border-amber-300 bg-amber-50"
+                                                  : "border-slate-200 bg-white hover:border-slate-300"
+                                              }`}
+                                            >
+                                              <div className="flex flex-col gap-2">
+                                                <div className="mx-auto w-full max-w-[120px] overflow-hidden rounded-xl border bg-slate-50">
+                                                  <div className="aspect-[63/88] w-full">
+                                                    <img
+                                                      src={
+                                                        card.src ||
+                                                        "/assets/images/backcard.webp"
+                                                      }
+                                                      alt={card.name}
+                                                      className="h-full w-full object-contain"
+                                                    />
+                                                  </div>
+                                                </div>
+
+                                                <div className="space-y-0.5">
+                                                  <p className="text-xs font-semibold text-slate-900">
+                                                    {card.code}
+                                                  </p>
+                                                  <p className="text-[11px] text-slate-500 line-clamp-2">
+                                                    {card.name}
+                                                  </p>
+                                                  {card.alternateArt ? (
+                                                    <p className="text-[10px] text-slate-400 line-clamp-2">
+                                                      {card.alternateArt}
+                                                    </p>
+                                                  ) : null}
+                                                </div>
+
+                                                <Badge
+                                                  variant="outline"
+                                                  className="w-fit text-[10px]"
+                                                >
+                                                  {creatingVariant
+                                                    ? linkedLabel
+                                                      ? `En ${linkedLabel}`
+                                                      : "Crear grupo"
+                                                    : isLinked
+                                                    ? "Vinculada"
+                                                    : isLinkedOther
+                                                    ? `En ${
+                                                        linkedLabel ?? "otro"
+                                                      }`
+                                                    : selectedVariantGroupId
+                                                    ? "Asignar"
+                                                    : card.variantGroupId
+                                                    ? "Abrir grupo"
+                                                    : "Crear grupo"}
+                                                </Badge>
+                                              </div>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
                     </div>
                   )}
                 </div>

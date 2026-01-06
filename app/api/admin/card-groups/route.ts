@@ -151,12 +151,16 @@ export async function GET(req: NextRequest) {
         where: {
           code: { in: canonicalCodes },
           isFirstEdition: false,
+          region: { in: REGION_ORDER },
         },
         select: {
           id: true,
           code: true,
           region: true,
           variantGroupLinks: {
+            where: {
+              variantGroup: { baseGroupId: { in: groupIds } },
+            },
             select: { variantGroupId: true },
           },
         },
@@ -193,7 +197,7 @@ export async function GET(req: NextRequest) {
       );
       const regionStatus: Record<
         string,
-        "present" | "missing" | "not-available"
+        "present" | "missing" | "not-available" | "unknown" | "exclusive" | "not-exists"
       > = {};
       const missingRegions: string[] = [];
       const notAvailableRegions: string[] = [];
@@ -205,15 +209,19 @@ export async function GET(req: NextRequest) {
           continue;
         }
         if (reviewStatus.get(code) === "EXCLUSIVE") {
-          regionStatus[code] = "not-available";
+          regionStatus[code] = "exclusive";
           notAvailableRegions.push(code);
           hasExclusiveReview = true;
           continue;
         }
         if (reviewStatus.get(code) === "NOT_EXISTS") {
-          regionStatus[code] = "not-available";
+          regionStatus[code] = "not-exists";
           notAvailableRegions.push(code);
           reviewedNotExists.add(code);
+          continue;
+        }
+        if (reviewStatus.get(code) === "UNKNOWN") {
+          regionStatus[code] = "unknown";
           continue;
         }
         const expected = canonicalSetCode
@@ -221,14 +229,30 @@ export async function GET(req: NextRequest) {
           : false;
         if (expected) {
           regionStatus[code] = "missing";
-          missingRegions.push(code);
         } else {
           regionStatus[code] = "not-available";
           notAvailableRegions.push(code);
         }
       }
       const isExclusive = hasExclusiveReview;
-      const baseComplete = missingRegions.length === 0;
+      const baseComplete = REGION_ORDER.every((code) => {
+        const status = regionStatus[code];
+        return (
+          status === "present" ||
+          status === "not-exists" ||
+          status === "exclusive"
+        );
+      });
+      for (const code of REGION_ORDER) {
+        const status = regionStatus[code];
+        if (
+          status !== "present" &&
+          status !== "not-exists" &&
+          status !== "exclusive"
+        ) {
+          missingRegions.push(code);
+        }
+      }
 
       const groupVariantGroups = variantGroupsByBase.get(group.id) ?? [];
       const groupVariantIds = new Set(groupVariantGroups.map((vg) => vg.id));

@@ -51,6 +51,14 @@ export async function POST(
         variantGroup: { baseGroupId: variantGroup.baseGroupId },
       },
     });
+    if (card.region) {
+      await prisma.cardVariantLink.deleteMany({
+        where: {
+          variantGroupId,
+          region: card.region,
+        },
+      });
+    }
 
     const link = await prisma.cardVariantLink.create({
       data: {

@@ -217,7 +217,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
                 size={imageSize}
               />
               {/* Collection toggle button  aqui*/}
-              {/* {onAddToCollection && (
+              {onAddToCollection && (
                 <button
                   onClick={(e) => onAddToCollection(String(card.id), e)}
                   className={`absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
@@ -232,7 +232,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                   )}
                 </button>
-              )} */}
+              )}
             </div>
 
             {/* Info section - Code and Price (stacked, centered) */}

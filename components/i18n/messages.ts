@@ -264,6 +264,7 @@ export type MessageKey =
   | "collection.login.title"
   | "collection.login.subtitle"
   | "collection.login.button"
+  | "collection.login.popupBlocked"
   | "collection.title"
   | "collection.cardsCount"
   | "collection.search.placeholder"
@@ -624,6 +625,8 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "collection.login.subtitle":
       "Inicia sesión para ver y gestionar tu colección de cartas",
     "collection.login.button": "Iniciar sesión con Google",
+    "collection.login.popupBlocked":
+      "Activa los pop-ups para iniciar sesión",
     "collection.title": "Mi Colección",
     "collection.cardsCount": "{count} cartas",
     "collection.search.placeholder": "Buscar cartas...",
@@ -991,6 +994,7 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "collection.login.subtitle":
       "Sign in to view and manage your card collection",
     "collection.login.button": "Sign in with Google",
+    "collection.login.popupBlocked": "Enable pop-ups to sign in",
     "collection.title": "My Collection",
     "collection.cardsCount": "{count} cards",
     "collection.search.placeholder": "Search cards...",

@@ -1512,9 +1512,23 @@ const CollectionPage = () => {
 
   // Not authenticated view
   if (status === "unauthenticated") {
+    const handleGoogleSignIn = () => {
+      const popup = window.open(
+        "/googleSignIn",
+        "googleSignIn",
+        "width=520,height=640,noopener,noreferrer"
+      );
+      if (!popup) {
+        toast.error(t("collection.login.popupBlocked"));
+        return;
+      }
+      popup.focus();
+    };
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
+      <div className="bg-[#f2eede] flex-1 min-h-0 flex items-center justify-center p-4 relative">
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+        <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
           <div className="bg-black rounded-xl p-4 mb-6 inline-block">
             <Image
               src={Logo}
@@ -1524,16 +1538,16 @@ const CollectionPage = () => {
               className="invert"
             />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
             {t("collection.login.title")}
           </h1>
-          <p className="text-slate-300 mb-8">
+          <p className="text-slate-600 mb-6">
             {t("collection.login.subtitle")}
           </p>
           <Button
             size="lg"
-            className="bg-white text-black hover:bg-slate-100"
-            onClick={() => signIn("google")}
+            className="w-full bg-slate-900 text-white hover:bg-slate-800"
+            onClick={handleGoogleSignIn}
           >
             <LogIn className="w-5 h-5 mr-2" />
             {t("collection.login.button")}
@@ -2144,7 +2158,11 @@ const CollectionPage = () => {
           </DialogContent>
         </Dialog>
       ) : (
-        <BaseDrawer isOpen={!!selectedCard} onClose={closeSelectedCard} maxHeight="92vh">
+        <BaseDrawer
+          isOpen={!!selectedCard}
+          onClose={closeSelectedCard}
+          maxHeight="92vh"
+        >
           {cardDetailPanel}
         </BaseDrawer>
       )}

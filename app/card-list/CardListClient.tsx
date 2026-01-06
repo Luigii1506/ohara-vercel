@@ -419,42 +419,13 @@ const CardListClient = ({
   >([]);
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
 
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   // Collection state - tracks which cards are in user's collection with quantities
   const [collectionCardIds, setCollectionCardIds] = useState<Map<string, number>>(new Map());
-  const [isLoadingCollection, setIsLoadingCollection] = useState(false);
   const [addingToCollection, setAddingToCollection] = useState<Set<string>>(new Set());
+  const [isCollectionSummaryLoading, setIsCollectionSummaryLoading] = useState(false);
 
-  // Fetch user's collection on mount
-  useEffect(() => {
-    if (!session?.user) {
-      setCollectionCardIds(new Map());
-      return;
-    }
-
-    const fetchCollection = async () => {
-      setIsLoadingCollection(true);
-      try {
-        const response = await fetch("/api/collection?limit=0");
-        if (response.ok) {
-          const data = await response.json();
-          const cardMap = new Map<string, number>();
-          data.cards?.forEach((item: { cardId: number; quantity: number }) => {
-            // Convert cardId to string to match card.id type
-            cardMap.set(String(item.cardId), item.quantity);
-          });
-          setCollectionCardIds(cardMap);
-        }
-      } catch (error) {
-        console.error("Error fetching collection:", error);
-      } finally {
-        setIsLoadingCollection(false);
-      }
-    };
-
-    fetchCollection();
-  }, [session?.user]);
 
   // Toggle card in collection (add if not present, remove if present)
   const handleToggleCollection = useCallback(async (cardId: string, e: React.MouseEvent) => {
@@ -468,16 +439,17 @@ const CardListClient = ({
 
     if (addingToCollection.has(cardId)) return;
 
-    const isInCollection = collectionCardIds.has(cardId);
-    const currentQty = collectionCardIds.get(cardId) || 0;
+    const cardKey = String(cardId);
+    const isInCollection = collectionCardIds.has(cardKey);
+    const currentQty = collectionCardIds.get(cardKey) || 0;
 
     // Optimistic update - update UI immediately
     setCollectionCardIds(prev => {
       const newMap = new Map(prev);
       if (isInCollection) {
-        newMap.delete(cardId);
+        newMap.delete(cardKey);
       } else {
-        newMap.set(cardId, 1);
+        newMap.set(cardKey, 1);
       }
       return newMap;
     });
@@ -488,12 +460,12 @@ const CardListClient = ({
     }
 
     // Mark as in progress (for subtle indicator, not blocking)
-    setAddingToCollection(prev => new Set(prev).add(cardId));
+    setAddingToCollection(prev => new Set(prev).add(cardKey));
 
     try {
       if (isInCollection) {
         // Remove from collection
-        const response = await fetch(`/api/collection/cards?cardId=${cardId}`, {
+        const response = await fetch(`/api/collection/cards?cardId=${cardKey}`, {
           method: "DELETE",
         });
 
@@ -501,7 +473,7 @@ const CardListClient = ({
           // Revert optimistic update on error
           setCollectionCardIds(prev => {
             const newMap = new Map(prev);
-            newMap.set(cardId, currentQty);
+            newMap.set(cardKey, currentQty);
             return newMap;
           });
           showToast("Error al quitar", "error");
@@ -511,14 +483,14 @@ const CardListClient = ({
         const response = await fetch("/api/collection/cards", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cardId: parseInt(cardId), quantity: 1 }),
+          body: JSON.stringify({ cardId: parseInt(cardKey, 10), quantity: 1 }),
         });
 
         if (!response.ok) {
           // Revert optimistic update on error
           setCollectionCardIds(prev => {
             const newMap = new Map(prev);
-            newMap.delete(cardId);
+            newMap.delete(cardKey);
             return newMap;
           });
           showToast("Error al agregar", "error");
@@ -530,9 +502,9 @@ const CardListClient = ({
       setCollectionCardIds(prev => {
         const newMap = new Map(prev);
         if (isInCollection) {
-          newMap.set(cardId, currentQty);
+          newMap.set(cardKey, currentQty);
         } else {
-          newMap.delete(cardId);
+          newMap.delete(cardKey);
         }
         return newMap;
       });
@@ -540,7 +512,7 @@ const CardListClient = ({
     } finally {
       setAddingToCollection(prev => {
         const newSet = new Set(prev);
-        newSet.delete(cardId);
+        newSet.delete(cardKey);
         return newSet;
       });
     }
@@ -779,6 +751,50 @@ const CardListClient = ({
       console.error("Error al cargar cartas paginadas:", cardsError);
     }
   }, [cardsError]);
+
+  useEffect(() => {
+    if (status === "loading") {
+      setIsCollectionSummaryLoading(true);
+      return;
+    }
+    if (!session?.user) {
+      setCollectionCardIds(new Map());
+      setIsCollectionSummaryLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsCollectionSummaryLoading(true);
+
+    fetch("/api/collection/summary", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch collection summary");
+        }
+        return response.json();
+      })
+      .then((data: { items?: Array<{ cardId: number; quantity: number }> }) => {
+        const next = new Map<string, number>();
+        data.items?.forEach((item) => {
+          if (item.quantity > 0) {
+            next.set(String(item.cardId), item.quantity);
+          }
+        });
+        setCollectionCardIds(next);
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError") return;
+        console.error("Error fetching collection summary:", error);
+      })
+      .finally(() => {
+        setIsCollectionSummaryLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [session?.user, status]);
+
+  const showCollectionToggle =
+    status !== "loading" && !isCollectionSummaryLoading;
 
   const { data: countData, isFetching: isCounting } = useCardsCount(filters);
 
@@ -1787,7 +1803,9 @@ const CardListClient = ({
                       fetchNextPage={fetchNextPage}
                       collectionCardIds={collectionCardIds}
                       addingToCollection={addingToCollection}
-                      onAddToCollection={handleToggleCollection}
+                      onAddToCollection={
+                        showCollectionToggle ? handleToggleCollection : undefined
+                      }
                     />
                   )}
 
@@ -1833,20 +1851,24 @@ const CardListClient = ({
                                       size={imageSize}
                                     />
                                     {/* Collection toggle button */}
-                                    <button
-                                      onClick={(e) => handleToggleCollection(card.id, e)}
-                                      className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
-                                        collectionCardIds.has(card.id)
-                                          ? "bg-emerald-500 text-white scale-100"
-                                          : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
-                                      }`}
-                                    >
-                                      {collectionCardIds.has(card.id) ? (
-                                        <Check className="w-4 h-4" />
-                                      ) : (
-                                        <Plus className="w-4 h-4" />
-                                      )}
-                                    </button>
+                                    {showCollectionToggle && (
+                                      <button
+                                        onClick={(e) =>
+                                          handleToggleCollection(String(card.id), e)
+                                        }
+                                        className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
+                                          collectionCardIds.has(String(card.id))
+                                            ? "bg-emerald-500 text-white scale-100"
+                                            : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
+                                        }`}
+                                      >
+                                        {collectionCardIds.has(String(card.id)) ? (
+                                          <Check className="w-4 h-4" />
+                                        ) : (
+                                          <Plus className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
 
                                   {/* Info section - Code and Price */}
@@ -1900,20 +1922,24 @@ const CardListClient = ({
                                       size={imageSize}
                                     />
                                     {/* Collection toggle button */}
-                                    <button
-                                      onClick={(e) => handleToggleCollection(alt.id, e)}
-                                      className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
-                                        collectionCardIds.has(alt.id)
-                                          ? "bg-emerald-500 text-white scale-100"
-                                          : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
-                                      }`}
-                                    >
-                                      {collectionCardIds.has(alt.id) ? (
-                                        <Check className="w-4 h-4" />
-                                      ) : (
-                                        <Plus className="w-4 h-4" />
-                                      )}
-                                    </button>
+                                    {showCollectionToggle && (
+                                      <button
+                                        onClick={(e) =>
+                                          handleToggleCollection(String(alt.id), e)
+                                        }
+                                        className={`absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
+                                          collectionCardIds.has(String(alt.id))
+                                            ? "bg-emerald-500 text-white scale-100"
+                                            : "bg-black/50 text-white/90 hover:bg-black/70 active:scale-90"
+                                        }`}
+                                      >
+                                        {collectionCardIds.has(String(alt.id)) ? (
+                                          <Check className="w-4 h-4" />
+                                        ) : (
+                                          <Plus className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
 
                                   {/* Info section - Code and Price */}

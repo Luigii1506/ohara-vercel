@@ -6,6 +6,7 @@ export type MessageKey =
   | "nav.events"
   | "nav.tournaments"
   | "nav.decks"
+  | "nav.collection"
   | "nav.admin"
   | "nav.adminTools"
   | "nav.viewAllAdmin"
@@ -355,6 +356,7 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "nav.events": "Eventos",
     "nav.tournaments": "Torneos",
     "nav.decks": "Decks",
+    "nav.collection": "Colección",
     "nav.admin": "Admin",
     "nav.adminTools": "HERRAMIENTAS ADMIN",
     "nav.viewAllAdmin": "Ver todas las opciones admin",
@@ -727,6 +729,7 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "nav.events": "Events",
     "nav.tournaments": "Tournaments",
     "nav.decks": "Decks",
+    "nav.collection": "Collection",
     "nav.admin": "Admin",
     "nav.adminTools": "ADMIN TOOLS",
     "nav.viewAllAdmin": "View all admin options",

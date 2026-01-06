@@ -1888,9 +1888,11 @@ const CollectionPage = () => {
                   : t("collection.empty.subtitle.noCards")}
               </p>
               {!search && (
-                <Button onClick={() => router.push("/card-list")}>
-                  {t("collection.empty.cta")}
-                </Button>
+                <div className="mt-2">
+                  <Button onClick={() => router.push("/card-list")}>
+                    {t("collection.empty.cta")}
+                  </Button>
+                </div>
               )}
             </div>
           </div>

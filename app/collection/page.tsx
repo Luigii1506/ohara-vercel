@@ -1182,7 +1182,7 @@ const CollectionPage = () => {
   const binderPanel = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex-1 min-h-0 overflow-y-auto p-5">
-        <div className="text-center mb-6">
+        {/* <div className="text-center mb-6">
           <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <FolderOpen className="h-7 w-7 text-slate-600" />
           </div>
@@ -1192,7 +1192,7 @@ const CollectionPage = () => {
           <p className="text-slate-500 text-sm mt-1">
             {t("collection.binder.subtitle")}
           </p>
-        </div>
+        </div> */}
 
         <div className="grid grid-cols-2 gap-3">
           {gridOptions.map((option) => {

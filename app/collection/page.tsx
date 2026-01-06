@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   GripVertical,
   Info,
+  Share2,
 } from "lucide-react";
 import {
   Dialog,
@@ -68,6 +69,7 @@ import SearchFilters from "@/components/home/SearchFilters";
 import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useToast } from "@/components/ui/MobileToast";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 interface CollectionCard {
   id: number;
@@ -128,6 +130,7 @@ interface CollectionResponse {
 }
 
 const CollectionPage = () => {
+  const { t, lang } = useI18n();
   const { data: session, status } = useSession();
   const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -187,6 +190,7 @@ const CollectionPage = () => {
     id: number | null;
     position: "before" | "after" | null;
   }>({ id: null, position: null });
+  const shareInFlightRef = useRef(false);
 
   // Card preview states (like CardPreviewDialog)
   const [showLargeImage, setShowLargeImage] = useState(false);
@@ -217,69 +221,72 @@ const CollectionPage = () => {
     }, 0);
   }, [cards]);
 
-  const sortOptions = [
-    { value: "collection", label: "Orden de colección" },
-    {
-      value: "name-asc",
-      label: "Nombre A-Z",
-      sortBy: "name",
-      sortOrder: "asc",
-    },
-    {
-      value: "name-desc",
-      label: "Nombre Z-A",
-      sortBy: "name",
-      sortOrder: "desc",
-    },
-    {
-      value: "cost-asc",
-      label: "Coste: menor a mayor",
-      sortBy: "cost",
-      sortOrder: "asc",
-    },
-    {
-      value: "cost-desc",
-      label: "Coste: mayor a menor",
-      sortBy: "cost",
-      sortOrder: "desc",
-    },
-    {
-      value: "rarity-asc",
-      label: "Rareza: menor a mayor",
-      sortBy: "rarity",
-      sortOrder: "asc",
-    },
-    {
-      value: "rarity-desc",
-      label: "Rareza: mayor a menor",
-      sortBy: "rarity",
-      sortOrder: "desc",
-    },
-    {
-      value: "quantity-desc",
-      label: "Cantidad: mayor a menor",
-      sortBy: "quantity",
-      sortOrder: "desc",
-    },
-    {
-      value: "quantity-asc",
-      label: "Cantidad: menor a mayor",
-      sortBy: "quantity",
-      sortOrder: "asc",
-    },
-    {
-      value: "createdAt-desc",
-      label: "Agregadas: más nuevas",
-      sortBy: "createdAt",
-      sortOrder: "desc",
-    },
-    {
-      value: "createdAt-asc",
-      label: "Agregadas: más antiguas",
-      sortBy: "createdAt",
-      sortOrder: "asc",
-    },
-  ];
+  const sortOptions = React.useMemo(
+    () => [
+      { value: "collection", label: t("collection.sort.collectionOrder") },
+      {
+        value: "name-asc",
+        label: t("collection.sort.nameAsc"),
+        sortBy: "name",
+        sortOrder: "asc",
+      },
+      {
+        value: "name-desc",
+        label: t("collection.sort.nameDesc"),
+        sortBy: "name",
+        sortOrder: "desc",
+      },
+      {
+        value: "cost-asc",
+        label: t("collection.sort.costAsc"),
+        sortBy: "cost",
+        sortOrder: "asc",
+      },
+      {
+        value: "cost-desc",
+        label: t("collection.sort.costDesc"),
+        sortBy: "cost",
+        sortOrder: "desc",
+      },
+      {
+        value: "rarity-asc",
+        label: t("collection.sort.rarityAsc"),
+        sortBy: "rarity",
+        sortOrder: "asc",
+      },
+      {
+        value: "rarity-desc",
+        label: t("collection.sort.rarityDesc"),
+        sortBy: "rarity",
+        sortOrder: "desc",
+      },
+      {
+        value: "quantity-desc",
+        label: t("collection.sort.quantityDesc"),
+        sortBy: "quantity",
+        sortOrder: "desc",
+      },
+      {
+        value: "quantity-asc",
+        label: t("collection.sort.quantityAsc"),
+        sortBy: "quantity",
+        sortOrder: "asc",
+      },
+      {
+        value: "createdAt-desc",
+        label: t("collection.sort.addedNew"),
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      },
+      {
+        value: "createdAt-asc",
+        label: t("collection.sort.addedOld"),
+        sortBy: "createdAt",
+        sortOrder: "asc",
+      },
+    ],
+    [t]
+  );
   const selectedSortValue = React.useMemo(() => {
     if (!sortBy) return "collection";
     const normalizedOrder = sortOrder || "asc";
@@ -302,16 +309,56 @@ const CollectionPage = () => {
 
   // Grid options for binder view
   const gridOptions = [
-    { rows: 2, cols: 2, label: "2×2", description: "4 cartas por página" },
-    { rows: 3, cols: 3, label: "3×3", description: "9 cartas por página" },
-    { rows: 3, cols: 4, label: "3×4", description: "12 cartas por página" },
-    { rows: 4, cols: 4, label: "4×4", description: "16 cartas por página" },
+    { rows: 2, cols: 2, label: "2×2", perPage: 4 },
+    { rows: 3, cols: 3, label: "3×3", perPage: 9 },
+    { rows: 3, cols: 4, label: "3×4", perPage: 12 },
+    { rows: 4, cols: 4, label: "4×4", perPage: 16 },
   ];
 
   const handleOpenBinder = (rows: number, cols: number) => {
     setShowBinderDrawer(false);
     setSelectedGridOption(null);
     router.push(`/collection/binder?rows=${rows}&cols=${cols}`);
+  };
+
+  const handleShareBinder = async () => {
+    if (!selectedGridOption) {
+      toast.error(t("collection.binder.shareSelectGrid"));
+      return;
+    }
+    if (shareInFlightRef.current) return;
+    shareInFlightRef.current = true;
+
+    try {
+      const response = await fetch("/api/collection/share", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create share token");
+      }
+      const data = await response.json();
+      const shareUrl = `${window.location.origin}/collection/shared/${data.token}?rows=${selectedGridOption.rows}&cols=${selectedGridOption.cols}`;
+
+      if (navigator.share) {
+        await navigator.share({
+          title: t("collection.binder.shareTitle"),
+          url: shareUrl,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success(t("collection.binder.shareCopied"));
+    } catch (error) {
+      console.error("Share failed:", error);
+      const errorName = error instanceof Error ? error.name : "";
+      if (errorName === "AbortError" || errorName === "InvalidStateError") {
+        return;
+      }
+      toast.error(t("collection.binder.shareError"));
+    } finally {
+      shareInFlightRef.current = false;
+    }
   };
   const handleReorder = async (nextSlots: CollectionSlot[]) => {
     setSlots(nextSlots);
@@ -325,7 +372,7 @@ const CollectionPage = () => {
       });
     } catch (error) {
       console.error("Error saving collection order:", error);
-      toast.error("Error al guardar el orden");
+      toast.error(t("collection.errors.orderSave"));
     }
   };
 
@@ -507,10 +554,10 @@ const CollectionPage = () => {
           {isReorderMode && (
             <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow">
               {slots.length === 0
-                ? "Configura"
+                ? t("collection.configure")
                 : isMoveMode
-                ? "Destino"
-                : "Arrastra"}
+                ? t("collection.move.target")
+                : t("collection.drag")}
             </div>
           )}
           {isReorderMode && onDelete && (
@@ -523,7 +570,7 @@ const CollectionPage = () => {
               className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
             >
               <Trash2 className="h-3 w-3" />
-              <span>Eliminar</span>
+              <span>{t("collection.delete")}</span>
             </button>
           )}
           {isReorderMode && showSelection && (
@@ -653,7 +700,7 @@ const CollectionPage = () => {
       showToast("-1", "info", 1500);
     } catch (error) {
       console.error("Error removing slot:", error);
-      toast.error("Error al eliminar la carta");
+      toast.error(t("collection.errors.slotRemove"));
     }
   };
 
@@ -706,7 +753,7 @@ const CollectionPage = () => {
     if (!selectedSlotIds.length) return;
     const maxIndex = slots.length - selectedSlotIds.length + 1;
     if (targetIndex < 1 || targetIndex > maxIndex) {
-      toast.error(`Posición válida: 1 - ${maxIndex}`);
+      toast.error(t("collection.positionRange", { max: maxIndex }));
       return;
     }
     const selectedSet = new Set(selectedSlotIdsOrdered);
@@ -839,7 +886,7 @@ const CollectionPage = () => {
         setPagination(data.pagination);
       } catch (error) {
         console.error("Error fetching collection:", error);
-        toast.error("Error al cargar la colección");
+        toast.error(t("collection.errors.collectionLoad"));
       } finally {
         setLoading(false);
       }
@@ -968,7 +1015,7 @@ const CollectionPage = () => {
       }
     } catch (error) {
       console.error("Error updating quantity:", error);
-      toast.error("Error al actualizar cantidad");
+      toast.error(t("collection.errors.quantityUpdate"));
     }
   };
 
@@ -998,17 +1045,19 @@ const CollectionPage = () => {
         });
       }
 
-      toast.success("Carta eliminada de la colección");
-      showToast("Eliminada", "info", 1500);
+      toast.success(t("collection.success.removedFromCollection"));
+      showToast(t("collection.toast.removed"), "info", 1500);
     } catch (error) {
       console.error("Error removing card:", error);
-      toast.error("Error al eliminar carta");
+      toast.error(t("collection.errors.removeCard"));
     }
   };
 
+  const numberFormatLocale = lang === "es" ? "es-ES" : "en-US";
+
   const formatPrice = (price: number | null, currency: string | null) => {
     if (price === null) return null;
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(numberFormatLocale, {
       style: "currency",
       currency: currency || "USD",
       minimumFractionDigits: 2,
@@ -1025,6 +1074,12 @@ const CollectionPage = () => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
+  const closeSelectedCard = () => {
+    setSelectedCard(null);
+    setIsHovering(false);
+    setTilt({ x: 0, y: 0 });
+  };
+
   const actionsPanel = (
     <div className="p-5 space-y-5">
       <div className="flex items-center gap-3">
@@ -1032,9 +1087,11 @@ const CollectionPage = () => {
           <MoreHorizontal className="h-6 w-6 text-slate-600" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Acciones</h2>
+          <h2 className="text-lg font-semibold text-slate-900">
+            {t("collection.actions.title")}
+          </h2>
           <p className="text-xs text-slate-500">
-            Resumen y accesos rapidos de tu coleccion
+            {t("collection.actions.subtitle")}
           </p>
         </div>
       </div>
@@ -1042,32 +1099,37 @@ const CollectionPage = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <p className="text-xs text-slate-500">Valor estimado</p>
+            <p className="text-xs text-slate-500">
+              {t("collection.stats.estimatedValue")}
+            </p>
             <p className="text-lg font-semibold text-emerald-600">
               {formatPrice(collectionValue, "USD") || "—"}
             </p>
           </div>
           <div className="text-right flex flex-col">
-            <p className="text-xs text-slate-500">Cartas totales</p>
+            <p className="text-xs text-slate-500">
+              {t("collection.stats.totalCards")}
+            </p>
             <p className="text-lg font-semibold text-slate-900">
               {collection?.stats.totalCardsCount ?? 0}
             </p>
           </div>
         </div>
         <div className="mt-3 text-xs text-slate-500">
-          Unicas: {collection?.stats.totalUniqueCards ?? 0}
+          {t("collection.stats.uniqueCards")}:{" "}
+          {collection?.stats.totalUniqueCards ?? 0}
         </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-        <p className="text-xs text-slate-500">Orden</p>
+        <p className="text-xs text-slate-500">{t("collection.sort.label")}</p>
         <Select
           value={selectedSortValue}
           onValueChange={handleSortChange}
           disabled={isReorderMode}
         >
           <SelectTrigger className="h-10">
-            <SelectValue placeholder="Ordenar por" />
+            <SelectValue placeholder={t("collection.sort.placeholder")} />
           </SelectTrigger>
           <SelectContent>
             {sortOptions.map((option) => (
@@ -1079,7 +1141,7 @@ const CollectionPage = () => {
         </Select>
         {isReorderMode && (
           <p className="text-[11px] text-slate-500">
-            Desactiva el modo reordenar para cambiar el orden.
+            {t("collection.reorder.disableHint")}
           </p>
         )}
       </div>
@@ -1094,7 +1156,7 @@ const CollectionPage = () => {
           }}
           disabled={!collection || collection.stats.totalUniqueCards === 0}
         >
-          <span>Ver carpeta</span>
+          <span>{t("collection.viewBinder")}</span>
           <FolderOpen className="h-4 w-4" />
         </Button>
         <Button
@@ -1102,13 +1164,17 @@ const CollectionPage = () => {
           className="w-full justify-between"
           onClick={() => setIsReorderMode((prev) => !prev)}
         >
-          <span>{isReorderMode ? "Reordenando" : "Reordenar cartas"}</span>
+          <span>
+            {isReorderMode
+              ? t("collection.reorder.reordering")
+              : t("collection.reorder.cards")}
+          </span>
           <GripVertical className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-        Usa el modo ordenar para acomodar tus cartas en el grid.
+        {t("collection.reorder.hint")}
       </div>
     </div>
   );
@@ -1120,9 +1186,11 @@ const CollectionPage = () => {
           <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <FolderOpen className="h-7 w-7 text-slate-600" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Ver como carpeta</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {t("collection.binder.title")}
+          </h2>
           <p className="text-slate-500 text-sm mt-1">
-            Selecciona el tamaño de la cuadrícula
+            {t("collection.binder.subtitle")}
           </p>
         </div>
 
@@ -1179,7 +1247,9 @@ const CollectionPage = () => {
                   <p className="font-bold text-lg text-slate-900">
                     {option.label}
                   </p>
-                  <p className="text-xs text-slate-500">{option.description}</p>
+                  <p className="text-xs text-slate-500">
+                    {t("collection.cardsPerPage", { count: option.perPage })}
+                  </p>
                 </div>
               </button>
             );
@@ -1188,31 +1258,256 @@ const CollectionPage = () => {
       </div>
 
       <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3">
           <Button
             variant="outline"
-            onClick={() => {
-              setSelectedGridOption(null);
-              setShowBinderDrawer(false);
-            }}
+            onClick={handleShareBinder}
+            disabled={!selectedGridOption || !collection}
+            className="gap-2"
           >
-            Cancelar
+            <Share2 className="h-4 w-4" />
+            {t("collection.binder.share")}
           </Button>
-          <Button
-            onClick={() => {
-              if (!selectedGridOption) return;
-              handleOpenBinder(
-                selectedGridOption.rows,
-                selectedGridOption.cols
-              );
-            }}
-            disabled={!selectedGridOption}
-          >
-            Aceptar
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedGridOption(null);
+                setShowBinderDrawer(false);
+              }}
+            >
+              {t("collection.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!selectedGridOption) return;
+                handleOpenBinder(
+                  selectedGridOption.rows,
+                  selectedGridOption.cols
+                );
+              }}
+              disabled={!selectedGridOption}
+            >
+              {t("collection.accept")}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
+  );
+
+  const cardDetailPanel = selectedCard && (
+    <>
+      {/* Header */}
+      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-3 pt-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+              <span
+                className={`${oswald.className} font-medium text-slate-700`}
+              >
+                {selectedCard.card.code}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span>{selectedCard.card.rarity || "-"}</span>
+              <span className="text-slate-300">•</span>
+              <span>{selectedCard.card.category}</span>
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">
+              {selectedCard.card.name}
+            </h2>
+          </div>
+          <button
+            onClick={closeSelectedCard}
+            className="flex-shrink-0 rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div
+        className="overflow-y-auto flex-1 pb-4"
+        style={{
+          maxHeight: "calc(92vh - 100px)",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {/* Card Image with 3D Tilt Effect */}
+        <div className="p-4 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
+          <div
+            ref={cardRef}
+            className="relative cursor-pointer"
+            style={{ perspective: "1000px", touchAction: "none" }}
+            onMouseMove={handleMouseMove}
+            onMouseEnter={handleEnter}
+            onMouseLeave={handleLeave}
+            onTouchMove={handleTouchMove}
+            onTouchStart={handleEnter}
+            onTouchEnd={handleLeave}
+            onClick={() => setShowLargeImage(true)}
+          >
+            <div
+              className={!isHovering ? "animate-card-float" : ""}
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              <div
+                className="relative transition-transform duration-150 ease-out"
+                style={{
+                  transform: isHovering
+                    ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)`
+                    : "rotateX(0deg) rotateY(0deg) scale(1)",
+                  transformStyle: "preserve-3d",
+                }}
+              >
+                <div
+                  className="relative w-44 sm:w-52 aspect-[2.5/3.5] rounded-xl overflow-hidden"
+                  style={{
+                    boxShadow: isHovering
+                      ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
+                      : "0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -8px rgba(0, 0, 0, 0.2)",
+                    transition: "box-shadow 0.3s ease",
+                  }}
+                >
+                  <img
+                    src={selectedCard.card.src}
+                    alt={selectedCard.card.name}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+
+                  {/* Quantity Badge */}
+                  <div className="absolute top-0 right-0 bg-black text-white rounded-tr-xl rounded-bl-lg min-w-[28px] h-[28px] flex items-center justify-center text-sm font-bold border-2 border-white shadow-lg z-20">
+                    x{selectedCard.quantity}
+                  </div>
+
+                  {/* Price Badge */}
+                  {selectedCard.card.marketPrice && (
+                    <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-xl px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-20">
+                      {formatPrice(
+                        selectedCard.card.marketPrice,
+                        selectedCard.card.priceCurrency
+                      )}
+                    </div>
+                  )}
+
+                  {/* Glare Effect */}
+                  <div
+                    className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-10"
+                    style={{
+                      opacity: isHovering ? 0.6 : 0,
+                      background: `radial-gradient(
+                        circle at ${glarePosition.x}% ${glarePosition.y}%,
+                        rgba(255, 255, 255, 0.8) 0%,
+                        rgba(255, 255, 255, 0.4) 20%,
+                        transparent 60%
+                      )`,
+                    }}
+                  />
+
+                  {/* Holographic Rainbow Effect */}
+                  <div
+                    className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-color-dodge z-10"
+                    style={{
+                      opacity: isHovering ? 0.15 : 0,
+                      background: `linear-gradient(
+                        ${45 + tilt.y * 2}deg,
+                        rgba(255, 0, 0, 0.5) 0%,
+                        rgba(255, 154, 0, 0.5) 10%,
+                        rgba(208, 222, 33, 0.5) 20%,
+                        rgba(79, 220, 74, 0.5) 30%,
+                        rgba(63, 218, 216, 0.5) 40%,
+                        rgba(47, 201, 226, 0.5) 50%,
+                        rgba(28, 127, 238, 0.5) 60%,
+                        rgba(95, 21, 242, 0.5) 70%,
+                        rgba(186, 12, 248, 0.5) 80%,
+                        rgba(251, 7, 217, 0.5) 90%,
+                        rgba(255, 0, 0, 0.5) 100%
+                      )`,
+                    }}
+                  />
+                </div>
+
+                {/* Zoom Hint */}
+                <div
+                  className={`absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-opacity duration-200 ${
+                    isHovering ? "opacity-100" : "opacity-0"
+                  }`}
+                >
+                  <ZoomIn className="h-3 w-3" />
+                  <span>{t("collection.tapToExpand")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quantity Controls */}
+        <div className="px-4 mt-4">
+          <div className="bg-slate-50 rounded-xl p-4 mb-4">
+            <p className="text-sm text-slate-600 text-center mb-3">
+              {t("collection.quantityInCollection")}
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  if (selectedCard.quantity > 1) {
+                    updateQuantity(
+                      selectedCard.cardId,
+                      selectedCard.quantity - 1
+                    );
+                    setSelectedCard({
+                      ...selectedCard,
+                      quantity: selectedCard.quantity - 1,
+                    });
+                  }
+                }}
+                disabled={selectedCard.quantity <= 1}
+                className="h-12 w-12 p-0 rounded-full"
+              >
+                <Minus className="h-5 w-5" />
+              </Button>
+              <span className="text-3xl font-bold w-16 text-center">
+                {selectedCard.quantity}
+              </span>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  updateQuantity(
+                    selectedCard.cardId,
+                    selectedCard.quantity + 1
+                  );
+                  setSelectedCard({
+                    ...selectedCard,
+                    quantity: selectedCard.quantity + 1,
+                  });
+                }}
+                className="h-12 w-12 p-0 rounded-full"
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Delete button */}
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={() => {
+              removeCard(selectedCard.cardId);
+              setSelectedCard(null);
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {t("collection.removeFromCollection")}
+          </Button>
+        </div>
+      </div>
+    </>
   );
 
   // Not authenticated view
@@ -1230,10 +1525,10 @@ const CollectionPage = () => {
             />
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Tu Colección
+            {t("collection.login.title")}
           </h1>
           <p className="text-slate-300 mb-8">
-            Inicia sesión para ver y gestionar tu colección de cartas
+            {t("collection.login.subtitle")}
           </p>
           <Button
             size="lg"
@@ -1241,7 +1536,7 @@ const CollectionPage = () => {
             onClick={() => signIn("google")}
           >
             <LogIn className="w-5 h-5 mr-2" />
-            Iniciar sesión con Google
+            {t("collection.login.button")}
           </Button>
         </div>
       </div>
@@ -1259,11 +1554,15 @@ const CollectionPage = () => {
         <div className="px-4 py-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Mi Colección</h1>
+              <h1 className="text-xl font-bold text-slate-900">
+                {t("collection.title")}
+              </h1>
               {collection && (
                 <p className="text-slate-500 text-sm">
-                  {collection.stats.totalCardsCount} cartas •{" "}
-                  {formatPrice(collectionValue, "USD") || "—"}
+                  {t("collection.cardsCount", {
+                    count: collection.stats.totalCardsCount,
+                  })}{" "}
+                  • {formatPrice(collectionValue, "USD") || "—"}
                 </p>
               )}
             </div>
@@ -1328,21 +1627,25 @@ const CollectionPage = () => {
           />
 
           <div className="flex items-center gap-4">
-            <div className="ml-auto flex items-center gap-3 justify-between flex-1">
-              <div>
+            <div className="ml-auto flex items-center gap-3 justify-end flex-1">
+              {/* <div>
                 <p className="text-xs text-slate-500">
-                  {pagination.totalCards.toLocaleString()} cartas
+                  {t("collection.cardsCount", {
+                    count: pagination.totalCards.toLocaleString(),
+                  })}
                 </p>
-              </div>
+              </div> */}
               <div className="flex gap-2">
-                <div className="hidden lg:block min-w-[210px]">
+                {/* <div className="hidden lg:block min-w-[210px]">
                   <Select
                     value={selectedSortValue}
                     onValueChange={handleSortChange}
                     disabled={isReorderMode}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Ordenar por" />
+                      <SelectValue
+                        placeholder={t("collection.sort.placeholder")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {sortOptions.map((option) => (
@@ -1352,7 +1655,7 @@ const CollectionPage = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </div> */}
                 <Button
                   variant={isReorderMode ? "default" : "outline"}
                   size="sm"
@@ -1361,7 +1664,9 @@ const CollectionPage = () => {
                 >
                   <GripVertical className="h-4 w-4" />
                   <span className="hidden sm:inline">
-                    {isReorderMode ? "Reordenando" : "Reordenar"}
+                    {isReorderMode
+                      ? t("collection.reorder.reordering")
+                      : t("collection.reorder.short")}
                   </span>
                 </Button>
                 {collection && collection.stats.totalUniqueCards > 0 && (
@@ -1372,7 +1677,9 @@ const CollectionPage = () => {
                     className="gap-2"
                   >
                     <FolderOpen className="h-4 w-4" />
-                    <span className="hidden sm:inline">Ver carpeta</span>
+                    <span className="hidden sm:inline">
+                      {t("collection.viewBinder")}
+                    </span>
                   </Button>
                 )}
               </div>
@@ -1388,7 +1695,7 @@ const CollectionPage = () => {
               className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-blue-300 bg-blue-50 text-blue-700"
             >
               <GripVertical className="h-4 w-4" />
-              Reordenando
+              {t("collection.reorder.reordering")}
             </button>
           ) : (
             <>
@@ -1397,7 +1704,7 @@ const CollectionPage = () => {
                   <DropdownSearch
                     search={search}
                     setSearch={setSearch}
-                    placeholder="Buscar cartas..."
+                    placeholder={t("collection.search.placeholder")}
                   />
                 </div>
               </div>
@@ -1426,7 +1733,7 @@ const CollectionPage = () => {
                   }`}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  <span>Filtros</span>
+                  <span>{t("collection.filters")}</span>
                 </button>
                 {collection && collection.stats.totalUniqueCards > 0 && (
                   <button
@@ -1435,7 +1742,7 @@ const CollectionPage = () => {
                     className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
                   >
                     <FolderOpen className="h-4 w-4" />
-                    <span>Carpeta</span>
+                    <span>{t("collection.binder")}</span>
                   </button>
                 )}
                 <button
@@ -1444,7 +1751,7 @@ const CollectionPage = () => {
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-slate-200 bg-white text-slate-700"
                 >
                   <GripVertical className="h-4 w-4" />
-                  Reordenar
+                  {t("collection.reorder.short")}
                 </button>
               </div>
             </>
@@ -1518,17 +1825,17 @@ const CollectionPage = () => {
               </div>
               <h3 className="text-xl font-semibold text-slate-900 mb-2">
                 {search
-                  ? "No se encontraron cartas"
-                  : "Tu colección está vacía"}
+                  ? t("collection.empty.title.noResults")
+                  : t("collection.empty.title.noCards")}
               </h3>
               <p className="text-slate-600 mb-6">
                 {search
-                  ? "Intenta con otra búsqueda"
-                  : "Empieza a agregar cartas desde el catálogo"}
+                  ? t("collection.empty.subtitle.noResults")
+                  : t("collection.empty.subtitle.noCards")}
               </p>
               {!search && (
                 <Button onClick={() => router.push("/card-list")}>
-                  Explorar cartas
+                  {t("collection.empty.cta")}
                 </Button>
               )}
             </div>
@@ -1539,20 +1846,22 @@ const CollectionPage = () => {
               <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                 <Info className="h-3.5 w-3.5" />
                 {slots.length === 0
-                  ? "Falta crear los slots. Corre el backfill para ordenar por copias."
+                  ? t("collection.reorder.slotsMissing")
                   : selectedSlotIds.length
                   ? isMoveMode
-                    ? "Elige la carta destino para mover el lote."
-                    : "Toca las cartas que quieras mover."
-                  : "Toca para seleccionar. Mantén presionado para mover."}
+                    ? t("collection.reorder.pickDestination")
+                    : t("collection.reorder.tapToMove")
+                  : t("collection.reorder.tapToSelect")}
               </div>
             )}
             {isReorderMode && slots.length > 0 && (
               <div className="hidden md:flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                 <div className="text-xs text-slate-500">
                   {selectedSlotIds.length
-                    ? `${selectedSlotIds.length} seleccionadas`
-                    : "Selecciona cartas para mover."}
+                    ? t("collection.reorder.selectedCount", {
+                        count: selectedSlotIds.length,
+                      })
+                    : t("collection.reorder.selectToMove")}
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <Button
@@ -1561,7 +1870,9 @@ const CollectionPage = () => {
                     onClick={() => setIsMoveMode((prev) => !prev)}
                     disabled={!selectedSlotIds.length}
                   >
-                    {isMoveMode ? "Cancelar mover" : "Mover lote"}
+                    {isMoveMode
+                      ? t("collection.move.cancel")
+                      : t("collection.reorder.moveBatch")}
                   </Button>
                   <Button
                     variant="outline"
@@ -1569,7 +1880,7 @@ const CollectionPage = () => {
                     onClick={() => setShowMoveInput((prev) => !prev)}
                     disabled={!selectedSlotIds.length || isMoveMode}
                   >
-                    Mover a posición
+                    {t("collection.reorder.moveToPosition")}
                   </Button>
                   <Button
                     variant="outline"
@@ -1577,7 +1888,7 @@ const CollectionPage = () => {
                     onClick={clearSelection}
                     disabled={!selectedSlotIds.length}
                   >
-                    Limpiar
+                    {t("collection.reorder.clear")}
                   </Button>
                 </div>
                 {showMoveInput && (
@@ -1585,7 +1896,7 @@ const CollectionPage = () => {
                     <input
                       value={moveTarget}
                       onChange={(event) => setMoveTarget(event.target.value)}
-                      placeholder="Posición"
+                      placeholder={t("collection.position")}
                       inputMode="numeric"
                       className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
                     />
@@ -1594,13 +1905,13 @@ const CollectionPage = () => {
                       onClick={() => {
                         const target = Number.parseInt(moveTarget, 10);
                         if (!Number.isFinite(target)) {
-                          toast.error("Posición inválida");
+                          toast.error(t("collection.invalidPosition"));
                           return;
                         }
                         moveSelectedSlotsTo(target);
                       }}
                     >
-                      Mover
+                      {t("collection.move")}
                     </Button>
                   </div>
                 )}
@@ -1726,7 +2037,11 @@ const CollectionPage = () => {
                 } disabled:opacity-50`}
               >
                 <GripVertical className="h-4 w-4" />
-                <span>{isMoveMode ? "Destino" : "Mover"}</span>
+                <span>
+                  {isMoveMode
+                    ? t("collection.move.target")
+                    : t("collection.move.short")}
+                </span>
               </button>
               <button
                 type="button"
@@ -1735,7 +2050,7 @@ const CollectionPage = () => {
                 className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition disabled:opacity-50"
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                <span>Posición</span>
+                <span>{t("collection.position")}</span>
               </button>
               <button
                 type="button"
@@ -1744,7 +2059,7 @@ const CollectionPage = () => {
                 className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
-                <span>Limpiar</span>
+                <span>{t("collection.reorder.clear")}</span>
               </button>
             </div>
           </div>
@@ -1761,18 +2076,20 @@ const CollectionPage = () => {
           <DialogContent className="w-[calc(100%-1.5rem)] max-w-sm rounded-2xl p-0 overflow-hidden">
             <div className="px-5 pt-4 pb-5 space-y-4">
               <DialogHeader>
-                <DialogTitle>Mover a posición</DialogTitle>
+                <DialogTitle>
+                  {t("collection.reorder.moveToPosition")}
+                </DialogTitle>
                 <DialogDescription>
                   {moveMaxIndex
-                    ? `Posición válida: 1 - ${moveMaxIndex}`
-                    : "Selecciona cartas para mover"}
+                    ? t("collection.positionRange", { max: moveMaxIndex })
+                    : t("collection.selectCardsToMove")}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-2">
                 <input
                   value={moveTarget}
                   onChange={(event) => setMoveTarget(event.target.value)}
-                  placeholder="Posición"
+                  placeholder={t("collection.position")}
                   inputMode="numeric"
                   className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
@@ -1782,13 +2099,13 @@ const CollectionPage = () => {
                   onClick={() => {
                     const target = Number.parseInt(moveTarget, 10);
                     if (!Number.isFinite(target)) {
-                      toast.error("Posición inválida");
+                      toast.error(t("collection.invalidPosition"));
                       return;
                     }
                     moveSelectedSlotsTo(target);
                   }}
                 >
-                  Mover
+                  {t("collection.move")}
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1798,7 +2115,7 @@ const CollectionPage = () => {
                   disabled={!selectedSlotIds.length}
                   onClick={() => moveSelectedSlotsTo(1)}
                 >
-                  Inicio
+                  {t("collection.start")}
                 </Button>
                 <Button
                   type="button"
@@ -1806,7 +2123,7 @@ const CollectionPage = () => {
                   disabled={!selectedSlotIds.length || moveMaxIndex === 0}
                   onClick={() => moveSelectedSlotsTo(moveMaxIndex)}
                 >
-                  Final
+                  {t("collection.end")}
                 </Button>
               </div>
             </div>
@@ -1815,231 +2132,22 @@ const CollectionPage = () => {
       )}
 
       {/* Card Detail Drawer/Modal - Like CardPreviewDialog */}
-      <BaseDrawer
-        isOpen={!!selectedCard}
-        onClose={() => {
-          setSelectedCard(null);
-          setIsHovering(false);
-          setTilt({ x: 0, y: 0 });
-        }}
-        desktopModal={true}
-        desktopMaxWidth="max-w-lg"
-        maxHeight="92vh"
-      >
-        {selectedCard && (
-          <>
-            {/* Header */}
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-3 pt-1">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                    <span
-                      className={`${oswald.className} font-medium text-slate-700`}
-                    >
-                      {selectedCard.card.code}
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span>{selectedCard.card.rarity || "-"}</span>
-                    <span className="text-slate-300">•</span>
-                    <span>{selectedCard.card.category}</span>
-                  </div>
-                  <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                    {selectedCard.card.name}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setSelectedCard(null)}
-                  className="flex-shrink-0 rounded-full border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable Content */}
-            <div
-              className="overflow-y-auto flex-1 pb-4"
-              style={{
-                maxHeight: "calc(92vh - 100px)",
-                WebkitOverflowScrolling: "touch",
-              }}
-            >
-              {/* Card Image with 3D Tilt Effect */}
-              <div className="p-4 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
-                <div
-                  ref={cardRef}
-                  className="relative cursor-pointer"
-                  style={{ perspective: "1000px", touchAction: "none" }}
-                  onMouseMove={handleMouseMove}
-                  onMouseEnter={handleEnter}
-                  onMouseLeave={handleLeave}
-                  onTouchMove={handleTouchMove}
-                  onTouchStart={handleEnter}
-                  onTouchEnd={handleLeave}
-                  onClick={() => setShowLargeImage(true)}
-                >
-                  <div
-                    className={!isHovering ? "animate-card-float" : ""}
-                    style={{ transformStyle: "preserve-3d" }}
-                  >
-                    <div
-                      className="relative transition-transform duration-150 ease-out"
-                      style={{
-                        transform: isHovering
-                          ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)`
-                          : "rotateX(0deg) rotateY(0deg) scale(1)",
-                        transformStyle: "preserve-3d",
-                      }}
-                    >
-                      <div
-                        className="relative w-44 sm:w-52 aspect-[2.5/3.5] rounded-xl overflow-hidden"
-                        style={{
-                          boxShadow: isHovering
-                            ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
-                            : "0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -8px rgba(0, 0, 0, 0.2)",
-                          transition: "box-shadow 0.3s ease",
-                        }}
-                      >
-                        <img
-                          src={selectedCard.card.src}
-                          alt={selectedCard.card.name}
-                          className="w-full h-full object-cover"
-                          draggable={false}
-                        />
-
-                        {/* Quantity Badge */}
-                        <div className="absolute top-0 right-0 bg-black text-white rounded-tr-xl rounded-bl-lg min-w-[28px] h-[28px] flex items-center justify-center text-sm font-bold border-2 border-white shadow-lg z-20">
-                          x{selectedCard.quantity}
-                        </div>
-
-                        {/* Price Badge */}
-                        {selectedCard.card.marketPrice && (
-                          <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-xl px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-20">
-                            {formatPrice(
-                              selectedCard.card.marketPrice,
-                              selectedCard.card.priceCurrency
-                            )}
-                          </div>
-                        )}
-
-                        {/* Glare Effect */}
-                        <div
-                          className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-10"
-                          style={{
-                            opacity: isHovering ? 0.6 : 0,
-                            background: `radial-gradient(
-                              circle at ${glarePosition.x}% ${glarePosition.y}%,
-                              rgba(255, 255, 255, 0.8) 0%,
-                              rgba(255, 255, 255, 0.4) 20%,
-                              transparent 60%
-                            )`,
-                          }}
-                        />
-
-                        {/* Holographic Rainbow Effect */}
-                        <div
-                          className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-color-dodge z-10"
-                          style={{
-                            opacity: isHovering ? 0.15 : 0,
-                            background: `linear-gradient(
-                              ${45 + tilt.y * 2}deg,
-                              rgba(255, 0, 0, 0.5) 0%,
-                              rgba(255, 154, 0, 0.5) 10%,
-                              rgba(208, 222, 33, 0.5) 20%,
-                              rgba(79, 220, 74, 0.5) 30%,
-                              rgba(63, 218, 216, 0.5) 40%,
-                              rgba(47, 201, 226, 0.5) 50%,
-                              rgba(28, 127, 238, 0.5) 60%,
-                              rgba(95, 21, 242, 0.5) 70%,
-                              rgba(186, 12, 248, 0.5) 80%,
-                              rgba(251, 7, 217, 0.5) 90%,
-                              rgba(255, 0, 0, 0.5) 100%
-                            )`,
-                          }}
-                        />
-                      </div>
-
-                      {/* Zoom Hint */}
-                      <div
-                        className={`absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-opacity duration-200 ${
-                          isHovering ? "opacity-100" : "opacity-0"
-                        }`}
-                      >
-                        <ZoomIn className="h-3 w-3" />
-                        <span>Tap para expandir</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quantity Controls */}
-              <div className="px-4 mt-4">
-                <div className="bg-slate-50 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-slate-600 text-center mb-3">
-                    Cantidad en colección
-                  </p>
-                  <div className="flex items-center justify-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={() => {
-                        if (selectedCard.quantity > 1) {
-                          updateQuantity(
-                            selectedCard.cardId,
-                            selectedCard.quantity - 1
-                          );
-                          setSelectedCard({
-                            ...selectedCard,
-                            quantity: selectedCard.quantity - 1,
-                          });
-                        }
-                      }}
-                      disabled={selectedCard.quantity <= 1}
-                      className="h-12 w-12 p-0 rounded-full"
-                    >
-                      <Minus className="h-5 w-5" />
-                    </Button>
-                    <span className="text-3xl font-bold w-16 text-center">
-                      {selectedCard.quantity}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={() => {
-                        updateQuantity(
-                          selectedCard.cardId,
-                          selectedCard.quantity + 1
-                        );
-                        setSelectedCard({
-                          ...selectedCard,
-                          quantity: selectedCard.quantity + 1,
-                        });
-                      }}
-                      className="h-12 w-12 p-0 rounded-full"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Delete button */}
-                <Button
-                  variant="destructive"
-                  className="w-full"
-                  onClick={() => {
-                    removeCard(selectedCard.cardId);
-                    setSelectedCard(null);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar de la colección
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </BaseDrawer>
+      {isDesktopViewport ? (
+        <Dialog
+          open={!!selectedCard}
+          onOpenChange={(open) => {
+            if (!open) closeSelectedCard();
+          }}
+        >
+          <DialogContent className="max-w-lg p-0 overflow-hidden">
+            {cardDetailPanel}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <BaseDrawer isOpen={!!selectedCard} onClose={closeSelectedCard} maxHeight="92vh">
+          {cardDetailPanel}
+        </BaseDrawer>
+      )}
 
       {/* Large Image Overlay */}
       {showLargeImage && selectedCard && (
@@ -2053,7 +2161,7 @@ const CollectionPage = () => {
         >
           <div className="w-full max-w-md pointer-events-none animate-in zoom-in-95 fade-in duration-200">
             <div className="text-white/80 text-sm font-medium text-center py-3">
-              Tap para cerrar
+              {t("collection.tapToClose")}
             </div>
             <div className="flex flex-col items-center gap-4">
               <img
@@ -2081,10 +2189,10 @@ const CollectionPage = () => {
           <div className="bg-rose-50 px-5 py-4">
             <DialogHeader>
               <DialogTitle className="text-lg text-rose-900">
-                Eliminar carta
+                {t("collection.deleteCardTitle")}
               </DialogTitle>
               <DialogDescription className="text-rose-700">
-                Se eliminara una copia de tu coleccion.
+                {t("collection.deleteCardDesc")}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -2113,7 +2221,7 @@ const CollectionPage = () => {
                 className="h-11"
                 onClick={confirmDeleteSlot}
               >
-                Eliminar copia
+                {t("collection.deleteCopy")}
               </Button>
               <Button
                 type="button"
@@ -2121,7 +2229,7 @@ const CollectionPage = () => {
                 className="h-11"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancelar
+                {t("collection.cancel")}
               </Button>
             </div>
           </div>

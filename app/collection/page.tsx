@@ -179,6 +179,7 @@ const CollectionPage = () => {
   const isDesktopViewport = useMediaQuery("(min-width: 768px)");
   const [selectedSlotIds, setSelectedSlotIds] = useState<number[]>([]);
   const [showMoveInput, setShowMoveInput] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
   const [isMoveMode, setIsMoveMode] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CollectionSlot | null>(null);
@@ -675,6 +676,7 @@ const CollectionPage = () => {
 
   const clearSelection = () => {
     setSelectedSlotIds([]);
+    setShowMoveDialog(false);
   };
 
   const selectedSlotIdsOrdered = React.useMemo(() => {
@@ -690,6 +692,11 @@ const CollectionPage = () => {
     });
     return map;
   }, [selectedSlotIdsOrdered]);
+
+  const moveMaxIndex = React.useMemo(() => {
+    if (!slots.length || !selectedSlotIds.length) return 0;
+    return Math.max(1, slots.length - selectedSlotIds.length + 1);
+  }, [slots.length, selectedSlotIds.length]);
 
   const moveSelectedSlotsTo = (targetIndex: number) => {
     if (!selectedSlotIds.length) return;
@@ -712,6 +719,7 @@ const CollectionPage = () => {
     handleReorder(nextSlots);
     clearSelection();
     setShowMoveInput(false);
+    setShowMoveDialog(false);
     setMoveTarget("");
   };
 
@@ -888,6 +896,7 @@ const CollectionPage = () => {
     if (!isReorderMode) {
       clearSelection();
       setShowMoveInput(false);
+      setShowMoveDialog(false);
       setMoveTarget("");
       setIsMoveMode(false);
     }
@@ -902,6 +911,7 @@ const CollectionPage = () => {
   useEffect(() => {
     if (isMoveMode) {
       setShowMoveInput(false);
+      setShowMoveDialog(false);
     }
   }, [isMoveMode]);
 
@@ -1652,41 +1662,61 @@ const CollectionPage = () => {
 
       {isReorderMode && (
         <div className="fixed bottom-3 left-0 right-0 z-40 px-3 md:hidden">
-          <div className="mx-auto flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-lg backdrop-blur">
-            <div className="flex items-center justify-between gap-2">
+          <div className="mx-auto rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setIsMoveMode((prev) => !prev)}
                 disabled={!selectedSlotIds.length}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                className={`flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-xs font-semibold transition ${
+                  isMoveMode
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-white text-slate-700"
+                } disabled:opacity-50`}
               >
-                {isMoveMode ? "Cancelar mover" : "Mover lote"}
+                <GripVertical className="h-4 w-4" />
+                <span>{isMoveMode ? "Destino" : "Mover"}</span>
               </button>
               <button
                 type="button"
-                onClick={() => setShowMoveInput((prev) => !prev)}
+                onClick={() => setShowMoveDialog(true)}
                 disabled={!selectedSlotIds.length || isMoveMode}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition disabled:opacity-50"
               >
-                Mover a posición
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Posición</span>
               </button>
               <button
                 type="button"
                 onClick={clearSelection}
                 disabled={!selectedSlotIds.length}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition disabled:opacity-50"
               >
-                Limpiar
+                <X className="h-4 w-4" />
+                <span>Limpiar</span>
               </button>
             </div>
-            <div className="text-xs text-slate-500">
-              {selectedSlotIds.length
-                ? isMoveMode
-                  ? "Toca la carta destino para mover."
-                  : `${selectedSlotIds.length} seleccionadas`
-                : "Toca para seleccionar. Mantén presionado para mover."}
-            </div>
-            {showMoveInput && (
+          </div>
+        </div>
+      )}
+
+      {!isDesktopViewport && (
+        <Dialog
+          open={showMoveDialog}
+          onOpenChange={(open) => {
+            if (!open) setShowMoveDialog(false);
+          }}
+        >
+          <DialogContent className="w-[calc(100%-1.5rem)] max-w-sm rounded-2xl p-0 overflow-hidden">
+            <div className="px-5 pt-4 pb-5 space-y-4">
+              <DialogHeader>
+                <DialogTitle>Mover a posición</DialogTitle>
+                <DialogDescription>
+                  {moveMaxIndex
+                    ? `Posición válida: 1 - ${moveMaxIndex}`
+                    : "Selecciona cartas para mover"}
+                </DialogDescription>
+              </DialogHeader>
               <div className="flex items-center gap-2">
                 <input
                   value={moveTarget}
@@ -1695,8 +1725,9 @@ const CollectionPage = () => {
                   inputMode="numeric"
                   className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
-                <button
+                <Button
                   type="button"
+                  disabled={!selectedSlotIds.length}
                   onClick={() => {
                     const target = Number.parseInt(moveTarget, 10);
                     if (!Number.isFinite(target)) {
@@ -1705,14 +1736,31 @@ const CollectionPage = () => {
                     }
                     moveSelectedSlotsTo(target);
                   }}
-                  className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
                 >
                   Mover
-                </button>
+                </Button>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!selectedSlotIds.length}
+                  onClick={() => moveSelectedSlotsTo(1)}
+                >
+                  Inicio
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!selectedSlotIds.length || moveMaxIndex === 0}
+                  onClick={() => moveSelectedSlotsTo(moveMaxIndex)}
+                >
+                  Final
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Card Detail Drawer/Modal - Like CardPreviewDialog */}
@@ -2067,9 +2115,9 @@ const CollectionPage = () => {
         <BaseDrawer
           isOpen={showBinderDrawer}
           onClose={() => setShowBinderDrawer(false)}
-          maxHeight="70vh"
+          maxHeight="85vh"
         >
-          {binderPanel}
+          <div className="max-h-[85vh] overflow-y-auto">{binderPanel}</div>
         </BaseDrawer>
       )}
     </div>

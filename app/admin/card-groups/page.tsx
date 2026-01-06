@@ -237,8 +237,6 @@ const AdminCardGroupsPage = () => {
       );
       if (!response.ok) throw new Error("Failed to fetch groups");
       const data = (await response.json()) as GroupResponse;
-      console.log("[fetchGroups] total from API:", data.total, "items received:", data.items.length);
-      console.log("[fetchGroups] first 10 codes:", data.items.slice(0, 10).map(g => g.canonicalCode));
       setGroups(data.items);
       setRegionOrder(data.regionOrder ?? []);
     } catch (error) {
@@ -393,7 +391,7 @@ const AdminCardGroupsPage = () => {
         throw new Error(error.error || "Failed to link card");
       }
       showSuccessToast("Carta vinculada al grupo");
-      await fetchGroups();
+      await refreshSingleGroup(selectedGroup.id);
       await fetchUngrouped();
     } catch (error) {
       console.error(error);
@@ -419,7 +417,7 @@ const AdminCardGroupsPage = () => {
         throw new Error(error.error || "Failed to link card");
       }
       showSuccessToast("Carta base vinculada");
-      await fetchGroups();
+      await refreshSingleGroup(selectedGroup.id);
       await fetchRegionCards(selectedGroup.id);
     } catch (error) {
       console.error(error);
@@ -445,7 +443,7 @@ const AdminCardGroupsPage = () => {
         throw new Error(error.error || "Failed to unlink card");
       }
       showSuccessToast("Vinculo eliminado");
-      await fetchGroups();
+      await refreshSingleGroup(selectedGroup.id);
       await fetchRegionCards(selectedGroup.id);
     } catch (error) {
       console.error(error);
@@ -510,7 +508,7 @@ const AdminCardGroupsPage = () => {
         }
         showSuccessToast("Alterna vinculada");
       }
-      await fetchGroups();
+      await refreshSingleGroup(selectedGroup.id);
       await fetchRegionCards(selectedGroup.id);
     } catch (error) {
       console.error(error);
@@ -538,7 +536,7 @@ const AdminCardGroupsPage = () => {
         const error = await response.json();
         throw new Error(error.error || "Failed to update status");
       }
-      await fetchGroups();
+      await refreshSingleGroup(selectedGroup.id);
       await fetchRegionCards(selectedGroup.id);
     } catch (error) {
       console.error(error);
@@ -636,8 +634,6 @@ const AdminCardGroupsPage = () => {
     Array.from(map.values()).forEach((entries) => {
       entries.sort((a, b) => a.canonicalCode.localeCompare(b.canonicalCode));
     });
-    console.log("[groupsBySet] keys:", Array.from(map.keys()));
-    console.log("[groupsBySet] sizes:", Array.from(map.entries()).map(([k, v]) => `${k}:${v.length}`));
     return map;
   }, [groups]);
 
@@ -757,8 +753,6 @@ const AdminCardGroupsPage = () => {
               {orderedSetKeys.map((setKey) => {
                 const section = groupsBySet.get(setKey) ?? [];
                 if (!section.length) return null;
-
-                console.log(`[setKey=${setKey}] cards:`, section.length, section.map(g => g.canonicalCode));
 
                 return (
                   <div key={setKey} className="space-y-2">

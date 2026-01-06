@@ -197,6 +197,10 @@ const CollectionPage = () => {
 
   // Binder view drawer
   const [showBinderDrawer, setShowBinderDrawer] = useState(false);
+  const [selectedGridOption, setSelectedGridOption] = useState<{
+    rows: number;
+    cols: number;
+  } | null>(null);
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
   });
@@ -301,12 +305,12 @@ const CollectionPage = () => {
     { rows: 2, cols: 2, label: "2×2", description: "4 cartas por página" },
     { rows: 3, cols: 3, label: "3×3", description: "9 cartas por página" },
     { rows: 3, cols: 4, label: "3×4", description: "12 cartas por página" },
-    { rows: 4, cols: 3, label: "4×3", description: "12 cartas por página" },
     { rows: 4, cols: 4, label: "4×4", description: "16 cartas por página" },
   ];
 
   const handleOpenBinder = (rows: number, cols: number) => {
     setShowBinderDrawer(false);
+    setSelectedGridOption(null);
     router.push(`/collection/binder?rows=${rows}&cols=${cols}`);
   };
   const handleReorder = async (nextSlots: CollectionSlot[]) => {
@@ -1110,58 +1114,104 @@ const CollectionPage = () => {
   );
 
   const binderPanel = (
-    <div className="p-5">
-      <div className="text-center mb-6">
-        <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-          <FolderOpen className="h-7 w-7 text-slate-600" />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <FolderOpen className="h-7 w-7 text-slate-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Ver como carpeta</h2>
+          <p className="text-slate-500 text-sm mt-1">
+            Selecciona el tamaño de la cuadrícula
+          </p>
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Ver como carpeta</h2>
-        <p className="text-slate-500 text-sm mt-1">
-          Selecciona el tamaño de la cuadrícula
-        </p>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {gridOptions.map((option) => (
-          <button
-            key={option.label}
-            onClick={() => handleOpenBinder(option.rows, option.cols)}
-            className="p-4 rounded-xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-left group"
-          >
-            {/* Grid preview */}
-            <div className="mb-3 flex justify-center">
-              <div
-                className="grid gap-1 p-2 bg-slate-100 rounded-lg group-hover:bg-blue-100 transition-colors"
-                style={{
-                  gridTemplateColumns: `repeat(${option.cols}, 1fr)`,
-                  width: `${option.cols * 16 + (option.cols - 1) * 4 + 16}px`,
-                }}
+        <div className="grid grid-cols-2 gap-3">
+          {gridOptions.map((option) => {
+            const isSelected =
+              selectedGridOption?.rows === option.rows &&
+              selectedGridOption?.cols === option.cols;
+            return (
+              <button
+                key={option.label}
+                onClick={() =>
+                  setSelectedGridOption({
+                    rows: option.rows,
+                    cols: option.cols,
+                  })
+                }
+                className={`p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
+                  isSelected
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-200 hover:border-blue-500 hover:bg-blue-50"
+                }`}
               >
-                {Array.from({ length: option.rows * option.cols }).map(
-                  (_, i) => (
-                    <div
-                      key={i}
-                      className="w-4 h-5 bg-slate-300 rounded-sm group-hover:bg-blue-300 transition-colors"
-                    />
-                  )
-                )}
-              </div>
-            </div>
-            <div className="text-center">
-              <p className="font-bold text-lg text-slate-900">{option.label}</p>
-              <p className="text-xs text-slate-500">{option.description}</p>
-            </div>
-          </button>
-        ))}
+                {/* Grid preview */}
+                <div className="mb-3 flex justify-center">
+                  <div
+                    className={`grid gap-1 p-2 rounded-lg transition-colors ${
+                      isSelected
+                        ? "bg-blue-100"
+                        : "bg-slate-100 group-hover:bg-blue-100"
+                    }`}
+                    style={{
+                      gridTemplateColumns: `repeat(${option.cols}, 1fr)`,
+                      width: `${
+                        option.cols * 16 + (option.cols - 1) * 4 + 16
+                      }px`,
+                    }}
+                  >
+                    {Array.from({ length: option.rows * option.cols }).map(
+                      (_, i) => (
+                        <div
+                          key={i}
+                          className={`w-4 h-5 rounded-sm transition-colors ${
+                            isSelected
+                              ? "bg-blue-300"
+                              : "bg-slate-300 group-hover:bg-blue-300"
+                          }`}
+                        />
+                      )
+                    )}
+                  </div>
+                </div>
+                <div className="text-center flex flex-col">
+                  <p className="font-bold text-lg text-slate-900">
+                    {option.label}
+                  </p>
+                  <p className="text-xs text-slate-500">{option.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <Button
-        variant="ghost"
-        className="w-full mt-4"
-        onClick={() => setShowBinderDrawer(false)}
-      >
-        Cancelar
-      </Button>
+      <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSelectedGridOption(null);
+              setShowBinderDrawer(false);
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              if (!selectedGridOption) return;
+              handleOpenBinder(
+                selectedGridOption.rows,
+                selectedGridOption.cols
+              );
+            }}
+            disabled={!selectedGridOption}
+          >
+            Aceptar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 
@@ -1396,12 +1446,6 @@ const CollectionPage = () => {
                   <GripVertical className="h-4 w-4" />
                   Reordenar
                 </button>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-slate-500">
-                  {pagination.totalCards.toLocaleString()} cartas
-                </p>
               </div>
             </>
           )}
@@ -2122,9 +2166,9 @@ const CollectionPage = () => {
         <BaseDrawer
           isOpen={showBinderDrawer}
           onClose={() => setShowBinderDrawer(false)}
-          maxHeight="85vh"
+          maxHeight="92vh"
         >
-          <div className="max-h-[85vh] overflow-y-auto">{binderPanel}</div>
+          {binderPanel}
         </BaseDrawer>
       )}
     </div>

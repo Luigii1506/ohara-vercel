@@ -1378,14 +1378,16 @@ const CollectionPage = () => {
                   <SlidersHorizontal className="h-4 w-4" />
                   <span>Filtros</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setIsActionsOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span>Acciones</span>
-                </button>
+                {collection && collection.stats.totalUniqueCards > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBinderDrawer(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    <span>Ver carpeta</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex justify-between items-center">
@@ -1566,7 +1568,12 @@ const CollectionPage = () => {
                 collisionDetection={collisionDetectionStrategy}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
-                autoScroll
+                autoScroll={{
+                  enabled: true,
+                  threshold: { x: 0.2, y: 0.15 },
+                  acceleration: 12,
+                  interval: 5,
+                }}
               >
                 <SortableContext
                   items={(slots.length ? slots : cards).map((item) => item.id)}

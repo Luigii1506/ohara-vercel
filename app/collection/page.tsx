@@ -1352,11 +1352,11 @@ const CollectionPage = () => {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsFiltersOpen(true)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
+                  className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium transition-all active:scale-95 ${
                     selectedColors.length > 0 ||
                     selectedRarities.length > 0 ||
                     selectedCategories.length > 0 ||
@@ -1382,12 +1382,20 @@ const CollectionPage = () => {
                   <button
                     type="button"
                     onClick={() => setShowBinderDrawer(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 h-[42px] text-sm font-medium text-slate-700 bg-white transition-all active:scale-95"
                   >
                     <FolderOpen className="h-4 w-4" />
-                    <span>Ver carpeta</span>
+                    <span>Carpeta</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setIsReorderMode((prev) => !prev)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-slate-200 bg-white text-slate-700"
+                >
+                  <GripVertical className="h-4 w-4" />
+                  Reordenar
+                </button>
               </div>
 
               <div className="flex justify-between items-center">
@@ -1395,14 +1403,6 @@ const CollectionPage = () => {
                   {pagination.totalCards.toLocaleString()} cartas
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsReorderMode((prev) => !prev)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 h-[42px] text-sm font-semibold transition-all border-slate-200 bg-white text-slate-700"
-              >
-                <GripVertical className="h-4 w-4" />
-                Reordenar
-              </button>
             </>
           )}
         </div>

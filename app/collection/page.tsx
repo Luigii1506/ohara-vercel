@@ -1566,7 +1566,7 @@ const CollectionPage = () => {
                 collisionDetection={collisionDetectionStrategy}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
-                autoScroll={false}
+                autoScroll
               >
                 <SortableContext
                   items={(slots.length ? slots : cards).map((item) => item.id)}

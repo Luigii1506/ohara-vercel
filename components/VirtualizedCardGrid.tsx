@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CardWithCollectionData } from "@/types";
 import LazyImage from "@/components/LazyImage";
@@ -15,7 +21,10 @@ interface VirtualizedCardGridProps {
     baseCardIndex: number;
     cardIndex: number;
   }>;
-  onCardClick: (card: CardWithCollectionData, base: CardWithCollectionData) => void;
+  onCardClick: (
+    card: CardWithCollectionData,
+    base: CardWithCollectionData
+  ) => void;
   imageSize: "thumb" | "small";
   priorityLimit: number;
   formatCurrency: (value: number, currency?: string | null) => string;
@@ -158,7 +167,13 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
     if (lastFetchTriggerRef.current === lastVirtualRow.index) return;
     lastFetchTriggerRef.current = lastVirtualRow.index;
     fetchNextPage();
-  }, [virtualRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [
+    virtualRows,
+    rows.length,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
 
   // Render individual card
   const renderCard = useCallback(
@@ -179,7 +194,9 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
         <div
           key={card._id || card.id}
           onClick={() => onCardClick(card, baseCard)}
-          onMouseEnter={() => card.src && smartPrefetch(card.src, "large", true)}
+          onMouseEnter={() =>
+            card.src && smartPrefetch(card.src, "large", true)
+          }
           onTouchStart={() => {
             card.src && smartPrefetch(card.src, "large", true);
             setTouchedCardId(card.id);
@@ -199,8 +216,8 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
                 priority={globalIndex < priorityLimit}
                 size={imageSize}
               />
-              {/* Collection toggle button */}
-              {onAddToCollection && (
+              {/* Collection toggle button  aqui*/}
+              {/* {onAddToCollection && (
                 <button
                   onClick={(e) => onAddToCollection(String(card.id), e)}
                   className={`absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md ${
@@ -215,7 +232,7 @@ const VirtualizedCardGrid: React.FC<VirtualizedCardGridProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                   )}
                 </button>
-              )}
+              )} */}
             </div>
 
             {/* Info section - Code and Price (stacked, centered) */}

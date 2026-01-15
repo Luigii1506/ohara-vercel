@@ -620,6 +620,17 @@ const NavBar = () => {
                   </Link>
                 ))}
               </div>
+              {/* {role === "ADMIN" && (
+                <button
+                  type="button"
+                  onClick={() => setIsRegionModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+                  aria-label="Region"
+                >
+                  <MapPin size={16} />
+                  <span className="uppercase">{region || DEFAULT_REGION}</span>
+                </button>
+              )} */}
               {role === "ADMIN" && (
                 <button
                   type="button"
@@ -645,7 +656,7 @@ const NavBar = () => {
 
             {/* Botón de menú móvil */}
             <div className="md:hidden flex items-center gap-2 ml-auto">
-              {role === "ADMIN" && (
+              {/* {role === "ADMIN" && (
                 <button
                   type="button"
                   onClick={() => setIsRegionDrawerOpen(true)}
@@ -654,7 +665,16 @@ const NavBar = () => {
                 >
                   <MapPin size={20} className="text-white" />
                 </button>
-              )}
+              )} */}
+
+              <button
+                type="button"
+                onClick={() => setIsRegionDrawerOpen(true)}
+                className="p-2 rounded-md hover:bg-white/10 transition-colors"
+                aria-label="Region"
+              >
+                <MapPin size={20} className="text-white" />
+              </button>
               <button
                 type="button"
                 onClick={() => setIsLanguageDrawerOpen(true)}

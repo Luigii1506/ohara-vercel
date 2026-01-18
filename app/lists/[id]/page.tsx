@@ -11,6 +11,7 @@ import { CardWithCollectionData } from "@/types";
 import { BookFlipContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
+import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 
 import { Oswald } from "next/font/google";
 
@@ -70,8 +71,7 @@ const ListDetailPage = () => {
 
   const getListCardPriceValue = (listCard: ListCard) => {
     return (
-      getNumericPrice(listCard.customPrice) ??
-      getCardPriceValue(listCard.card)
+      getNumericPrice(listCard.customPrice) ?? getCardPriceValue(listCard.card)
     );
   };
 
@@ -81,6 +81,16 @@ const ListDetailPage = () => {
       currency: currency || "USD",
       minimumFractionDigits: 2,
     }).format(value);
+
+  const getTcgUrl = (card: CardWithCollectionData) => {
+    if (card.tcgUrl && card.tcgUrl.trim() !== "") {
+      return card.tcgUrl;
+    }
+    if (card.tcgplayerProductId) {
+      return `https://www.tcgplayer.com/product/${card.tcgplayerProductId}`;
+    }
+    return null;
+  };
 
   // Navigation functions from BookFlipContainer
   const [navigationFunctions, setNavigationFunctions] = useState<{
@@ -434,21 +444,34 @@ const ListDetailPage = () => {
                       </p>
                       {(() => {
                         const priceValue = getListCardPriceValue(listCard);
+                        const tcgUrl = getTcgUrl(listCard.card);
                         if (priceValue !== null) {
                           return (
-                            <p className="text-sm font-bold text-emerald-600 mt-1.5">
-                              {formatCurrency(
-                                priceValue,
-                                listCard.customCurrency ||
-                                  listCard.card.priceCurrency
+                            <div className="mt-1.5 space-y-1.5">
+                              <p className="text-sm font-bold text-emerald-600">
+                                {formatCurrency(
+                                  priceValue,
+                                  listCard.customCurrency ||
+                                    listCard.card.priceCurrency
+                                )}
+                              </p>
+                              {tcgUrl && (
+                                <a
+                                  href={tcgUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100"
+                                >
+                                  <TcgplayerLogo className="h-3.5 w-auto" />
+                                  Ver en TCGplayer
+                                </a>
                               )}
-                            </p>
+                            </div>
                           );
                         }
                         return (
-                          <p className="text-xs text-gray-400 mt-1">
-                            No price
-                          </p>
+                          <p className="text-xs text-gray-400 mt-1">No price</p>
                         );
                       })()}
                     </div>
@@ -545,13 +568,28 @@ const ListDetailPage = () => {
                 <span>{selectedCard.set}</span>
                 {(() => {
                   const priceValue = getCardPriceValue(selectedCard);
+                  const tcgUrl = getTcgUrl(selectedCard);
                   if (priceValue !== null) {
                     return (
                       <>
-                        <br />
                         <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
-                          {formatCurrency(priceValue, selectedCard.priceCurrency)}
+                          {formatCurrency(
+                            priceValue,
+                            selectedCard.priceCurrency
+                          )}
                         </span>
+                        {tcgUrl && (
+                          <a
+                            href={tcgUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100"
+                          >
+                            <TcgplayerLogo className="h-4 w-auto" />
+                            Ver en TCGplayer
+                          </a>
+                        )}
                       </>
                     );
                   }

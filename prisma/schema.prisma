@@ -71,6 +71,7 @@ model Card {
   baseGroupLinks        CardGroupLink[]
   variantGroupLinks     CardVariantLink[]
   sources               CardSource[]
+  productMappings       ProductMapping[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -438,6 +439,7 @@ model User {
   lists              UserList[]
   announcementEvents AnnouncementEvent[]
   collection         Collection?
+  reviewedProductMappings ProductMapping[]
 }
 
 model Account {
@@ -715,6 +717,7 @@ model Product {
   cards             ProductCard[]
   relatedProducts   ProductLink[]  @relation("ProductLinkSource")
   relatedToProducts ProductLink[]  @relation("ProductLinkTarget")
+  productMappings   ProductMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -868,18 +871,33 @@ enum PriceType {
   HIGH
 }
 
+enum SourceType {
+  TCGPLAYER
+  TCGPLAYER_HTML
+  ONEPIECE_OFFICIAL
+  LIMITLESS
+  ONEPIECE_GG
+  EBAY
+  CARDMARKET
+  MERCADOLIBRE
+  OTHER
+}
+
 model CardPriceLog {
   id          Int       @id @default(autoincrement())
   cardId      Int
   priceType   PriceType
   price       Decimal
-  source      String    @default("TCGplayer")
+  source      SourceType @default(TCGPLAYER)
+  sourceId    String?
+  sourceUrl   String?
   collectedAt DateTime  @default(now())
   createdAt   DateTime  @default(now())
   card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
   @@index([collectedAt])
+  @@index([source])
 }
 
 model CardPriceAlert {
@@ -1060,4 +1078,129 @@ enum EventCategory {
   ROOKIES
   INTERMEDIATE
   COMPETITIVE
+}
+
+enum JobRunStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+enum JobRunType {
+  INGEST
+  NORMALIZE
+  MATCH
+  SNAPSHOT
+  QUALITY
+  PLAYWRIGHT_FALLBACK
+}
+
+enum PayloadStatus {
+  OK
+  ERROR
+  SKIPPED
+}
+
+enum MappingStatus {
+  PENDING
+  MATCHED
+  REJECTED
+}
+
+model JobRun {
+  id          Int        @id @default(autoincrement())
+  jobType     JobRunType
+  source      String?
+  status      JobRunStatus @default(QUEUED)
+  startedAt   DateTime   @default(now())
+  finishedAt  DateTime?
+  cursor      String?
+  stats       Json?
+  errorSample Json?
+  config      Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  payloads    SourcePayload[]
+  skus        SKU[]
+
+  @@index([jobType, source, status])
+  @@index([startedAt])
+}
+
+model SourcePayload {
+  id          Int          @id @default(autoincrement())
+  source      SourceType
+  endpoint    String?
+  payloadType String
+  checksum    String
+  blobKey     String?
+  fetchedAt   DateTime     @default(now())
+  status      PayloadStatus @default(OK)
+  metadata    Json?
+  jobRunId    Int?
+  jobRun      JobRun?      @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+  skus        SKU[]
+
+  @@index([source, fetchedAt])
+  @@index([checksum])
+  @@index([jobRunId])
+}
+
+model SKU {
+  id           Int          @id @default(autoincrement())
+  source       SourceType
+  sourceSkuId  String
+  productName  String
+  setName      String?
+  setCode      String?
+  region       String?
+  language     String?
+  rarity       String?
+  finish       String?
+  condition    String?
+  imageUrl     String?
+  metadata     Json?
+  payloadId    Int?
+  jobRunId     Int?
+  ingestedAt   DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  payload      SourcePayload? @relation(fields: [payloadId], references: [id], onDelete: SetNull)
+  jobRun       JobRun?        @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+  mappings     ProductMapping[]
+
+  @@unique([source, sourceSkuId])
+  @@index([setCode])
+  @@index([region])
+  @@index([rarity])
+  @@index([finish])
+  @@index([language])
+  @@index([payloadId])
+  @@index([jobRunId])
+}
+
+model ProductMapping {
+  id           Int           @id @default(autoincrement())
+  skuId        Int
+  cardId       Int?
+  productId    Int?
+  matchScore   Float?
+  matchMethod  String?
+  status       MappingStatus @default(PENDING)
+  reviewedById Int?
+  reviewedAt   DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sku          SKU           @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  card         Card?         @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  reviewedBy   User?         @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([skuId])
+  @@index([cardId])
+  @@index([productId])
+  @@index([status])
+  @@index([reviewedById])
 }

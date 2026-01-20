@@ -93,11 +93,19 @@ import { rarityFormatter } from "@/helpers/formatters";
 import Alternates from "@/public/assets/images/variantsICON_VERTICAL.svg";
 import { sortByCollectionOrder } from "@/lib/cards/sort";
 import LazyImage from "@/components/LazyImage";
+import {
+  matchesCardCode,
+  baseCardMatches,
+  getFilteredAlternates,
+} from "@/lib/cardFilters";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
   subsets: ["latin"],
 });
+
+const NO_COUNTER_LABEL = "No counter";
+const NO_TRIGGER_LABEL = "No trigger";
 
 const sortOptions: Option[] = [
   { value: "Most variants", label: "Most variants" },
@@ -1258,42 +1266,6 @@ const AddCardsPage = () => {
     return { totalValue, currency };
   }, [existingCards, simpleListCards, list?.isOrdered]);
 
-  const matchesCardCode = (code: string, search: string) => {
-    const query = search.toLowerCase().trim();
-    const fullCode = code.toLowerCase();
-
-    // Si el query incluye un guión, se busca de forma literal.
-    if (query.includes("-")) {
-      return fullCode.includes(query);
-    }
-
-    // Separamos el código en partes usando el guión.
-    const parts = code.split("-");
-
-    // Si el query es numérico.
-    if (/^\d+$/.test(query)) {
-      if (query[0] === "0") {
-        // Si inicia con cero, se compara la cadena exacta.
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits ? matchDigits[0] === query : false;
-        });
-      } else {
-        // Si no inicia con cero, se compara numéricamente.
-        const queryNumber = parseInt(query, 10);
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits
-            ? parseInt(matchDigits[0], 10) === queryNumber
-            : false;
-        });
-      }
-    }
-
-    // Si el query no es numérico, se busca por subcadena en cada parte.
-    return parts.some((part) => part.toLowerCase().includes(query));
-  };
-
   // Card-list style filtered cards (for sidebar display)
   const allFilteredCards = useMemo(() => {
     if (!cards || cards.length === 0) return [];
@@ -1324,12 +1296,14 @@ const AddCardsPage = () => {
             selectedColors.includes(col.color.toLowerCase())
           );
 
-        const matchesSets =
-          selectedSets?.length === 0 ||
-          card.sets.some((set) => selectedSets.includes(set.set.title)) ||
-          (card.alternates ?? []).some((alt) =>
-            alt.sets.some((set) => selectedSets.includes(set.set.title))
-          );
+        const baseMatches = baseCardMatches(
+          card,
+          selectedSets,
+          selectedAltArts
+        );
+        const altMatches =
+          getFilteredAlternates(card, selectedSets, selectedAltArts).length > 0;
+        const matchesSets = selectedSets?.length === 0 ? true : baseMatches || altMatches;
 
         const matchesTypes =
           selectedTypes?.length === 0 ||
@@ -1351,9 +1325,15 @@ const AddCardsPage = () => {
 
         const matchesCounter =
           selectedCounter === "" ||
-          (card.counter?.toString() ?? "") === selectedCounter;
+          (selectedCounter === NO_COUNTER_LABEL
+            ? !card.counter
+            : (card.counter?.toString() ?? "") === selectedCounter);
 
-        const matchesTrigger = selectedTrigger === "";
+        const matchesTrigger =
+          selectedTrigger === "" ||
+          (selectedTrigger === NO_TRIGGER_LABEL
+            ? !card.triggerCard
+            : (card.triggerCard ?? "") === selectedTrigger);
 
         const matchesCosts =
           selectedCosts?.length === 0 ||
@@ -1417,6 +1397,7 @@ const AddCardsPage = () => {
     selectedPower,
     selectedAttributes,
     selectedCodes,
+    selectedAltArts,
     selectedSort,
   ]);
 
@@ -2329,46 +2310,18 @@ const AddCardsPage = () => {
               {viewSelected === "alternate" && (
                 <div className="flex flex-col gap-5">
                   {cardListFilteredCards?.map((card) => {
-                    // Función que verifica si la carta base cumple con los filtros
-                    const baseCardMatches = (): boolean => {
-                      if (!card) return false;
-                      let matches = true;
-                      if (selectedSets.length > 0) {
-                        matches =
-                          card.sets?.some((s) =>
-                            selectedSets.includes(s.set.title)
-                          ) || false;
-                      }
-                      if (selectedAltArts.length > 0) {
-                        matches =
-                          matches &&
-                          selectedAltArts.includes(card?.rarity ?? "");
-                      }
-                      return matches;
-                    };
+                    const baseMatches = baseCardMatches(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
+                    const filteredAlts = getFilteredAlternates(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
 
-                    const getFilteredAlternates = () => {
-                      if (!card?.alternates) return [];
-                      return card.alternates.filter((alt) => {
-                        let matches = true;
-                        if (selectedSets.length > 0) {
-                          matches =
-                            alt.sets?.some((s) =>
-                              selectedSets.includes(s.set.title)
-                            ) || false;
-                        }
-                        if (selectedAltArts.length > 0) {
-                          matches =
-                            matches &&
-                            selectedAltArts.includes(alt.alternateArt ?? "");
-                        }
-                        return matches;
-                      });
-                    };
-
-                    const filteredAlts = getFilteredAlternates();
-
-                    if (!baseCardMatches() && filteredAlts.length === 0)
+                    if (!baseMatches && filteredAlts.length === 0)
                       return null;
 
                     return (
@@ -2431,7 +2384,7 @@ const AddCardsPage = () => {
                             </CardContent>
                           </Card>
 
-                          {baseCardMatches() && (
+                          {baseMatches && (
                             <Card
                               onClick={() => handleSidebarCardClick(card)}
                               draggable
@@ -2569,52 +2522,24 @@ const AddCardsPage = () => {
               {viewSelected === "list" && (
                 <div className="grid gap-3 grid-cols-3 justify-items-center">
                   {cardListFilteredCards?.map((card) => {
-                    // Función que determina si la carta base coincide con los filtros
-                    const baseCardMatches = (): boolean => {
-                      if (!card) return false;
-                      let matches = true;
-                      if (selectedSets.length > 0) {
-                        matches =
-                          card.sets?.some((s) =>
-                            selectedSets.includes(s.set.title)
-                          ) || false;
-                      }
-                      if (selectedAltArts.length > 0) {
-                        matches =
-                          matches &&
-                          selectedAltArts.includes(card?.rarity ?? "");
-                      }
-                      return matches;
-                    };
-
-                    // Función que filtra las alternates según set y rareza
-                    const getFilteredAlternates = () => {
-                      if (!card?.alternates) return [];
-                      return card.alternates.filter((alt) => {
-                        let matches = true;
-                        if (selectedSets.length > 0) {
-                          matches = alt.sets.some((s) =>
-                            selectedSets.includes(s.set.title)
-                          );
-                        }
-                        if (selectedAltArts.length > 0) {
-                          matches =
-                            matches &&
-                            selectedAltArts.includes(alt.alternateArt ?? "");
-                        }
-                        return matches;
-                      });
-                    };
-
-                    const filteredAlts = getFilteredAlternates();
+                    const baseMatches = baseCardMatches(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
+                    const filteredAlts = getFilteredAlternates(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
 
                     // Si ni la carta base ni alguna alterna coinciden, no renderizamos nada
-                    if (!baseCardMatches() && filteredAlts.length === 0)
+                    if (!baseMatches && filteredAlts.length === 0)
                       return null;
 
                     return (
                       <Fragment key={card._id}>
-                        {baseCardMatches() && (
+                        {baseMatches && (
                           <div
                             onClick={() => handleSidebarCardClick(card)}
                             draggable
@@ -3622,49 +3547,23 @@ const AddCardsPage = () => {
               {viewSelected === "list" && (
                 <div className="grid gap-3 grid-cols-2 justify-items-center">
                   {cardListFilteredCards?.map((card) => {
-                    const baseCardMatches = (): boolean => {
-                      if (!card) return false;
-                      let matches = true;
-                      if (selectedSets.length > 0) {
-                        matches =
-                          card.sets?.some((s) =>
-                            selectedSets.includes(s.set.title)
-                          ) || false;
-                      }
-                      if (selectedAltArts.length > 0) {
-                        matches =
-                          matches &&
-                          selectedAltArts.includes(card?.rarity ?? "");
-                      }
-                      return matches;
-                    };
+                    const baseMatches = baseCardMatches(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
+                    const filteredAlts = getFilteredAlternates(
+                      card,
+                      selectedSets,
+                      selectedAltArts
+                    );
 
-                    const getFilteredAlternates = () => {
-                      if (!card?.alternates) return [];
-                      return card.alternates.filter((alt) => {
-                        let matches = true;
-                        if (selectedSets.length > 0) {
-                          matches = alt.sets.some((s) =>
-                            selectedSets.includes(s.set.title)
-                          );
-                        }
-                        if (selectedAltArts.length > 0) {
-                          matches =
-                            matches &&
-                            selectedAltArts.includes(alt.alternateArt ?? "");
-                        }
-                        return matches;
-                      });
-                    };
-
-                    const filteredAlts = getFilteredAlternates();
-
-                    if (!baseCardMatches() && filteredAlts.length === 0)
+                    if (!baseMatches && filteredAlts.length === 0)
                       return null;
 
                     return (
                       <Fragment key={card._id}>
-                        {baseCardMatches() && (
+                        {baseMatches && (
                           <div
                             onClick={() => {
                               handleMobileCardPick(card);

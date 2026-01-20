@@ -1182,7 +1182,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
           defaultQuery;
         setTcgSearch(detailQuery);
         setDraftFilters(detailFilters);
-        await handleSearchTcg(0, detailFilters);
+        setIsSearchDirty(true);
       } catch (error) {
         console.error("Failed to fetch card detail", error);
         setIsSearchDirty(true);
@@ -1195,7 +1195,6 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       buildQueryFromCard,
       defaultQueryFields,
       ensureLanguageFilter,
-      handleSearchTcg,
       handleSetSelectedCard,
       updateLocalCard,
     ]

@@ -1251,15 +1251,7 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
         }
       );
       updateLocalCard(updated);
-      const nextCard = getNextCardForAutoSelection();
-      if (nextCard) {
-        await selectCardForLinking(
-          nextCard.card,
-          nextCard.fallback ?? undefined
-        );
-      } else {
-        setLinkedProduct(productDetail);
-      }
+      setLinkedProduct(productDetail);
     } catch (error) {
       console.error("Failed to link card", error);
     } finally {

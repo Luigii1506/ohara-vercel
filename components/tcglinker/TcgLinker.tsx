@@ -1149,43 +1149,14 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       setQueryFields({ ...defaultQueryFields });
       setSelectedLinkCard(targetCard as CardDetail);
       setLinkedProduct(null);
-      setTcgResults([]);
-      setActiveFilters([]);
-      setTcgNextOffset(null);
-      setLastSearchTimestamp(null);
-      const initialFilters = ensureLanguageFilter(
-        buildFiltersFromCard(targetCard, defaultQueryFields)
-      );
-      setDraftFilters(initialFilters);
-      setIsSearchDirty(true);
-      const defaultQuery =
-        buildQueryFromCard(targetCard, defaultQueryFields) ||
-        targetCard.name ||
-        targetCard.code ||
-        fallbackCard?.name ||
-        fallbackCard?.code ||
-        "";
-      setTcgSearch(defaultQuery);
       setCardDetailLoading(true);
       try {
         const detail = await fetchJSON<{ card: CardDetail }>(
           `/api/admin/cards/${targetCard.id}`
         );
         updateLocalCard(detail.card);
-        const detailFilters = ensureLanguageFilter(
-          buildFiltersFromCard(detail.card, defaultQueryFields)
-        );
-        const detailQuery =
-          buildQueryFromCard(detail.card, defaultQueryFields) ||
-          detail.card.name ||
-          detail.card.code ||
-          defaultQuery;
-        setTcgSearch(detailQuery);
-        setDraftFilters(detailFilters);
-        setIsSearchDirty(true);
       } catch (error) {
         console.error("Failed to fetch card detail", error);
-        setIsSearchDirty(true);
       } finally {
         setCardDetailLoading(false);
       }

@@ -15,6 +15,7 @@ interface FolderPageProps {
   tabLabel?: string;
   listName?: string;
   cardCount?: number;
+  totalValueLabel?: string;
   isEditing?: boolean;
   isMobile?: boolean;
   onCardClick?: (card: CardWithCollectionData) => void;
@@ -37,6 +38,11 @@ interface FolderPageProps {
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
   selectedCardForPlacement?: CardWithCollectionData | null;
+  canEditPrice?: boolean;
+  onEditPrice?: (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => void;
 }
 
 export const FolderPage: React.FC<FolderPageProps> = ({
@@ -50,6 +56,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   tabLabel,
   listName,
   cardCount,
+  totalValueLabel,
   isEditing = false,
   isMobile = false,
   onCardClick,
@@ -57,7 +64,10 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   onDragHandlers,
   dragOverPosition,
   selectedCardForPlacement,
+  canEditPrice,
+  onEditPrice,
 }) => {
+  console.log("totalValueLabel", totalValueLabel);
   return (
     <div
       className="relative rounded-lg  h-full flex flex-col"
@@ -93,6 +103,11 @@ export const FolderPage: React.FC<FolderPageProps> = ({
                   {cardCount} cartas
                 </div>
               )}
+              {totalValueLabel && (
+                <div className="mt-1 text-sm font-semibold text-emerald-200">
+                  {totalValueLabel}
+                </div>
+              )}
               {/* <div className="mt-1 text-sm text-gray-300">
                 Cubierta interior
               </div> */}
@@ -111,6 +126,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
             selectedCardForPlacement={selectedCardForPlacement}
+            canEditPrice={canEditPrice}
+            onEditPrice={onEditPrice}
           />
         )}
       </div>

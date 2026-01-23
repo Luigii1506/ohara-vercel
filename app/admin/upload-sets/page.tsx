@@ -303,10 +303,6 @@ const UploadSets = () => {
       return;
     }
 
-    const allCards = await scrapeAmazonProduct(searchUrl, selectedSet.code);
-
-    ///console.log(allCards);
-
     try {
       setIsLoading(true);
       setUploadStatus("loading");

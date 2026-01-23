@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, List } from "lucide-react";
@@ -82,6 +82,30 @@ const ListDetailPage = () => {
       minimumFractionDigits: 2,
     }).format(value);
 
+  const folderTotalValue = useMemo(() => {
+    let totalValue = 0;
+    let currency = "USD";
+
+    list?.cards?.forEach((listCard) => {
+      const priceValue = getListCardPriceValue(listCard);
+      const quantity = listCard.quantity || 1;
+      if (priceValue !== null) {
+        totalValue += priceValue * quantity;
+        currency =
+          listCard.customCurrency ||
+          listCard.card.priceCurrency ||
+          currency;
+      }
+    });
+
+    return { totalValue, currency };
+  }, [list?.cards]);
+
+  const folderTotalLabel = formatCurrency(
+    folderTotalValue.totalValue,
+    folderTotalValue.currency
+  );
+
   const getTcgUrl = (card: CardWithCollectionData) => {
     if (card.tcgUrl && card.tcgUrl.trim() !== "") {
       return card.tcgUrl;
@@ -124,6 +148,9 @@ const ListDetailPage = () => {
   const [selectedCard, setSelectedCard] =
     useState<CardWithCollectionData | null>(null);
   const [showLargeImage, setShowLargeImage] = useState(false);
+  const [backcardPositions, setBackcardPositions] = useState<Set<string>>(
+    new Set()
+  );
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(
@@ -134,7 +161,10 @@ const ListDetailPage = () => {
   );
 
   // Helper functions for FolderContainer
-  const createGrid = (pageCards: ListCard[]): GridCard[][] => {
+  const createGrid = (
+    pageCards: ListCard[],
+    pageNumber?: number | string
+  ): GridCard[][] => {
     const maxRows = list?.maxRows || 3;
     const maxColumns = list?.maxColumns || 3;
     const grid = Array(maxRows)
@@ -153,10 +183,34 @@ const ListDetailPage = () => {
       const gridCard: GridCard = {
         card: listCard.card,
         quantity: listCard.quantity,
+        existing: listCard,
       };
 
       grid[row][col] = gridCard;
     });
+
+    const currentPageNum =
+      typeof pageNumber === "number"
+        ? pageNumber
+        : typeof pageCards[0]?.page === "number"
+        ? pageCards[0]?.page
+        : null;
+
+    if (currentPageNum) {
+      for (let row = 0; row < maxRows; row++) {
+        for (let col = 0; col < maxColumns; col++) {
+          if (!grid[row][col]) {
+            const positionKey = `${currentPageNum}-${row + 1}-${col + 1}`;
+            if (backcardPositions.has(positionKey)) {
+              grid[row][col] = {
+                card: null as any,
+                hasBackcard: true,
+              };
+            }
+          }
+        }
+      }
+    }
 
     return grid;
   };
@@ -183,6 +237,25 @@ const ListDetailPage = () => {
       return () => window.removeEventListener("resize", handleResize);
     }
   }, []);
+
+  useEffect(() => {
+    if (!list?.id) return;
+    const fetchBackcards = async () => {
+      try {
+        const response = await fetch(`/api/lists/${list.id}/backcards`);
+        if (response.ok) {
+          const backcards = await response.json();
+          const backcardsSet = new Set<string>(
+            backcards.map((b: any) => `${b.page}-${b.row}-${b.column}`)
+          );
+          setBackcardPositions(backcardsSet);
+        }
+      } catch (error) {
+        console.error("Error loading backcards:", error);
+      }
+    };
+    fetchBackcards();
+  }, [list?.id]);
 
   // Keyboard navigation for folders
   useEffect(() => {
@@ -361,6 +434,7 @@ const ListDetailPage = () => {
             maxRows={maxRows}
             maxColumns={maxColumns}
             cardCount={list.cards.length}
+            totalValueLabel={folderTotalLabel}
             createGrid={createGrid}
             getCardsForPage={getCardsForPage}
             isEditing={false}

@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
                 priceCurrency: true,
               },
             },
+            customPrice: true,
+            customCurrency: true,
+            quantity: true,
           },
         },
       },
@@ -50,13 +53,15 @@ export async function GET(request: NextRequest) {
           return Number.isFinite(numberValue) ? numberValue : null;
         };
 
-        const price = getNumericPrice(card.marketPrice);
+        const customPrice = getNumericPrice(listCard.customPrice);
+        const price = customPrice ?? getNumericPrice(card.marketPrice);
 
         if (price !== null) {
           totalValue += price * quantity;
           // Usar la moneda de la primera carta con precio
-          if (totalValue === price * quantity && card.priceCurrency) {
-            currency = card.priceCurrency;
+          if (totalValue === price * quantity) {
+            currency =
+              listCard.customCurrency || card.priceCurrency || currency;
           }
         }
       });

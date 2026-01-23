@@ -2162,13 +2162,8 @@ const AddCardsPage = () => {
 
     if (pageIndex === 0) return [1];
 
-    const spreadStart =
-      pageIndex <= 1
-        ? 1
-        : pageIndex % 2 === 0
-        ? pageIndex - 1
-        : pageIndex;
-    const pages = [spreadStart, spreadStart + 1];
+    const spreadStart = pageIndex % 2 === 0 ? pageIndex : pageIndex + 1;
+    const pages = [spreadStart, spreadStart - 1].filter((page) => page >= 1);
     return pages.filter((page) => page >= 1 && page <= totalPages);
   };
 

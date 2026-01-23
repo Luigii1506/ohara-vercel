@@ -393,6 +393,7 @@ const AddCardsPage = () => {
 
   // List/Folder state
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
+  const [shareUrl, setShareUrl] = useState("");
 
   // Drag and drop state
   const [selectedCard, setSelectedCard] =
@@ -918,6 +919,12 @@ const AddCardsPage = () => {
       // Reset refresh flag when changing lists
       hasTriedRefresh.current = false;
     }
+  }, [listId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = window.location.href.replace("/add-cards", "");
+    setShareUrl(url);
   }, [listId]);
 
   const fetchList = async () => {
@@ -3331,6 +3338,7 @@ const AddCardsPage = () => {
                           existingCards ? Object.keys(existingCards).length : 0
                         }
                         totalValueLabel={folderTotalLabel || undefined}
+                        shareUrl={shareUrl || undefined}
                         createGrid={createGrid}
                         getCardsForPage={getCardsForPage}
                         isEditing={true}

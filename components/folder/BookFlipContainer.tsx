@@ -20,6 +20,7 @@ interface BookFlipContainerProps {
   maxColumns: number;
   cardCount: number;
   totalValueLabel?: string;
+  shareUrl?: string;
   // Page creation functions
   createGrid: (pageCards: any[], pageNumber?: number) => GridCard[][];
   getCardsForPage: (pageNumber: number) => any[];
@@ -102,6 +103,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   maxColumns,
   cardCount,
   totalValueLabel,
+  shareUrl,
   createGrid,
   getCardsForPage,
   isEditing = false,
@@ -364,6 +366,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             listName={name}
             cardCount={cardCount}
             totalValueLabel={totalValueLabel}
+            shareUrl={shareUrl}
             isEditing={isEditing}
             isMobile={dimensions.showSinglePage}
             onCardClick={onCardClick}
@@ -408,6 +411,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             selectedCardForPlacement={selectedCardForPlacement}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
+            shareUrl={shareUrl}
           />
         </FlipPage>
       );
@@ -424,6 +428,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
     color,
     cardCount,
     totalValueLabel,
+    shareUrl,
     showInteriorPage,
     isEditing,
     getCardsForPage,

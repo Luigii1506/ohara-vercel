@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { CardWithCollectionData } from "@/types";
 import { FolderCover } from "./FolderCover";
@@ -16,6 +18,7 @@ interface FolderContainerProps {
   // Page creation functions
   createGrid: (pageCards: any[]) => GridCard[][];
   getCardsForPage: (pageNumber: number) => any[];
+  shareUrl?: string;
   // Interaction handlers
   isEditing?: boolean;
   onCardClick?: (card: CardWithCollectionData) => void;
@@ -53,6 +56,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
   cardCount,
   createGrid,
   getCardsForPage,
+  shareUrl,
   isEditing = false,
   onCardClick,
   onPositionClick,
@@ -190,6 +194,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
             selectedCardForPlacement={selectedCardForPlacement}
+            shareUrl={shareUrl}
           />
         ) : (
           /* Dual Page Layout for Desktop */
@@ -237,6 +242,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
                 onDragHandlers={onDragHandlers}
                 dragOverPosition={dragOverPosition}
                 selectedCardForPlacement={selectedCardForPlacement}
+                shareUrl={shareUrl}
               />
             </div>
 
@@ -266,6 +272,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
                 onDragHandlers={onDragHandlers}
                 dragOverPosition={dragOverPosition}
                 selectedCardForPlacement={selectedCardForPlacement}
+                shareUrl={shareUrl}
               />
             </div>
           </div>

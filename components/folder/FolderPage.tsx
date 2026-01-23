@@ -1,8 +1,11 @@
+"use client";
+
 import React from "react";
 import { CardWithCollectionData } from "@/types";
 import { CardGrid } from "./CardGrid";
 import { FolderTab } from "./FolderTab";
 import { GridCard, FolderDimensions } from "./types";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface FolderPageProps {
   pageNumber: number;
@@ -16,6 +19,7 @@ interface FolderPageProps {
   listName?: string;
   cardCount?: number;
   totalValueLabel?: string;
+  shareUrl?: string;
   isEditing?: boolean;
   isMobile?: boolean;
   onCardClick?: (card: CardWithCollectionData) => void;
@@ -57,6 +61,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   listName,
   cardCount,
   totalValueLabel,
+  shareUrl,
   isEditing = false,
   isMobile = false,
   onCardClick,
@@ -67,7 +72,6 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   canEditPrice,
   onEditPrice,
 }) => {
-  console.log("totalValueLabel", totalValueLabel);
   return (
     <div
       className="relative rounded-lg  h-full flex flex-col"
@@ -89,7 +93,17 @@ export const FolderPage: React.FC<FolderPageProps> = ({
         {isInteriorCover ? (
           // Inside folder cover design
           <div className="flex items-center justify-center h-full">
-            <div className="text-center">
+            <div className="flex flex-col items-center text-center">
+              {shareUrl && (
+                <div className="mb-4 flex flex-col items-center gap-2">
+                  <div className="rounded-xl bg-white p-2 shadow-md">
+                    <QRCodeCanvas value={shareUrl} size={120} className="block" />
+                  </div>
+                  <p className="text-xs text-slate-200">
+                    Escanea para ver la carpeta
+                  </p>
+                </div>
+              )}
               <img
                 src="/assets/images/LOGO_OHARA.svg"
                 alt="Ohara"

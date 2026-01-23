@@ -57,6 +57,7 @@ const ListDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0); // Start at view 0 (interior cover + page 1)
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
+  const [shareUrl, setShareUrl] = useState("");
 
   // Helper functions for price handling
   const getNumericPrice = (value: any) => {
@@ -92,9 +93,7 @@ const ListDetailPage = () => {
       if (priceValue !== null) {
         totalValue += priceValue * quantity;
         currency =
-          listCard.customCurrency ||
-          listCard.card.priceCurrency ||
-          currency;
+          listCard.customCurrency || listCard.card.priceCurrency || currency;
       }
     });
 
@@ -237,6 +236,11 @@ const ListDetailPage = () => {
       return () => window.removeEventListener("resize", handleResize);
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShareUrl(window.location.href);
+  }, [listId]);
 
   useEffect(() => {
     if (!list?.id) return;
@@ -435,6 +439,7 @@ const ListDetailPage = () => {
             maxColumns={maxColumns}
             cardCount={list.cards.length}
             totalValueLabel={folderTotalLabel}
+            shareUrl={shareUrl || undefined}
             createGrid={createGrid}
             getCardsForPage={getCardsForPage}
             isEditing={false}
@@ -625,9 +630,6 @@ const ListDetailPage = () => {
           onClick={() => setShowLargeImage(false)}
         >
           <div className="w-full max-w-3xl">
-            <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
-              Tap to close
-            </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
                 src={selectedCard.src}
@@ -635,17 +637,12 @@ const ListDetailPage = () => {
                 alt={selectedCard.name}
               />
               <div className="text-white text-lg font-[400] text-center px-5">
-                <span className={`${oswald.className} font-[500]`}>
-                  {selectedCard.code}
-                </span>
-                <br />
-                <span>{selectedCard.set}</span>
                 {(() => {
                   const priceValue = getCardPriceValue(selectedCard);
                   const tcgUrl = getTcgUrl(selectedCard);
                   if (priceValue !== null) {
                     return (
-                      <>
+                      <div className="flex flex-col">
                         <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
                           {formatCurrency(
                             priceValue,
@@ -664,7 +661,7 @@ const ListDetailPage = () => {
                             Ver en TCGplayer
                           </a>
                         )}
-                      </>
+                      </div>
                     );
                   }
                   return null;

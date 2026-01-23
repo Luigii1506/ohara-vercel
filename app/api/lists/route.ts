@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
           select: { cards: true },
         },
         cards: {
-          include: {
+          select: {
             card: {
               select: {
                 id: true,

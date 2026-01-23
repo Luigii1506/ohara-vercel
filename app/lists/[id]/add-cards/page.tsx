@@ -2148,17 +2148,16 @@ const AddCardsPage = () => {
   };
 
   const getVisiblePageNumbers = () => {
+    const totalPages = Math.max(1, list?.totalPages || 1);
+
     if (folderDimensions.showSinglePage) {
-      return currentPage === 0 ? [] : [currentPage];
+      return currentPage === 0 ? [1] : [currentPage];
     }
 
-    if (currentPage === 0) return [];
-    if (currentPage === 1) return [1];
+    if (currentPage === 0) return [1];
 
-    const pageOffset = 1;
-    const leftPage = (currentPage - pageOffset) * 2;
-    const rightPage = leftPage + 1;
-    return [leftPage, rightPage].filter((page) => page >= 1);
+    const pages = [currentPage, currentPage + 1];
+    return pages.filter((page) => page >= 1 && page <= totalPages);
   };
 
   const findFirstAvailablePosition = (pages: number[]) => {

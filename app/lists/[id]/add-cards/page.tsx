@@ -121,6 +121,7 @@ interface UserList {
   id: number;
   name: string;
   description: string | null;
+  userId?: number;
   isOrdered: boolean;
   isCollection: boolean;
   maxRows: number | null;

@@ -19,6 +19,8 @@ interface BookFlipContainerProps {
   maxRows: number;
   maxColumns: number;
   cardCount: number;
+  totalValueLabel?: string;
+  shareUrl?: string;
   // Page creation functions
   createGrid: (pageCards: any[], pageNumber?: number) => GridCard[][];
   getCardsForPage: (pageNumber: number) => any[];
@@ -44,6 +46,8 @@ interface BookFlipContainerProps {
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
   selectedCardForPlacement?: CardWithCollectionData | null;
+  canEditPrice?: boolean;
+  onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   // Mode flags
   showInteriorPage?: boolean;
   // Page change callback
@@ -98,6 +102,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   maxRows,
   maxColumns,
   cardCount,
+  totalValueLabel,
+  shareUrl,
   createGrid,
   getCardsForPage,
   isEditing = false,
@@ -106,6 +112,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onDragHandlers,
   dragOverPosition,
   selectedCardForPlacement,
+  canEditPrice,
+  onEditPrice,
   showInteriorPage = true,
   onPageChange,
   onNavigationReady,
@@ -357,6 +365,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             tabLabel={t("folder.cover")}
             listName={name}
             cardCount={cardCount}
+            totalValueLabel={totalValueLabel}
+            shareUrl={shareUrl}
             isEditing={isEditing}
             isMobile={dimensions.showSinglePage}
             onCardClick={onCardClick}
@@ -364,6 +374,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
             selectedCardForPlacement={selectedCardForPlacement}
+            canEditPrice={canEditPrice}
+            onEditPrice={onEditPrice}
           />
         </FlipPage>
       );
@@ -397,6 +409,9 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
             selectedCardForPlacement={selectedCardForPlacement}
+            canEditPrice={canEditPrice}
+            onEditPrice={onEditPrice}
+            shareUrl={shareUrl}
           />
         </FlipPage>
       );
@@ -412,6 +427,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
     name,
     color,
     cardCount,
+    totalValueLabel,
+    shareUrl,
     showInteriorPage,
     isEditing,
     getCardsForPage,

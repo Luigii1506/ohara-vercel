@@ -41,16 +41,30 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { quantity, notes, condition, position, customPrice, customCurrency } =
-      body;
+    const {
+      quantity,
+      notes,
+      condition,
+      position,
+      customPrice,
+      customCurrency,
+      listCardId,
+    } = body;
 
     // Buscar la carta en la lista
-    const listCard = await prisma.userListCard.findFirst({
-      where: {
-        listId,
-        cardId,
-      },
-    });
+    const listCard = listCardId
+      ? await prisma.userListCard.findFirst({
+          where: {
+            id: Number(listCardId),
+            listId,
+          },
+        })
+      : await prisma.userListCard.findFirst({
+          where: {
+            listId,
+            cardId,
+          },
+        });
 
     if (!listCard) {
       return NextResponse.json(

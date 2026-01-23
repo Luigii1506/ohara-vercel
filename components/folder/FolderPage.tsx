@@ -1,8 +1,11 @@
+"use client";
+
 import React from "react";
 import { CardWithCollectionData } from "@/types";
 import { CardGrid } from "./CardGrid";
 import { FolderTab } from "./FolderTab";
 import { GridCard, FolderDimensions } from "./types";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface FolderPageProps {
   pageNumber: number;
@@ -15,6 +18,8 @@ interface FolderPageProps {
   tabLabel?: string;
   listName?: string;
   cardCount?: number;
+  totalValueLabel?: string;
+  shareUrl?: string;
   isEditing?: boolean;
   isMobile?: boolean;
   onCardClick?: (card: CardWithCollectionData) => void;
@@ -37,6 +42,11 @@ interface FolderPageProps {
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
   selectedCardForPlacement?: CardWithCollectionData | null;
+  canEditPrice?: boolean;
+  onEditPrice?: (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => void;
 }
 
 export const FolderPage: React.FC<FolderPageProps> = ({
@@ -50,6 +60,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   tabLabel,
   listName,
   cardCount,
+  totalValueLabel,
+  shareUrl,
   isEditing = false,
   isMobile = false,
   onCardClick,
@@ -57,6 +69,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   onDragHandlers,
   dragOverPosition,
   selectedCardForPlacement,
+  canEditPrice,
+  onEditPrice,
 }) => {
   return (
     <div
@@ -79,7 +93,17 @@ export const FolderPage: React.FC<FolderPageProps> = ({
         {isInteriorCover ? (
           // Inside folder cover design
           <div className="flex items-center justify-center h-full">
-            <div className="text-center">
+            <div className="flex flex-col items-center text-center">
+              {shareUrl && (
+                <div className="mb-4 flex flex-col items-center gap-2">
+                  <div className="rounded-xl bg-white p-2 shadow-md">
+                    <QRCodeCanvas value={shareUrl} size={120} className="block" />
+                  </div>
+                  <p className="text-xs text-slate-200">
+                    Escanea para ver la carpeta
+                  </p>
+                </div>
+              )}
               <img
                 src="/assets/images/LOGO_OHARA.svg"
                 alt="Ohara"
@@ -91,6 +115,11 @@ export const FolderPage: React.FC<FolderPageProps> = ({
               {typeof cardCount === "number" && (
                 <div className="mt-1 text-sm text-slate-200">
                   {cardCount} cartas
+                </div>
+              )}
+              {totalValueLabel && (
+                <div className="mt-1 text-sm font-semibold text-emerald-200">
+                  {totalValueLabel}
                 </div>
               )}
               {/* <div className="mt-1 text-sm text-gray-300">
@@ -111,6 +140,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
             selectedCardForPlacement={selectedCardForPlacement}
+            canEditPrice={canEditPrice}
+            onEditPrice={onEditPrice}
           />
         )}
       </div>

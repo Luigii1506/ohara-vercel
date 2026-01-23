@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Fragment, useRef, useMemo } from "react";
+import React, { useState, useEffect, Fragment, useRef, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,9 +39,11 @@ import {
   MoreVertical,
   AlertTriangle,
   Loader2,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
+import { useSession } from "next-auth/react";
 import {
   MainContentSkeleton,
   CardsSidebarSkeleton,
@@ -98,6 +100,7 @@ import {
   baseCardMatches,
   getFilteredAlternates,
 } from "@/lib/cardFilters";
+import { parseSearchTokens } from "@/lib/cards/searchTokens";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -118,6 +121,7 @@ interface UserList {
   id: number;
   name: string;
   description: string | null;
+  userId?: number;
   isOrdered: boolean;
   isCollection: boolean;
   maxRows: number | null;
@@ -364,6 +368,7 @@ const AddCardsPage = () => {
   // Core state
   const [list, setList] = useState<UserList | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOwnerFromApi, setIsOwnerFromApi] = useState<boolean | null>(null);
   const [availableCards, setAvailableCards] = useState<
     CardWithCollectionData[]
   >([]);
@@ -372,6 +377,7 @@ const AddCardsPage = () => {
   const [simpleListCards, setSimpleListCards] = useState<SimpleListCard[]>([]);
   const [pendingChanges, setPendingChanges] = useState<OrderedListChange[]>([]);
   const [existingCards, setExistingCards] = useState<any>({});
+  const existingCardsRef = useRef(existingCards);
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<{
     page: number;
@@ -388,6 +394,7 @@ const AddCardsPage = () => {
 
   // List/Folder state
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
+  const [shareUrl, setShareUrl] = useState("");
 
   // Drag and drop state
   const [selectedCard, setSelectedCard] =
@@ -396,6 +403,16 @@ const AddCardsPage = () => {
   const [alternatesCards, setAlternatesCards] = useState<
     CardWithCollectionData[]
   >([]);
+  const addQueueRef = useRef<
+    Map<
+      string,
+      { cardId: number | string; page: number; row: number; column: number }
+    >
+  >(new Map());
+  const pendingDeleteRef = useRef<Map<string, number>>(new Map());
+  const addFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addSaveInFlightRef = useRef(false);
+  const addFlushRequestedRef = useRef(false);
 
   // Mobile card selection modal
   const [showMobileCardModal, setShowMobileCardModal] = useState(false);
@@ -464,6 +481,7 @@ const AddCardsPage = () => {
   const [baseCard, setBaseCard] = useState<CardWithCollectionData>();
   const [isOpen, setIsOpen] = useState(false);
   const simpleModalBaseCard = selectedCard ?? null;
+  const { data: session } = useSession();
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
     baseCard ?? simpleModalBaseCard ?? undefined;
@@ -476,9 +494,21 @@ const AddCardsPage = () => {
     setSelectedCard(card);
   };
 
+  const [priceEditOpen, setPriceEditOpen] = useState(false);
+  const [priceEditCard, setPriceEditCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [priceEditListCard, setPriceEditListCard] = useState<any>(null);
+  const [priceEditInput, setPriceEditInput] = useState("");
+  const [priceEditCurrency, setPriceEditCurrency] = useState("USD");
+  const [isPriceEditSaving, setIsPriceEditSaving] = useState(false);
+
   // Refs for card-list functionality
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mobileModalScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    existingCardsRef.current = existingCards;
+  }, [existingCards]);
 
   // ✅ Obtener todas las cartas usando el mismo sistema que deckbuilder y proxies
   const cachedCards = useCardStore((state) => state.allCards);
@@ -892,6 +922,12 @@ const AddCardsPage = () => {
     }
   }, [listId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = window.location.href.replace("/add-cards", "");
+    setShareUrl(url);
+  }, [listId]);
+
   const fetchList = async () => {
     try {
       setLoading(true);
@@ -899,6 +935,9 @@ const AddCardsPage = () => {
       if (response.ok) {
         const data = await response.json();
         setList(data.list || data); // Handle both data.list and data formats
+        if (typeof data.isOwner === "boolean") {
+          setIsOwnerFromApi(data.isOwner);
+        }
       } else {
         toast.error("Error al cargar la lista");
       }
@@ -1055,6 +1094,33 @@ const AddCardsPage = () => {
       minimumFractionDigits: 2,
     }).format(value);
 
+
+  const isOwner =
+    isOwnerFromApi ??
+    (list &&
+      session?.user?.id &&
+      Number(session.user.id) === Number(list.userId));
+
+  const openPriceEdit = (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => {
+    const initialCustomPrice = entry.listCard?.customPrice ?? null;
+    const initialCurrency =
+      entry.listCard?.customCurrency ??
+      entry.card.priceCurrency ??
+      "USD";
+    setPriceEditCard(entry.card);
+    setPriceEditListCard(entry.listCard);
+    setPriceEditInput(
+      initialCustomPrice !== null && initialCustomPrice !== undefined
+        ? Number(initialCustomPrice).toFixed(2)
+        : ""
+    );
+    setPriceEditCurrency(initialCurrency);
+    setPriceEditOpen(true);
+  };
+
   const openPriceDrawer = (
     card: CardWithCollectionData,
     options?: {
@@ -1079,11 +1145,11 @@ const AddCardsPage = () => {
     setPriceDrawerOpen(true);
   };
 
-  const handleMobileCardPick = (card: CardWithCollectionData) => {
+  const handleMobileCardPick = async (card: CardWithCollectionData) => {
     if (targetPosition) {
       openPriceDrawer(card, { position: targetPosition });
     } else {
-      setSelectedCardForPlacement(card);
+      await addCardToFirstAvailablePosition(card);
     }
     setShowMobileCardModal(false);
   };
@@ -1093,6 +1159,61 @@ const AddCardsPage = () => {
     if (!cleaned) return null;
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const handleSaveCustomPrice = async () => {
+    if (!list || !priceEditListCard || !priceEditCard) return;
+    if (!isOwner) return;
+
+    setIsPriceEditSaving(true);
+    try {
+      const customPrice = parsePriceValue(priceEditInput);
+      const customCurrency =
+        customPrice !== null ? priceEditCurrency || "USD" : null;
+
+      const response = await fetch(
+        `/api/lists/${listId}/cards/${priceEditListCard.cardId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            listCardId: priceEditListCard.id,
+            customPrice,
+            customCurrency,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al guardar precio");
+      }
+
+      if (priceEditListCard.page && priceEditListCard.row && priceEditListCard.column) {
+        const key = `${priceEditListCard.page}-${priceEditListCard.row}-${priceEditListCard.column}`;
+        updateExistingCards((prev) => {
+          if (!prev[key]) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...prev[key],
+              customPrice,
+              customCurrency,
+            },
+          };
+        });
+      }
+
+      toast.success("Precio actualizado");
+      setPriceEditOpen(false);
+      setPriceEditCard(null);
+      setPriceEditListCard(null);
+    } catch (error) {
+      console.error("Error guardando precio:", error);
+      toast.error("Error al guardar el precio");
+    } finally {
+      setIsPriceEditSaving(false);
+    }
   };
 
   const addCardWithPrice = async ({
@@ -1266,95 +1387,263 @@ const AddCardsPage = () => {
     return { totalValue, currency };
   }, [existingCards, simpleListCards, list?.isOrdered]);
 
+  const folderTotalLabel = formatCurrency(
+    folderTotalValue.totalValue,
+    folderTotalValue.currency
+  );
+
+  const matchesSearchTokens = useCallback(
+    (card: CardWithCollectionData, query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) return true;
+      const parsed = parseSearchTokens(trimmed);
+
+        const matchesTextToken = (
+          token: string,
+          target: CardWithCollectionData
+        ) => {
+          const tokenLower = token.toLowerCase();
+          return (
+          (target.name ?? "").toLowerCase().includes(tokenLower) ||
+          (target.illustrator ?? "").toLowerCase().includes(tokenLower) ||
+          (target.code ?? "").toLowerCase().includes(tokenLower) ||
+          (target.rarity ?? "").toLowerCase().includes(tokenLower) ||
+          (target.effects ?? []).some((item) =>
+            item.effect.toLowerCase().includes(tokenLower)
+          ) ||
+          (target.texts ?? []).some((item) =>
+            item.text.toLowerCase().includes(tokenLower)
+          ) ||
+          (target.types ?? []).some((item) =>
+            item.type.toLowerCase().includes(tokenLower)
+          ) ||
+          (target.sets ?? []).some((item) =>
+            item.set.title.toLowerCase().includes(tokenLower)
+          )
+        );
+      };
+
+      const matchesInCardOrAlt = (predicate: (target: CardWithCollectionData) => boolean) =>
+        predicate(card) ||
+        (card.alternates ?? []).some((alt) => predicate(alt));
+
+      const matchesText =
+        parsed.textTokens.length === 0 ||
+        parsed.textTokens.every((token) =>
+          matchesInCardOrAlt((target) => matchesTextToken(token, target))
+        );
+
+      const matchesColors =
+        parsed.colors.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          target.colors.some((col) =>
+            parsed.colors.includes(col.color.toLowerCase())
+          )
+        );
+
+      const matchesRarities =
+        parsed.rarities.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.rarities.includes(target.rarity ?? "")
+        );
+
+      const matchesCategories =
+        parsed.categories.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.categories.includes(target.category ?? "")
+        );
+
+      const matchesAltArts =
+        parsed.altArts.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.altArts.includes(target.alternateArt ?? "")
+        );
+
+      const matchesTriggers =
+        parsed.triggers.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.triggers.some((trigger) =>
+            trigger === NO_TRIGGER_LABEL
+              ? !target.triggerCard
+              : (target.triggerCard ?? "") === trigger
+          )
+        );
+
+      const matchesCosts =
+        parsed.costs.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.costs.includes(target.cost ?? "")
+        );
+
+      const matchesPowers =
+        parsed.powers.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.powers.includes(target.power ?? "")
+        );
+
+      const matchesCodeTokens =
+        parsed.codeTokens.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.codeTokens.some((token) => {
+            const normalized = token.toUpperCase();
+            const code = target.code.toUpperCase();
+            if (normalized.includes("-")) {
+              return code.includes(normalized);
+            }
+            if (/^(OP|ST|EB|PRB|P)\d{1,3}$/.test(normalized)) {
+              const setCode = target.setCode?.toUpperCase() ?? "";
+              const setMatches =
+                setCode === normalized ||
+                (target.sets ?? []).some(
+                  (entry) => entry.set.code?.toUpperCase() === normalized
+                );
+              return setMatches || code.startsWith(normalized);
+            }
+            return code.includes(normalized);
+          })
+        );
+
+      const matchesCodeSuffix =
+        parsed.codeSuffixTokens.length === 0 ||
+        matchesInCardOrAlt((target) => {
+          const suffix = target.code.split("-")[1] ?? "";
+          return parsed.codeSuffixTokens.some((token) => suffix === token);
+        });
+
+      const matchesIllustrator =
+        parsed.illustratorTokens.length === 0 ||
+        matchesInCardOrAlt((target) =>
+          parsed.illustratorTokens.some((token) =>
+            (target.illustrator ?? "")
+              .toLowerCase()
+              .includes(token.toLowerCase())
+          )
+        );
+
+      return (
+        matchesText &&
+        matchesColors &&
+        matchesRarities &&
+        matchesCategories &&
+        matchesAltArts &&
+        matchesTriggers &&
+        matchesCosts &&
+        matchesPowers &&
+        matchesCodeTokens &&
+        matchesCodeSuffix &&
+        matchesIllustrator
+      );
+    },
+    []
+  );
+
   // Card-list style filtered cards (for sidebar display)
   const allFilteredCards = useMemo(() => {
     if (!cards || cards.length === 0) return [];
 
     return cards
       .filter((card) => {
-        const searchLower = search.trim().toLowerCase();
+        const matchesWithAlternates = (
+          predicate: (target: CardWithCollectionData) => boolean
+        ) =>
+          predicate(card) ||
+          (card.alternates ?? []).some((alt) => predicate(alt));
+
         const matchesSearch =
-          card.name.toLowerCase().includes(searchLower) ||
-          (card.power ?? "").toLowerCase().includes(searchLower) ||
-          (card.cost ?? "").toLowerCase().includes(searchLower) ||
-          (card.attribute ?? "").toLowerCase().includes(searchLower) ||
-          (card.rarity ?? "").toLowerCase().includes(searchLower) ||
-          matchesCardCode(card.code, search) ||
-          (card.texts ?? []).some((item) =>
-            item.text.toLowerCase().includes(searchLower)
-          ) ||
-          (card.types ?? []).some((item) =>
-            item.type.toLowerCase().includes(searchLower)
-          ) ||
-          (card.sets ?? []).some((item) =>
-            item.set.title.toLowerCase().includes(searchLower)
-          );
+          matchesSearchTokens(card, search) ||
+          matchesCardCode(card.code, search);
 
         const matchesColors =
           selectedColors?.length === 0 ||
-          card.colors.some((col) =>
-            selectedColors.includes(col.color.toLowerCase())
+          matchesWithAlternates((target) =>
+            target.colors.some((col) =>
+              selectedColors.includes(col.color.toLowerCase())
+            )
           );
 
-        const baseMatches = baseCardMatches(
-          card,
-          selectedSets,
-          selectedAltArts
-        );
+        const baseMatches = baseCardMatches(card, selectedSets, []);
         const altMatches =
-          getFilteredAlternates(card, selectedSets, selectedAltArts).length > 0;
-        const matchesSets = selectedSets?.length === 0 ? true : baseMatches || altMatches;
+          getFilteredAlternates(card, selectedSets, []).length > 0;
+        const matchesSets =
+          selectedSets?.length === 0 ? true : baseMatches || altMatches;
+
+        const matchesAltArts =
+          selectedAltArts?.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedAltArts.includes(target.alternateArt ?? "")
+          );
 
         const matchesTypes =
           selectedTypes?.length === 0 ||
-          card.types.some((type) => selectedTypes.includes(type.type));
+          matchesWithAlternates((target) =>
+            target.types.some((type) => selectedTypes.includes(type.type))
+          );
 
         const matchesEffects =
           selectedEffects?.length === 0 ||
-          (card.effects ?? []).some((effect) =>
-            selectedEffects.includes(effect.effect)
+          matchesWithAlternates((target) =>
+            (target.effects ?? []).some((effect) =>
+              selectedEffects.includes(effect.effect)
+            )
           );
 
         const matchesRarities =
           selectedRarities?.length === 0 ||
-          selectedRarities.includes(card.rarity || "");
+          matchesWithAlternates((target) =>
+            selectedRarities.includes(target.rarity || "")
+          );
 
         const matchesCategories =
           selectedCategories?.length === 0 ||
-          selectedCategories.includes(card.category || "");
+          matchesWithAlternates((target) =>
+            selectedCategories.includes(target.category || "")
+          );
 
         const matchesCounter =
           selectedCounter === "" ||
-          (selectedCounter === NO_COUNTER_LABEL
-            ? !card.counter
-            : (card.counter?.toString() ?? "") === selectedCounter);
+          matchesWithAlternates((target) =>
+            selectedCounter === NO_COUNTER_LABEL
+              ? !target.counter
+              : (target.counter?.toString() ?? "") === selectedCounter
+          );
 
         const matchesTrigger =
           selectedTrigger === "" ||
-          (selectedTrigger === NO_TRIGGER_LABEL
-            ? !card.triggerCard
-            : (card.triggerCard ?? "") === selectedTrigger);
+          matchesWithAlternates((target) =>
+            selectedTrigger === NO_TRIGGER_LABEL
+              ? !target.triggerCard
+              : (target.triggerCard ?? "") === selectedTrigger
+          );
 
         const matchesCosts =
           selectedCosts?.length === 0 ||
-          selectedCosts.includes(card.cost || "");
+          matchesWithAlternates((target) =>
+            selectedCosts.includes(target.cost || "")
+          );
 
         const matchesPower =
           selectedPower?.length === 0 ||
-          selectedPower.includes(card.power || "");
+          matchesWithAlternates((target) =>
+            selectedPower.includes(target.power || "")
+          );
 
         const matchesAttributes =
           selectedAttributes?.length === 0 ||
-          selectedAttributes.includes(card.attribute || "");
+          matchesWithAlternates((target) =>
+            selectedAttributes.includes(target.attribute || "")
+          );
 
         const matchesCodes =
           selectedCodes?.length === 0 ||
-          selectedCodes.some((code) => card.code.includes(code));
+          matchesWithAlternates((target) =>
+            selectedCodes.some((code) => target.code.includes(code))
+          );
 
         return (
           matchesSearch &&
           matchesColors &&
           matchesSets &&
+          matchesAltArts &&
           matchesRarities &&
           matchesTypes &&
           matchesCategories &&
@@ -1489,26 +1778,6 @@ const AddCardsPage = () => {
     };
     setDraggedCard(dragData);
     e.dataTransfer.effectAllowed = "move";
-  };
-
-  // Handler para click en cartas del sidebar
-  const handleSidebarCardClick = (card: CardWithCollectionData) => {
-    if (isMobile) {
-      // En mobile, siempre selecciona la carta para placement
-      setSelectedCardForPlacement(card);
-    } else {
-      // En desktop, alternar entre selección y abrir modal
-      if (selectedCardForPlacement?.id === card.id) {
-        // Si ya está seleccionada, abrir modal
-        setSelectedCard(card);
-        setBaseCard(card);
-        setAlternatesCards(card.alternates);
-        setIsOpen(true);
-      } else {
-        // Si no está seleccionada, seleccionar para placement
-        setSelectedCardForPlacement(card);
-      }
-    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1754,7 +2023,7 @@ const AddCardsPage = () => {
     // Use the specific page provided, fallback to currentPage if not provided
     const targetPage = page ?? currentPage;
     const key = `${targetPage}-${row}-${col}`;
-    const existingCard = existingCards[key];
+    const existingCard = existingCardsRef.current[key];
     const pendingChange = pendingChanges.find(
       (change) =>
         change.position.page === targetPage &&
@@ -1781,6 +2050,188 @@ const AddCardsPage = () => {
     return null;
   };
 
+  const updateExistingCards = (
+    updater: (prev: typeof existingCards) => typeof existingCards
+  ) => {
+    const next = updater(existingCardsRef.current);
+    existingCardsRef.current = next;
+    setExistingCards(next);
+  };
+
+  const scheduleAddFlush = () => {
+    if (addFlushTimerRef.current) {
+      clearTimeout(addFlushTimerRef.current);
+    }
+    addFlushTimerRef.current = setTimeout(() => {
+      flushAddQueue();
+    }, 600);
+  };
+
+  const flushAddQueue = async () => {
+    if (addSaveInFlightRef.current) {
+      addFlushRequestedRef.current = true;
+      return;
+    }
+
+    const entries = Array.from(addQueueRef.current.values());
+    if (entries.length === 0) return;
+
+    addSaveInFlightRef.current = true;
+    addQueueRef.current.clear();
+
+    try {
+      const response = await fetch(`/api/lists/${listId}/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entries),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error agregando carta: ${errorData.error}`);
+      }
+
+      updateExistingCards((prev) => {
+        const next = { ...prev };
+        entries.forEach((entry) => {
+          const key = `${entry.page}-${entry.row}-${entry.column}`;
+          if (next[key]) {
+            next[key] = { ...next[key], isOptimistic: false };
+          }
+        });
+        return next;
+      });
+    } catch (error) {
+      console.error("Error en auto-guardado:", error);
+      toast.error("Error al guardar automáticamente");
+      entries.forEach((entry) => {
+        const key = `${entry.page}-${entry.row}-${entry.column}`;
+        addQueueRef.current.set(key, entry);
+      });
+    } finally {
+      addSaveInFlightRef.current = false;
+      if (addFlushRequestedRef.current) {
+        addFlushRequestedRef.current = false;
+        if (addQueueRef.current.size) {
+          flushAddQueue();
+        }
+      }
+
+      if (!addQueueRef.current.size && pendingDeleteRef.current.size) {
+        const pendingDeletes = Array.from(pendingDeleteRef.current.values());
+        pendingDeleteRef.current.clear();
+        await Promise.all(
+          pendingDeletes.map((cardId) =>
+            fetch(`/api/lists/${listId}/cards/${cardId}`, {
+              method: "DELETE",
+            }).catch((deleteError) => {
+              console.error("Error eliminando carta en diferido:", deleteError);
+            })
+          )
+        );
+      }
+    }
+  };
+
+  const enqueueAdd = (
+    card: CardWithCollectionData,
+    position: { page: number; row: number; column: number }
+  ) => {
+    const key = `${position.page}-${position.row}-${position.column}`;
+    addQueueRef.current.set(key, {
+      cardId: card.id,
+      page: position.page,
+      row: position.row,
+      column: position.column,
+    });
+    scheduleAddFlush();
+  };
+
+  const getVisiblePageNumbers = () => {
+    if (folderDimensions.showSinglePage) {
+      return currentPage === 0 ? [] : [currentPage];
+    }
+
+    if (currentPage === 0) return [];
+    if (currentPage === 1) return [1];
+
+    const pageOffset = 1;
+    const leftPage = (currentPage - pageOffset) * 2;
+    const rightPage = leftPage + 1;
+    return [leftPage, rightPage].filter((page) => page >= 1);
+  };
+
+  const findFirstAvailablePosition = (pages: number[]) => {
+    const maxRows = list?.maxRows || 3;
+    const maxColumns = list?.maxColumns || 3;
+
+    for (const page of pages) {
+      for (let row = 1; row <= maxRows; row++) {
+        for (let col = 1; col <= maxColumns; col++) {
+          const key = `${page}-${row}-${col}`;
+          if (backcardPositions.has(key)) continue;
+          if (getCardAtPosition(row, col, page)) continue;
+          return { page, row, column: col };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const addOrderedCardAtPosition = async (
+    card: CardWithCollectionData,
+    position: { page: number; row: number; column: number }
+  ) => {
+    if (!list?.isOrdered) return;
+
+    if (isMobile) {
+      openPriceDrawer(card, { position });
+      return;
+    }
+    const key = `${position.page}-${position.row}-${position.column}`;
+
+    updateExistingCards((prev) => ({
+      ...prev,
+      [key]: {
+        card,
+        cardId: card.id,
+        page: position.page,
+        row: position.row,
+        column: position.column,
+        isOptimistic: true,
+      },
+    }));
+
+    enqueueAdd(card, position);
+  };
+
+  const addCardToFirstAvailablePosition = async (
+    card: CardWithCollectionData
+  ) => {
+    if (!list) return;
+
+    if (!list.isOrdered) {
+      await handleSimpleCardAdd(card);
+      return;
+    }
+
+    const visiblePages = getVisiblePageNumbers();
+    const pagesToCheck = visiblePages.length ? visiblePages : [1];
+    const position = findFirstAvailablePosition(pagesToCheck);
+
+    if (!position) {
+      toast.info("No hay espacios disponibles en esta hoja");
+      return;
+    }
+
+    await addOrderedCardAtPosition(card, position);
+  };
+
+  const handleSidebarCardClick = async (card: CardWithCollectionData) => {
+    await addCardToFirstAvailablePosition(card);
+  };
+
   const handlePositionClick = async (
     row: number,
     col: number,
@@ -1792,72 +2243,11 @@ const AddCardsPage = () => {
 
     // If there's a selected card for placement, place it here
     if (selectedCardForPlacement && !cardAtPosition) {
-      if (isMobile) {
-        openPriceDrawer(selectedCardForPlacement, {
-          position: { page: targetPage, row, column: col },
-        });
-        setSelectedCardForPlacement(null);
-        return;
-      }
-      const changeId = `${Date.now()}-${Math.random()}`;
-      const newChange = {
-        id: changeId,
-        type: "add" as const,
-        position: { page: targetPage, row, column: col },
-        card: selectedCardForPlacement,
-      };
-
-      setPendingChanges((prev) => [
-        ...prev.filter(
-          (c) =>
-            !(
-              c.position.page === targetPage &&
-              c.position.row === row &&
-              c.position.column === col
-            )
-        ),
-        newChange,
-      ]);
-
-      // Auto-save immediately
-      try {
-        const cardToAdd = {
-          cardId: newChange.card.id,
-          page: newChange.position.page,
-          row: newChange.position.row,
-          column: newChange.position.column,
-        };
-
-        const response = await fetch(`/api/lists/${listId}/cards`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify([cardToAdd]),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Error agregando carta: ${errorData.error}`);
-        }
-
-        // Update local state to reflect the save
-        const newExistingCards = { ...existingCards };
-        const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-        newExistingCards[key] = {
-          card: newChange.card,
-          cardId: newChange.card.id,
-          page: newChange.position.page,
-          row: newChange.position.row,
-          column: newChange.position.column,
-        };
-        setExistingCards(newExistingCards);
-
-        // Remove the processed change from pending changes
-        setPendingChanges((prev) => prev.filter((p) => p.id !== newChange.id));
-      } catch (error) {
-        console.error("Error en auto-guardado:", error);
-        toast.error("Error al guardar automáticamente");
-      }
-
+      await addOrderedCardAtPosition(selectedCardForPlacement, {
+        page: targetPage,
+        row,
+        column: col,
+      });
       setSelectedCardForPlacement(null); // Clear selection after placing
       return;
     }
@@ -2001,6 +2391,33 @@ const AddCardsPage = () => {
 
     // If no selected card, handle removal as before
     if (cardAtPosition) {
+      const positionKey = `${targetPage}-${row}-${col}`;
+
+      if (addQueueRef.current.has(positionKey)) {
+        addQueueRef.current.delete(positionKey);
+        updateExistingCards((prev) => {
+          const next = { ...prev };
+          delete next[positionKey];
+          return next;
+        });
+        return;
+      }
+
+      if (cardAtPosition.existing?.isOptimistic) {
+        if (addSaveInFlightRef.current) {
+          pendingDeleteRef.current.set(
+            positionKey,
+            cardAtPosition.existing.cardId
+          );
+        }
+        updateExistingCards((prev) => {
+          const next = { ...prev };
+          delete next[positionKey];
+          return next;
+        });
+        return;
+      }
+
       // Remove card from position
       if (cardAtPosition.isPending) {
         setPendingChanges((prev) =>
@@ -2031,10 +2448,11 @@ const AddCardsPage = () => {
             }
 
             // Update local state
-            const newExistingCards = { ...existingCards };
-            const key = `${targetPage}-${row}-${col}`;
-            delete newExistingCards[key];
-            setExistingCards(newExistingCards);
+            updateExistingCards((prev) => {
+              const next = { ...prev };
+              delete next[positionKey];
+              return next;
+            });
           }
         } catch (error) {
           console.error("Error eliminando carta:", error);
@@ -2078,6 +2496,27 @@ const AddCardsPage = () => {
             </h2>
             <p className="text-slate-600 mb-6">
               La lista que buscas no existe o no tienes permisos para verla.
+            </p>
+            <Link href="/lists">
+              <Button>Volver a las listas</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (list && isOwner === false) {
+    return (
+      <div className="h-full flex items-center justify-center p-4 w-full">
+        <Card className="w-full max-w-md shadow-xl border-0 bg-white/90 backdrop-blur-sm">
+          <CardContent className="text-center py-16">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              No tienes permisos
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Solo el propietario puede editar esta lista.
             </p>
             <Link href="/lists">
               <Button>Volver a las listas</Button>
@@ -2399,14 +2838,7 @@ const AddCardsPage = () => {
                             >
                               <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                 <div className="flex justify-center items-center w-full relative">
-                                  <div
-                                    className="w-[80%] m-auto cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedCard(card);
-                                      setShowLargeImage(true);
-                                    }}
-                                  >
+                                  <div className="w-[80%] m-auto cursor-pointer">
                                     <LazyImage
                                       src={card?.src}
                                       fallbackSrc="/assets/images/backcard.webp"
@@ -2419,10 +2851,9 @@ const AddCardsPage = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedCard(card);
-                                      setShowLargeImage(true);
+                                      handleCardClick(card);
                                     }}
-                                    className="absolute top-1 right-1 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                    className="absolute top-1 right-1 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                                     title="Ver carta en grande"
                                   >
                                     <Eye className="w-3 h-3" />
@@ -2466,14 +2897,7 @@ const AddCardsPage = () => {
                               >
                                 <CardContent className="flex justify-center items-center p-4 flex-col h-full">
                                   <div className="flex justify-center items-center w-full relative">
-                                    <div
-                                      className="w-[80%] m-auto cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedCard(alt);
-                                        setShowLargeImage(true);
-                                      }}
-                                    >
+                                    <div className="w-[80%] m-auto cursor-pointer">
                                       <LazyImage
                                         src={alt?.src}
                                         fallbackSrc="/assets/images/backcard.webp"
@@ -2486,10 +2910,9 @@ const AddCardsPage = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedCard(alt);
-                                        setShowLargeImage(true);
+                                        handleCardClick(alt);
                                       }}
-                                      className="absolute top-1 right-1 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                      className="absolute top-1 right-1 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                                       title="Ver carta en grande"
                                     >
                                       <Eye className="w-3 h-3" />
@@ -2553,14 +2976,7 @@ const AddCardsPage = () => {
                             }`}
                           >
                             <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                              <div
-                                className="w-full cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedCard(card);
-                                  setShowLargeImage(true);
-                                }}
-                              >
+                              <div className="w-full cursor-pointer">
                                 <LazyImage
                                   src={card.src}
                                   fallbackSrc="/assets/images/backcard.webp"
@@ -2573,10 +2989,9 @@ const AddCardsPage = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedCard(card);
-                                  setShowLargeImage(true);
+                                  handleCardClick(card);
                                 }}
-                                className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                                 title="Ver carta en grande"
                               >
                                 <Eye className="w-3 h-3" />
@@ -2645,14 +3060,7 @@ const AddCardsPage = () => {
                               }`}
                             >
                               <div className="border rounded-lg shadow pb-3 bg-white justify-center items-center flex flex-col relative">
-                                <div
-                                  className="w-full cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedCard(alt);
-                                    setShowLargeImage(true);
-                                  }}
-                                >
+                                <div className="w-full cursor-pointer">
                                   <LazyImage
                                     src={alt.src}
                                     fallbackSrc="/assets/images/backcard.webp"
@@ -2665,10 +3073,9 @@ const AddCardsPage = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedCard(alt);
-                                    setShowLargeImage(true);
+                                    handleCardClick(alt);
                                   }}
-                                  className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                  className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                                   title="Ver carta en grande"
                                 >
                                   <Eye className="w-3 h-3" />
@@ -2931,6 +3338,8 @@ const AddCardsPage = () => {
                         cardCount={
                           existingCards ? Object.keys(existingCards).length : 0
                         }
+                        totalValueLabel={folderTotalLabel || undefined}
+                        shareUrl={shareUrl || undefined}
                         createGrid={createGrid}
                         getCardsForPage={getCardsForPage}
                         isEditing={true}
@@ -2944,6 +3353,8 @@ const AddCardsPage = () => {
                         }}
                         dragOverPosition={dragOverPosition}
                         selectedCardForPlacement={selectedCardForPlacement}
+                        canEditPrice={Boolean(isOwner)}
+                        onEditPrice={openPriceEdit}
                         showInteriorPage={true} // add-cards shows interior page for proper synchronization
                         onPageChange={(pageIndex) => {
                           hasUserNavigated.current = true; // Mark that user has manually navigated
@@ -3523,14 +3934,14 @@ const AddCardsPage = () => {
                         }}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
-                          <StoreCard
-                            card={card}
-                            searchTerm={search}
-                            viewSelected={viewSelected}
-                            selectedRarities={selectedAltArts}
-                            selectedSets={selectedSets}
-                            setSelectedCard={setSelectedCard}
-                            setBaseCard={setBaseCard}
+                    <StoreCard
+                      card={card}
+                      searchTerm={search}
+                      viewSelected={viewSelected}
+                      selectedRarities={selectedRarities}
+                      selectedSets={selectedSets}
+                      setSelectedCard={setSelectedCard}
+                      setBaseCard={setBaseCard}
                             setAlternatesCards={setAlternatesCards}
                             setIsOpen={setIsOpen}
                             onClick={() => {
@@ -3810,6 +4221,125 @@ const AddCardsPage = () => {
           )}
         </div>
       </BaseDrawer>
+
+      {/* Edit Custom Price */}
+      {isMobile ? (
+        <BaseDrawer
+          isOpen={priceEditOpen}
+          onClose={() => {
+            if (!isPriceEditSaving) {
+              setPriceEditOpen(false);
+            }
+          }}
+          preventClose={isPriceEditSaving}
+          maxHeight="70vh"
+        >
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Editar precio</h3>
+                <p className="text-sm text-gray-500">
+                  {priceEditCard?.name ?? "Carta seleccionada"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio personalizado
+                </label>
+                <Input
+                  value={priceEditInput}
+                  onChange={(e) => setPriceEditInput(e.target.value)}
+                  placeholder="Ej. 12.50"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Moneda
+                </label>
+                <Input
+                  value={priceEditCurrency}
+                  onChange={(e) => setPriceEditCurrency(e.target.value)}
+                  placeholder="USD"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setPriceEditOpen(false)}
+                disabled={isPriceEditSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-slate-900 text-white hover:bg-slate-800"
+                onClick={handleSaveCustomPrice}
+                disabled={isPriceEditSaving}
+              >
+                {isPriceEditSaving ? "Guardando..." : "Guardar"}
+              </Button>
+            </div>
+          </div>
+        </BaseDrawer>
+      ) : (
+        <Dialog open={priceEditOpen} onOpenChange={setPriceEditOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar precio</DialogTitle>
+              <DialogDescription>
+                {priceEditCard?.name ?? "Carta seleccionada"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio personalizado
+                </label>
+                <Input
+                  value={priceEditInput}
+                  onChange={(e) => setPriceEditInput(e.target.value)}
+                  placeholder="Ej. 12.50"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Moneda
+                </label>
+                <Input
+                  value={priceEditCurrency}
+                  onChange={(e) => setPriceEditCurrency(e.target.value)}
+                  placeholder="USD"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPriceEditOpen(false)}
+                disabled={isPriceEditSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveCustomPrice}
+                disabled={isPriceEditSaving}
+              >
+                {isPriceEditSaving ? "Guardando..." : "Guardar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Card Details Modal */}
       <Transition appear show={isOpen} as={Fragment}>

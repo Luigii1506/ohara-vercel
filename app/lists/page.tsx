@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import DropdownSearch from "@/components/DropdownSearch";
 import {
   Dialog,
@@ -44,11 +45,13 @@ import { UserList, UserListCard } from "@/types";
 import ListsFiltersSidebar from "@/components/ListsFiltersSidebar";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import LazyImage from "@/components/LazyImage";
+import { useSession } from "next-auth/react";
 
 interface ListsPageProps {}
 
 const ListsPage: React.FC<ListsPageProps> = () => {
   const router = useRouter();
+  const { status } = useSession();
 
   // Core state
   const [lists, setLists] = useState<UserList[]>([]);
@@ -76,6 +79,9 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     open: boolean;
     list: UserList | null;
   }>({ open: false, list: null });
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
 
   // Preview drawer
   const [previewDrawer, setPreviewDrawer] = useState<{
@@ -201,6 +207,8 @@ const ListsPage: React.FC<ListsPageProps> = () => {
       if (response.ok) {
         const data = await response.json();
         setLists(data.lists || []);
+      } else if (response.status === 401 || response.status === 403) {
+        router.replace("/login");
       } else {
         toast.error("Error al cargar las listas");
       }
@@ -213,8 +221,14 @@ const ListsPage: React.FC<ListsPageProps> = () => {
   };
 
   useEffect(() => {
-    fetchLists();
-  }, []);
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated") {
+      fetchLists();
+    }
+  }, [status]);
 
   // Clear all filters
   const clearAllFilters = () => {
@@ -283,6 +297,58 @@ const ListsPage: React.FC<ListsPageProps> = () => {
 
   const handleCreateCollection = () => {
     router.push("/lists/create");
+  };
+
+  const extractListId = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      return Number.parseInt(trimmed, 10);
+    }
+    try {
+      const url = new URL(trimmed);
+      const match = url.pathname.match(/\/lists\/(\d+)/);
+      return match?.[1] ? Number.parseInt(match[1], 10) : null;
+    } catch {
+      const match = trimmed.match(/\/lists\/(\d+)/);
+      return match?.[1] ? Number.parseInt(match[1], 10) : null;
+    }
+  };
+
+  const handleImportList = async () => {
+    const listId = extractListId(importUrl);
+    if (!listId) {
+      toast.error("URL o ID de lista inválido");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const response = await fetch("/api/lists/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al importar la lista");
+      }
+
+      const data = await response.json();
+      toast.success("Lista importada");
+      setImportModalOpen(false);
+      setImportUrl("");
+      await fetchLists();
+      if (data.list?.id) {
+        router.push(`/lists/${data.list.id}/add-cards`);
+      }
+    } catch (error: any) {
+      console.error("Error importing list:", error);
+      toast.error(error?.message || "Error al importar la lista");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Preview drawer handlers
@@ -538,6 +604,14 @@ const ListsPage: React.FC<ListsPageProps> = () => {
                 <span>Nueva Colección</span>
               </Button>
               <Button
+                variant="outline"
+                onClick={() => setImportModalOpen(true)}
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                <Package className="w-4 h-4" />
+                <span>Importar</span>
+              </Button>
+              <Button
                 variant={hasActiveFilters ? "default" : "outline"}
                 size="sm"
                 onClick={() => setShowFiltersSidebar(true)}
@@ -676,6 +750,37 @@ const ListsPage: React.FC<ListsPageProps> = () => {
         sortBy={sortBy}
         setSortBy={setSortBy}
       />
+
+      <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar lista</DialogTitle>
+            <DialogDescription>
+              Pega el URL de una lista de Ohara para crear una copia en tu
+              cuenta.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={importUrl}
+              onChange={(event) => setImportUrl(event.target.value)}
+              placeholder="https://www.oharatcg.com/lists/34"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImportModalOpen(false)}
+              disabled={isImporting}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleImportList} disabled={isImporting}>
+              {isImporting ? "Importando..." : "Importar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Share Modal */}
       <Dialog

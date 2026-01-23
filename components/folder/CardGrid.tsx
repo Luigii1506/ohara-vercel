@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Check } from "lucide-react";
+import { Plus, Check, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -31,6 +31,8 @@ interface CardGridProps {
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
   selectedCardForPlacement?: CardWithCollectionData | null;
+  canEditPrice?: boolean;
+  onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
 }
 
 export const CardGrid: React.FC<CardGridProps> = ({
@@ -45,6 +47,8 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onDragHandlers,
   dragOverPosition,
   selectedCardForPlacement,
+  canEditPrice = false,
+  onEditPrice,
 }) => {
   return (
     <div
@@ -156,12 +160,16 @@ export const CardGrid: React.FC<CardGridProps> = ({
                             minimumFractionDigits: 2,
                           }).format(value);
 
-                        const priceValue = getNumericPrice(cell.card.marketPrice);
+                        const customPriceValue = getNumericPrice(cell.existing?.customPrice);
+                        const priceValue =
+                          customPriceValue ?? getNumericPrice(cell.card.marketPrice);
+                        const currencyValue =
+                          cell.existing?.customCurrency ?? cell.card.priceCurrency;
 
                         if (priceValue !== null) {
                           return (
                             <div className="absolute -bottom-1 -left-1 bg-emerald-600 text-white rounded-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
-                              {formatCurrency(priceValue, cell.card.priceCurrency)}
+                              {formatCurrency(priceValue, currencyValue)}
                             </div>
                           );
                         }
@@ -171,6 +179,21 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       {/* Status indicators for editing mode */}
                       {isEditing && (
                         <>
+                          {canEditPrice &&
+                            cell.existing &&
+                            !cell.existing.isOptimistic &&
+                            onEditPrice && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditPrice({ card: cell.card!, listCard: cell.existing });
+                              }}
+                              className="absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              title="Editar precio"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </button>
+                          )}
                           {/* Delete Button (appears on hover) */}
                           <button
                             onClick={(e) => {

@@ -373,6 +373,7 @@ const AddCardsPage = () => {
     CardWithCollectionData[]
   >([]);
   const [currentPage, setCurrentPage] = useState(0); // Sync with BookFlipContainer initial state
+  const currentPageRef = useRef(0);
 
   const [simpleListCards, setSimpleListCards] = useState<SimpleListCard[]>([]);
   const [pendingChanges, setPendingChanges] = useState<OrderedListChange[]>([]);
@@ -921,6 +922,10 @@ const AddCardsPage = () => {
       hasTriedRefresh.current = false;
     }
   }, [listId]);
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2149,14 +2154,21 @@ const AddCardsPage = () => {
 
   const getVisiblePageNumbers = () => {
     const totalPages = Math.max(1, list?.totalPages || 1);
+    const pageIndex = currentPageRef.current;
 
     if (folderDimensions.showSinglePage) {
-      return currentPage === 0 ? [1] : [currentPage];
+      return pageIndex === 0 ? [1] : [pageIndex];
     }
 
-    if (currentPage === 0) return [1];
+    if (pageIndex === 0) return [1];
 
-    const pages = [currentPage, currentPage + 1];
+    const spreadStart =
+      pageIndex <= 1
+        ? 1
+        : pageIndex % 2 === 0
+        ? pageIndex - 1
+        : pageIndex;
+    const pages = [spreadStart, spreadStart + 1];
     return pages.filter((page) => page >= 1 && page <= totalPages);
   };
 
@@ -3358,6 +3370,7 @@ const AddCardsPage = () => {
                         onPageChange={(pageIndex) => {
                           hasUserNavigated.current = true; // Mark that user has manually navigated
                           setCurrentPage(pageIndex);
+                          currentPageRef.current = pageIndex;
                         }}
                         onNavigationReady={setNavigationFunctions}
                         // 🔄 Navigation inside folder

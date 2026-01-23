@@ -406,7 +406,7 @@ const AddCardsPage = () => {
   const addQueueRef = useRef<
     Map<
       string,
-      { cardId: number; page: number; row: number; column: number }
+      { cardId: number | string; page: number; row: number; column: number }
     >
   >(new Map());
   const pendingDeleteRef = useRef<Map<string, number>>(new Map());

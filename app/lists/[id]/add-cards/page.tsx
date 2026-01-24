@@ -2153,18 +2153,27 @@ const AddCardsPage = () => {
   };
 
   const getVisiblePageNumbers = () => {
-    const totalPages = Math.max(1, list?.totalPages || 1);
     const pageIndex = currentPageRef.current;
+    const totalPages = Math.max(getMaxNavigablePage(), pageIndex + 1);
 
     if (folderDimensions.showSinglePage) {
+      console.log("[add-cards] visible pages (single)", {
+        pageIndex,
+        pages: pageIndex === 0 ? [1] : [pageIndex],
+      });
       return pageIndex === 0 ? [1] : [pageIndex];
     }
 
     if (pageIndex === 0) return [1];
 
-    const spreadStart = pageIndex % 2 === 0 ? pageIndex : pageIndex + 1;
-    const pages = [spreadStart, spreadStart - 1].filter((page) => page >= 1);
-    return pages.filter((page) => page >= 1 && page <= totalPages);
+    const pages = [pageIndex, pageIndex + 1].filter(
+      (page) => page >= 1 && page <= totalPages
+    );
+    console.log("[add-cards] visible pages (spread)", {
+      pageIndex,
+      pages,
+    });
+    return pages;
   };
 
   const findFirstAvailablePosition = (pages: number[]) => {

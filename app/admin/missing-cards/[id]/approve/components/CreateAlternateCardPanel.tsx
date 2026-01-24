@@ -34,6 +34,10 @@ interface BaseCard {
   code: string;
   name: string;
   src: string;
+  region?: string | null;
+  isFirstEdition?: boolean;
+  alias?: string | null;
+  baseCardId?: number | null;
   setCode?: string | null;
   sets?: Array<{
     setId?: number;
@@ -59,6 +63,7 @@ interface CreateAlternateCardPanelProps {
   onCancel: () => void;
   onSuccess: (newCardId: number) => void;
   isLocked?: boolean;
+  preferredRegion?: string | null;
 }
 
 const formatSetLabel = (set: AdminSet) =>
@@ -80,7 +85,34 @@ export default function CreateAlternateCardPanel({
   onCancel,
   onSuccess,
   isLocked = false,
+  preferredRegion = null,
 }: CreateAlternateCardPanelProps) {
+  const normalizeRegion = (value?: string | null) =>
+    value?.trim().toUpperCase() || "";
+
+  const selectBaseCard = (cards: BaseCard[], regionHint?: string | null) => {
+    if (!cards.length) return null;
+
+    const baseCards = cards.filter((card) => !card.baseCardId);
+    const candidates = baseCards.length ? baseCards : cards;
+    const normalizedRegion = normalizeRegion(regionHint);
+
+    const regionMatches = normalizedRegion
+      ? candidates.filter(
+          (card) => normalizeRegion(card.region) === normalizedRegion
+        )
+      : [];
+
+    const regionFirstEdition = regionMatches.find((card) => card.isFirstEdition);
+    if (regionFirstEdition) return regionFirstEdition;
+    if (regionMatches.length) return regionMatches[0] ?? null;
+
+    const firstEdition = candidates.find((card) => card.isFirstEdition);
+    if (firstEdition) return firstEdition;
+
+    return candidates[0] ?? null;
+  };
+
   const [loading, setLoading] = useState(false);
   const [setsLoading, setSetsLoading] = useState(false);
   const [baseCardLoading, setBaseCardLoading] = useState(false);
@@ -227,9 +259,8 @@ export default function CreateAlternateCardPanel({
         if (!isMounted) return;
 
         if (Array.isArray(data) && data.length > 0) {
-          const base =
-            data.find((card: any) => !card.alias) || (data[0] as BaseCard);
-          setBaseCard(base as BaseCard);
+          const base = selectBaseCard(data as BaseCard[], preferredRegion);
+          setBaseCard(base);
 
           const baseSetIds =
             (base?.sets || [])
@@ -259,7 +290,7 @@ export default function CreateAlternateCardPanel({
     return () => {
       isMounted = false;
     };
-  }, [missingCard.code, missingCard.imageUrl]);
+  }, [missingCard.code, missingCard.imageUrl, preferredRegion]);
 
   const handleRemoveSet = (setId: string) => {
     setSelectedSetIds((prev) => prev.filter((id) => id !== setId));

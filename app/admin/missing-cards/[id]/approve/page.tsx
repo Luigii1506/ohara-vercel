@@ -41,6 +41,7 @@ interface CardOption {
   name: string;
   src: string;
   isFirstEdition: boolean;
+  region?: string | null;
   alias?: string | null;
   sets?: Array<{
     set: {
@@ -50,6 +51,61 @@ interface CardOption {
     };
   }>;
 }
+
+const normalizeLocale = (value?: string | null) =>
+  value?.trim().toLowerCase() || "";
+
+const localeToRegion = (locale: string) => {
+  if (locale.startsWith("fr")) return "FR";
+  if (locale.startsWith("ja") || locale === "jp") return "JP";
+  if (locale.startsWith("ko") || locale === "kr") return "KR";
+  if (locale.startsWith("zh")) return "CN";
+  if (
+    locale.startsWith("en") ||
+    locale.startsWith("es") ||
+    locale.startsWith("pt")
+  )
+    return "US";
+  return "";
+};
+
+const eventRegionToCardRegion = (region?: string | null) => {
+  switch (region) {
+    case "JP":
+      return "JP";
+    case "NA":
+    case "LA":
+      return "US";
+    case "EU":
+      return "FR";
+    case "ASIA":
+      return "JP";
+    default:
+      return "";
+  }
+};
+
+const getPreferredRegion = (events: MissingCardEventLink[] = []) => {
+  const counts = new Map<string, number>();
+  events.forEach((link) => {
+    const locale = normalizeLocale(link.event?.locale);
+    const fromLocale = locale ? localeToRegion(locale) : "";
+    const resolved = fromLocale || eventRegionToCardRegion(link.event?.region);
+    if (!resolved) return;
+    counts.set(resolved, (counts.get(resolved) ?? 0) + 1);
+  });
+
+  let topRegion: string | null = null;
+  let topCount = 0;
+  counts.forEach((count, region) => {
+    if (count > topCount) {
+      topRegion = region;
+      topCount = count;
+    }
+  });
+
+  return topRegion;
+};
 
 export default function ApproveMissingCardPage() {
   const router = useRouter();
@@ -121,6 +177,11 @@ export default function ApproveMissingCardPage() {
     if (!selectedCardId) return null;
     return cardOptions.find((card) => card.id === selectedCardId) ?? null;
   }, [selectedCardId, cardOptions]);
+
+  const preferredRegion = useMemo(
+    () => (missingCard ? getPreferredRegion(missingCard.events) : null),
+    [missingCard]
+  );
 
   const handleApprove = async () => {
     if (!missingCard || !selectedCardId) return;
@@ -459,6 +520,7 @@ export default function ApproveMissingCardPage() {
               onCancel={() => setShowCreateAlternateForm(false)}
               onSuccess={handleCreateAlternateAndApprove}
               isLocked={isApproving}
+              preferredRegion={preferredRegion}
             />
           ) : (
               <CardContent className="pt-6">

@@ -199,12 +199,11 @@ export async function GET(
       );
     }
 
-    // 5. Group cards by listCard.id (unique entry in list) to avoid duplicates
+    // 5. Group cards by cardId - if same card appears multiple times, sum quantities
     // Also track unique productIds for API calls
-    const uniqueListCards = new Map<
+    const uniqueCards = new Map<
       number,
       {
-        listCardId: number;
         cardId: number;
         code: string;
         name: string;
@@ -222,20 +221,31 @@ export async function GET(
       const card = listCard.card;
       if (!card) continue;
 
-      // Use listCard.id as the unique key (each entry in the list)
-      uniqueListCards.set(listCard.id, {
-        listCardId: listCard.id,
-        cardId: card.id,
-        code: card.code,
-        name: card.name,
-        src: card.src,
-        quantity: listCard.quantity || 1,
-        productId: card.tcgplayerProductId || null,
-        customPrice: listCard.customPrice
-          ? Number(listCard.customPrice)
-          : null,
-        marketPrice: card.marketPrice ? Number(card.marketPrice) : null,
-      });
+      const existingCard = uniqueCards.get(card.id);
+      const listCardQty = listCard.quantity || 1;
+
+      if (existingCard) {
+        // Same card already exists, sum the quantities
+        existingCard.quantity += listCardQty;
+        // Keep customPrice from first occurrence if exists
+        if (listCard.customPrice && !existingCard.customPrice) {
+          existingCard.customPrice = Number(listCard.customPrice);
+        }
+      } else {
+        // New card, add it to the map
+        uniqueCards.set(card.id, {
+          cardId: card.id,
+          code: card.code,
+          name: card.name,
+          src: card.src,
+          quantity: listCardQty,
+          productId: card.tcgplayerProductId || null,
+          customPrice: listCard.customPrice
+            ? Number(listCard.customPrice)
+            : null,
+          marketPrice: card.marketPrice ? Number(card.marketPrice) : null,
+        });
+      }
 
       if (card.tcgplayerProductId) {
         productIdsToFetch.add(card.tcgplayerProductId);
@@ -282,7 +292,7 @@ export async function GET(
     let totalValue = 0;
     let totalQuantity = 0;
 
-    for (const [, cardData] of Array.from(uniqueListCards)) {
+    for (const [, cardData] of Array.from(uniqueCards)) {
       const { productId, code, name, src, quantity, customPrice, marketPrice } = cardData;
 
       let filteredSales: TCGSaleRecord[] = [];

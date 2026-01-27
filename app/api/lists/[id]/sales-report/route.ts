@@ -248,7 +248,7 @@ export async function GET(
       { sales: TCGSaleRecord[]; average: number | null }
     >();
 
-    for (const productId of productIdsToFetch) {
+    for (const productId of Array.from(productIdsToFetch)) {
       // Fetch sales from TCGPlayer
       const salesResponse = await fetchLatestSales(parseInt(productId));
 

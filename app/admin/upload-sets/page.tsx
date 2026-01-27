@@ -1,6 +1,12 @@
 "use client";
 
-import React, { FormEvent, useState, useEffect, useCallback } from "react";
+import React, {
+  FormEvent,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
 import { scrapeAmazonProduct } from "@/lib/scraper";
@@ -24,6 +30,7 @@ interface Set {
   title: string;
   description?: string;
   code: string;
+  region?: string | null;
 }
 
 const UploadSets = () => {
@@ -197,6 +204,11 @@ const UploadSets = () => {
     }),
   };
 
+  const selectedSet = useMemo(
+    () => availableSets.find((set) => set.id === selectedSetId) ?? null,
+    [availableSets, selectedSetId]
+  );
+
   const createCard = async (card: CardData): Promise<boolean> => {
     try {
       const derivedFilename =
@@ -233,6 +245,7 @@ const UploadSets = () => {
           code: card._id,
           setCode: card.setCode,
           isFirstEdition: card.isFirstEdition,
+          region: selectedSet?.region ?? null,
           alias: "",
         }),
       });
@@ -296,7 +309,6 @@ const UploadSets = () => {
     }
 
     // Get the selected set's code
-    const selectedSet = availableSets.find((set) => set.id === selectedSetId);
     if (!selectedSet) {
       setStatusMessage("Selected set not found");
       setUploadStatus("error");

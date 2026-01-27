@@ -30,14 +30,14 @@ interface FolderPageProps {
       e: React.DragEvent,
       page: number,
       row: number,
-      column: number
+      column: number,
     ) => void;
     onDragLeave: (e: React.DragEvent) => void;
     onDrop: (
       e: React.DragEvent,
       page: number,
       row: number,
-      column: number
+      column: number,
     ) => void;
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
@@ -95,13 +95,8 @@ export const FolderPage: React.FC<FolderPageProps> = ({
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center text-center">
               {shareUrl && (
-                <div className="mb-4 flex flex-col items-center gap-2">
-                  <div className="rounded-xl bg-white p-2 shadow-md">
-                    <QRCodeCanvas value={shareUrl} size={120} className="block" />
-                  </div>
-                  <p className="text-xs text-slate-200">
-                    Escanea para ver la carpeta
-                  </p>
+                <div className="mb-4 flex flex-col items-center justify-center gap-2 w-[240px] h-[240px]">
+                  <QRCodeCanvas value={shareUrl} size={120} className="block" />
                 </div>
               )}
               <img

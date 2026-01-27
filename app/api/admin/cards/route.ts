@@ -94,6 +94,9 @@ export async function POST(req: NextRequest) {
       baseCardId: rawBaseCardId,
     } = body;
 
+    const normalizedRegion =
+      typeof region === "string" && region.trim() ? region.trim() : null;
+
     let providedBaseCardId: number | null = null;
     if (
       rawBaseCardId !== undefined &&
@@ -127,11 +130,15 @@ export async function POST(req: NextRequest) {
     }) | null = null;
 
     if (code) {
+      const templateWhere: Prisma.CardWhereInput = {
+        code,
+        isFirstEdition: true,
+      };
+      if (normalizedRegion) {
+        templateWhere.region = normalizedRegion;
+      }
       templateCard = await prisma.card.findFirst({
-        where: {
-          code,
-          isFirstEdition: true,
-        },
+        where: templateWhere,
         include: templateInclude,
       });
     }
@@ -204,6 +211,7 @@ export async function POST(req: NextRequest) {
         priceUpdatedAt: null,
         alias,
         order: order || "0", // Asegurar que siempre tenga un valor
+        region: normalizedRegion ?? templateCard.region ?? null,
         ...baseCardRelation,
         types:
           templateCard.types.length > 0
@@ -238,7 +246,6 @@ export async function POST(req: NextRequest) {
             ? { create: templateCard.texts.map((t: any) => ({ text: t.text })) }
             : undefined,
         isPro,
-        region,
       };
 
       newCard = await prisma.card.create({
@@ -289,7 +296,7 @@ export async function POST(req: NextRequest) {
           ? { create: texts.map((text: string) => ({ text })) }
           : undefined,
         isPro,
-        region,
+        region: normalizedRegion,
         order: order || "0", // Asegurar que siempre tenga un valor
       };
 

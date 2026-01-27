@@ -308,7 +308,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       const cardsWithImages = data.cards.filter((c) => c.cardSrc);
 
       // Get unique image URLs to avoid loading the same image twice
-      const uniqueImageUrls = [...new Set(cardsWithImages.map((c) => c.cardSrc))];
+      const uniqueImageUrls = Array.from(new Set(cardsWithImages.map((c) => c.cardSrc)));
 
       for (let i = 0; i < uniqueImageUrls.length; i++) {
         const imageUrl = uniqueImageUrls[i];

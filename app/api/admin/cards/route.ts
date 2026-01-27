@@ -246,7 +246,6 @@ export async function POST(req: NextRequest) {
             ? { create: templateCard.texts.map((t: any) => ({ text: t.text })) }
             : undefined,
         isPro,
-        region,
       };
 
       newCard = await prisma.card.create({

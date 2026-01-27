@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, List } from "lucide-react";
+import { ArrowLeft, List, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { MainContentSkeleton } from "@/components/skeletons";
@@ -12,6 +12,8 @@ import { BookFlipContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
+import { useUser } from "@/app/context/UserContext";
+import CollectionReportDrawer from "@/components/CollectionReportDrawer";
 
 import { Oswald } from "next/font/google";
 
@@ -51,11 +53,16 @@ const ListDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const listId = params.id as string;
+  const { role } = useUser();
+  const isAdmin = role === "ADMIN";
 
   // States
   const [list, setList] = useState<UserList | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0); // Start at view 0 (interior cover + page 1)
+  const [showReportDrawer, setShowReportDrawer] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+
+  // Start at view 0 (interior cover + page 1)
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
   const [shareUrl, setShareUrl] = useState("");
 
@@ -485,8 +492,21 @@ const ListDetailPage = () => {
               </Button>
               <h1 className="text-lg font-bold text-slate-900">{list.name}</h1>
             </div>
-            <div className="text-sm text-slate-600">
-              {safeFilteredCards.length} cartas
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Button
+                  onClick={() => setShowReportDrawer(true)}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Generate Report</span>
+                </Button>
+              )}
+              <div className="text-sm text-slate-600">
+                {safeFilteredCards.length} cartas
+              </div>
             </div>
           </div>
         </div>
@@ -670,6 +690,28 @@ const ListDetailPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin Report Drawer */}
+      {list && (
+        <CollectionReportDrawer
+          isOpen={showReportDrawer}
+          onClose={() => setShowReportDrawer(false)}
+          listId={list.id}
+          listName={list.name}
+        />
+      )}
+
+      {/* Floating Admin Report Button for Folders */}
+      {isAdmin && list?.isOrdered && (
+        <button
+          onClick={() => setShowReportDrawer(true)}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-full shadow-lg transition-all hover:scale-105"
+          title="Generate Collection Report"
+        >
+          <FileText className="h-5 w-5" />
+          <span className="hidden sm:inline">Report</span>
+        </button>
       )}
     </>
   );

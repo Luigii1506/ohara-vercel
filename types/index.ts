@@ -394,3 +394,44 @@ export interface ReorderCardsRequest {
     column?: number;
   }>;
 }
+
+// ============================================================================
+// Collection Report Types (for TCGPlayer sales-based valuation)
+// ============================================================================
+
+export interface TCGSaleRecord {
+  condition: string;
+  variant: string;
+  language: string;
+  purchasePrice: number;
+  orderDate: string;
+  title?: string;
+}
+
+export interface CardSalesReportItem {
+  cardCode: string;
+  cardName: string;
+  cardSrc: string;
+  productId: number | null;
+  quantity: number;
+  lastSales: TCGSaleRecord[];
+  top3Average: number | null;
+  subtotal: number;
+  customPrice?: number | null;
+  marketPrice?: number | null;
+  error?: string;
+}
+
+export interface CollectionReportData {
+  listName: string;
+  listId: number;
+  generatedAt: string;
+  totalCards: number;
+  totalQuantity: number;
+  successfulLookups: number;
+  failedLookups: number;
+  cards: CardSalesReportItem[];
+  totalValue: number;
+  value70Percent: number;
+  value80Percent: number;
+}

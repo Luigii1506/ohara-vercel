@@ -282,7 +282,7 @@ export async function GET(
     let totalValue = 0;
     let totalQuantity = 0;
 
-    for (const [, cardData] of uniqueListCards) {
+    for (const [, cardData] of Array.from(uniqueListCards)) {
       const { productId, code, name, src, quantity, customPrice, marketPrice } = cardData;
 
       let filteredSales: TCGSaleRecord[] = [];

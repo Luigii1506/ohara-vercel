@@ -71,7 +71,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       </h3>
 
       <p className="text-slate-500 text-center max-w-md mb-8 text-sm sm:text-base">
-        Crea tu primera colección para organizar y gestionar tus cartas de One Piece
+        Crea tu primera colección para organizar y gestionar tus cartas de One
+        Piece
       </p>
 
       <Button
@@ -81,26 +82,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <Plus className="w-5 h-5 mr-2" />
         Crear Primera Colección
       </Button>
-
-      {/* Feature hints */}
-      <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full">
-        {[
-          { icon: "📁", title: "Organiza", desc: "Crea carpetas y listas" },
-          { icon: "🎴", title: "Gestiona", desc: "Añade y ordena cartas" },
-          { icon: "📊", title: "Valora", desc: "Calcula el valor total" },
-        ].map((feature, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100"
-          >
-            <span className="text-2xl">{feature.icon}</span>
-            <div>
-              <p className="font-semibold text-slate-900 text-sm">{feature.title}</p>
-              <p className="text-xs text-slate-500">{feature.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

@@ -14,8 +14,9 @@ import {
   Loader2,
   ChartColumnBigIcon,
   Plus,
+  Printer,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { rarityFormatter } from "@/helpers/formatters";
 import { Oswald } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Deck, DeckCard } from "@/types";
+import ProxiesDrawer, { ProxyCard } from "@/components/ProxiesDrawer";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -59,12 +61,44 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isProxiesOpen, setIsProxiesOpen] = useState(false);
 
   const isShopView = mode === "shop" || mode === "shop-admin";
   const isAdminShopView = mode === "shop-admin";
   const isPublicShopView = mode === "shop";
   const canEditDeck = mode === "user" || isAdminShopView;
   const canDeleteDeck = mode === "user" || isAdminShopView;
+
+  // Prepare cards for proxies drawer (must be before early return)
+  const proxiesCards = useMemo((): ProxyCard[] => {
+    if (!deck) return [];
+
+    const leaderCard = deck.deckCards.find(
+      (card) => card.card?.category === "Leader"
+    );
+
+    const leaderProxyCard: ProxyCard[] = leaderCard?.card
+      ? [{
+          id: Number(leaderCard.card.id),
+          name: leaderCard.card.name,
+          src: leaderCard.card.src,
+          code: leaderCard.card.code,
+          quantity: 1,
+        }]
+      : [];
+
+    const mainCards: ProxyCard[] = deck.deckCards
+      .filter((dc) => dc.card?.category !== "Leader")
+      .map((dc) => ({
+        id: dc.card?.id ? Number(dc.card.id) : dc.cardId,
+        name: dc.card?.name || dc.name,
+        src: dc.card?.src || dc.src,
+        code: dc.card?.code || dc.code,
+        quantity: dc.quantity,
+      }));
+
+    return [...leaderProxyCard, ...mainCards];
+  }, [deck]);
 
   // Empty state - no deck selected
   if (!deck) {
@@ -370,6 +404,16 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
 
         {/* Action Buttons */}
         <div className="mt-4 flex flex-wrap gap-2">
+          {/* Print Proxies - Always visible */}
+          <Button
+            onClick={() => setIsProxiesOpen(true)}
+            size="sm"
+            className="bg-violet-500 text-white hover:bg-violet-600 rounded-xl"
+          >
+            <Printer className="mr-1.5 h-4 w-4" />
+            Proxies
+          </Button>
+
           {!isAdminShopView && !isPublicShopView && (
             <>
               <Button
@@ -636,6 +680,14 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Proxies Drawer */}
+      <ProxiesDrawer
+        isOpen={isProxiesOpen}
+        onClose={() => setIsProxiesOpen(false)}
+        cards={proxiesCards}
+        deckName={deck?.name || "deck"}
+      />
     </div>
   );
 };

@@ -6,6 +6,57 @@ import { X, Check, Printer, FileDown } from "lucide-react";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 
+// Simple Modal wrapper for desktop (avoids drag handler issues)
+const DesktopModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  preventClose?: boolean;
+}> = ({ isOpen, onClose, children, preventClose }) => {
+  const [shouldRender, setShouldRender] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setTimeout(() => setIsVisible(true), 10);
+      document.body.style.overflow = "hidden";
+    } else {
+      setIsVisible(false);
+      setTimeout(() => setShouldRender(false), 300);
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  if (!shouldRender) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
+          isVisible ? "opacity-100" : "opacity-0"
+        }`}
+        onClick={() => !preventClose && onClose()}
+      />
+      {/* Modal */}
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl pointer-events-auto transition-all duration-300 ${
+            isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
+      </div>
+    </>
+  );
+};
+
 // Declare jsPDF type for window
 declare global {
   interface Window {
@@ -74,6 +125,15 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
   const [progress, setProgress] = useState({ current: 0, total: 0, message: "" });
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -327,13 +387,11 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
   // Calculate total cards
   const totalCards = cards.reduce((sum, card) => sum + card.quantity, 0);
 
-  return (
-    <BaseDrawer
-      isOpen={isOpen}
-      onClose={handleClose}
-      preventClose={status === "loading"}
-      maxHeight="90vh"
-    >
+  const isLoading = status === "loading";
+
+  // Content shared between mobile and desktop
+  const content = (
+    <div className="pt-3">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pb-2">
         <h2 className="text-xl font-bold text-slate-900">
@@ -341,7 +399,7 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
         </h2>
         <button
           onClick={handleClose}
-          disabled={status === "loading"}
+          disabled={isLoading}
           className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50"
         >
           <X className="h-5 w-5" />
@@ -431,33 +489,69 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
         {/* Ready state - Download/Print buttons */}
         {status === "ready" && (
           <div className="text-center py-6">
-            <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <Check className="w-10 h-10 text-green-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              PDF Listo!
-            </h3>
-            <p className="text-sm text-slate-500 mb-6">
-              Tu PDF está listo. Descárgalo o imprímelo directamente.
-            </p>
+            {/* Desktop: Show PDF preview in iframe */}
+            {!isMobile && pdfUrl && (
+              <div className="mb-4">
+                <iframe
+                  id="pdf-preview-iframe"
+                  src={pdfUrl}
+                  className="w-full h-[400px] border border-slate-200 rounded-lg bg-white"
+                  title="PDF Preview"
+                />
+              </div>
+            )}
+
+            {/* Mobile: Show success message */}
+            {isMobile && (
+              <>
+                <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                  <Check className="w-10 h-10 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  PDF Listo!
+                </h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  Tu PDF está listo. Descárgalo o imprímelo directamente.
+                </p>
+              </>
+            )}
 
             <div className="space-y-3">
+              {/* Desktop: Print button first */}
+              {!isMobile && (
+                <Button
+                  onClick={printPDF}
+                  className="w-full h-12 bg-violet-500 hover:bg-violet-600 text-white font-semibold rounded-xl"
+                >
+                  <Printer className="w-5 h-5 mr-2" />
+                  Imprimir PDF
+                </Button>
+              )}
+
               <Button
                 onClick={downloadPDF}
-                className="w-full h-12 bg-violet-500 hover:bg-violet-600 text-white font-semibold rounded-xl"
+                className={`w-full h-12 font-semibold rounded-xl ${
+                  isMobile
+                    ? "bg-violet-500 hover:bg-violet-600 text-white"
+                    : "border-2 border-slate-200 text-slate-700 hover:bg-slate-50 bg-white"
+                }`}
+                variant={isMobile ? "default" : "outline"}
               >
                 <FileDown className="w-5 h-5 mr-2" />
                 Descargar PDF
               </Button>
 
-              <Button
-                onClick={printPDF}
-                variant="outline"
-                className="w-full h-12 border-2 border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50"
-              >
-                <Printer className="w-5 h-5 mr-2" />
-                Imprimir
-              </Button>
+              {/* Mobile: Print button second */}
+              {isMobile && (
+                <Button
+                  onClick={printPDF}
+                  variant="outline"
+                  className="w-full h-12 border-2 border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50"
+                >
+                  <Printer className="w-5 h-5 mr-2" />
+                  Imprimir
+                </Button>
+              )}
 
               <Button
                 onClick={resetState}
@@ -491,7 +585,31 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
           </div>
         )}
       </div>
-    </BaseDrawer>
+    </div>
+  );
+
+  // Use DesktopModal on desktop, BaseDrawer on mobile
+  if (isMobile) {
+    return (
+      <BaseDrawer
+        isOpen={isOpen}
+        onClose={handleClose}
+        preventClose={isLoading}
+        maxHeight="90vh"
+      >
+        {content}
+      </BaseDrawer>
+    );
+  }
+
+  return (
+    <DesktopModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      preventClose={isLoading}
+    >
+      {content}
+    </DesktopModal>
   );
 };
 

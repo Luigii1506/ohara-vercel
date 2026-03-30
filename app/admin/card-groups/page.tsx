@@ -144,6 +144,7 @@ const setCodesOptions = [
   { value: "OP12", label: "OP12" },
   { value: "OP13", label: "OP13" },
   { value: "OP14", label: "OP14" },
+  { value: "OP15", label: "OP15" },
   // ST sets second
   { value: "ST01", label: "ST01" },
   { value: "ST02", label: "ST02" },
@@ -177,6 +178,8 @@ const setCodesOptions = [
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },
   { value: "EB03", label: "EB03" },
+  { value: "EB04", label: "EB04" },
+
   // PRB sets fourth
   { value: "PRB01", label: "PRB01" },
   { value: "PRB02", label: "PRB02" },
@@ -213,7 +216,7 @@ const AdminCardGroupsPage = () => {
   const [loading, setLoading] = useState(true);
   const [loadingUngrouped, setLoadingUngrouped] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<CardGroupItem | null>(
-    null
+    null,
   );
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [regionOrder, setRegionOrder] = useState<string[]>([]);
@@ -261,7 +264,7 @@ const AdminCardGroupsPage = () => {
       if (search.trim()) params.set("search", search.trim());
       if (regionFilter !== "all") params.set("region", regionFilter);
       const response = await fetch(
-        `/api/admin/card-groups?${params.toString()}`
+        `/api/admin/card-groups?${params.toString()}`,
       );
       if (!response.ok) throw new Error("Failed to fetch groups");
       const data = (await response.json()) as GroupResponse;
@@ -278,7 +281,7 @@ const AdminCardGroupsPage = () => {
   const refreshSingleGroup = async (groupId: number) => {
     try {
       const response = await fetch(
-        `/api/admin/card-groups?search=&limit=1&groupId=${groupId}`
+        `/api/admin/card-groups?search=&limit=1&groupId=${groupId}`,
       );
       if (!response.ok) return;
       const data = (await response.json()) as GroupResponse;
@@ -286,7 +289,7 @@ const AdminCardGroupsPage = () => {
       if (!updatedGroup) return;
 
       setGroups((prev) =>
-        prev.map((g) => (g.id === groupId ? updatedGroup : g))
+        prev.map((g) => (g.id === groupId ? updatedGroup : g)),
       );
 
       if (selectedGroup?.id === groupId) {
@@ -306,7 +309,7 @@ const AdminCardGroupsPage = () => {
       if (search.trim()) params.set("search", search.trim());
       if (regionFilter !== "all") params.set("region", regionFilter);
       const response = await fetch(
-        `/api/admin/card-groups/ungrouped?${params.toString()}`
+        `/api/admin/card-groups/ungrouped?${params.toString()}`,
       );
       if (!response.ok) throw new Error("Failed to fetch ungrouped");
       const data = (await response.json()) as UngroupedResponse;
@@ -329,7 +332,7 @@ const AdminCardGroupsPage = () => {
     try {
       setLoadingRegion(true);
       const response = await fetch(
-        `/api/admin/card-groups/${groupId}/region-cards`
+        `/api/admin/card-groups/${groupId}/region-cards`,
       );
       if (!response.ok) throw new Error("Failed to fetch region cards");
       const data = (await response.json()) as {
@@ -370,7 +373,7 @@ const AdminCardGroupsPage = () => {
           setCode: card.setCode ?? null,
           baseGroupLinked: (card.baseGroupLinks ?? []).length > 0,
           variantGroupId: card.variantGroupLinks?.[0]?.variantGroupId ?? null,
-        }))
+        })),
       );
     } catch (error) {
       console.error(error);
@@ -397,7 +400,7 @@ const AdminCardGroupsPage = () => {
     }
     if (selectedVariantGroupId) {
       const exists = variantGroups.some(
-        (group) => group.id === selectedVariantGroupId
+        (group) => group.id === selectedVariantGroupId,
       );
       if (exists) return;
     }
@@ -424,7 +427,7 @@ const AdminCardGroupsPage = () => {
 
   const handleRenameVariantGroup = async (
     variantGroupId: number,
-    name: string
+    name: string,
   ) => {
     if (!selectedGroup) return;
     try {
@@ -434,7 +437,7 @@ const AdminCardGroupsPage = () => {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -445,7 +448,7 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al actualizar"
+        error instanceof Error ? error.message : "Error al actualizar",
       );
     }
   };
@@ -453,13 +456,13 @@ const AdminCardGroupsPage = () => {
   const handleDeleteVariantGroup = async (variantGroupId: number) => {
     if (!selectedGroup) return;
     const confirmed = window.confirm(
-      "Eliminar este grupo alterno borrara todas sus vinculaciones. Continuar?"
+      "Eliminar este grupo alterno borrara todas sus vinculaciones. Continuar?",
     );
     if (!confirmed) return;
     try {
       const response = await fetch(
         `/api/admin/card-variant-groups/${variantGroupId}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -475,7 +478,7 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al eliminar"
+        error instanceof Error ? error.message : "Error al eliminar",
       );
     }
   };
@@ -483,7 +486,7 @@ const AdminCardGroupsPage = () => {
   const handleMarkVariantGroupExclusive = async (variantGroupId: number) => {
     if (!selectedGroup) return;
     const linkedRegions = Array.from(
-      linkedVariantRegions.get(variantGroupId) ?? []
+      linkedVariantRegions.get(variantGroupId) ?? [],
     );
     if (linkedRegions.length === 0) {
       showErrorToast("Vincula una alterna primero");
@@ -494,22 +497,25 @@ const AdminCardGroupsPage = () => {
       return;
     }
     const confirmed = window.confirm(
-      "Marcar exclusivo pondra No existe en las demas regiones. Continuar?"
+      "Marcar exclusivo pondra No existe en las demas regiones. Continuar?",
     );
     if (!confirmed) return;
     const exclusiveRegion = linkedRegions[0];
     try {
       await Promise.all(
         resolvedRegionOrder.map((region) =>
-          fetch(`/api/admin/card-variant-groups/${variantGroupId}/region-status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              region,
-              status: region === exclusiveRegion ? "EXCLUSIVE" : "NOT_EXISTS",
-            }),
-          })
-        )
+          fetch(
+            `/api/admin/card-variant-groups/${variantGroupId}/region-status`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                region,
+                status: region === exclusiveRegion ? "EXCLUSIVE" : "NOT_EXISTS",
+              }),
+            },
+          ),
+        ),
       );
       showSuccessToast("Grupo marcado como exclusivo");
       setVariantRegionStatus((prev) => {
@@ -541,7 +547,7 @@ const AdminCardGroupsPage = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cardId: selectedCardId }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -553,7 +559,7 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al vincular"
+        error instanceof Error ? error.message : "Error al vincular",
       );
     }
   };
@@ -567,7 +573,7 @@ const AdminCardGroupsPage = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cardId }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -579,7 +585,7 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al vincular"
+        error instanceof Error ? error.message : "Error al vincular",
       );
     }
   };
@@ -593,7 +599,7 @@ const AdminCardGroupsPage = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cardId }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -605,14 +611,14 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al desvincular"
+        error instanceof Error ? error.message : "Error al desvincular",
       );
     }
   };
 
   const handleAssignVariant = async (
     cardId: number,
-    variantGroupId: number | "new" | "none"
+    variantGroupId: number | "new" | "none",
   ) => {
     if (!selectedGroup) return;
     try {
@@ -625,7 +631,7 @@ const AdminCardGroupsPage = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ cardId }),
-          }
+          },
         );
         if (!response.ok) {
           const error = await response.json();
@@ -634,8 +640,8 @@ const AdminCardGroupsPage = () => {
         showSuccessToast("Alterna desvinculada");
         setRegionCards((prev) =>
           prev.map((card) =>
-            card.id === cardId ? { ...card, variantGroupId: null } : card
-          )
+            card.id === cardId ? { ...card, variantGroupId: null } : card,
+          ),
         );
       } else if (variantGroupId === "new") {
         const response = await fetch(`/api/admin/card-variant-groups`, {
@@ -676,7 +682,7 @@ const AdminCardGroupsPage = () => {
                 return item.id === card.id
                   ? { ...item, variantGroupId: targetId }
                   : item;
-              })
+              }),
             );
           }
         }
@@ -688,7 +694,7 @@ const AdminCardGroupsPage = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ cardId }),
-          }
+          },
         );
         if (!response.ok) {
           const error = await response.json();
@@ -709,7 +715,7 @@ const AdminCardGroupsPage = () => {
               return item.id === card.id
                 ? { ...item, variantGroupId: variantGroupId }
                 : item;
-            })
+            }),
           );
         }
       }
@@ -722,14 +728,14 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al vincular alterna"
+        error instanceof Error ? error.message : "Error al vincular alterna",
       );
     }
   };
 
   const handleUpdateBaseRegionStatus = async (
     region: string,
-    status: "UNKNOWN" | "NOT_EXISTS" | "EXCLUSIVE" | "RESET"
+    status: "UNKNOWN" | "NOT_EXISTS" | "EXCLUSIVE" | "RESET",
   ) => {
     if (!selectedGroup) return;
     try {
@@ -739,7 +745,7 @@ const AdminCardGroupsPage = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ region, status }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -763,7 +769,7 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al actualizar"
+        error instanceof Error ? error.message : "Error al actualizar",
       );
     }
   };
@@ -771,7 +777,7 @@ const AdminCardGroupsPage = () => {
   const handleUpdateVariantRegionStatus = async (
     variantGroupId: number,
     region: string,
-    status: "UNKNOWN" | "NOT_EXISTS" | "EXCLUSIVE" | "RESET"
+    status: "UNKNOWN" | "NOT_EXISTS" | "EXCLUSIVE" | "RESET",
   ) => {
     try {
       const response = await fetch(
@@ -780,7 +786,7 @@ const AdminCardGroupsPage = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ region, status }),
-        }
+        },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -799,19 +805,19 @@ const AdminCardGroupsPage = () => {
     } catch (error) {
       console.error(error);
       showErrorToast(
-        error instanceof Error ? error.message : "Error al actualizar"
+        error instanceof Error ? error.message : "Error al actualizar",
       );
     }
   };
 
   const selectedCard = useMemo(
     () => ungrouped.find((card) => card.id === selectedCardId) ?? null,
-    [ungrouped, selectedCardId]
+    [ungrouped, selectedCardId],
   );
 
   const variantLabelById = useMemo(() => {
     return new Map(
-      variantGroups.map((group) => [group.id, formatVariantLabel(group)])
+      variantGroups.map((group) => [group.id, formatVariantLabel(group)]),
     );
   }, [variantGroups]);
 
@@ -843,13 +849,13 @@ const AdminCardGroupsPage = () => {
 
   const hasAlternates = useMemo(
     () => regionCards.some((card) => !card.isFirstEdition),
-    [regionCards]
+    [regionCards],
   );
   const unlinkedAlternatesCount = useMemo(
     () =>
       regionCards.filter((card) => !card.isFirstEdition && !card.variantGroupId)
         .length,
-    [regionCards]
+    [regionCards],
   );
   const linkedVariantRegions = useMemo(() => {
     const map = new Map<number, Set<string>>();
@@ -872,14 +878,18 @@ const AdminCardGroupsPage = () => {
       resolvedRegionOrder.forEach((region) => {
         const linked = linkedRegions.has(region);
         const status = statusByRegion[region];
-        const ok =
-          linked || status === "NOT_EXISTS" || status === "EXCLUSIVE";
+        const ok = linked || status === "NOT_EXISTS" || status === "EXCLUSIVE";
         if (!ok) missing += 1;
       });
       counts.set(group.id, missing);
     });
     return counts;
-  }, [linkedVariantRegions, resolvedRegionOrder, variantGroups, variantRegionStatus]);
+  }, [
+    linkedVariantRegions,
+    resolvedRegionOrder,
+    variantGroups,
+    variantRegionStatus,
+  ]);
   const totalVariantMissing = useMemo(() => {
     let total = 0;
     variantMissingCountByGroup.forEach((value) => {
@@ -890,10 +900,10 @@ const AdminCardGroupsPage = () => {
 
   const isBaseExclusive = useMemo(() => {
     const hasBase = resolvedRegionOrder.some(
-      (region) => cardsByRegion[region]?.base
+      (region) => cardsByRegion[region]?.base,
     );
     const hasReviewed = Object.values(baseRegionStatus ?? {}).includes(
-      "NOT_EXISTS"
+      "NOT_EXISTS",
     );
     return hasBase && hasReviewed;
   }, [cardsByRegion, baseRegionStatus, resolvedRegionOrder]);
@@ -943,7 +953,7 @@ const AdminCardGroupsPage = () => {
       return;
     }
     const updated = orderedGroups.find(
-      (group) => group.id === selectedGroup.id
+      (group) => group.id === selectedGroup.id,
     );
     if (updated) {
       setSelectedGroup(updated);
@@ -1050,8 +1060,8 @@ const AdminCardGroupsPage = () => {
                               fullComplete
                                 ? "border-emerald-300 bg-emerald-50"
                                 : baseComplete
-                                ? "border-amber-300 bg-amber-50"
-                                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                                  ? "border-amber-300 bg-amber-50"
+                                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                             } ${
                               selectedGroup?.id === group.id
                                 ? "ring-2 ring-primary/40"
@@ -1163,14 +1173,14 @@ const AdminCardGroupsPage = () => {
                       status === "present"
                         ? "OK"
                         : status === "missing"
-                        ? "MISSING"
-                        : status === "unknown"
-                        ? "REVIEW"
-                        : status === "exclusive"
-                        ? "EXCLUSIVE"
-                        : status === "not-exists"
-                        ? "NO EXISTE"
-                        : "N/A";
+                          ? "MISSING"
+                          : status === "unknown"
+                            ? "REVIEW"
+                            : status === "exclusive"
+                              ? "EXCLUSIVE"
+                              : status === "not-exists"
+                                ? "NO EXISTE"
+                                : "N/A";
                     return (
                       <div
                         key={`${selectedGroup.id}-${region}`}
@@ -1245,7 +1255,7 @@ const AdminCardGroupsPage = () => {
                                           : (value as
                                               | "UNKNOWN"
                                               | "NOT_EXISTS"
-                                              | "EXCLUSIVE")
+                                              | "EXCLUSIVE"),
                                       )
                                     }
                                   >
@@ -1326,10 +1336,10 @@ const AdminCardGroupsPage = () => {
                                       reviewStatus === "NOT_EXISTS"
                                         ? "border-rose-200 bg-rose-50"
                                         : reviewStatus === "EXCLUSIVE"
-                                        ? "border-emerald-200 bg-emerald-50"
-                                        : reviewStatus === "UNKNOWN"
-                                        ? "border-amber-200 bg-amber-50"
-                                        : "border-slate-200 bg-slate-50"
+                                          ? "border-emerald-200 bg-emerald-50"
+                                          : reviewStatus === "UNKNOWN"
+                                            ? "border-amber-200 bg-amber-50"
+                                            : "border-slate-200 bg-slate-50"
                                     }`}
                                   >
                                     <div className="aspect-[63/88] w-full">
@@ -1348,19 +1358,19 @@ const AdminCardGroupsPage = () => {
                                         reviewStatus === "NOT_EXISTS"
                                           ? "border-rose-200 bg-rose-50 text-rose-700"
                                           : reviewStatus === "EXCLUSIVE"
-                                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                          : reviewStatus === "UNKNOWN"
-                                          ? "border-amber-200 bg-amber-50 text-amber-700"
-                                          : "border-slate-200 bg-white/90 text-slate-600"
+                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                            : reviewStatus === "UNKNOWN"
+                                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                                              : "border-slate-200 bg-white/90 text-slate-600"
                                       }`}
                                     >
                                       {reviewStatus === "NOT_EXISTS"
                                         ? "No existe"
                                         : reviewStatus === "EXCLUSIVE"
-                                        ? "Exclusiva"
-                                        : reviewStatus === "UNKNOWN"
-                                        ? "Revisado"
-                                        : "Sin revisar"}
+                                          ? "Exclusiva"
+                                          : reviewStatus === "UNKNOWN"
+                                            ? "Revisado"
+                                            : "Sin revisar"}
                                     </span>
                                   </div>
                                   <div className="text-xs text-slate-500">
@@ -1453,7 +1463,7 @@ const AdminCardGroupsPage = () => {
                                                 value={variantNameDraft}
                                                 onChange={(event) =>
                                                   setVariantNameDraft(
-                                                    event.target.value
+                                                    event.target.value,
                                                   )
                                                 }
                                                 placeholder="Nombre del grupo"
@@ -1465,10 +1475,10 @@ const AdminCardGroupsPage = () => {
                                                 onClick={() => {
                                                   handleRenameVariantGroup(
                                                     group.id,
-                                                    variantNameDraft
+                                                    variantNameDraft,
                                                   );
                                                   setEditingVariantGroupId(
-                                                    null
+                                                    null,
                                                   );
                                                 }}
                                               >
@@ -1479,7 +1489,7 @@ const AdminCardGroupsPage = () => {
                                                 variant="ghost"
                                                 onClick={() => {
                                                   setEditingVariantGroupId(
-                                                    null
+                                                    null,
                                                   );
                                                   setVariantNameDraft("");
                                                 }}
@@ -1492,7 +1502,7 @@ const AdminCardGroupsPage = () => {
                                               <button
                                                 onClick={() => {
                                                   setSelectedVariantGroupId(
-                                                    group.id
+                                                    group.id,
                                                   );
                                                   setCreatingVariant(false);
                                                 }}
@@ -1512,10 +1522,10 @@ const AdminCardGroupsPage = () => {
                                                   event.preventDefault();
                                                   event.stopPropagation();
                                                   setEditingVariantGroupId(
-                                                    group.id
+                                                    group.id,
                                                   );
                                                   setVariantNameDraft(
-                                                    group.variantKey ?? ""
+                                                    group.variantKey ?? "",
                                                   );
                                                 }}
                                               >
@@ -1528,7 +1538,7 @@ const AdminCardGroupsPage = () => {
                                                   event.preventDefault();
                                                   event.stopPropagation();
                                                   handleDeleteVariantGroup(
-                                                    group.id
+                                                    group.id,
                                                   );
                                                 }}
                                               >
@@ -1563,7 +1573,7 @@ const AdminCardGroupsPage = () => {
                                     <Badge variant="outline">
                                       Grupo activo:{" "}
                                       {variantLabelById.get(
-                                        selectedVariantGroupId
+                                        selectedVariantGroupId,
                                       ) ?? `Grupo ${selectedVariantGroupId}`}
                                     </Badge>
                                   ) : (
@@ -1572,9 +1582,12 @@ const AdminCardGroupsPage = () => {
                                     </Badge>
                                   )}
                                   {selectedVariantGroupId ? (
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
                                       {variantMissingCountByGroup.get(
-                                        selectedVariantGroupId
+                                        selectedVariantGroupId,
                                       ) ?? resolvedRegionOrder.length}{" "}
                                       faltan
                                     </Badge>
@@ -1587,7 +1600,7 @@ const AdminCardGroupsPage = () => {
                                     className="w-full"
                                     onClick={() =>
                                       handleMarkVariantGroupExclusive(
-                                        selectedVariantGroupId
+                                        selectedVariantGroupId,
                                       )
                                     }
                                   >
@@ -1611,16 +1624,16 @@ const AdminCardGroupsPage = () => {
                                     alternates: [],
                                   };
                                   const status = selectedVariantGroupId
-                                    ? variantRegionStatus?.[
+                                    ? (variantRegionStatus?.[
                                         selectedVariantGroupId
-                                      ]?.[region] ?? "VIRGIN"
+                                      ]?.[region] ?? "VIRGIN")
                                     : "VIRGIN";
                                   const linkedAlternate = selectedVariantGroupId
-                                    ? entry.alternates.find(
+                                    ? (entry.alternates.find(
                                         (card) =>
                                           card.variantGroupId ===
-                                          selectedVariantGroupId
-                                      ) ?? null
+                                          selectedVariantGroupId,
+                                      ) ?? null)
                                     : null;
                                   const isActive =
                                     selectedVariantRegion === region;
@@ -1663,7 +1676,7 @@ const AdminCardGroupsPage = () => {
                                                       : (value as
                                                           | "UNKNOWN"
                                                           | "NOT_EXISTS"
-                                                          | "EXCLUSIVE")
+                                                          | "EXCLUSIVE"),
                                                   )
                                                 }
                                               >
@@ -1708,21 +1721,21 @@ const AdminCardGroupsPage = () => {
                                               status === "NOT_EXISTS"
                                                 ? "border-rose-200 bg-rose-50 text-rose-700"
                                                 : status === "EXCLUSIVE"
-                                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                                : status === "UNKNOWN"
-                                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                                : "border-slate-200 bg-white/90 text-slate-600"
+                                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                  : status === "UNKNOWN"
+                                                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                    : "border-slate-200 bg-white/90 text-slate-600"
                                             }`}
                                           >
                                             {linkedAlternate
                                               ? "Linked"
                                               : status === "NOT_EXISTS"
-                                              ? "No existe"
-                                              : status === "EXCLUSIVE"
-                                              ? "Exclusiva"
-                                              : status === "UNKNOWN"
-                                              ? "Revisado"
-                                              : "Sin alterna"}
+                                                ? "No existe"
+                                                : status === "EXCLUSIVE"
+                                                  ? "Exclusiva"
+                                                  : status === "UNKNOWN"
+                                                    ? "Revisado"
+                                                    : "Sin alterna"}
                                           </span>
                                         </div>
                                         {linkedAlternate ? (
@@ -1774,7 +1787,7 @@ const AdminCardGroupsPage = () => {
                                     {entry.alternates.filter((card) =>
                                       creatingVariant
                                         ? !card.variantGroupId
-                                        : true
+                                        : true,
                                     ).length === 0 ? (
                                       <div className="text-xs text-slate-500">
                                         {creatingVariant
@@ -1787,137 +1800,138 @@ const AdminCardGroupsPage = () => {
                                           .filter((card) =>
                                             creatingVariant
                                               ? !card.variantGroupId
-                                              : true
+                                              : true,
                                           )
                                           .map((card) => {
-                                          const effectiveGroupId =
-                                            creatingVariant
-                                              ? null
-                                              : selectedVariantGroupId;
-                                          const isLinked =
-                                            effectiveGroupId !== null &&
-                                            card.variantGroupId ===
-                                              effectiveGroupId;
-                                          const isLinkedOther =
-                                            effectiveGroupId !== null &&
-                                            card.variantGroupId !== null &&
-                                            card.variantGroupId !==
-                                              effectiveGroupId;
-                                          const linkedLabel =
-                                            card.variantGroupId
-                                              ? variantLabelById.get(
-                                                  card.variantGroupId
-                                                ) ??
-                                                `Grupo ${card.variantGroupId}`
-                                              : null;
+                                            const effectiveGroupId =
+                                              creatingVariant
+                                                ? null
+                                                : selectedVariantGroupId;
+                                            const isLinked =
+                                              effectiveGroupId !== null &&
+                                              card.variantGroupId ===
+                                                effectiveGroupId;
+                                            const isLinkedOther =
+                                              effectiveGroupId !== null &&
+                                              card.variantGroupId !== null &&
+                                              card.variantGroupId !==
+                                                effectiveGroupId;
+                                            const linkedLabel =
+                                              card.variantGroupId
+                                                ? (variantLabelById.get(
+                                                    card.variantGroupId,
+                                                  ) ??
+                                                  `Grupo ${card.variantGroupId}`)
+                                                : null;
 
-                                          return (
-                                            <button
-                                              key={card.id}
-                                              onClick={() => {
-                                                if (creatingVariant) {
-                                                  if (card.variantGroupId) {
-                                                    showErrorToast(
-                                                      "Esa alterna ya pertenece a un grupo"
+                                            return (
+                                              <button
+                                                key={card.id}
+                                                onClick={() => {
+                                                  if (creatingVariant) {
+                                                    if (card.variantGroupId) {
+                                                      showErrorToast(
+                                                        "Esa alterna ya pertenece a un grupo",
+                                                      );
+                                                      return;
+                                                    }
+                                                    handleAssignVariant(
+                                                      card.id,
+                                                      "new",
+                                                    );
+                                                    setCreatingVariant(false);
+                                                    setSelectedVariantRegion(
+                                                      card.region ?? null,
                                                     );
                                                     return;
                                                   }
-                                                  handleAssignVariant(
-                                                    card.id,
-                                                    "new"
-                                                  );
-                                                  setCreatingVariant(false);
-                                                  setSelectedVariantRegion(
-                                                    card.region ?? null
-                                                  );
-                                                  return;
-                                                }
-                                                if (!selectedVariantGroupId) {
-                                                  if (card.variantGroupId) {
-                                                    setSelectedVariantGroupId(
-                                                      card.variantGroupId
+                                                  if (!selectedVariantGroupId) {
+                                                    if (card.variantGroupId) {
+                                                      setSelectedVariantGroupId(
+                                                        card.variantGroupId,
+                                                      );
+                                                      setSelectedVariantRegion(
+                                                        card.region ?? null,
+                                                      );
+                                                      return;
+                                                    }
+                                                    handleAssignVariant(
+                                                      card.id,
+                                                      "new",
                                                     );
                                                     setSelectedVariantRegion(
-                                                      card.region ?? null
+                                                      card.region ?? null,
                                                     );
                                                     return;
                                                   }
                                                   handleAssignVariant(
                                                     card.id,
-                                                    "new"
+                                                    isLinked
+                                                      ? "none"
+                                                      : selectedVariantGroupId,
                                                   );
-                                                  setSelectedVariantRegion(
-                                                    card.region ?? null
-                                                  );
-                                                  return;
-                                                }
-                                                handleAssignVariant(
-                                                  card.id,
+                                                }}
+                                                className={`mx-auto w-full max-w-[170px] rounded-xl border p-2 text-left transition ${
                                                   isLinked
-                                                    ? "none"
-                                                    : selectedVariantGroupId
-                                                );
-                                              }}
-                                              className={`mx-auto w-full max-w-[170px] rounded-xl border p-2 text-left transition ${
-                                                isLinked
-                                                  ? "border-emerald-300 bg-emerald-50"
-                                                  : isLinkedOther
-                                                  ? "border-amber-300 bg-amber-50"
-                                                  : "border-slate-200 bg-white hover:border-slate-300"
-                                              }`}
-                                            >
-                                              <div className="flex flex-col gap-2">
-                                                <div className="mx-auto w-full max-w-[120px] overflow-hidden rounded-xl border bg-slate-50">
-                                                  <div className="aspect-[63/88] w-full">
-                                                    <img
-                                                      src={
-                                                        card.src ||
-                                                        "/assets/images/backcard.webp"
-                                                      }
-                                                      alt={card.name}
-                                                      className="h-full w-full object-contain"
-                                                    />
-                                                  </div>
-                                                </div>
-
-                                                <div className="space-y-0.5">
-                                                  <p className="text-xs font-semibold text-slate-900">
-                                                    {card.code}
-                                                  </p>
-                                                  <p className="text-[11px] text-slate-500 line-clamp-2">
-                                                    {card.name}
-                                                  </p>
-                                                  {card.alternateArt ? (
-                                                    <p className="text-[10px] text-slate-400 line-clamp-2">
-                                                      {card.alternateArt}
-                                                    </p>
-                                                  ) : null}
-                                                </div>
-
-                                                <Badge
-                                                  variant="outline"
-                                                  className="w-fit text-[10px]"
-                                                >
-                                                  {creatingVariant
-                                                    ? linkedLabel
-                                                      ? `En ${linkedLabel}`
-                                                      : "Crear grupo"
-                                                    : isLinked
-                                                    ? "Vinculada"
+                                                    ? "border-emerald-300 bg-emerald-50"
                                                     : isLinkedOther
-                                                    ? `En ${
-                                                        linkedLabel ?? "otro"
-                                                      }`
-                                                    : selectedVariantGroupId
-                                                    ? "Asignar"
-                                                    : card.variantGroupId
-                                                    ? "Abrir grupo"
-                                                    : "Crear grupo"}
-                                                </Badge>
-                                              </div>
-                                            </button>
-                                          );
-                                        })}
+                                                      ? "border-amber-300 bg-amber-50"
+                                                      : "border-slate-200 bg-white hover:border-slate-300"
+                                                }`}
+                                              >
+                                                <div className="flex flex-col gap-2">
+                                                  <div className="mx-auto w-full max-w-[120px] overflow-hidden rounded-xl border bg-slate-50">
+                                                    <div className="aspect-[63/88] w-full">
+                                                      <img
+                                                        src={
+                                                          card.src ||
+                                                          "/assets/images/backcard.webp"
+                                                        }
+                                                        alt={card.name}
+                                                        className="h-full w-full object-contain"
+                                                      />
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="space-y-0.5">
+                                                    <p className="text-xs font-semibold text-slate-900">
+                                                      {card.code}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 line-clamp-2">
+                                                      {card.name}
+                                                    </p>
+                                                    {card.alternateArt ? (
+                                                      <p className="text-[10px] text-slate-400 line-clamp-2">
+                                                        {card.alternateArt}
+                                                      </p>
+                                                    ) : null}
+                                                  </div>
+
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="w-fit text-[10px]"
+                                                  >
+                                                    {creatingVariant
+                                                      ? linkedLabel
+                                                        ? `En ${linkedLabel}`
+                                                        : "Crear grupo"
+                                                      : isLinked
+                                                        ? "Vinculada"
+                                                        : isLinkedOther
+                                                          ? `En ${
+                                                              linkedLabel ??
+                                                              "otro"
+                                                            }`
+                                                          : selectedVariantGroupId
+                                                            ? "Asignar"
+                                                            : card.variantGroupId
+                                                              ? "Abrir grupo"
+                                                              : "Crear grupo"}
+                                                  </Badge>
+                                                </div>
+                                              </button>
+                                            );
+                                          })}
                                       </div>
                                     )}
                                   </div>

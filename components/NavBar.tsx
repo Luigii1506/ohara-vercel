@@ -264,7 +264,7 @@ const NavBar = () => {
           </Link>
 
           {/* Desktop Navigation - Optimizada para diferentes tamaños */}
-          <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 flex-1 min-w-0 overflow-hidden">
+          <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 flex-1 min-w-0 overflow-visible">
             {/* Separator */}
             <span className="text-gray-600 flex-shrink-0 mx-0.5 lg:mx-1">|</span>
 

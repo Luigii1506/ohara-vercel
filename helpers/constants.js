@@ -13,9 +13,11 @@ export const setCodes = [
   "OP12",
   "OP13",
   "OP14",
+  "OP15",
   "EB01",
   "EB02",
   "EB03",
+  "EB04",
   "PRB01",
   "PRB02",
 ];
@@ -121,6 +123,10 @@ export const setOptions = [
   {
     value: "OP14",
     label: "OP14 The Azure Sea's Seven",
+  },
+  {
+    value: "OP15",
+    label: "OP15 Adventure on Kami's Island",
   },
   {
     value: "EB01",
@@ -272,9 +278,12 @@ export const setCodesOptions = [
   { value: "OP12", label: "OP12" },
   { value: "OP13", label: "OP13" },
   { value: "OP14", label: "OP14" },
+  { value: "OP15", label: "OP15" },
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },
   { value: "EB03", label: "EB03" },
+  { value: "EB04", label: "EB04" },
+
   { value: "PRB01", label: "PRB01" },
   { value: "PRB02", label: "PRB02" },
   { value: "ST01", label: "ST01" },

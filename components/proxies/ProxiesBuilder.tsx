@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, MouseEvent, useEffect, useMemo } from "react";
+import {
+  Fragment,
+  useState,
+  useRef,
+  MouseEvent,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   RotateCcw,
   Layers,
@@ -27,8 +34,15 @@ import { DeckCard } from "@/types";
 import SortSelect, { SortOption } from "../SortSelect";
 import BaseCardsToggle from "../BaseCardsToggle";
 import DropdownSearch from "../DropdownSearch";
+import {
+  Dialog as HeadlessDialog,
+  DialogPanel,
+  Transition,
+  TransitionChild,
+} from "@headlessui/react";
+import FiltersSidebar from "@/components/FiltersSidebar";
+import CardModal from "@/components/CardModal";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
-import ProxyFiltersDrawer from "./ProxyFiltersDrawer";
 import ProxiesDrawer from "./ProxiesDrawer";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import {
@@ -36,6 +50,7 @@ import {
   useCardsCount,
   serializeFiltersForKey,
 } from "@/hooks/useCards";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
 import { DEFAULT_REGION } from "@/lib/regions";
@@ -56,6 +71,7 @@ const ProxiesBuilder = ({
 }: ProxiesBuilderProps) => {
   const { t } = useI18n();
   const { region } = useRegion();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [proxies, setProxies] = useState<DeckCard[]>([]);
@@ -226,8 +242,30 @@ const ProxiesBuilder = ({
   const [selectedBaseCard, setSelectedBaseCard] =
     useState<CardWithCollectionData | null>(null);
   const [isCardDrawerOpen, setIsCardDrawerOpen] = useState(false);
+  const [showLargeImage, setShowLargeImage] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isProxiesDrawerOpen, setIsProxiesDrawerOpen] = useState(false);
+
+  const getNumericPrice = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const getCardPriceValue = (card: CardWithCollectionData) => {
+    return (
+      getNumericPrice(card.marketPrice) ??
+      getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+      null
+    );
+  };
+
+  const formatCurrency = (value: number, currency?: string | null) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
 
   const totalFilters =
     selectedColors.length +
@@ -400,6 +438,19 @@ const ProxiesBuilder = ({
 
   const removeCard = (cardId: number) => {
     setProxies((prev) => prev.filter((card) => card.cardId !== cardId));
+  };
+
+  const handleSelectedCardChange = (card: CardWithCollectionData) => {
+    setSelectedFullCard(card);
+  };
+
+  const handleLargeImagePreview = (
+    baseCard: CardWithCollectionData,
+    displayCard: CardWithCollectionData
+  ) => {
+    setSelectedFullCard(displayCard);
+    setSelectedBaseCard(baseCard);
+    setShowLargeImage(true);
   };
 
   // Generate PDF handler
@@ -1059,7 +1110,7 @@ const ProxiesBuilder = ({
         </button>
       </div>
 
-      {/* Cards Panel (Left on desktop, full on mobile) */}
+      {/* Cards Panel */}
       <div className="bg-white flex w-full md:w-[320px] lg:w-[400px] xl:w-[450px] flex-shrink-0 border-r border-slate-200 min-h-0 flex-col h-full">
         {/* Search + Filters Header */}
         <div className="p-3 border-b border-slate-100 space-y-3 flex flex-col gap-3">
@@ -1227,16 +1278,21 @@ const ProxiesBuilder = ({
                               size="small"
                               className="w-full rounded-md"
                             />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleLeftPanelPreview(card, card);
-                              }}
-                              className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
-                              aria-label="View card details"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isDesktop) {
+                                    handleLargeImagePreview(card, card);
+                                    return;
+                                  }
+                                  handleLeftPanelPreview(card, card);
+                                }}
+                                className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
+                                aria-label="View card details"
+                                title="Ver carta en grande"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
                           </div>
                           {(() => {
                             const baseCardInProxies = proxies.find(
@@ -1306,10 +1362,15 @@ const ProxiesBuilder = ({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (isDesktop) {
+                                    handleLargeImagePreview(card, alt);
+                                    return;
+                                  }
                                   handleLeftPanelPreview(card, alt);
                                 }}
-                                className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                                className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                                 aria-label="View card details"
+                                title="Ver carta en grande"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </button>
@@ -1438,10 +1499,32 @@ const ProxiesBuilder = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isDesktop) {
+                            const foundCard = allCards.find(
+                              (c) =>
+                                Number(c.id) === proxy.cardId ||
+                                c.alternates?.some(
+                                  (alt) => Number(alt.id) === proxy.cardId
+                                )
+                            );
+
+                            if (foundCard) {
+                              const displayCard =
+                                Number(foundCard.id) === proxy.cardId
+                                  ? foundCard
+                                  : foundCard.alternates?.find(
+                                      (alt) =>
+                                        Number(alt.id) === proxy.cardId
+                                    ) || foundCard;
+                              handleLargeImagePreview(foundCard, displayCard);
+                              return;
+                            }
+                          }
                           handleProxyCardClick(proxy);
                         }}
-                        className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-lg rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
+                        className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center opacity-100 transition-opacity duration-200 z-10"
                         aria-label="View card details"
+                        title="Ver carta en grande"
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </button>
@@ -1506,50 +1589,135 @@ const ProxiesBuilder = ({
         </div>
       </div>
 
-      {/* Card Preview Drawer */}
-      <ProxyCardPreviewDrawer
-        isOpen={isCardDrawerOpen}
-        onClose={() => setIsCardDrawerOpen(false)}
-        card={selectedCard}
-        fullCard={selectedFullCard}
-        baseCard={selectedBaseCard}
-        onQuantityChange={handleQuantityChange}
-        onRemove={removeCard}
-      />
+      {/* Card Preview - Mobile drawer, Desktop card modal */}
+      {!isDesktop ? (
+        <ProxyCardPreviewDrawer
+          isOpen={isCardDrawerOpen}
+          onClose={() => setIsCardDrawerOpen(false)}
+          card={selectedCard}
+          fullCard={selectedFullCard}
+          baseCard={selectedBaseCard}
+          onQuantityChange={handleQuantityChange}
+          onRemove={removeCard}
+        />
+      ) : null}
+
+      {isDesktop && selectedFullCard && selectedBaseCard && (
+        <Transition appear show={isCardDrawerOpen} as={Fragment}>
+          <HeadlessDialog
+            as="div"
+            className="relative z-[9999]"
+            onClose={() => setIsCardDrawerOpen(false)}
+          >
+            <div
+              className="fixed inset-0 flex w-screen items-center justify-center p-4 transition-all duration-500 ease-in-out bg-black/60"
+            >
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <DialogPanel className="w-full max-w-4xl space-y-4 rounded-lg border bg-white shadow-xl transform transition-all">
+                  <CardModal
+                    selectedCard={selectedFullCard}
+                    setIsOpen={setIsCardDrawerOpen}
+                    alternatesCards={selectedBaseCard.alternates}
+                    setSelectedCard={handleSelectedCardChange}
+                    baseCard={selectedBaseCard}
+                    setShowLargeImage={setShowLargeImage}
+                    showLargeImage={showLargeImage}
+                  />
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </HeadlessDialog>
+        </Transition>
+      )}
+
+      {isDesktop && showLargeImage && selectedFullCard && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[999999] px-5 overflow-auto"
+          onClick={() => setShowLargeImage(false)}
+          onTouchEnd={() => setShowLargeImage(false)}
+        >
+          <div className="w-full max-w-3xl">
+            <div className="text-white text-xl lg:text-2xl font-[400] text-center py-2 px-5">
+              Tap to close
+            </div>
+            <div className="flex flex-col items-center gap-3 px-5 mb-3">
+              <img
+                src={selectedFullCard.src}
+                className="max-w-full max-h-[calc(100dvh-200px)] object-contain rounded-lg shadow-2xl"
+                alt={selectedFullCard.name}
+              />
+              <div className="text-white text-lg font-[400] text-center px-5">
+                <span className={`${oswald.className} font-[500]`}>
+                  {selectedFullCard.code}
+                </span>
+                <br />
+                <span>{selectedFullCard.sets?.[0]?.set?.title || ""}</span>
+                {(() => {
+                  const priceValue = getCardPriceValue(selectedFullCard);
+                  if (priceValue !== null) {
+                    return (
+                      <>
+                        <br />
+                        <span className="inline-block mt-3 px-6 py-3 bg-emerald-600 text-white text-xl font-bold rounded-lg shadow-lg">
+                          {formatCurrency(
+                            priceValue,
+                            selectedFullCard.priceCurrency
+                          )}
+                        </span>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters Drawer */}
-      <ProxyFiltersDrawer
-        isOpen={isFilterDrawerOpen}
-        onClose={() => setIsFilterDrawerOpen(false)}
-        selectedColors={selectedColors}
-        setSelectedColors={setSelectedColors}
-        selectedRarities={selectedRarities}
-        setSelectedRarities={setSelectedRarities}
-        selectedCategories={selectedCategories}
-        setSelectedCategories={setSelectedCategories}
-        selectedCounter={selectedCounter}
-        setSelectedCounter={setSelectedCounter}
-        selectedTrigger={selectedTrigger}
-        setSelectedTrigger={setSelectedTrigger}
-        selectedEffects={selectedEffects}
-        setSelectedEffects={setSelectedEffects}
-        selectedTypes={selectedTypes}
-        setSelectedTypes={setSelectedTypes}
-        selectedSets={selectedSets}
-        setSelectedSets={setSelectedSets}
-        selectedCosts={selectedCosts}
-        setSelectedCosts={setSelectedCosts}
-        selectedPower={selectedPower}
-        setSelectedPower={setSelectedPower}
-        selectedAttributes={selectedAttributes}
-        setSelectedAttributes={setSelectedAttributes}
-        selectedAltArts={selectedAltArts}
-        setSelectedAltArts={setSelectedAltArts}
-        selectedCodes={selectedCodes}
-        setSelectedCodes={setSelectedCodes}
-        onClearFilters={clearFilters}
-        totalFilters={totalFilters}
-      />
+      {isFilterDrawerOpen && (
+        <FiltersSidebar
+          isOpen={isFilterDrawerOpen}
+          setIsOpen={setIsFilterDrawerOpen}
+          search={search}
+          setSearch={setSearch}
+          selectedColors={selectedColors}
+          setSelectedColors={setSelectedColors}
+          selectedRarities={selectedRarities}
+          setSelectedRarities={setSelectedRarities}
+          selectedCategories={selectedCategories}
+          setSelectedCategories={setSelectedCategories}
+          selectedCounter={selectedCounter}
+          setSelectedCounter={setSelectedCounter}
+          selectedTrigger={selectedTrigger}
+          setSelectedTrigger={setSelectedTrigger}
+          selectedEffects={selectedEffects}
+          setSelectedEffects={setSelectedEffects}
+          selectedTypes={selectedTypes}
+          setSelectedTypes={setSelectedTypes}
+          selectedSets={selectedSets}
+          setSelectedSets={setSelectedSets}
+          selectedCosts={selectedCosts}
+          setSelectedCosts={setSelectedCosts}
+          selectedPower={selectedPower}
+          setSelectedPower={setSelectedPower}
+          selectedAttributes={selectedAttributes}
+          setSelectedAttributes={setSelectedAttributes}
+          selectedAltArts={selectedAltArts}
+          setSelectedAltArts={setSelectedAltArts}
+          selectedCodes={selectedCodes}
+          setSelectedCodes={setSelectedCodes}
+        />
+      )}
 
       {/* Proxies Drawer (Mobile) */}
       <ProxiesDrawer

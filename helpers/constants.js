@@ -14,6 +14,7 @@ export const setCodes = [
   "OP13",
   "OP14",
   "OP15",
+  "OP16",
   "EB01",
   "EB02",
   "EB03",
@@ -127,6 +128,10 @@ export const setOptions = [
   {
     value: "OP15",
     label: "OP15 Adventure on Kami's Island",
+  },
+  {
+    value: "OP16",
+    label: "OP16 The Time of Battle",
   },
   {
     value: "EB01",
@@ -279,6 +284,7 @@ export const setCodesOptions = [
   { value: "OP13", label: "OP13" },
   { value: "OP14", label: "OP14" },
   { value: "OP15", label: "OP15" },
+  { value: "OP16", label: "OP16" },
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },
   { value: "EB03", label: "EB03" },

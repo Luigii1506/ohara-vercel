@@ -145,6 +145,7 @@ const setCodesOptions = [
   { value: "OP13", label: "OP13" },
   { value: "OP14", label: "OP14" },
   { value: "OP15", label: "OP15" },
+  { value: "OP16", label: "OP16" },
   // ST sets second
   { value: "ST01", label: "ST01" },
   { value: "ST02", label: "ST02" },

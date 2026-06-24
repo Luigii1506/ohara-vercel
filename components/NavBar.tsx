@@ -210,7 +210,6 @@ const NavBar = () => {
 
   const showPrivateMenus = Boolean(userId);
   const showAdminMenu = role === "ADMIN";
-  const showProducts = showAdminMenu && !loading;
 
   const renderSocialIcon = (path: string, label: string) => (
     <svg
@@ -304,7 +303,7 @@ const NavBar = () => {
             )}
 
             {/* Menú "More" para items secundarios (proxies, products) */}
-            {(secondaryMenuItems.length > 0 || showProducts) && (
+            {secondaryMenuItems.length > 0 && (
               <div className="relative" ref={moreMenuRef}>
                 <button
                   onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
@@ -342,20 +341,6 @@ const NavBar = () => {
                         </Link>
                       );
                     })}
-                    {showProducts && (
-                      <Link
-                        href="/products"
-                        onClick={() => setIsMoreMenuOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-2.5 transition-all duration-200 ${
-                          isItemActive("/products")
-                            ? "bg-white/10 text-white"
-                            : "text-gray-300 hover:bg-white/5 hover:text-white"
-                        }`}
-                      >
-                        <ShoppingBag size={16} className={isItemActive("/products") ? "text-white" : "text-gray-400"} />
-                        <span className="font-medium text-sm">Products</span>
-                      </Link>
-                    )}
                   </div>
                 )}
               </div>
@@ -647,20 +632,6 @@ const NavBar = () => {
                 );
               })}
               
-              {/* Products for admin */}
-              {showProducts && (
-                <Link
-                  href="/products"
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-white no-underline ${
-                    isItemActive("/products") ? "bg-white/10 text-white" : "text-gray-300 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <ShoppingBag size={20} className="text-white" />
-                  <span className="font-medium text-white">Products</span>
-                  {isItemActive("/products") && <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>}
-                </Link>
-              )}
-
               {/* Secondary items */}
               {secondaryMenuItems.map((item) => {
                 const Icon = item.icon;

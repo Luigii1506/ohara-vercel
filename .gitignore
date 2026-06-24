@@ -6,7 +6,7 @@
 .pnp.js
 .yarn/install-state.gz
 
-
+.codex
 
 # testing
 /coverage
@@ -15,11 +15,11 @@
 /.next/
 /out/
 
-/scripts
+# /scripts
 /prisma/migrations
 
 *.html  
-*.md
+#*.md
 
 # production
 /build

@@ -65,6 +65,8 @@ export const standarDecks = [
   "ST26",
   "ST27",
   "ST28",
+  "ST29",
+  "ST30",
   "PROMO",
 ];
 
@@ -265,6 +267,14 @@ export const setOptions = [
     value: "ST28",
     label: "ST28 GREEN/YELLOW Yamato",
   },
+  {
+    value: "ST29",
+    label: "ST29 Egghead",
+  },
+  {
+    value: "ST30",
+    label: "ST30 EX Luffy & Ace",
+  },
 ];
 
 export const setCodesOptions = [
@@ -320,6 +330,9 @@ export const setCodesOptions = [
   { value: "ST26", label: "ST26" },
   { value: "ST27", label: "ST27" },
   { value: "ST28", label: "ST28" },
+  { value: "ST29", label: "ST29" },
+  { value: "ST30", label: "ST30" },
+
 ];
 
 export const setCodeMetadata = setCodesOptions.reduce((acc, option) => {

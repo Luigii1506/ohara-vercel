@@ -175,6 +175,8 @@ const setCodesOptions = [
   { value: "ST26", label: "ST26" },
   { value: "ST27", label: "ST27" },
   { value: "ST28", label: "ST28" },
+  { value: "ST29", label: "ST29" },
+  { value: "ST30", label: "ST30" },
   // EB sets third
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },

@@ -77,17 +77,6 @@ import SortSelect, { SortOption } from "../SortSelect";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
 
-// AlternateArt types que NO deben mostrarse en el deckbuilder
-const EXCLUDED_ALTERNATE_ARTS = [
-  "Demo Version",
-  "Pre-Errata",
-  "Pre-Release",
-  "1st Anniversary",
-  "2nd Anniversary",
-  "3rd Anniversary",
-  "Not for sale",
-];
-
 const getRelatedSetCodes = (card?: CardWithCollectionData | null): string[] => {
   return (card?.sets ?? [])
     .map((entry) => entry.set.code?.trim().toLowerCase())
@@ -164,7 +153,7 @@ const CompleteDeckBuilderLayout = ({
       }
       return null;
     },
-    []
+    [],
   );
 
   const formatCurrency = (value: number, currency?: string | null) =>
@@ -174,16 +163,13 @@ const CompleteDeckBuilderLayout = ({
       minimumFractionDigits: 2,
     }).format(value);
 
-  // Helper function para filtrar alternativas excluidas
   // Cuando showOnlyBaseCards está activo, retorna array vacío para ocultar todas las alternas
   const filterValidAlternates = (
     alternates: CardWithCollectionData[] | undefined,
-    hideAlternates: boolean = false
+    hideAlternates: boolean = false,
   ) => {
     if (!alternates || hideAlternates) return [];
-    return alternates.filter(
-      (alt) => !EXCLUDED_ALTERNATE_ARTS.includes(alt.alternateArt ?? "")
-    );
+    return alternates;
   };
 
   const PriceTag = ({
@@ -231,7 +217,7 @@ const CompleteDeckBuilderLayout = ({
 
   const normalizedSelectedSets = useMemo(
     () => selectedSets.map((value) => value.toLowerCase()),
-    [selectedSets]
+    [selectedSets],
   );
 
   const [isGrid, setIsGrid] = useState(false);
@@ -283,7 +269,7 @@ const CompleteDeckBuilderLayout = ({
         description: t("sort.priceLowDesc"),
       },
     ],
-    [t]
+    [t],
   );
 
   const nonLeaderCategories = useMemo(
@@ -291,7 +277,7 @@ const CompleteDeckBuilderLayout = ({
       categoryOptions
         .map((option) => option.value)
         .filter((value) => value.toLowerCase() !== "leader"),
-    []
+    [],
   );
 
   // Toggle para mostrar solo cartas base (isFirstEdition = true) u ocultar alternas
@@ -299,7 +285,7 @@ const CompleteDeckBuilderLayout = ({
 
   // Estado para trackear qué carta está siendo tocada (para mostrar badge en mobile)
   const [touchedCardId, setTouchedCardId] = useState<number | string | null>(
-    null
+    null,
   );
 
   // Detectar si es desktop para mostrar badges de código
@@ -321,7 +307,7 @@ const CompleteDeckBuilderLayout = ({
 
   // Card preview dialog state
   const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(
-    null
+    null,
   );
   const [previewBaseCard, setPreviewBaseCard] =
     useState<CardWithCollectionData | null>(null);
@@ -334,7 +320,7 @@ const CompleteDeckBuilderLayout = ({
       setPreviewBaseCard(baseCard || card);
       setIsPreviewOpen(true);
     },
-    []
+    [],
   );
 
   // Close card preview
@@ -350,11 +336,11 @@ const CompleteDeckBuilderLayout = ({
   const getCardQuantityInDeck = useCallback(
     (cardId: number | string) => {
       const card = deckBuilder.deckCards.find(
-        (c) => c.cardId === Number(cardId)
+        (c) => c.cardId === Number(cardId),
       );
       return card?.quantity || 0;
     },
-    [deckBuilder.deckCards]
+    [deckBuilder.deckCards],
   );
 
   // Get total quantity by code in deck
@@ -364,7 +350,7 @@ const CompleteDeckBuilderLayout = ({
         .filter((c) => c.code === code)
         .reduce((sum, c) => sum + c.quantity, 0);
     },
-    [deckBuilder.deckCards]
+    [deckBuilder.deckCards],
   );
 
   const getMaxQuantityForCode = useCallback((code?: string) => {
@@ -378,7 +364,7 @@ const CompleteDeckBuilderLayout = ({
     const rawColors = Array.isArray(card.colors) ? card.colors : [];
     const tokens = rawColors
       .flatMap((c: { color?: string } | string) =>
-        String(typeof c === "string" ? c : c?.color || "").split(/[\\/,+]/)
+        String(typeof c === "string" ? c : c?.color || "").split(/[\\/,+]/),
       )
       .map((color) => color.toLowerCase().trim())
       .filter(Boolean);
@@ -398,7 +384,7 @@ const CompleteDeckBuilderLayout = ({
       : [];
     const normalizedColors = rawColors
       .map((c: { color?: string } | string) =>
-        typeof c === "string" ? c : c?.color
+        typeof c === "string" ? c : c?.color,
       )
       .map((color: string | undefined) => (color ?? "").toLowerCase().trim())
       .filter(Boolean);
@@ -426,8 +412,8 @@ const CompleteDeckBuilderLayout = ({
         selectedColors.length > 0
           ? selectedColors
           : deckBuilder.selectedLeader && leaderColors.length > 0
-          ? leaderColors
-          : undefined,
+            ? leaderColors
+            : undefined,
       sets: selectedSets.length ? selectedSets : undefined,
       setCodes: selectedCodes.length ? selectedCodes : undefined,
       rarities: selectedRarities.length ? selectedRarities : undefined,
@@ -501,7 +487,7 @@ const CompleteDeckBuilderLayout = ({
     cardsFilters,
     {
       enabled: shouldFetchCards,
-    }
+    },
   );
 
   const rawCardsSource = useServerCards ? serverCards : initialCards;
@@ -656,31 +642,31 @@ const CompleteDeckBuilderLayout = ({
           (card.rarity ?? "").toLowerCase().includes(searchLower) ||
           matchesCardCode(card.code, search) ||
           (card.texts ?? []).some((item) =>
-            item.text.toLowerCase().includes(searchLower)
+            item.text.toLowerCase().includes(searchLower),
           ) ||
           (card.types ?? []).some((item) =>
-            item.type.toLowerCase().includes(searchLower)
+            item.type.toLowerCase().includes(searchLower),
           ) ||
           (card.sets ?? []).some((item) =>
-            item.set.title.toLowerCase().includes(searchLower)
+            item.set.title.toLowerCase().includes(searchLower),
           );
 
         const matchesColors =
           selectedColors.length === 0 ||
           getCardColorTokens(card).some((color) =>
-            selectedColors.includes(color)
+            selectedColors.includes(color),
           );
 
         const baseSetCodes = getRelatedSetCodes(card);
         const matchesBaseSet = baseSetCodes.some((code) =>
-          normalizedSelectedSets.includes(code)
+          normalizedSelectedSets.includes(code),
         );
 
         const matchesAlternateSet =
           card.alternates?.some((alt) => {
             const altSetCodes = getRelatedSetCodes(alt);
             return altSetCodes.some((code) =>
-              normalizedSelectedSets.includes(code)
+              normalizedSelectedSets.includes(code),
             );
           }) ?? false;
 
@@ -696,7 +682,7 @@ const CompleteDeckBuilderLayout = ({
         const matchesEffects =
           selectedEffects.length === 0 ||
           (card.effects ?? []).some((effect) =>
-            selectedEffects.includes(effect.effect)
+            selectedEffects.includes(effect.effect),
           );
 
         const matchesRarity =
@@ -706,7 +692,7 @@ const CompleteDeckBuilderLayout = ({
         const matchesAltArts =
           selectedAltArts?.length === 0 ||
           (card.alternates ?? []).some((alt) =>
-            selectedAltArts.includes(alt.alternateArt ?? "")
+            selectedAltArts.includes(alt.alternateArt ?? ""),
           ) ||
           selectedAltArts.includes(card.alternateArt ?? "");
 
@@ -729,18 +715,18 @@ const CompleteDeckBuilderLayout = ({
           selectedCounter === ""
             ? true
             : selectedCounter === "No counter"
-            ? card.counter == null
-            : card.counter?.includes(selectedCounter);
+              ? card.counter == null
+              : card.counter?.includes(selectedCounter);
 
         const matchedTrigger =
           selectedTrigger === ""
             ? true
             : selectedTrigger === "No trigger"
-            ? card.triggerCard === null
-            : card.triggerCard !== null;
+              ? card.triggerCard === null
+              : card.triggerCard !== null;
 
         const normalizedCodes = selectedCodes.map((code) =>
-          code === "PROMO" ? "" : code
+          code === "PROMO" ? "" : code,
         );
         const cardSetCodes = (card.setCode ?? "")
           .split(",")
@@ -838,13 +824,17 @@ const CompleteDeckBuilderLayout = ({
   const filteredByLeader = useMemo(() => {
     if (!filteredCards) return []; // ⚡ Retornar array vacío en vez de null
 
+    if (useServerCards) {
+      return filteredCards;
+    }
+
     const filtered = deckBuilder.selectedLeader
       ? filteredCards.filter((card) => {
           const matchesLeaderColors =
             leaderColors.length === 0
               ? true
               : getCardColorTokens(card).some((color) =>
-                  leaderColors.includes(color)
+                  leaderColors.includes(color),
                 );
           return !isLeaderCategory(card.category) && matchesLeaderColors;
         })
@@ -856,12 +846,18 @@ const CompleteDeckBuilderLayout = ({
 
     // Las cartas ya vienen ordenadas de filteredCards, pero aseguramos el orden
     return filtered.sort(sortByCollectionOrder);
-  }, [filteredCards, deckBuilder.selectedLeader, leaderColors, isBackendSort]);
+  }, [
+    filteredCards,
+    deckBuilder.selectedLeader,
+    leaderColors,
+    isBackendSort,
+    useServerCards,
+  ]);
 
   // Calcula el total de cartas agregadas en el deck
   const totalCards = deckBuilder.deckCards.reduce(
     (total, card) => total + card.quantity,
-    0
+    0,
   );
 
   // Calcular el precio total del deck
@@ -877,14 +873,14 @@ const CompleteDeckBuilderLayout = ({
 
       // Primero buscar en las cartas base
       foundLeader = cardsSource.find(
-        (card) => Number(card.id) === Number(deckBuilder.selectedLeader?.id)
+        (card) => Number(card.id) === Number(deckBuilder.selectedLeader?.id),
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundLeader) {
         for (const card of cardsSource) {
           const alternate = card.alternates?.find(
-            (alt) => Number(alt.id) === Number(deckBuilder.selectedLeader?.id)
+            (alt) => Number(alt.id) === Number(deckBuilder.selectedLeader?.id),
           );
           if (alternate) {
             foundLeader = alternate;
@@ -913,14 +909,14 @@ const CompleteDeckBuilderLayout = ({
 
       // Primero buscar en las cartas base
       foundCard = cardsSource.find(
-        (card) => Number(card.id) === deckCard.cardId
+        (card) => Number(card.id) === deckCard.cardId,
       );
 
       // Si no se encuentra en las bases, buscar en las alternativas
       if (!foundCard) {
         for (const card of cardsSource) {
           const alternate = card.alternates?.find(
-            (alt) => Number(alt.id) === deckCard.cardId
+            (alt) => Number(alt.id) === deckCard.cardId,
           );
           if (alternate) {
             foundCard = alternate;
@@ -971,7 +967,7 @@ const CompleteDeckBuilderLayout = ({
   const handleCardClick = (
     _e: MouseEvent<HTMLDivElement> | null,
     card: CardWithCollectionData,
-    alternate: CardWithCollectionData
+    alternate: CardWithCollectionData,
   ) => {
     // Si no hay leader seleccionado, asignamos este card como leader y
     // hacemos scroll hasta el principio de la lista.
@@ -1053,7 +1049,7 @@ const CompleteDeckBuilderLayout = ({
   // Función para eliminar la carta al hacer swipe
   const removeCard = (cardId: number) => {
     deckBuilder.setDeckCards((prev) =>
-      prev?.filter((card) => card.cardId !== cardId)
+      prev?.filter((card) => card.cardId !== cardId),
     );
     containerRef.current?.scrollTo({
       top: 0,
@@ -1062,13 +1058,16 @@ const CompleteDeckBuilderLayout = ({
   };
   // Agrupamos las cartas por código sin modificar sus cantidades:
   const groupedCards = Object.values(
-    deckBuilder.deckCards.reduce((groups, card) => {
-      if (!groups[card.code]) {
-        groups[card.code] = [];
-      }
-      groups[card.code].push(card);
-      return groups;
-    }, {} as Record<string, typeof deckBuilder.deckCards>)
+    deckBuilder.deckCards.reduce(
+      (groups, card) => {
+        if (!groups[card.code]) {
+          groups[card.code] = [];
+        }
+        groups[card.code].push(card);
+        return groups;
+      },
+      {} as Record<string, typeof deckBuilder.deckCards>,
+    ),
   );
 
   // Ordenamos las cartas según el criterio:
@@ -1124,7 +1123,7 @@ const CompleteDeckBuilderLayout = ({
 
       if (visibleCount < (filteredByLeader?.length ?? 0)) {
         setVisibleCount((prev) =>
-          Math.min(prev + BATCH_SIZE, filteredByLeader?.length ?? 0)
+          Math.min(prev + BATCH_SIZE, filteredByLeader?.length ?? 0),
         );
       }
 
@@ -1344,7 +1343,7 @@ const CompleteDeckBuilderLayout = ({
                       const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
-                          normalizedSelectedSets.includes(code)
+                          normalizedSelectedSets.includes(code),
                         )
                       ) {
                         return false;
@@ -1365,7 +1364,7 @@ const CompleteDeckBuilderLayout = ({
                         const altSetCodes = getRelatedSetCodes(alt);
                         if (
                           !altSetCodes.some((code) =>
-                            normalizedSelectedSets.includes(code)
+                            normalizedSelectedSets.includes(code),
                           )
                         ) {
                           return false;
@@ -1445,15 +1444,15 @@ const CompleteDeckBuilderLayout = ({
                         {baseCardMatches() &&
                           (() => {
                             const baseCardInDeck = deckBuilder.deckCards.find(
-                              (deckCard) => deckCard.cardId === Number(card.id)
+                              (deckCard) => deckCard.cardId === Number(card.id),
                             );
                             const baseCardQuantity =
                               baseCardInDeck?.quantity || 0;
                             const baseMaxQuantity = getMaxQuantityForCode(
-                              card.code
+                              card.code,
                             );
                             const baseTotalByCode = getTotalQuantityByCode(
-                              card.code
+                              card.code,
                             );
                             const canAddMore =
                               baseTotalByCode < baseMaxQuantity;
@@ -1517,7 +1516,7 @@ const CompleteDeckBuilderLayout = ({
                                     className="absolute top-0 right-0 bg-white/90 backdrop-blur-sm text-gray-600 rounded-tr-md rounded-bl-lg p-1.5 z-10 border-l border-b border-gray-200 hover:bg-white hover:text-gray-900 active:scale-95 transition-all"
                                     aria-label="View card details"
                                   >
-                                    <Eye className="h-3.5 w-3.5" />
+                                    {/* <Eye className="h-3.5 w-3.5" /> */}
                                   </button>
                                   {/* Price Badge */}
                                   {(() => {
@@ -1527,7 +1526,7 @@ const CompleteDeckBuilderLayout = ({
                                         <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
                                           {formatCurrency(
                                             priceValue,
-                                            card.priceCurrency
+                                            card.priceCurrency,
                                           )}
                                         </div>
                                       );
@@ -1544,7 +1543,7 @@ const CompleteDeckBuilderLayout = ({
                                           if (baseCardQuantity > 0) {
                                             deckBuilder.updateDeckCardQuantity(
                                               Number(card.id),
-                                              baseCardQuantity - 1
+                                              baseCardQuantity - 1,
                                             );
                                           }
                                         }}
@@ -1553,7 +1552,7 @@ const CompleteDeckBuilderLayout = ({
                                           if (baseCardQuantity > 0) {
                                             deckBuilder.updateDeckCardQuantity(
                                               Number(card.id),
-                                              baseCardQuantity - 1
+                                              baseCardQuantity - 1,
                                             );
                                           }
                                         }}
@@ -1577,13 +1576,13 @@ const CompleteDeckBuilderLayout = ({
                                           if (canAddMore) {
                                             deckBuilder.updateDeckCardQuantity(
                                               Number(card.id),
-                                              baseCardQuantity + 1
+                                              baseCardQuantity + 1,
                                             );
                                           } else {
                                             showWarningToast(
-                                            t("deckbuilder.maxReached", {
-                                              count: baseMaxQuantity,
-                                            })
+                                              t("deckbuilder.maxReached", {
+                                                count: baseMaxQuantity,
+                                              }),
                                             );
                                           }
                                         }}
@@ -1592,13 +1591,13 @@ const CompleteDeckBuilderLayout = ({
                                           if (canAddMore) {
                                             deckBuilder.updateDeckCardQuantity(
                                               Number(card.id),
-                                              baseCardQuantity + 1
+                                              baseCardQuantity + 1,
                                             );
                                           } else {
                                             showWarningToast(
-                                            t("deckbuilder.maxReached", {
-                                              count: baseMaxQuantity,
-                                            })
+                                              t("deckbuilder.maxReached", {
+                                                count: baseMaxQuantity,
+                                              }),
                                             );
                                           }
                                         }}
@@ -1635,15 +1634,15 @@ const CompleteDeckBuilderLayout = ({
                         {/* Alternate Cards */}
                         {filteredAlts.map((alt) => {
                           const alternateInDeck = deckBuilder.deckCards.find(
-                            (deckCard) => deckCard.cardId === Number(alt.id)
+                            (deckCard) => deckCard.cardId === Number(alt.id),
                           );
                           const alternateQuantity =
                             alternateInDeck?.quantity || 0;
                           const alternateMaxQuantity = getMaxQuantityForCode(
-                            card.code
+                            card.code,
                           );
                           const alternateTotalByCode = getTotalQuantityByCode(
-                            card.code
+                            card.code,
                           );
                           const canAddMore =
                             alternateTotalByCode < alternateMaxQuantity;
@@ -1652,7 +1651,7 @@ const CompleteDeckBuilderLayout = ({
                             ?.filter((card_alt) => card_alt.code === card.code)
                             .reduce(
                               (sum, card_alt) => sum + card_alt.quantity,
-                              0
+                              0,
                             );
 
                           return (
@@ -1723,7 +1722,7 @@ const CompleteDeckBuilderLayout = ({
                                       <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-md px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-10">
                                         {formatCurrency(
                                           priceValue,
-                                          alt.priceCurrency
+                                          alt.priceCurrency,
                                         )}
                                       </div>
                                     );
@@ -1740,7 +1739,7 @@ const CompleteDeckBuilderLayout = ({
                                         if (alternateQuantity > 0) {
                                           deckBuilder.updateDeckCardQuantity(
                                             Number(alt.id),
-                                            alternateQuantity - 1
+                                            alternateQuantity - 1,
                                           );
                                         }
                                       }}
@@ -1749,7 +1748,7 @@ const CompleteDeckBuilderLayout = ({
                                         if (alternateQuantity > 0) {
                                           deckBuilder.updateDeckCardQuantity(
                                             Number(alt.id),
-                                            alternateQuantity - 1
+                                            alternateQuantity - 1,
                                           );
                                         }
                                       }}
@@ -1773,13 +1772,13 @@ const CompleteDeckBuilderLayout = ({
                                         if (canAddMore) {
                                           deckBuilder.updateDeckCardQuantity(
                                             Number(alt.id),
-                                            alternateQuantity + 1
+                                            alternateQuantity + 1,
                                           );
                                         } else {
                                           showWarningToast(
                                             t("deckbuilder.maxReached", {
                                               count: alternateMaxQuantity,
-                                            })
+                                            }),
                                           );
                                         }
                                       }}
@@ -1788,13 +1787,13 @@ const CompleteDeckBuilderLayout = ({
                                         if (canAddMore) {
                                           deckBuilder.updateDeckCardQuantity(
                                             Number(alt.id),
-                                            alternateQuantity + 1
+                                            alternateQuantity + 1,
                                           );
                                         } else {
                                           showWarningToast(
                                             t("deckbuilder.maxReached", {
                                               count: alternateMaxQuantity,
-                                            })
+                                            }),
                                           );
                                         }
                                       }}
@@ -1877,17 +1876,17 @@ const CompleteDeckBuilderLayout = ({
                             }
                             const altSetCodes = getRelatedSetCodes(alt);
                             return altSetCodes.some((code) =>
-                              normalizedSelectedSets.includes(code)
+                              normalizedSelectedSets.includes(code),
                             );
                           })
                           .map((alt) => {
                             const totalQuantity = deckBuilder.deckCards
                               ?.filter(
-                                (card_alt) => card_alt.code === card.code
+                                (card_alt) => card_alt.code === card.code,
                               )
                               .reduce(
                                 (sum, card_alt) => sum + card_alt.quantity,
-                                0
+                                0,
                               );
 
                             return (
@@ -1921,7 +1920,7 @@ const CompleteDeckBuilderLayout = ({
                                           <span className="text-center text-[13px] line-clamp-1">
                                             {highlightText(
                                               alt?.sets[0]?.set?.title,
-                                              search
+                                              search,
                                             )}
                                           </span>
                                         </div>
@@ -1956,7 +1955,7 @@ const CompleteDeckBuilderLayout = ({
                       const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
-                          normalizedSelectedSets.includes(code)
+                          normalizedSelectedSets.includes(code),
                         )
                       ) {
                         return false;
@@ -1978,7 +1977,7 @@ const CompleteDeckBuilderLayout = ({
                         const altSetCodes = getRelatedSetCodes(alt);
                         if (
                           !altSetCodes.some((code) =>
-                            normalizedSelectedSets.includes(code)
+                            normalizedSelectedSets.includes(code),
                           )
                         ) {
                           return false;
@@ -2001,7 +2000,7 @@ const CompleteDeckBuilderLayout = ({
                     return null;
 
                   const baseCardInDeck = deckBuilder.deckCards.find(
-                    (deckCard) => deckCard.cardId === Number(card.id)
+                    (deckCard) => deckCard.cardId === Number(card.id),
                   );
 
                   return (
@@ -2026,7 +2025,7 @@ const CompleteDeckBuilderLayout = ({
                             if (qty > 0) {
                               deckBuilder.updateDeckCardQuantity(
                                 Number(card.id),
-                                qty - 1
+                                qty - 1,
                               );
                             }
                           }}
@@ -2049,16 +2048,16 @@ const CompleteDeckBuilderLayout = ({
                       {filteredAlts.length > 0 &&
                         filteredAlts.map((alt) => {
                           const alternateInDeck = deckBuilder.deckCards.find(
-                            (deckCard) => deckCard.cardId === Number(alt.id)
+                            (deckCard) => deckCard.cardId === Number(alt.id),
                           );
                           const alternateMaxQuantity = getMaxQuantityForCode(
-                            card.code
+                            card.code,
                           );
                           const totalQuantity = deckBuilder.deckCards
                             ?.filter((card_alt) => card_alt.code === card.code)
                             .reduce(
                               (sum, card_alt) => sum + card_alt.quantity,
-                              0
+                              0,
                             );
 
                           return (
@@ -2082,7 +2081,7 @@ const CompleteDeckBuilderLayout = ({
                                 if (qty > 0) {
                                   deckBuilder.updateDeckCardQuantity(
                                     Number(alt.id),
-                                    qty - 1
+                                    qty - 1,
                                   );
                                 }
                               }}
@@ -2120,22 +2119,11 @@ const CompleteDeckBuilderLayout = ({
                   const baseCardMatches = (card: any): boolean => {
                     if (!card) return false;
 
-                    if (
-                      [
-                        "Demo Version",
-                        "Not for Sale",
-                        "Pre-Errata",
-                        "Pre-Release",
-                      ].includes(card.alternateArt ?? "")
-                    ) {
-                      return false;
-                    }
-
                     if (normalizedSelectedSets.length > 0) {
                       const baseSetCodes = getRelatedSetCodes(card);
                       if (
                         !baseSetCodes.some((code: string) =>
-                          normalizedSelectedSets.includes(code)
+                          normalizedSelectedSets.includes(code),
                         )
                       ) {
                         return false;
@@ -2149,22 +2137,11 @@ const CompleteDeckBuilderLayout = ({
 
                   // Función que determina si una alterna cumple los filtros
                   const alternateMatches = (alt: any): boolean => {
-                    if (
-                      [
-                        "Demo Version",
-                        "Not for Sale",
-                        "Pre-Errata",
-                        "Pre-Release",
-                      ].includes(alt.alternateArt ?? "")
-                    ) {
-                      return false;
-                    }
-
                     if (normalizedSelectedSets.length > 0) {
                       const altSetCodes = getRelatedSetCodes(alt);
                       if (
                         !altSetCodes.some((code: string) =>
-                          normalizedSelectedSets.includes(code)
+                          normalizedSelectedSets.includes(code),
                         )
                       ) {
                         return false;
@@ -2193,7 +2170,7 @@ const CompleteDeckBuilderLayout = ({
                   const canAddMoreByCode =
                     totalQuantityBase < maxQuantityByCode;
                   const baseCardInDeck = deckBuilder.deckCards.find(
-                    (deckCard) => deckCard.cardId === Number(card.id)
+                    (deckCard) => deckCard.cardId === Number(card.id),
                   );
                   const baseCardQuantity = baseCardInDeck?.quantity || 0;
                   const showBaseControls = true;
@@ -2266,7 +2243,7 @@ const CompleteDeckBuilderLayout = ({
                                     if (baseCardQuantity > 0) {
                                       deckBuilder.updateDeckCardQuantity(
                                         Number(card.id),
-                                        baseCardQuantity - 1
+                                        baseCardQuantity - 1,
                                       );
                                     }
                                   }}
@@ -2275,7 +2252,7 @@ const CompleteDeckBuilderLayout = ({
                                     if (baseCardQuantity > 0) {
                                       deckBuilder.updateDeckCardQuantity(
                                         Number(card.id),
-                                        baseCardQuantity - 1
+                                        baseCardQuantity - 1,
                                       );
                                     }
                                   }}
@@ -2299,13 +2276,13 @@ const CompleteDeckBuilderLayout = ({
                                     if (canAddMoreByCode) {
                                       deckBuilder.updateDeckCardQuantity(
                                         Number(card.id),
-                                        baseCardQuantity + 1
+                                        baseCardQuantity + 1,
                                       );
                                     } else {
                                       showWarningToast(
                                         t("deckbuilder.maxReached", {
                                           count: maxQuantityByCode,
-                                        })
+                                        }),
                                       );
                                     }
                                   }}
@@ -2314,13 +2291,13 @@ const CompleteDeckBuilderLayout = ({
                                     if (canAddMoreByCode) {
                                       deckBuilder.updateDeckCardQuantity(
                                         Number(card.id),
-                                        baseCardQuantity + 1
+                                        baseCardQuantity + 1,
                                       );
                                     } else {
                                       showWarningToast(
                                         t("deckbuilder.maxReached", {
                                           count: maxQuantityByCode,
-                                        })
+                                        }),
                                       );
                                     }
                                   }}
@@ -2343,7 +2320,7 @@ const CompleteDeckBuilderLayout = ({
                       {/* Render filtered alternates */}
                       {filteredAlternates.map((alt, altIndex) => {
                         const alternateInDeck = deckBuilder.deckCards.find(
-                          (deckCard) => deckCard.cardId === Number(alt.id)
+                          (deckCard) => deckCard.cardId === Number(alt.id),
                         );
                         const alternateQuantity =
                           alternateInDeck?.quantity || 0;
@@ -2356,11 +2333,11 @@ const CompleteDeckBuilderLayout = ({
                             onClick={(e) => {
                               const totalQuantity = deckBuilder.deckCards
                                 ?.filter(
-                                  (card_alt) => card_alt.code === card.code
+                                  (card_alt) => card_alt.code === card.code,
                                 )
                                 .reduce(
                                   (sum, card_alt) => sum + card_alt.quantity,
-                                  0
+                                  0,
                                 );
 
                               if (totalQuantity >= maxQuantityByCode) {
@@ -2381,11 +2358,11 @@ const CompleteDeckBuilderLayout = ({
                               ${
                                 (deckBuilder.deckCards
                                   ?.filter(
-                                    (card_alt) => card_alt.code === card.code
+                                    (card_alt) => card_alt.code === card.code,
                                   )
                                   .reduce(
                                     (sum, card_alt) => sum + card_alt.quantity,
-                                    0
+                                    0,
                                   ) ?? 0) >= 4
                                   ? "filter grayscale opacity-70"
                                   : ""
@@ -2431,7 +2408,7 @@ const CompleteDeckBuilderLayout = ({
                                       if (alternateQuantity > 0) {
                                         deckBuilder.updateDeckCardQuantity(
                                           Number(alt.id),
-                                          alternateQuantity - 1
+                                          alternateQuantity - 1,
                                         );
                                       }
                                     }}
@@ -2440,7 +2417,7 @@ const CompleteDeckBuilderLayout = ({
                                       if (alternateQuantity > 0) {
                                         deckBuilder.updateDeckCardQuantity(
                                           Number(alt.id),
-                                          alternateQuantity - 1
+                                          alternateQuantity - 1,
                                         );
                                       }
                                     }}
@@ -2464,13 +2441,13 @@ const CompleteDeckBuilderLayout = ({
                                       if (canAddMoreByCode) {
                                         deckBuilder.updateDeckCardQuantity(
                                           Number(alt.id),
-                                          alternateQuantity + 1
+                                          alternateQuantity + 1,
                                         );
                                       } else {
                                         showWarningToast(
                                           t("deckbuilder.maxReached", {
                                             count: maxQuantityByCode,
-                                          })
+                                          }),
                                         );
                                       }
                                     }}
@@ -2479,13 +2456,13 @@ const CompleteDeckBuilderLayout = ({
                                       if (canAddMoreByCode) {
                                         deckBuilder.updateDeckCardQuantity(
                                           Number(alt.id),
-                                          alternateQuantity + 1
+                                          alternateQuantity + 1,
                                         );
                                       } else {
                                         showWarningToast(
                                           t("deckbuilder.maxReached", {
                                             count: maxQuantityByCode,
-                                          })
+                                          }),
                                         );
                                       }
                                     }}
@@ -2533,16 +2510,16 @@ const CompleteDeckBuilderLayout = ({
                           background: `linear-gradient(
                           135deg,
                           ${getColors(
-                            deckBuilder.selectedLeader.colors[0].color
+                            deckBuilder.selectedLeader.colors[0].color,
                           )} 0%,
                           ${getColors(
-                            deckBuilder.selectedLeader.colors[0].color
+                            deckBuilder.selectedLeader.colors[0].color,
                           )} 40%,
                           ${getColors(
-                            deckBuilder.selectedLeader.colors[1].color
+                            deckBuilder.selectedLeader.colors[1].color,
                           )} 60%,
                           ${getColors(
-                            deckBuilder.selectedLeader.colors[1].color
+                            deckBuilder.selectedLeader.colors[1].color,
                           )} 100%
                         )`,
                         }}
@@ -2552,7 +2529,7 @@ const CompleteDeckBuilderLayout = ({
                         className="absolute inset-0 rounded-lg"
                         style={{
                           backgroundColor: getColors(
-                            deckBuilder.selectedLeader.colors[0].color
+                            deckBuilder.selectedLeader.colors[0].color,
                           ),
                         }}
                       />
@@ -2575,7 +2552,7 @@ const CompleteDeckBuilderLayout = ({
                     </span>
                     {(() => {
                       const priceValue = getCardPriceValue(
-                        deckBuilder.selectedLeader
+                        deckBuilder.selectedLeader,
                       );
                       if (priceValue !== null) {
                         return (
@@ -2708,8 +2685,8 @@ const CompleteDeckBuilderLayout = ({
                       50 - totalCards <= 10
                         ? "text-amber-600"
                         : 50 - totalCards === 0
-                        ? "text-red-600"
-                        : "text-emerald-600"
+                          ? "text-red-600"
+                          : "text-emerald-600"
                     }`}
                   >
                     {50 - totalCards}
@@ -2719,8 +2696,8 @@ const CompleteDeckBuilderLayout = ({
                       50 - totalCards <= 10
                         ? "text-amber-600"
                         : 50 - totalCards === 0
-                        ? "text-red-600"
-                        : "text-emerald-600"
+                          ? "text-red-600"
+                          : "text-emerald-600"
                     }`}
                   >
                     {t("deckbuilder.left")}
@@ -2774,7 +2751,7 @@ const CompleteDeckBuilderLayout = ({
                                   </span>
                                   <span className="font-medium text-emerald-600">
                                     {formatCurrency(
-                                      totalDeckPrice / (cardsWithPrice || 1)
+                                      totalDeckPrice / (cardsWithPrice || 1),
                                     )}
                                   </span>
                                 </p>
@@ -2878,7 +2855,7 @@ const CompleteDeckBuilderLayout = ({
                         ?.filter((deckCard) => deckCard.code === card.code)
                         .reduce(
                           (sum, deckCard) => sum + deckCard.quantity,
-                          0
+                          0,
                         ) || 0;
 
                     return (
@@ -2947,14 +2924,14 @@ const CompleteDeckBuilderLayout = ({
                               onClick={() => {
                                 const newQuantity = Math.max(
                                   0,
-                                  card.quantity - 1
+                                  card.quantity - 1,
                                 );
                                 if (newQuantity === 0) {
                                   removeCard(card.cardId);
                                 } else {
                                   deckBuilder.updateDeckCardQuantity(
                                     card.cardId,
-                                    newQuantity
+                                    newQuantity,
                                   );
                                 }
                               }}
@@ -2971,11 +2948,11 @@ const CompleteDeckBuilderLayout = ({
                                 if (totalQuantityByCode < 4) {
                                   deckBuilder.updateDeckCardQuantity(
                                     card.cardId,
-                                    card.quantity + 1
+                                    card.quantity + 1,
                                   );
                                 } else {
                                   showWarningToast(
-                                    t("deckbuilder.maxSameCode")
+                                    t("deckbuilder.maxSameCode"),
                                   );
                                 }
                               }}
@@ -2990,7 +2967,7 @@ const CompleteDeckBuilderLayout = ({
                         </div>
                       </div>
                     );
-                  })
+                  }),
                 )}
               </div>
             )}
@@ -3310,7 +3287,7 @@ const CompleteDeckBuilderLayout = ({
                               <span className="mb-[2px]">
                                 {group.reduce(
                                   (sum, card) => sum + card.quantity,
-                                  0
+                                  0,
                                 )}
                               </span>
                             </div>
@@ -3347,7 +3324,7 @@ const CompleteDeckBuilderLayout = ({
                 src={getOptimizedImageUrl(
                   deckBuilder?.selectedLeader?.src ??
                     "/assets/images/backcard.webp",
-                  "large"
+                  "large",
                 )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt=""
@@ -3383,7 +3360,7 @@ const CompleteDeckBuilderLayout = ({
               <img
                 src={getOptimizedImageUrl(
                   selectedCard?.src ?? "/assets/images/backcard.webp",
-                  "large"
+                  "large",
                 )}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt=""
@@ -3479,7 +3456,7 @@ const CompleteDeckBuilderLayout = ({
             if (currentQty > 0) {
               deckBuilder.updateDeckCardQuantity(
                 Number(previewCard.id),
-                currentQty - 1
+                currentQty - 1,
               );
             }
           }

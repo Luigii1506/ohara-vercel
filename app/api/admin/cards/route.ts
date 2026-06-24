@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       code,
       setIds,
       imageKey,
+      skipIfExists,
       // Estos campos se usan en el caso de no encontrar una carta previa.
       name,
       cost,
@@ -111,6 +112,64 @@ export async function POST(req: NextRequest) {
         );
       }
       providedBaseCardId = parsedBaseCardId;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Idempotencia para el scraper (Bulk Upload):
+    // Si la carta ya existe, NO crear un duplicado. Solo asegurar que
+    // quede vinculada al/los set(s) seleccionados, y reportarla omitida.
+    // Identidad de carta: code + (arte base vs alternativo) + región.
+    // La región es tolerante a null/"" para no duplicar bases sin región.
+    // ──────────────────────────────────────────────────────────────
+    if (skipIfExists && code) {
+      const normalizedAlt =
+        typeof alternateArt === "string" && alternateArt.trim()
+          ? alternateArt.trim()
+          : null;
+
+      const existingWhere: Prisma.CardWhereInput = {
+        code,
+        ...(normalizedAlt
+          ? { alternateArt: { equals: normalizedAlt, mode: "insensitive" } }
+          : { baseCardId: null }),
+      };
+      if (normalizedRegion) {
+        existingWhere.OR = [
+          { region: normalizedRegion },
+          { region: null },
+          { region: "" },
+        ];
+      }
+
+      const existingCard = await prisma.card.findFirst({
+        where: existingWhere,
+        select: { id: true },
+      });
+
+      if (existingCard) {
+        if (Array.isArray(setIds) && setIds.length) {
+          const setIdNums = setIds
+            .map((s: number | string) => Number(s))
+            .filter((n: number) => Number.isInteger(n));
+          const existingLinks = await prisma.cardSet.findMany({
+            where: { cardId: existingCard.id, setId: { in: setIdNums } },
+            select: { setId: true },
+          });
+          const have = new Set(existingLinks.map((l) => l.setId));
+          const toCreate = setIdNums
+            .filter((id: number) => !have.has(id))
+            .map((setId: number) => ({ cardId: existingCard.id, setId }));
+          if (toCreate.length) {
+            await prisma.cardSet.createMany({ data: toCreate });
+          }
+        }
+
+        return NextResponse.json({
+          skipped: true,
+          reason: "Card already exists",
+          cardId: existingCard.id,
+        });
+      }
     }
 
     const templateInclude = {

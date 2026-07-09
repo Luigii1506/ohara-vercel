@@ -58,6 +58,8 @@ export interface SimulationState {
   cards: Record<string, CardInstance>;
   life: Record<Side, number>;
   donAvailable: Record<Side, number>;
+  /** DON!! rested en la cost area (usados como costo; siguen ahí, no desaparecen). */
+  donRested: Record<Side, number>;
   turn: number;
   turnOwner: Side;
   activePerspective: Side;

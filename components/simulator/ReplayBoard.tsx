@@ -118,23 +118,45 @@ const Pile = React.memo(function Pile({
   );
 });
 
-// Cost area: los DON!! disponibles como cartas reales (se acumulan de 2 en 2).
-const DonArea = React.memo(function DonArea({ available }: { available: number }) {
+// Cost area: DON!! activos (verticales) + rested (rotados). Los rested NO
+// desaparecen: se quedan girados como en el juego real.
+const DonArea = React.memo(function DonArea({
+  active,
+  rested,
+}: {
+  active: number;
+  rested: number;
+}) {
+  const total = active + rested;
   return (
     <div className="flex flex-1 items-center gap-1.5 self-stretch rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-2 py-1">
       <div className="flex h-full flex-1 items-center">
-        {Array.from({ length: Math.min(available, 10) }).map((_, i) => (
+        {Array.from({ length: Math.min(active, 10) }).map((_, i) => (
           <div
-            key={i}
-            className="h-full overflow-hidden rounded-[3px] shadow ring-1 ring-black/30 first:ml-0"
+            key={`a${i}`}
+            className="h-full overflow-hidden rounded-[3px] shadow ring-1 ring-black/30"
             style={{ aspectRatio: "5 / 7", marginLeft: i === 0 ? 0 : "-3%" }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={DON_IMG} alt="DON" className="h-full w-full object-cover" />
           </div>
         ))}
+        {Array.from({ length: Math.min(rested, 10) }).map((_, i) => (
+          <div
+            key={`r${i}`}
+            className="h-full shrink-0 rotate-90 overflow-hidden rounded-[3px] opacity-70 shadow ring-1 ring-black/30"
+            style={{ aspectRatio: "5 / 7", marginLeft: i === 0 && active > 0 ? "4%" : "-3%" }}
+            title="DON rested"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={DON_IMG} alt="DON rested" className="h-full w-full object-cover" />
+          </div>
+        ))}
       </div>
-      <span className="shrink-0 text-sm font-bold text-amber-300">{available}</span>
+      <span className="shrink-0 text-sm font-bold text-amber-300">
+        {active}
+        {rested > 0 && <span className="text-amber-300/50">+{rested}</span>}
+      </span>
     </div>
   );
 });
@@ -285,6 +307,7 @@ interface HalfData {
   active: boolean;
   life: number;
   don: number;
+  donRested: number;
   chars: CardInstance[];
   lifeCards: CardInstance[];
   leader?: CardInstance;
@@ -301,7 +324,7 @@ const FieldRow = React.memo(function FieldRow(d: HalfData) {
         <BoardCard card={d.leader} />
       </div>
       <Pile cards={d.stage} label="Stage" width="w-[12%]" />
-      <DonArea available={d.don} />
+      <DonArea active={d.don} rested={d.donRested} />
       <Pile cards={d.deck} label="Deck" faceDown width="w-[12%]" />
       <Pile cards={d.trash} label="Trash" width="w-[12%]" />
     </div>
@@ -337,13 +360,14 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
 });
 
 const ReplayBoard: React.FC = () => {
-  const { zones, cards, life, donAvailable, turn, turnOwner, activePerspective } =
+  const { zones, cards, life, donAvailable, donRested, turn, turnOwner, activePerspective } =
     useSimulatorStore(
       useShallow((s) => ({
         zones: s.zones,
         cards: s.cards,
         life: s.life,
         donAvailable: s.donAvailable,
+        donRested: s.donRested,
         turn: s.turn,
         turnOwner: s.turnOwner,
         activePerspective: s.activePerspective,
@@ -358,6 +382,7 @@ const ReplayBoard: React.FC = () => {
     active: turnOwner === side,
     life: life[side],
     don: donAvailable[side],
+    donRested: donRested?.[side] ?? 0,
     chars: list(side, "front-row"),
     lifeCards: list(side, "life"),
     leader: list(side, "leader")[0],

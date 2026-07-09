@@ -109,6 +109,7 @@ function createInitialState(
       opponent: initialLife?.opponent ?? 5,
     },
     donAvailable: { player: 0, opponent: 0 },
+    donRested: { player: 0, opponent: 0 },
     turn: 1,
     turnOwner: sideMap[header.firstPlayer ?? header.players[0]] ?? "player",
     activePerspective: "player",
@@ -231,7 +232,18 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
         // Formato viejo sin identidad: sólo quitamos del deck.
         for (let i = 0; i < (ev.count ?? 1); i += 1) popDeck(state, side);
       } else if (ev.drawType === "don") {
-        state.donAvailable[side] += ev.count ?? 1;
+        // El total de DON (activos + rested + adheridos) nunca supera 10 (el
+        // mazo de DON tiene 10 cartas). Capeamos para no inflar el conteo.
+        let attachedTotal = 0;
+        for (const uid of Object.keys(state.cards)) {
+          const c = state.cards[uid];
+          if (c.owner === side) attachedTotal += c.attachedDon ?? 0;
+        }
+        const room = Math.max(
+          0,
+          10 - (state.donAvailable[side] + state.donRested[side] + attachedTotal)
+        );
+        state.donAvailable[side] += Math.min(ev.count ?? 1, room);
       }
       return;
     }
@@ -316,7 +328,8 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       const next = p ? other(p) : other(state.turnOwner);
       state.turn += 1;
       state.turnOwner = next;
-      // El DON!! adherido del jugador que TERMINA su turno regresa a su cost area.
+      // Al terminar el turno de p, su DON adherido regresa a la cost area y los
+      // rested se enderezan → todo queda activo para su próximo turno.
       if (p) {
         let returned = 0;
         for (const uid of Object.keys(state.cards)) {
@@ -326,7 +339,12 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
             state.cards[uid] = { ...c, attachedDon: 0 };
           }
         }
-        state.donAvailable[p] += returned;
+        // Todo vuelve a activo, capeado al máximo real de 10.
+        state.donAvailable[p] = Math.min(
+          10,
+          state.donAvailable[p] + returned + state.donRested[p]
+        );
+        state.donRested[p] = 0;
       }
       // Refresh del nuevo jugador activo: enderezar sus cartas.
       for (const uid of Object.keys(state.cards)) {
@@ -386,11 +404,16 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
             state.cards[uid] = { ...c, attachedDon: (c.attachedDon ?? 0) + n };
           }
         } else if ((mm = t.match(/^Rest (\d+) Don/i))) {
-          // Restear DON como costo (Sakazuki…): salen de los activos.
-          state.donAvailable[side] = Math.max(0, state.donAvailable[side] - Number(mm[1]));
+          // Restear DON como costo (Sakazuki…): pasan de activos a rested,
+          // pero SIGUEN en la cost area (no desaparecen).
+          const n = Math.min(Number(mm[1]), state.donAvailable[side]);
+          state.donAvailable[side] -= n;
+          state.donRested[side] += n;
         } else if ((mm = t.match(/Activate (\d+) Don/i))) {
-          // Parar/stand-up: vuelven a activos.
-          state.donAvailable[side] += Number(mm[1]);
+          // Parar/stand-up: los rested vuelven a activos.
+          const n = Math.min(Number(mm[1]), state.donRested[side]);
+          state.donRested[side] -= n;
+          state.donAvailable[side] += n;
         }
       }
       return;

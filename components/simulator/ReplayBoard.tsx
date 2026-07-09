@@ -35,6 +35,7 @@ const BoardCard = React.memo(
     const setHover = useContext(HoverCtx);
     const src = card?.card?.src;
     const don = card?.attachedDon ?? 0;
+    const buff = card?.tempPower ?? 0;
     return (
       <div
         className={cn("relative bg-black/30 transition-transform", CARD, card?.rested && "rotate-90", className)}
@@ -49,6 +50,12 @@ const BoardCard = React.memo(
           className="h-full w-full object-cover"
           objectFit="cover"
         />
+        {/* Poder temporal por buff (+N), destacado. */}
+        {buff > 0 && (
+          <span className="absolute left-0 top-0 rounded-br-md bg-lime-400/90 px-1 text-[9px] font-black leading-tight text-lime-950 shadow">
+            +{buff}
+          </span>
+        )}
         {/* DON!! adheridos: se ven como cartas DON en la parte baja del personaje. */}
         {don > 0 && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-[1px] px-0.5 pb-[3px]">
@@ -72,7 +79,8 @@ const BoardCard = React.memo(
     a.card?.uid === b.card?.uid &&
     a.card?.card?.src === b.card?.card?.src &&
     a.card?.rested === b.card?.rested &&
-    a.card?.attachedDon === b.card?.attachedDon
+    a.card?.attachedDon === b.card?.attachedDon &&
+    a.card?.tempPower === b.card?.tempPower
 );
 
 const Pile = React.memo(function Pile({

@@ -198,8 +198,16 @@ function buildHistory(
         continue;
       }
 
-      // Habilidad que roba: "X: Draw N" + las N cartas de esa habilidad.
-      if (e.kind === "ability" && /^\s*Draw\s+\d+/i.test(stripTags(e.text))) {
+      // Habilidad que da DON: "X: Draw N Don" → +N DON (no es robo de carta).
+      if (e.kind === "ability" && /^\s*Draw\s+\d+\s+(Rested\s+)?Don/i.test(stripTags(e.text))) {
+        const nm = stripTags(e.text).match(/Draw\s+(\d+)/i);
+        items.push({ idx: i, tone: "don", icon: "💎", player: p, side: s, text: `${e.source.name}: +${nm?.[1] ?? 1} DON` });
+        i += 1;
+        continue;
+      }
+
+      // Habilidad que roba cartas: "X: Draw N Card" + las N cartas de esa habilidad.
+      if (e.kind === "ability" && /^\s*Draw\s+\d+\s+Card/i.test(stripTags(e.text))) {
         const m = stripTags(e.text).match(/Draw\s+(\d+)/i);
         const n = m ? parseInt(m[1], 10) : 1;
         const names: string[] = [];

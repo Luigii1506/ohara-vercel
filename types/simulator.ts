@@ -49,6 +49,8 @@ export interface CardInstance {
   counters: number;
   /** DON!! adheridos a esta carta (para el replay: potencia = base + 1000 * attachedDon). */
   attachedDon?: number;
+  /** Poder temporal por efectos ("Buff X 2000"); se muestra como +N y se limpia al fin de turno. */
+  tempPower?: number;
   notes?: string;
   customLabel?: string;
 }

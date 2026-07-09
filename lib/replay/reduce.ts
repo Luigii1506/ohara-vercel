@@ -362,8 +362,13 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       state.donRested[next] = 0;
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
-        if (c.owner === next && c.rested) {
-          state.cards[uid] = { ...c, rested: false };
+        // Enderezar cartas del que empieza; y limpiar buffs temporales de todos.
+        if ((c.owner === next && c.rested) || c.tempPower) {
+          state.cards[uid] = {
+            ...c,
+            rested: c.owner === next ? false : c.rested,
+            tempPower: 0,
+          };
         }
       }
       return;
@@ -393,7 +398,17 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
     }
 
     case "ability": {
-      const side = ctx.sideMap[ev.player];
+      // Si la habilidad viene sin prefijo de jugador (player=""), resolvemos el
+      // lado por el dueño de la carta fuente (líder/personaje/stage).
+      let side = ctx.sideMap[ev.player];
+      if (!side && ev.source?.code) {
+        for (const s of ["player", "opponent"] as Side[]) {
+          if (findCode(state, s, ["leader", "front-row", "stage"], ev.source.code)) {
+            side = s;
+            break;
+          }
+        }
+      }
       if (side) {
         const t = ev.text;
         // Vida por efectos (al instante):
@@ -444,6 +459,37 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
         if (/Reveal and Draw/i.test(t) && target?.code) {
           addCode(state, ctx, side, "hand", target.code);
         }
+        // "Draw N Don" / "Draw N Rested Don" por efecto (On Play como Sugar).
+        const drawDon = t.match(/^Draw (\d+) (Rested )?Don/i);
+        if (drawDon) {
+          let attachedTotal = 0;
+          for (const uid of Object.keys(state.cards)) {
+            const c = state.cards[uid];
+            if (c.owner === side) attachedTotal += c.attachedDon ?? 0;
+          }
+          const room = Math.max(
+            0,
+            10 - (state.donAvailable[side] + state.donRested[side] + attachedTotal)
+          );
+          const n = Math.min(Number(drawDon[1]), room);
+          if (drawDon[2]) state.donRested[side] += n;
+          else state.donAvailable[side] += n;
+        }
+
+        // "Buff <objetivo> N" → poder temporal (+N). "Buff Self N" = a la fuente.
+        if (/^Buff /i.test(t)) {
+          const clean = t.replace(/\[[^\]]*\]/g, "").replace(/<[^>]*>/g, "");
+          const amt = parseInt(clean.match(/(\d+)/)?.[1] ?? "0", 10);
+          const tgtCode = /^Buff Self/i.test(t) ? ev.source.code : target?.code;
+          const uid = tgtCode
+            ? findCode(state, side, ["leader", "front-row", "stage"], tgtCode)
+            : null;
+          if (uid && amt) {
+            const c = state.cards[uid];
+            state.cards[uid] = { ...c, tempPower: (c.tempPower ?? 0) + amt };
+          }
+        }
+
         // "Trash X" por efecto (costo desde la mano, o mill del deck) → cementerio.
         if (/^Trash\s/i.test(t) && target?.code) {
           const uid =

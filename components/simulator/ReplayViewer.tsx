@@ -110,6 +110,17 @@ const PLAYBACK_KINDS = new Set<ReplayEvent["kind"]>([
   "concede",
 ]);
 
+// Pasos de la fase de batalla → van más lentos en autoplay para digerirlos.
+const COMBAT_KINDS = new Set<ReplayEvent["kind"]>([
+  "attackDeclare",
+  "counter",
+  "combatResult",
+  "attackFail",
+  "damage",
+  "block",
+  "destroy",
+]);
+
 const shortName = (p?: string) => (p ? p.split("#")[0] : "");
 const stripTags = (s: string) => s.replace(/<[^>]*>/g, "");
 
@@ -328,7 +339,8 @@ const ReplayViewer: React.FC = () => {
     [replay]
   );
 
-  // Autoplay: avanza de evento significativo en evento significativo.
+  // Autoplay: avanza de evento significativo en evento significativo. Los pasos
+  // de la fase de batalla van MÁS LENTOS para poder digerir la jugada.
   useEffect(() => {
     if (!playing || !replay) return;
     const next = findMeaningful(index, 1);
@@ -336,7 +348,9 @@ const ReplayViewer: React.FC = () => {
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setIndex(next), 700 / speed);
+    const kind = replay.events[next].kind;
+    const base = COMBAT_KINDS.has(kind) ? 1400 : 700;
+    const t = setTimeout(() => setIndex(next), base / speed);
     return () => clearTimeout(t);
   }, [playing, index, replay, speed, findMeaningful]);
 
@@ -419,14 +433,25 @@ const ReplayViewer: React.FC = () => {
                   </div>
 
                   {combat.counters.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
-                      <span className="text-white/50">counter:</span>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      <span className="text-[11px] text-white/50">counter:</span>
                       {combat.counters.map((c, i) => (
-                        <span key={i} className="rounded bg-sky-500/20 px-1.5 font-semibold text-sky-300">
-                          +{c.value}
-                        </span>
+                        <div key={i} className="flex items-center gap-1">
+                          {cardMap[c.code]?.src && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={cardMap[c.code].src}
+                              alt={c.name}
+                              title={`${cardMap[c.code]?.name ?? c.name} (+${c.value})`}
+                              className="h-9 w-[26px] rounded object-cover object-top ring-1 ring-sky-400/40"
+                            />
+                          )}
+                          <span className="rounded bg-sky-500/20 px-1 text-[10px] font-semibold text-sky-300">
+                            +{c.value}
+                          </span>
+                        </div>
                       ))}
-                      <span className="font-bold text-sky-300">= +{combat.counterTotal}</span>
+                      <span className="text-xs font-bold text-sky-300">= +{combat.counterTotal}</span>
                     </div>
                   )}
 

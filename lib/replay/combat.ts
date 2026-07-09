@@ -9,7 +9,7 @@ import { SideMap } from "@/lib/replay/reduce";
 export interface CombatInfo {
   attacker: { name: string; code: string; side: Side | null; power?: number };
   defender: { name: string; code: string; side: Side | null; power?: number };
-  counters: { name: string; value: number }[];
+  counters: { name: string; code: string; value: number }[];
   counterTotal: number;
   result?: "fail" | "hit" | "destroyed";
   damage?: number;
@@ -60,7 +60,7 @@ export function getActiveCombat(
   if (index > windowEnd) return null; // el combate ya terminó
 
   // Reunir la info conocida hasta el índice actual (se va construyendo).
-  const counters: { name: string; value: number }[] = [];
+  const counters: { name: string; code: string; value: number }[] = [];
   let attackerPower: number | undefined;
   let defenderPower: number | undefined;
   let result: CombatInfo["result"];
@@ -68,7 +68,8 @@ export function getActiveCombat(
 
   for (let i = a; i <= Math.min(index, windowEnd); i += 1) {
     const e = ev[i];
-    if (e.kind === "counter") counters.push({ name: e.card.name, value: e.value });
+    if (e.kind === "counter")
+      counters.push({ name: e.card.name, code: e.card.code, value: e.value });
     else if (e.kind === "combatResult") {
       attackerPower = e.attackerPower;
       defenderPower = e.defenderPower;

@@ -59,7 +59,13 @@ export type ReplayEvent =
       total: number;
     }
   // --- Jugar cartas / habilidades ---
-  | { kind: "deploy"; line: number; player: PlayerRef; card: CardRef }
+  | {
+      kind: "deploy";
+      line: number;
+      player: PlayerRef;
+      card: CardRef;
+      fromEffect?: boolean; // "Deploy X from Deck/Trash" = por efecto (no cuesta DON)
+    }
   | {
       kind: "ability";
       line: number;

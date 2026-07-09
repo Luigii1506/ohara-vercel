@@ -272,6 +272,15 @@ const ReplayViewer: React.FC = () => {
     }
     return out;
   }, [replay, sideMap, cardMap]);
+  // Costo en DON de cada carta (para restear al bajar personajes).
+  const cardCost = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [code, c] of Object.entries(cardMap)) {
+      const n = c.cost ? parseInt(String(c.cost), 10) : NaN;
+      if (!Number.isNaN(n)) out[code] = n;
+    }
+    return out;
+  }, [cardMap]);
 
   // Cargar y parsear un archivo de log.
   const loadFile = useCallback(async (file: File) => {
@@ -303,9 +312,9 @@ const ReplayViewer: React.FC = () => {
   // Renderizar el frame actual: plegar → hidratar → empujar al board.
   useEffect(() => {
     if (!replay) return;
-    const state = foldEvents(replay, index, sideMap, perspective, initialLife);
+    const state = foldEvents(replay, index, sideMap, perspective, initialLife, cardCost);
     loadReplayFrame(hydrateState(state, cardMap));
-  }, [replay, index, perspective, cardMap, sideMap, initialLife, loadReplayFrame]);
+  }, [replay, index, perspective, cardMap, sideMap, initialLife, cardCost, loadReplayFrame]);
 
   // Busca el siguiente/anterior evento significativo (que mueve el tablero).
   const findMeaningful = useCallback(

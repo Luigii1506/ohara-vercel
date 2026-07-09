@@ -275,10 +275,11 @@ function parsePlayerLine(
     };
   }
 
-  // Deploy
+  // Deploy. "Deploy X from Deck/Trash/…" = por efecto (no cuesta DON).
   if (/^Deploy\s/.test(rest)) {
     const card = parseCardRefs(rest)[0];
-    if (card) return { kind: "deploy", line, player, card };
+    const fromEffect = /\bfrom\b/i.test(rest);
+    if (card) return { kind: "deploy", line, player, card, fromEffect };
   }
 
   // Ataque declarado: "NAME [CODE] attacking NAME2 [CODE2]"

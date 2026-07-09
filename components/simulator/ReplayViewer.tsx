@@ -18,6 +18,7 @@ import { deriveSideMap, foldEvents } from "@/lib/replay/reduce";
 import { collectCodes, fetchCardMap, hydrateState, CardMap } from "@/lib/replay/hydrate";
 import { extractMulligans } from "@/lib/replay/mulligan";
 import { getActiveCombat } from "@/lib/replay/combat";
+import { getPhase } from "@/lib/replay/phases";
 import { ParsedReplay, ReplayEvent } from "@/types/replay";
 import { Side } from "@/types/simulator";
 import ReplayBoard from "./ReplayBoard";
@@ -347,8 +348,8 @@ const ReplayViewer: React.FC = () => {
     [replay]
   );
 
-  // Autoplay: avanza de evento significativo en evento significativo. Los pasos
-  // de la fase de batalla van MÁS LENTOS para poder digerir la jugada.
+  // Autoplay: avanza de evento significativo en evento significativo, con PAUSAS
+  // al cambiar de fase/turno para que se entienda el flujo del juego.
   useEffect(() => {
     if (!playing || !replay) return;
     const next = findMeaningful(index, 1);
@@ -357,10 +358,16 @@ const ReplayViewer: React.FC = () => {
       return;
     }
     const kind = replay.events[next].kind;
-    const base = COMBAT_KINDS.has(kind) ? 1400 : 700;
+    const cur = getPhase(replay, index, sideMap);
+    const nxt = getPhase(replay, next, sideMap);
+    const turnChanged = cur?.turn !== nxt?.turn;
+    const phaseChanged = turnChanged || cur?.phase !== nxt?.phase;
+    let base = COMBAT_KINDS.has(kind) ? 1400 : 800;
+    if (turnChanged) base = 2400; // pausa al empezar un turno nuevo
+    else if (phaseChanged) base = 1600; // pausa al cambiar de fase
     const t = setTimeout(() => setIndex(next), base / speed);
     return () => clearTimeout(t);
-  }, [playing, index, replay, speed, findMeaningful]);
+  }, [playing, index, replay, speed, sideMap, findMeaningful]);
 
   // Fronteras de turno (fin de cada turno) para navegar.
   const boundaries = useMemo(
@@ -406,6 +413,12 @@ const ReplayViewer: React.FC = () => {
     [replay, index, sideMap]
   );
 
+  // Fase del turno actual (para el banner que hace todo entendible).
+  const phase = useMemo(
+    () => (replay ? getPhase(replay, index, sideMap) : null),
+    [replay, index, sideMap]
+  );
+
   const header = replay?.header;
   const p1 = header?.players[0];
   const p2 = header?.players[1];
@@ -432,11 +445,38 @@ const ReplayViewer: React.FC = () => {
         <div className="flex h-[calc(100vh-158px)] gap-3">
           {/* Tablero (izquierda, llena la altura) */}
           <div className="relative h-full min-w-0 flex-1">
+            <style>{`
+              @keyframes phaseIn { 0%{opacity:0; transform:translateY(-8px) scale(.92);} 100%{opacity:1; transform:none;} }
+            `}</style>
             <ReplayBoard />
+
+            {/* Banner de FASE: siempre sabes en qué turno y fase vas. */}
+            {phase && !showMulligan && (
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center">
+                <div
+                  key={`${phase.turn}-${phase.phase}`}
+                  className="flex items-center gap-2.5 rounded-full border border-white/15 bg-slate-950/90 px-4 py-1.5 shadow-xl backdrop-blur"
+                  style={{ animation: "phaseIn .4s cubic-bezier(.2,.8,.2,1)" }}
+                >
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide",
+                      phase.side === "player"
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : "bg-rose-500/20 text-rose-300"
+                    )}
+                  >
+                    Turno {phase.turn} · {phase.player}
+                  </span>
+                  <span className="text-base leading-none">{phase.icon}</span>
+                  <span className="text-sm font-bold text-white">{phase.label}</span>
+                </div>
+              </div>
+            )}
 
             {/* Panel de combate: quién ataca a quién, poder, counters, resultado */}
             {combat && !showMulligan && (
-              <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-2">
+              <div className="pointer-events-none absolute inset-x-0 top-14 z-20 flex justify-center px-2">
                 <div className="flex flex-col items-center gap-1 rounded-xl border border-white/15 bg-slate-950/90 px-4 py-2 shadow-2xl backdrop-blur">
                   <div className="flex items-center gap-3">
                     <Combatant info={combat.attacker} cardMap={cardMap} role="attacker" />

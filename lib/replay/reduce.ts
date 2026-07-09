@@ -235,33 +235,21 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       } else if (ev.drawType === "card") {
         // Formato viejo sin identidad: sólo quitamos del deck.
         for (let i = 0; i < (ev.count ?? 1); i += 1) popDeck(state, side);
-      } else if (ev.drawType === "don") {
-        // El total de DON (activos + rested + adheridos) nunca supera 10 (el
-        // mazo de DON tiene 10 cartas). Capeamos para no inflar el conteo.
-        let attachedTotal = 0;
-        for (const uid of Object.keys(state.cards)) {
-          const c = state.cards[uid];
-          if (c.owner === side) attachedTotal += c.attachedDon ?? 0;
-        }
-        const room = Math.max(
-          0,
-          10 - (state.donAvailable[side] + state.donRested[side] + attachedTotal)
-        );
-        state.donAvailable[side] += Math.min(ev.count ?? 1, room);
       }
+      // "Draw N Don": NO tocamos el DON aquí — el conteo activo/rested lo fija de
+      // forma EXACTA la reconciliación RZ1|CHK (el stream ya incluye estos DON).
       return;
     }
 
     case "attachDon": {
       const side = ctx.sideMap[ev.player];
       if (!side) return;
+      // Solo fijamos el DON adherido por carta (RZ1|CHK no lo desglosa). El
+      // activo/rested de la cost area lo maneja la reconciliación.
       const uid = findCode(state, side, ["leader", "front-row", "stage"], ev.target.code);
       if (uid) {
-        const card = state.cards[uid];
-        // `total` es el DON total sobre la carta tras el attach.
-        state.cards[uid] = { ...card, attachedDon: ev.total };
+        state.cards[uid] = { ...state.cards[uid], attachedDon: ev.total };
       }
-      state.donAvailable[side] = Math.max(0, state.donAvailable[side] - ev.amount);
       return;
     }
 
@@ -271,14 +259,7 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       // Sacar de la mano si está; da igual si no (reconcile arregla).
       removeCode(state, side, "hand", ev.card.code);
       addCode(state, ctx, side, "front-row", ev.card.code);
-      // Costo: bajar un personaje restea DON = su costo (implícito en el log).
-      // Los deploys por efecto ("from Deck/Trash") no cuestan DON.
-      if (!ev.fromEffect) {
-        const cost = ctx.cardCost?.[ev.card.code] ?? 0;
-        const n = Math.min(cost, state.donAvailable[side]);
-        state.donAvailable[side] -= n;
-        state.donRested[side] += n;
-      }
+      // El costo en DON (restear) lo refleja la reconciliación RZ1|CHK exacta.
       return;
     }
 
@@ -341,30 +322,20 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       state.turn += 1;
       state.turnOwner = next;
 
-      // FIN del turno de p: su DON adherido vuelve a la cost area RESTED (se
-      // quedan rested durante el turno rival, no se enderezan aún).
+      // FIN del turno de p: su DON adherido vuelve a la cost area (reset por
+      // carta; el activo/rested lo maneja RZ1|CHK).
       if (p) {
-        let returned = 0;
         for (const uid of Object.keys(state.cards)) {
           const c = state.cards[uid];
           if (c.owner === p && c.attachedDon) {
-            returned += c.attachedDon;
             state.cards[uid] = { ...c, attachedDon: 0 };
           }
         }
-        state.donRested[p] += returned;
       }
 
-      // INICIO del turno de next (refresh phase): sus DON rested se enderezan a
-      // activos y sus cartas se enderezan.
-      state.donAvailable[next] = Math.min(
-        10,
-        state.donAvailable[next] + state.donRested[next]
-      );
-      state.donRested[next] = 0;
+      // Enderezar cartas del que empieza y limpiar buffs temporales de todos.
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
-        // Enderezar cartas del que empieza; y limpiar buffs temporales de todos.
         if ((c.owner === next && c.rested) || c.tempPower) {
           state.cards[uid] = {
             ...c,
@@ -438,30 +409,19 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
           state.life[side] = Math.max(0, state.life[side] - 1);
         }
 
-        // DON por efectos:
+        // DON adherido a un personaje por efecto (Edward Newgate, Enel…). El
+        // activo/rested de la cost area (Rest/Activate Don) lo maneja RZ1|CHK.
         let mm: RegExpMatchArray | null;
         if ((mm = t.match(/Attach (\d+) Rested Don to/i))) {
-          // Efectos que adhieren DON rested a un personaje (Edward Newgate, Enel…).
           const n = Number(mm[1]);
-          const target = ev.targets[0];
-          const uid = target
-            ? findCode(state, side, ["leader", "front-row", "stage"], target.code)
+          const tg = ev.targets[0];
+          const uid = tg
+            ? findCode(state, side, ["leader", "front-row", "stage"], tg.code)
             : null;
           if (uid) {
             const c = state.cards[uid];
             state.cards[uid] = { ...c, attachedDon: (c.attachedDon ?? 0) + n };
           }
-        } else if ((mm = t.match(/^Rest (\d+) Don/i))) {
-          // Restear DON como costo (Sakazuki…): pasan de activos a rested,
-          // pero SIGUEN en la cost area (no desaparecen).
-          const n = Math.min(Number(mm[1]), state.donAvailable[side]);
-          state.donAvailable[side] -= n;
-          state.donRested[side] += n;
-        } else if ((mm = t.match(/Activate (\d+) Don/i))) {
-          // Parar/stand-up: los rested vuelven a activos.
-          const n = Math.min(Number(mm[1]), state.donRested[side]);
-          state.donRested[side] -= n;
-          state.donAvailable[side] += n;
         }
 
         // Restear un PERSONAJE por efecto (p.ej. "Sugar: Rest Sugar").
@@ -479,22 +439,7 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
         if (/Reveal and Draw/i.test(t) && target?.code) {
           addCode(state, ctx, side, "hand", target.code);
         }
-        // "Draw N Don" / "Draw N Rested Don" por efecto (On Play como Sugar).
-        const drawDon = t.match(/^Draw (\d+) (Rested )?Don/i);
-        if (drawDon) {
-          let attachedTotal = 0;
-          for (const uid of Object.keys(state.cards)) {
-            const c = state.cards[uid];
-            if (c.owner === side) attachedTotal += c.attachedDon ?? 0;
-          }
-          const room = Math.max(
-            0,
-            10 - (state.donAvailable[side] + state.donRested[side] + attachedTotal)
-          );
-          const n = Math.min(Number(drawDon[1]), room);
-          if (drawDon[2]) state.donRested[side] += n;
-          else state.donAvailable[side] += n;
-        }
+        // ("Draw N Don" por efecto lo cubre la reconciliación RZ1|CHK.)
 
         // "Buff <objetivo> N" → poder temporal (+N). "Buff Self N" = a la fuente.
         if (/^Buff /i.test(t)) {

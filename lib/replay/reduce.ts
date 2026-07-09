@@ -259,12 +259,14 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       // Sacar de la mano si está; da igual si no (reconcile arregla).
       removeCode(state, side, "hand", ev.card.code);
       addCode(state, ctx, side, "front-row", ev.card.code);
-      // Costo: bajar un personaje REST EA DON = su costo (los deploys por efecto
-      // "from Deck/Trash" son gratis). El total lo fija RZ1|CHK; aquí llevamos el
-      // split activo/rested (que CHK no desglosa).
+      // Costo: bajar un personaje MUEVE DON de activo a rested = su costo (los
+      // deploys por efecto "from Deck/Trash" son gratis). El total lo fija
+      // RZ1|CHK; aquí llevamos el split activo/rested al instante.
       if (!ev.fromEffect) {
         const cost = ctx.cardCost?.[ev.card.code] ?? 0;
-        state.donRested[side] += cost;
+        const n = Math.min(cost, state.donAvailable[side]);
+        state.donAvailable[side] -= n;
+        state.donRested[side] += n;
       }
       return;
     }
@@ -341,8 +343,9 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
         state.donRested[p] += returned;
       }
 
-      // INICIO del turno de next (refresh): sus DON rested se enderezan (todos
-      // activos), sus cartas se enderezan, y se limpian los buffs temporales.
+      // INICIO del turno de next (refresh): sus DON rested vuelven a activos,
+      // sus cartas se enderezan, y se limpian los buffs temporales.
+      state.donAvailable[next] += state.donRested[next];
       state.donRested[next] = 0;
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
@@ -435,9 +438,15 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
             state.cards[uid] = { ...c, attachedDon: (c.attachedDon ?? 0) + n };
           }
         } else if ((mm = t.match(/^Rest (\d+) Don/i))) {
-          state.donRested[side] += Number(mm[1]); // restear DON como costo
+          // Restear DON: mueve activo → rested.
+          const n = Math.min(Number(mm[1]), state.donAvailable[side]);
+          state.donAvailable[side] -= n;
+          state.donRested[side] += n;
         } else if ((mm = t.match(/Activate (\d+) Don/i))) {
-          state.donRested[side] = Math.max(0, state.donRested[side] - Number(mm[1])); // parar
+          // Parar/stand-up: mueve rested → activo.
+          const n = Math.min(Number(mm[1]), state.donRested[side]);
+          state.donRested[side] -= n;
+          state.donAvailable[side] += n;
         }
 
         // Restear un PERSONAJE por efecto (p.ej. "Sugar: Rest Sugar").

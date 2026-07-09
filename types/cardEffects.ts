@@ -49,6 +49,7 @@ export interface CardFilter {
 export type EffectAction =
   | { type: "draw"; n: number }
   | { type: "givePower"; target: Target; amount: number; duration: Duration }
+  | { type: "giveCost"; target: Target; amount: number; duration: Duration }
   | { type: "ko"; target: Target; upTo: number; filter?: CardFilter }
   | { type: "rest"; target: Target; upTo: number; filter?: CardFilter }
   | { type: "setActive"; target: Target }

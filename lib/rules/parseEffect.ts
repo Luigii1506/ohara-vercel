@@ -74,9 +74,18 @@ const ACTION_MATCHERS: { re: RegExp; build: (m: RegExpMatchArray, clause: string
     }),
   },
   {
-    re: /Give (?:up to |all of )?(\d+)?[^.]*opponent's Characters?[^.]*[-−](\d+) power/i,
+    re: /Give (?:up to |all of )?(\d+)?[^.]*opponent's (?:Leader or )?Characters?[^.]*[-−](\d+) power/i,
     build: (m, c) => ({
       type: "givePower",
+      target: /all of/i.test(c) ? "allOpponentCharacters" : "chosenOpponentCharacter",
+      amount: -num(m[2]),
+      duration: durationOf(c),
+    }),
+  },
+  {
+    re: /Give (?:up to |all of )?(\d+)?[^.]*opponent's (?:Leader or )?Characters?[^.]*[-−](\d+) cost/i,
+    build: (m, c) => ({
+      type: "giveCost",
       target: /all of/i.test(c) ? "allOpponentCharacters" : "chosenOpponentCharacter",
       amount: -num(m[2]),
       duration: durationOf(c),
@@ -91,7 +100,7 @@ const ACTION_MATCHERS: { re: RegExp; build: (m: RegExpMatchArray, clause: string
     build: (m) => ({ type: "trash", from: "life", n: num(m[1]) }),
   },
   {
-    re: /reveal up to (\d+) \{[^}]+\} type card/i,
+    re: /reveal up to (\d+) (?:\{[^}]+\} type )?cards?/i,
     build: (m, c) => ({ type: "lookTopAdd", look: 0, add: num(m[1]), filter: parseFilter(c) }),
   },
   {
@@ -108,8 +117,12 @@ const ACTION_MATCHERS: { re: RegExp; build: (m: RegExpMatchArray, clause: string
     }),
   },
   {
-    re: /Add up to (\d+) DON!! card[^.]*set it as (active|rested)/i,
-    build: (m) => ({ type: "addDon", n: num(m[1]), state: m[2].toLowerCase() as "active" | "rested" }),
+    re: /Add up to (\d+) DON!! cards?[^.]*(?:set (?:it|them) as (active|rested)|and rest)/i,
+    build: (m) => ({
+      type: "addDon",
+      n: num(m[1]),
+      state: /and rest/i.test(m[0]) && !m[1 + 1] ? "rested" : (m[2]?.toLowerCase() as "active" | "rested") || "active",
+    }),
   },
   {
     re: /Give up to (\d+) rested DON!! cards?[^.]*/i,
@@ -210,8 +223,8 @@ function parseActions(text: string): EffectAction[] {
 function parseCost(text: string): { cost?: EffectCost; rest: string } {
   const idx = text.indexOf(":");
   if (idx === -1 || idx > 90) return { rest: text };
-  const pre = text.slice(0, idx);
-  if (!/^You may|^Rest |^Trash |^Return /i.test(pre.trim())) return { rest: text };
+  const pre = text.slice(0, idx).trim();
+  if (!/^You may|^Rest |^Trash |^Return |^DON!! -/i.test(pre)) return { rest: text };
   const cost: EffectCost = {};
   if (/rest .*this (?:Character|Leader)/i.test(pre)) cost.restThisCard = true;
   const rd = pre.match(/rest (\d+) of your DON!! cards?/i);
@@ -220,14 +233,20 @@ function parseCost(text: string): { cost?: EffectCost; rest: string } {
   if (th) cost.trashFromHand = num(th[1]);
   const tl = pre.match(/trash (\d+) cards? from(?: the top of)? your Life/i);
   if (tl) cost.trashFromLife = num(tl[1]);
+  const dn = pre.match(/DON!! -(\d+)/i);
+  if (dn) cost.returnDon = num(dn[1]);
   return { cost: Object.keys(cost).length ? cost : undefined, rest: text.slice(idx + 1).trim() };
 }
 
 /** Parsea el texto completo de una carta a efectos estructurados. */
 export function parseCardText(rawText: string): ParsedEffect[] {
   const effects: ParsedEffect[] = [];
-  // El texto entre paréntesis es recordatorio de reglas, no acciones → quitar.
-  const text = rawText.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ");
+  // - El texto entre paréntesis es recordatorio de reglas, no acciones → quitar.
+  // - "K.O." tiene un punto que rompía el separador de cláusulas → normalizar a "KO".
+  const text = rawText
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/K\.O\./gi, "KO")
+    .replace(/\s+/g, " ");
   // Separar por tags [X]; alternan tag / texto.
   const parts = text.split(/(\[[^\]]+\])/).filter((s) => s.trim());
 

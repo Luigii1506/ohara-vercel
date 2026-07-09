@@ -136,6 +136,9 @@ export type ReplayEvent =
       token: string; // código de carta o "Don"
       fields: number[]; // campos numéricos restantes (semántica parcial)
     }
+  // --- Checkpoint estructurado RZ1|CHK: estado EXACTO de un jugador ---
+  //     fields = [deck, hand, trash, life, donDeckRestante, donActivos, ...]
+  | { kind: "rzCheck"; line: number; rzPlayer: Rz1Player; fields: number[] }
   // --- No reconocido (se conserva para depurar sin perder nada) ---
   | { kind: "raw"; line: number; text: string };
 

@@ -75,6 +75,17 @@ function parseCodeList(text: string): string[] {
 /** Parsea una línea estructurada RZ1|seq|player|token|... */
 function parseRz1(text: string, line: number): ReplayEvent | null {
   const parts = text.split("|");
+
+  // Checkpoint de estado exacto: RZ1|CHK|<seq>|<player>|<deck>|<hand>|...
+  if (parts[1] === "CHK") {
+    const rzPlayer = Number(parts[3]);
+    if (rzPlayer === 1 || rzPlayer === 2) {
+      const fields = parts.slice(4).map((n) => Number(n));
+      return { kind: "rzCheck", line, rzPlayer: rzPlayer as 1 | 2, fields };
+    }
+    return { kind: "raw", line, text };
+  }
+
   // RZ1|<seq>|<player>|<token>|<n>|<n>|...
   if (parts.length < 4) return null;
   const seq = Number(parts[1]);

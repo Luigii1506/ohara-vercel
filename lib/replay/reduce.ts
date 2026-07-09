@@ -42,6 +42,8 @@ type ReduceContext = {
   leaderSide: Record<string, Side>;
   /** código de carta → costo en DON (para restear al bajar personajes). */
   cardCost?: Record<string, number>;
+  /** número de jugador RZ1 (1|2) → lado. */
+  rzSide?: Record<number, Side>;
   counter: number;
 };
 
@@ -380,6 +382,24 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       return;
     }
 
+    case "rzCheck": {
+      // Reconciliación con el estado EXACTO del log: vida y DON. Esto elimina
+      // cualquier drift de la inferencia por eventos (el dato real manda).
+      const side = ctx.rzSide?.[ev.rzPlayer];
+      if (!side || ev.fields.length < 6) return;
+      state.life[side] = ev.fields[3];
+      const total = Math.max(0, 10 - ev.fields[4]); // DON en juego = 10 - deck restante
+      const active = Math.max(0, ev.fields[5]); // DON activos en cost area
+      let attachedSum = 0;
+      for (const uid of Object.keys(state.cards)) {
+        const c = state.cards[uid];
+        if (c.owner === side) attachedSum += c.attachedDon ?? 0;
+      }
+      state.donAvailable[side] = active;
+      state.donRested[side] = Math.max(0, total - active - attachedSum);
+      return;
+    }
+
     case "checkpoint": {
       const side = ctx.sideMap[ev.player];
       if (!side) return;
@@ -548,7 +568,11 @@ export function foldEvents(
     const side = sideMap[player];
     if (side && card) leaderSide[card.code] = side;
   }
-  const ctx: ReduceContext = { sideMap, leaderSide, cardCost, counter: 0 };
+  const rzSide: Record<number, Side> = {};
+  const [rp1, rp2] = parsed.header.players;
+  if (rp1 && sideMap[rp1]) rzSide[1] = sideMap[rp1];
+  if (rp2 && sideMap[rp2]) rzSide[2] = sideMap[rp2];
+  const ctx: ReduceContext = { sideMap, leaderSide, cardCost, rzSide, counter: 0 };
   const state = createInitialState(parsed.header, sideMap, initialLife);
   state.activePerspective = perspective;
 

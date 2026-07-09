@@ -444,6 +444,26 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
         if (/Reveal and Draw/i.test(t) && target?.code) {
           addCode(state, ctx, side, "hand", target.code);
         }
+        // "Trash X" por efecto (costo desde la mano, o mill del deck) → cementerio.
+        if (/^Trash\s/i.test(t) && target?.code) {
+          const uid =
+            removeCode(state, side, "hand", target.code) ??
+            removeCode(state, side, "front-row", target.code) ??
+            removeCode(state, side, "stage", target.code);
+          if (uid) {
+            state.cards[uid] = {
+              ...state.cards[uid],
+              zoneId: zoneKey(side, "trash"),
+              rested: false,
+              attachedDon: 0,
+            };
+            state.zones[zoneKey(side, "trash")].cardUids.push(uid);
+          } else {
+            // No estaba en mano/board → vino del deck: materializar en el trash.
+            addCode(state, ctx, side, "trash", target.code);
+            popDeck(state, side);
+          }
+        }
       }
       return;
     }

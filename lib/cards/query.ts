@@ -166,6 +166,10 @@ export const buildFiltersFromSearchParams = (
     region: normalizeRegion(params.get("region")),
     counter: params.get("counter") ?? undefined,
     trigger: params.get("trigger") ?? undefined,
+    regulationMarks: splitParam(params.get("blocks"))
+      ?.map((v) => parseInt(v, 10))
+      .filter((n) => !Number.isNaN(n)),
+    standardLegal: params.get("standardLegal") === "true" ? true : undefined,
     sortBy,
     baseOnly: params.get("baseOnly") === "true" ? true : undefined,
   };
@@ -775,6 +779,18 @@ const buildWhere = (
         effects: { some: { effect: { in: filters.effects } } },
       })
     );
+  }
+
+  if (filters.regulationMarks?.length) {
+    andConditions.push(
+      withAlternates({
+        regulationMark: { in: filters.regulationMarks },
+      })
+    );
+  }
+
+  if (filters.standardLegal) {
+    andConditions.push(withAlternates({ standardLegal: true }));
   }
 
   if (filters.altArts?.length) {

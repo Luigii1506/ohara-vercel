@@ -26,6 +26,8 @@ export type CardsFilters = {
   region?: string;
   counter?: string;
   trigger?: string;
+  regulationMarks?: number[]; // filtrar por bloque(s) de regulación (1-5)
+  standardLegal?: boolean; // solo cartas legales en Standard
   sortBy?: CardsSortBy;
   baseOnly?: boolean; // When true, only return base cards (no alternates)
 };

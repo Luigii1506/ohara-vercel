@@ -24,6 +24,8 @@ model Card {
   alternateArt          String?
   status                String?
   triggerCard           String?
+  regulationMark        Int?      // bloque de regulación (1-5); null = sin marca / promo
+  standardLegal         Boolean?  // legal en el formato Standard
   code                  String
   setCode               String
   isFirstEdition        Boolean

@@ -24,7 +24,8 @@ const PHASE_META: Record<PhaseId, { label: string; icon: string }> = {
   main: { label: "Fase principal", icon: "⚔️" },
 };
 
-const shortName = (p: string) => p.split("#")[0];
+const shortName = (p: unknown) =>
+  typeof p === "string" ? p.split("#")[0] : String(p ?? "");
 
 /** Fase del turno en un índice dado. */
 export function getPhase(

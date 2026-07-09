@@ -392,7 +392,8 @@ function buildTurns(events: ReplayEvent[]): ReplayTurn[] {
   if (start < events.length) {
     const owner =
       events.slice(start).reverse().find(
-        (e): e is Extract<ReplayEvent, { player: PlayerRef }> => "player" in e
+        (e): e is Extract<ReplayEvent, { player: PlayerRef }> =>
+          "player" in e && typeof (e as { player: unknown }).player === "string"
       )?.player ?? turns[turns.length - 1]?.player ?? "";
     turns.push({
       index,

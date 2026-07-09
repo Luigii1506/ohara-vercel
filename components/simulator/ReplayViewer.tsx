@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronFirst,
   ChevronLast,
@@ -379,11 +379,18 @@ const ReplayViewer: React.FC = () => {
     setIndex(prev ?? 0);
   };
 
-  // Historial inteligente (fases del turno + robos agrupados), últimas ~22 líneas.
+  // Historial inteligente completo (fases del turno + robos agrupados).
   const history = useMemo(() => {
     if (!replay) return [];
-    return buildHistory(replay, index, sideMap as Record<string, Side>).slice(-22);
+    return buildHistory(replay, index, sideMap as Record<string, Side>);
   }, [replay, index, sideMap]);
+
+  // Auto-scroll del historial al paso actual (lo último).
+  const historyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = historyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [history]);
 
   // Combate activo (para el panel de combate claro).
   const combat = useMemo(
@@ -624,7 +631,10 @@ const ReplayViewer: React.FC = () => {
             </div>
 
             {/* Historial inteligente (fases del turno + robos), llena el resto */}
-            <div className="mt-1 min-h-0 flex-1 overflow-y-auto rounded-lg bg-black/30 p-1.5 text-xs">
+            <div
+              ref={historyRef}
+              className="mt-1 min-h-0 flex-1 overflow-y-auto rounded-lg bg-black/30 p-1.5 text-xs"
+            >
               {history.map((it, k) => {
                 const isCurrent = k === history.length - 1;
                 if (it.tone === "turn") {

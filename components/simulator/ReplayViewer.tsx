@@ -674,7 +674,7 @@ const ReplayViewer: React.FC = () => {
                         {it.player}
                       </span>
                     )}
-                    <span className="truncate">{it.text}</span>
+                    <span className="min-w-0 break-words">{it.text}</span>
                   </div>
                 );
               })}

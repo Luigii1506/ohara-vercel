@@ -428,6 +428,22 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
           state.donRested[side] -= n;
           state.donAvailable[side] += n;
         }
+
+        // Restear un PERSONAJE por efecto (p.ej. "Sugar: Rest Sugar").
+        const target = ev.targets[0];
+        if (/^Rest\s/i.test(t) && !/^Rest\s+\d+\s+Don/i.test(t) && target) {
+          const uid = findCode(state, side, ["front-row", "stage", "leader"], target.code);
+          if (uid) state.cards[uid] = { ...state.cards[uid], rested: true };
+        }
+        // Enderezar/activar un personaje por efecto.
+        if (/^(Set .+ as Active|Activate)\s/i.test(t) && !/Activate \d+ Don/i.test(t) && target) {
+          const uid = findCode(state, side, ["front-row", "stage", "leader"], target.code);
+          if (uid) state.cards[uid] = { ...state.cards[uid], rested: false };
+        }
+        // "Reveal and Draw X" → la carta revelada entra a la mano.
+        if (/Reveal and Draw/i.test(t) && target?.code) {
+          addCode(state, ctx, side, "hand", target.code);
+        }
       }
       return;
     }

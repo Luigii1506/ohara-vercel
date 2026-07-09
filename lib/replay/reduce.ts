@@ -259,7 +259,13 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       // Sacar de la mano si está; da igual si no (reconcile arregla).
       removeCode(state, side, "hand", ev.card.code);
       addCode(state, ctx, side, "front-row", ev.card.code);
-      // El costo en DON (restear) lo refleja la reconciliación RZ1|CHK exacta.
+      // Costo: bajar un personaje REST EA DON = su costo (los deploys por efecto
+      // "from Deck/Trash" son gratis). El total lo fija RZ1|CHK; aquí llevamos el
+      // split activo/rested (que CHK no desglosa).
+      if (!ev.fromEffect) {
+        const cost = ctx.cardCost?.[ev.card.code] ?? 0;
+        state.donRested[side] += cost;
+      }
       return;
     }
 
@@ -322,18 +328,22 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       state.turn += 1;
       state.turnOwner = next;
 
-      // FIN del turno de p: su DON adherido vuelve a la cost area (reset por
-      // carta; el activo/rested lo maneja RZ1|CHK).
+      // FIN del turno de p: su DON adherido vuelve a la cost area RESTED.
       if (p) {
+        let returned = 0;
         for (const uid of Object.keys(state.cards)) {
           const c = state.cards[uid];
           if (c.owner === p && c.attachedDon) {
+            returned += c.attachedDon;
             state.cards[uid] = { ...c, attachedDon: 0 };
           }
         }
+        state.donRested[p] += returned;
       }
 
-      // Enderezar cartas del que empieza y limpiar buffs temporales de todos.
+      // INICIO del turno de next (refresh): sus DON rested se enderezan (todos
+      // activos), sus cartas se enderezan, y se limpian los buffs temporales.
+      state.donRested[next] = 0;
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
         if ((c.owner === next && c.rested) || c.tempPower) {
@@ -359,15 +369,17 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       const side = ctx.rzSide?.[ev.rzPlayer];
       if (!side || ev.fields.length < 6) return;
       state.life[side] = ev.fields[3];
-      const total = Math.max(0, 10 - ev.fields[4]); // DON en juego = 10 - deck restante
-      const active = Math.max(0, ev.fields[5]); // DON activos en cost area
+      // f5 = 10 - f4 = TOTAL de DON en juego (exacto). El split activo/rested/
+      // adherido lo llevan los eventos; aquí solo fijamos el total.
+      const total = Math.max(0, ev.fields[5]);
       let attachedSum = 0;
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
         if (c.owner === side) attachedSum += c.attachedDon ?? 0;
       }
-      state.donAvailable[side] = active;
-      state.donRested[side] = Math.max(0, total - active - attachedSum);
+      // Rested no puede exceder el total menos lo adherido; activo = resto.
+      state.donRested[side] = Math.min(state.donRested[side], Math.max(0, total - attachedSum));
+      state.donAvailable[side] = Math.max(0, total - state.donRested[side] - attachedSum);
       return;
     }
 
@@ -422,6 +434,10 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
             const c = state.cards[uid];
             state.cards[uid] = { ...c, attachedDon: (c.attachedDon ?? 0) + n };
           }
+        } else if ((mm = t.match(/^Rest (\d+) Don/i))) {
+          state.donRested[side] += Number(mm[1]); // restear DON como costo
+        } else if ((mm = t.match(/Activate (\d+) Don/i))) {
+          state.donRested[side] = Math.max(0, state.donRested[side] - Number(mm[1])); // parar
         }
 
         // Restear un PERSONAJE por efecto (p.ej. "Sugar: Rest Sugar").

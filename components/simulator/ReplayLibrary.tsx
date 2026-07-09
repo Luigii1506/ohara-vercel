@@ -1,0 +1,340 @@
+"use client";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  FolderOpen,
+  FileUp,
+  RefreshCw,
+  Trophy,
+  Upload,
+  HardDrive,
+} from "lucide-react";
+import {
+  isFileSystemAccessSupported,
+  pickDirectory,
+  pickLogFile,
+  getSavedDirectory,
+  ensureReadPermission,
+  queryReadPermission,
+  listLogHandles,
+  forgetSavedDirectory,
+  FSDirHandle,
+} from "@/lib/replay/fileAccess";
+import { GameSummary, summarizeLog } from "@/lib/replay/summarize";
+import { fetchCardMap, CardMap } from "@/lib/replay/hydrate";
+import { cn } from "@/lib/utils";
+
+interface ReplayLibraryProps {
+  onPick: (file: File) => void;
+}
+
+/** Una partida en la lista + cómo obtener su File al hacer clic. */
+interface Entry {
+  summary: GameSummary;
+  open: () => Promise<File>;
+}
+
+const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
+  // El soporte de la API depende del navegador → NO decidir el render inicial con
+  // él (rompería la hidratación server/cliente). Arranca en false y se detecta al
+  // montar. La lógica (efectos/handlers) sí usa la detección real directamente.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => setSupported(isFileSystemAccessSupported()), []);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [leaderMap, setLeaderMap] = useState<CardMap>({});
+  const [sourceLabel, setSourceLabel] = useState<string>(""); // carpeta local o elegida
+  const [localMode, setLocalMode] = useState(false);
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Resuelve las imágenes de los líderes de una lista de partidas.
+  const resolveLeaders = useCallback(async (games: GameSummary[]) => {
+    const codes = Array.from(
+      new Set(games.flatMap((g) => g.leaders.map((l) => l.code)))
+    );
+    setLeaderMap(await fetchCardMap(codes));
+  }, []);
+
+  // ── Modo LOCAL: el servidor (en tu Mac) lee la carpeta directo. Cero clics. ──
+  const loadLocal = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/replay/local");
+      const data = await res.json();
+      if (!data?.available || !Array.isArray(data.games) || data.games.length === 0) {
+        return false;
+      }
+      const games = data.games as GameSummary[];
+      setEntries(
+        games.map((summary) => ({
+          summary,
+          open: async () => {
+            const r = await fetch(
+              `/api/replay/local?file=${encodeURIComponent(summary.name)}`
+            );
+            const text = await r.text();
+            return new File([text], summary.name, { type: "text/plain" });
+          },
+        }))
+      );
+      setLocalMode(true);
+      setSourceLabel(data.dir ?? "carpeta local");
+      await resolveLeaders(games);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [resolveLeaders]);
+
+  // ── Modo PICKER: File System Access API (elegir carpeta manualmente). ──
+  const loadFromDir = useCallback(
+    async (dir: FSDirHandle) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const ok = await ensureReadPermission(dir);
+        if (!ok) {
+          setError("Permiso de lectura denegado.");
+          return;
+        }
+        const handles = await listLogHandles(dir);
+        const parsed = await Promise.all(
+          handles.map(async (handle) => {
+            const file = await handle.getFile();
+            const text = await file.text();
+            return {
+              summary: summarizeLog(handle.name, text, file.lastModified),
+              open: () => handle.getFile(),
+            } as Entry;
+          })
+        );
+        const valid = parsed
+          .filter((e) => e.summary.players.length > 0)
+          .sort((a, b) => b.summary.playedAt - a.summary.playedAt);
+        setEntries(valid);
+        setLocalMode(false);
+        setSourceLabel(dir.name);
+        await resolveLeaders(valid.map((e) => e.summary));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error leyendo la carpeta");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [resolveLeaders]
+  );
+
+  // Al montar: primero intenta el modo local (auto). Si no, intenta reabrir la
+  // carpeta recordada solo si el permiso sigue vigente.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const usedLocal = await loadLocal();
+      if (cancelled) return;
+      if (!usedLocal && isFileSystemAccessSupported()) {
+        const h = await getSavedDirectory();
+        if (h && !cancelled) {
+          setSavedName(h.name);
+          const perm = await queryReadPermission(h);
+          if (perm === "granted" && !cancelled) await loadFromDir(h);
+        }
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadLocal, loadFromDir]);
+
+  const openDirectory = async () => {
+    const dir = await pickDirectory();
+    if (dir) loadFromDir(dir);
+  };
+  const reopenSaved = async () => {
+    const dir = await getSavedDirectory();
+    if (dir) loadFromDir(dir);
+  };
+  const chooseFile = async () => {
+    if (supported) {
+      const file = await pickLogFile();
+      if (file) onPick(file);
+    } else {
+      inputRef.current?.click();
+    }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) onPick(file);
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Barra de acciones */}
+      <div className="flex flex-wrap items-center gap-2">
+        {localMode && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-sm font-medium text-emerald-200">
+            <HardDrive className="h-4 w-4" /> Carpeta local detectada
+          </span>
+        )}
+        {supported && !localMode && (
+          <button
+            onClick={openDirectory}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+          >
+            <FolderOpen className="h-4 w-4" /> Abrir carpeta de partidas
+          </button>
+        )}
+        <button
+          onClick={chooseFile}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20"
+        >
+          <FileUp className="h-4 w-4" /> Elegir un archivo
+        </button>
+        {supported && !localMode && savedName && entries.length === 0 && (
+          <button
+            onClick={reopenSaved}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-400/20"
+          >
+            <RefreshCw className="h-4 w-4" /> Reabrir «{savedName}»
+          </button>
+        )}
+        {sourceLabel && entries.length > 0 && (
+          <span className="ml-auto flex items-center gap-2 truncate text-xs text-white/50">
+            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate" title={sourceLabel}>
+              {localMode ? "Local" : sourceLabel} · {entries.length} partidas
+            </span>
+            {!localMode && (
+              <button
+                onClick={() => {
+                  setEntries([]);
+                  setSourceLabel("");
+                  forgetSavedDirectory();
+                  setSavedName(null);
+                }}
+                className="rounded bg-white/10 px-2 py-0.5 hover:bg-white/20"
+              >
+                olvidar
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+
+      {!supported && !localMode && (
+        <p className="text-xs text-amber-300/80">
+          Tu navegador no permite abrir carpetas (usa Chrome/Edge/Brave). Mientras,
+          elige o arrastra un archivo.
+        </p>
+      )}
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-lg bg-white/5 p-3 text-sm text-white/70">
+          <RefreshCw className="h-4 w-4 animate-spin" /> Leyendo partidas…
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+          {error}
+        </div>
+      )}
+
+      {/* Lista de partidas */}
+      {entries.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {entries.map(({ summary, open }) => (
+            <button
+              key={summary.name}
+              onClick={() => open().then(onPick)}
+              className="group flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900/50 p-2.5 text-left transition-colors hover:border-emerald-400/50 hover:bg-slate-800/60"
+            >
+              <div className="flex -space-x-3 shrink-0">
+                {summary.leaders.map((l, i) => (
+                  <div
+                    key={i}
+                    className="h-12 w-12 overflow-hidden rounded-lg ring-2 ring-slate-900"
+                  >
+                    {leaderMap[l.code] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={leaderMap[l.code].src}
+                        alt={l.name}
+                        className="h-full w-full object-cover object-top"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-white/10" />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-white">
+                  {summary.leaders
+                    .map((l) => leaderMap[l.code]?.name ?? l.name)
+                    .join(" vs ") || summary.name}
+                </div>
+                <div className="truncate text-xs text-white/50">
+                  {summary.players.join(" vs ")}
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-white/40">
+                  <span>{summary.dateLabel}</span>
+                  <span>· {summary.turns} turnos</span>
+                  {summary.winner && (
+                    <span className="inline-flex items-center gap-0.5 text-amber-400">
+                      <Trophy className="h-3 w-3" />
+                      {summary.winner.split("#")[0]}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Zona de arrastre (fallback cuando no hay lista) */}
+      {entries.length === 0 && !loading && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          onClick={chooseFile}
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-8 text-center transition-colors",
+            dragOver
+              ? "border-emerald-400/70 bg-emerald-400/10"
+              : "border-white/15 bg-white/[0.02] hover:border-white/30"
+          )}
+        >
+          <Upload className="h-7 w-7 text-white/40" />
+          <div className="text-sm text-white/60">
+            {supported
+              ? "…o arrastra un .log aquí"
+              : "Arrastra un .log de OPTCGSim, o haz clic"}
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".log,.txt"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onPick(f);
+        }}
+      />
+    </div>
+  );
+};
+
+export default ReplayLibrary;

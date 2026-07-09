@@ -40,6 +40,7 @@ import {
   MapPin,
   MoreHorizontal,
   List,
+  Swords,
 } from "lucide-react";
 import {
   siInstagram,
@@ -191,6 +192,7 @@ const NavBar = () => {
   const mainMenuItems: MenuItem[] = [
     { href: "/", label: t("nav.home"), icon: Home, priority: 1 },
     { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers, priority: 2 },
+    { href: "/simulator", label: "Simulator", icon: Swords, priority: 3 },
     { href: "/events", label: t("nav.events"), icon: Calendar, priority: 3 },
     { href: "/tournaments", label: t("nav.tournaments"), icon: Trophy, priority: 4 },
   ];

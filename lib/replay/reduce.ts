@@ -1,0 +1,455 @@
+// Reducer del replay: pliega ReplayEvent[] a un SimulationState.
+//
+// Estrategia HÍBRIDA (la clave de un replay 1:1):
+//   1. Los eventos incrementales (draw, deploy, attack, counter, destroy…)
+//      construyen una animación plausible turno a turno.
+//   2. Los checkpoints de fin de turno (Hand:/Board:/Trash:/Life:) RECONCILIAN
+//      las zonas al estado exacto que dejó OPTCGSim → auto-sanado. Aunque un
+//      evento intermedio se nos escape, cada frontera de turno vuelve a la verdad.
+//
+// La función es determinista: mismos eventos → mismo estado (uids incluidos),
+// así que la UI puede re-plegar hasta cualquier índice sin cache.
+
+import {
+  CardInstance,
+  Side,
+  SimulationState,
+  ZoneId,
+  ZoneState,
+  ZONE_BLUEPRINT,
+} from "@/types/simulator";
+import {
+  ParsedReplay,
+  PlayerRef,
+  ReplayEvent,
+  ReplayHeader,
+} from "@/types/replay";
+
+export type SideMap = Record<PlayerRef, Side>;
+
+/** player1 (primer conectado) → "player", player2 → "opponent". */
+export function deriveSideMap(header: ReplayHeader): SideMap {
+  const map: SideMap = {};
+  const [p1, p2] = header.players;
+  if (p1) map[p1] = "player";
+  if (p2) map[p2] = "opponent";
+  return map;
+}
+
+type ReduceContext = {
+  sideMap: SideMap;
+  /** código de líder → lado dueño (para resolver daño). */
+  leaderSide: Record<string, Side>;
+  counter: number;
+};
+
+const other = (s: Side): Side => (s === "player" ? "opponent" : "player");
+
+const zoneKey = (side: Side, kind: string): ZoneId =>
+  `${side}-${kind}` as ZoneId;
+
+function makeZones(): Record<ZoneId, ZoneState> {
+  return ZONE_BLUEPRINT.reduce((acc, z) => {
+    acc[z.id] = { ...z, cardUids: [], metadata: {} };
+    return acc;
+  }, {} as Record<ZoneId, ZoneState>);
+}
+
+// Tamaño estándar del deck en One Piece TCG (50 cartas, líder aparte).
+const DECK_SIZE = 50;
+
+function createInitialState(
+  header: ReplayHeader,
+  sideMap: SideMap,
+  initialLife?: Partial<Record<Side, number>>
+): SimulationState {
+  const zones = makeZones();
+  const cards: Record<string, CardInstance> = {};
+
+  // Colocar líderes.
+  for (const [player, card] of Object.entries(header.leaders)) {
+    const side = sideMap[player];
+    if (!side || !card) continue;
+    const uid = `leader-${side}`;
+    cards[uid] = {
+      uid,
+      cardId: card.code,
+      owner: side,
+      zoneId: zoneKey(side, "leader"),
+      rested: false,
+      counters: 0,
+      attachedDon: 0,
+    };
+    zones[zoneKey(side, "leader")].cardUids.push(uid);
+  }
+
+  // Deck: no conocemos las cartas de arriba, así que lo representamos como una
+  // pila de "reversos" (instancias sin `card` → se renderizan boca abajo).
+  // El contador de la pila baja al robar. Uids deterministas para keys estables.
+  for (const side of ["player", "opponent"] as Side[]) {
+    const zoneId = zoneKey(side, "deck");
+    for (let i = 0; i < DECK_SIZE; i += 1) {
+      const uid = `deck-${side}-${i}`;
+      cards[uid] = {
+        uid,
+        owner: side,
+        zoneId,
+        rested: false,
+        counters: 0,
+      };
+      zones[zoneId].cardUids.push(uid);
+    }
+  }
+
+  return {
+    zones,
+    cards,
+    life: {
+      player: initialLife?.player ?? 5,
+      opponent: initialLife?.opponent ?? 5,
+    },
+    donAvailable: { player: 0, opponent: 0 },
+    turn: 1,
+    turnOwner: sideMap[header.firstPlayer ?? header.players[0]] ?? "player",
+    activePerspective: "player",
+  };
+}
+
+/** Quita el reverso de arriba del deck (al robar). No falla si el deck está vacío. */
+function popDeck(state: SimulationState, side: Side) {
+  const zone = state.zones[zoneKey(side, "deck")];
+  const uid = zone.cardUids.pop();
+  if (uid) delete state.cards[uid];
+}
+
+/** Devuelve un reverso al deck (cartas que regresan al mazo: mulligan, fondo, etc.).
+ *  Usa ctx.counter para que los uids sean deterministas en cada plegado. */
+function pushDeckBack(state: SimulationState, ctx: ReduceContext, side: Side) {
+  const zoneId = zoneKey(side, "deck");
+  const uid = `db${ctx.counter++}`;
+  state.cards[uid] = { uid, owner: side, zoneId, rested: false, counters: 0 };
+  state.zones[zoneId].cardUids.push(uid);
+}
+
+function newCard(
+  ctx: ReduceContext,
+  code: string,
+  side: Side,
+  zoneId: ZoneId
+): CardInstance {
+  return {
+    uid: `c${ctx.counter++}`,
+    cardId: code,
+    owner: side,
+    zoneId,
+    rested: false,
+    counters: 0,
+    attachedDon: 0,
+  };
+}
+
+/** Añade una carta (por código) al final de una zona. */
+function addCode(state: SimulationState, ctx: ReduceContext, side: Side, kind: string, code: string) {
+  const zoneId = zoneKey(side, kind);
+  const card = newCard(ctx, code, side, zoneId);
+  state.cards[card.uid] = card;
+  state.zones[zoneId].cardUids.push(card.uid);
+  return card;
+}
+
+/** Quita UNA carta con ese código de una zona y devuelve su uid (o null). */
+function removeCode(state: SimulationState, side: Side, kind: string, code: string): string | null {
+  const zone = state.zones[zoneKey(side, kind)];
+  const idx = zone.cardUids.findIndex((uid) => state.cards[uid]?.cardId === code);
+  if (idx === -1) return null;
+  const [uid] = zone.cardUids.splice(idx, 1);
+  return uid;
+}
+
+/** Busca el uid de una carta por código entre varias zonas de un lado. */
+function findCode(state: SimulationState, side: Side, kinds: string[], code: string): string | null {
+  for (const kind of kinds) {
+    const zone = state.zones[zoneKey(side, kind)];
+    const uid = zone.cardUids.find((u) => state.cards[u]?.cardId === code);
+    if (uid) return uid;
+  }
+  return null;
+}
+
+/**
+ * Reconcilia una zona al multiconjunto exacto de códigos del checkpoint,
+ * PRESERVANDO el estado (rested, DON) de las cartas que permanecen.
+ */
+function reconcileZone(
+  state: SimulationState,
+  ctx: ReduceContext,
+  side: Side,
+  kind: string,
+  codes: string[]
+) {
+  const zoneId = zoneKey(side, kind);
+  const zone = state.zones[zoneId];
+
+  // Pool de uids actuales agrupados por código.
+  const pool = new Map<string, string[]>();
+  for (const uid of zone.cardUids) {
+    const code = state.cards[uid]?.cardId as string;
+    if (!pool.has(code)) pool.set(code, []);
+    pool.get(code)!.push(uid);
+  }
+
+  const resultUids: string[] = [];
+  for (const code of codes) {
+    const reuse = pool.get(code)?.shift();
+    if (reuse) {
+      resultUids.push(reuse);
+    } else {
+      const card = newCard(ctx, code, side, zoneId);
+      state.cards[card.uid] = card;
+      resultUids.push(card.uid);
+    }
+  }
+
+  // Eliminar los uids sobrantes que no entraron al resultado.
+  pool.forEach((leftover) => {
+    leftover.forEach((uid) => delete state.cards[uid]);
+  });
+
+  zone.cardUids = resultUids;
+}
+
+/** Aplica UN evento al estado (mutándolo). */
+export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceContext) {
+  switch (ev.kind) {
+    case "draw": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      if (ev.drawType === "deck" && ev.card) {
+        addCode(state, ctx, side, "hand", ev.card.code);
+        popDeck(state, side);
+      } else if (ev.drawType === "card") {
+        // Formato viejo sin identidad: sólo quitamos del deck.
+        for (let i = 0; i < (ev.count ?? 1); i += 1) popDeck(state, side);
+      } else if (ev.drawType === "don") {
+        state.donAvailable[side] += ev.count ?? 1;
+      }
+      return;
+    }
+
+    case "attachDon": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      const uid = findCode(state, side, ["leader", "front-row", "stage"], ev.target.code);
+      if (uid) {
+        const card = state.cards[uid];
+        // `total` es el DON total sobre la carta tras el attach.
+        state.cards[uid] = { ...card, attachedDon: ev.total };
+      }
+      state.donAvailable[side] = Math.max(0, state.donAvailable[side] - ev.amount);
+      return;
+    }
+
+    case "deploy": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      // Sacar de la mano si está; da igual si no (reconcile arregla).
+      removeCode(state, side, "hand", ev.card.code);
+      addCode(state, ctx, side, "front-row", ev.card.code);
+      return;
+    }
+
+    case "attackDeclare": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      const uid = findCode(state, side, ["leader", "front-row"], ev.attacker.code);
+      if (uid) state.cards[uid] = { ...state.cards[uid], rested: true };
+      return;
+    }
+
+    case "block": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      const uid = findCode(state, side, ["front-row", "leader"], ev.blocker.code);
+      if (uid) state.cards[uid] = { ...state.cards[uid], rested: true };
+      return;
+    }
+
+    case "destroy": {
+      // Buscar la carta en cualquiera de los dos lados y mandarla al trash de su dueño.
+      for (const side of ["player", "opponent"] as Side[]) {
+        const uid = removeCode(state, side, "front-row", ev.card.code) ??
+          removeCode(state, side, "stage", ev.card.code);
+        if (uid) {
+          state.cards[uid] = {
+            ...state.cards[uid],
+            zoneId: zoneKey(side, "trash"),
+            rested: false,
+            attachedDon: 0,
+          };
+          state.zones[zoneKey(side, "trash")].cardUids.push(uid);
+          return;
+        }
+      }
+      return;
+    }
+
+    case "counter": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      const uid = removeCode(state, side, "hand", ev.card.code);
+      if (uid) {
+        state.cards[uid] = { ...state.cards[uid], zoneId: zoneKey(side, "trash") };
+        state.zones[zoneKey(side, "trash")].cardUids.push(uid);
+      }
+      return;
+    }
+
+    case "damage": {
+      // El daño baja la vida del dueño del líder golpeado.
+      const side = ctx.leaderSide[ev.target.code];
+      if (side) state.life[side] = Math.max(0, state.life[side] - ev.amount);
+      return;
+    }
+
+    case "endTurn": {
+      const p = ctx.sideMap[ev.player];
+      const next = p ? other(p) : other(state.turnOwner);
+      state.turn += 1;
+      state.turnOwner = next;
+      // El DON!! adherido del jugador que TERMINA su turno regresa a su cost area.
+      if (p) {
+        let returned = 0;
+        for (const uid of Object.keys(state.cards)) {
+          const c = state.cards[uid];
+          if (c.owner === p && c.attachedDon) {
+            returned += c.attachedDon;
+            state.cards[uid] = { ...c, attachedDon: 0 };
+          }
+        }
+        state.donAvailable[p] += returned;
+      }
+      // Refresh del nuevo jugador activo: enderezar sus cartas.
+      for (const uid of Object.keys(state.cards)) {
+        const c = state.cards[uid];
+        if (c.owner === next && c.rested) {
+          state.cards[uid] = { ...c, rested: false };
+        }
+      }
+      return;
+    }
+
+    case "life": {
+      const side = ctx.sideMap[ev.player];
+      if (side) state.life[side] = ev.value;
+      return;
+    }
+
+    case "checkpoint": {
+      const side = ctx.sideMap[ev.player];
+      if (!side) return;
+      const kind = ev.zone === "board" ? "front-row" : ev.zone; // board → personajes
+      reconcileZone(state, ctx, side, kind, ev.cards);
+      return;
+    }
+
+    case "deckManip": {
+      // Cartas que regresan al mazo: reponer un reverso para mantener la pila.
+      const side = ctx.sideMap[ev.player];
+      if (side && /(Bottom|Top) of Deck|Deck (Bottom|Top)/i.test(ev.text)) {
+        pushDeckBack(state, ctx, side);
+      }
+      return;
+    }
+
+    case "ability": {
+      const side = ctx.sideMap[ev.player];
+      if (side) {
+        const t = ev.text;
+        // Vida por efectos (al instante):
+        if (/to top of Life/i.test(t)) {
+          state.life[side] += 1;
+        } else if (/Takes? Top Life/i.test(t)) {
+          state.life[side] = Math.max(0, state.life[side] - 1);
+        }
+
+        // DON por efectos:
+        let mm: RegExpMatchArray | null;
+        if ((mm = t.match(/Attach (\d+) Rested Don to/i))) {
+          // Efectos que adhieren DON rested a un personaje (Edward Newgate, Enel…).
+          const n = Number(mm[1]);
+          const target = ev.targets[0];
+          const uid = target
+            ? findCode(state, side, ["leader", "front-row", "stage"], target.code)
+            : null;
+          if (uid) {
+            const c = state.cards[uid];
+            state.cards[uid] = { ...c, attachedDon: (c.attachedDon ?? 0) + n };
+          }
+        } else if ((mm = t.match(/^Rest (\d+) Don/i))) {
+          // Restear DON como costo (Sakazuki…): salen de los activos.
+          state.donAvailable[side] = Math.max(0, state.donAvailable[side] - Number(mm[1]));
+        } else if ((mm = t.match(/Activate (\d+) Don/i))) {
+          // Parar/stand-up: vuelven a activos.
+          state.donAvailable[side] += Number(mm[1]);
+        }
+      }
+      return;
+    }
+
+    // Eventos informativos o ya cubiertos por reconcile: no mutan el tablero.
+    case "combatResult":
+    case "attackFail":
+    case "handReveal":
+    case "mulligan":
+    case "turnOrder":
+    case "leader":
+    case "connect":
+    case "version":
+    case "concede":
+    case "rz1":
+    case "raw":
+    default:
+      return;
+  }
+}
+
+/**
+ * Pliega los eventos [0..uptoIndex] (inclusive) a un SimulationState.
+ * Recalcula desde cero: determinista y sin necesidad de cache.
+ */
+export function foldEvents(
+  parsed: ParsedReplay,
+  uptoIndex: number,
+  sideMap: SideMap = deriveSideMap(parsed.header),
+  perspective: Side = "player",
+  initialLife?: Partial<Record<Side, number>>
+): SimulationState {
+  const leaderSide: Record<string, Side> = {};
+  for (const [player, card] of Object.entries(parsed.header.leaders)) {
+    const side = sideMap[player];
+    if (side && card) leaderSide[card.code] = side;
+  }
+  const ctx: ReduceContext = { sideMap, leaderSide, counter: 0 };
+  const state = createInitialState(parsed.header, sideMap, initialLife);
+  state.activePerspective = perspective;
+
+  const end = Math.min(uptoIndex, parsed.events.length - 1);
+  for (let i = 0; i <= end; i += 1) {
+    applyEvent(state, parsed.events[i], ctx);
+  }
+  return state;
+}
+
+/** Contexto reutilizable para plegados incrementales (test / animación fina). */
+export function makeContext(parsed: ParsedReplay, sideMap = deriveSideMap(parsed.header)): {
+  ctx: ReduceContext;
+  state: SimulationState;
+} {
+  const leaderSide: Record<string, Side> = {};
+  for (const [player, card] of Object.entries(parsed.header.leaders)) {
+    const side = sideMap[player];
+    if (side && card) leaderSide[card.code] = side;
+  }
+  const ctx: ReduceContext = { sideMap, leaderSide, counter: 0 };
+  return { ctx, state: createInitialState(parsed.header, sideMap) };
+}

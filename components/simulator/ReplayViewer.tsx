@@ -317,8 +317,18 @@ const ReplayViewer: React.FC = () => {
       setCardMap(map);
       setReplay(parsed);
       setFileName(file.name);
-      // Arrancar en el primer evento que mueve el tablero (salta el setup/ruido).
-      const first = parsed.events.findIndex((e) => PLAYBACK_KINDS.has(e.kind));
+      // Arrancar tras el setup: los draws de apertura del oponente se loguean
+      // primero y los del jugador mucho después, así que empezar en el primer
+      // draw dejaría la mano propia vacía. Anclamos al 2º handReveal (ambas manos
+      // de apertura ya reveladas) y de ahí al primer evento que mueve el tablero.
+      const revealIdxs = parsed.events
+        .map((e, i) => (e.kind === "handReveal" ? i : -1))
+        .filter((i) => i >= 0);
+      const setupEnd =
+        revealIdxs.length >= 2 ? revealIdxs[1] : revealIdxs[0] ?? -1;
+      const first = parsed.events.findIndex(
+        (e, i) => i > setupEnd && PLAYBACK_KINDS.has(e.kind)
+      );
       setIndex(first >= 0 ? first : 0);
       setPlaying(false);
       setShowMulligan(true); // reproduce la animación de mulligan al abrir

@@ -504,10 +504,18 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       return;
     }
 
+    // La revelación de mano trae el contenido EXACTO de la mano de un jugador
+    // (mulligan / reveal). Reconciliamos esa mano para que se vea desde el inicio,
+    // en vez de esperar a un checkpoint tardío (el stream RZ1 va por delante).
+    case "handReveal": {
+      const side = ctx.sideMap[ev.player];
+      if (side) reconcileZone(state, ctx, side, "hand", ev.cards);
+      return;
+    }
+
     // Eventos informativos o ya cubiertos por reconcile: no mutan el tablero.
     case "combatResult":
     case "attackFail":
-    case "handReveal":
     case "mulligan":
     case "turnOrder":
     case "leader":

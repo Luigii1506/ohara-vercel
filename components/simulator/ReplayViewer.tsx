@@ -430,7 +430,6 @@ const ReplayViewer: React.FC = () => {
     () => (replay ? buildFeed(replay, sideMap as Record<string, Side>) : []),
     [replay, sideMap]
   );
-  const visibleFeed = useMemo(() => feed.filter((f) => f.index <= index), [feed, index]);
   // Combate activo (para el aviso central de ataque con flecha roja).
   const combat = useMemo(
     () => (replay ? getActiveCombat(replay, index, sideMap) : null),
@@ -438,15 +437,22 @@ const ReplayViewer: React.FC = () => {
   );
   // Evento actual: para el aviso central de "fin del turno".
   const atTurnEnd = replay?.events[index]?.kind === "endTurn";
-  // Índice de evento del último item mostrado = la acción "actual" (resaltada).
-  const currentActionIndex = visibleFeed.length
-    ? visibleFeed[visibleFeed.length - 1].index
-    : -1;
-  const feedRef = useRef<HTMLDivElement>(null);
+  // Línea de tiempo COMPLETA: el feed siempre muestra TODAS las acciones (no se
+  // borra el futuro al retroceder). Solo resaltamos la acción actual = la última
+  // cuyo índice ya ocurrió (<= index). El feed está ordenado por índice.
+  const currentActionIndex = useMemo(() => {
+    let last = -1;
+    for (const f of feed) {
+      if (f.index <= index) last = f.index;
+      else break;
+    }
+    return last;
+  }, [feed, index]);
+  // Auto-scroll: llevar la acción actual a la vista (sin saltos bruscos).
+  const currentRowRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [visibleFeed.length]);
+    currentRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [currentActionIndex]);
   const onFeedClick = useCallback((item: FeedItem) => {
     // Las tarjetas de setup (mano inicial / mulligan) reproducen la animación de
     // mulligan, como al abrir la partida.
@@ -510,24 +516,30 @@ const ReplayViewer: React.FC = () => {
                 <span className="truncate text-xs font-bold text-white">{phase.label}</span>
               </div>
             )}
-            <div
-              ref={feedRef}
-              className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5"
-            >
-              {visibleFeed.length === 0 ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
+              {feed.length === 0 ? (
                 <div className="p-2 text-[11px] text-white/40">
-                  Las acciones aparecerán aquí conforme avances…
+                  Las acciones aparecerán aquí…
                 </div>
               ) : (
-                visibleFeed.map((it) => (
-                  <FeedRow
-                    key={`${it.kind}-${it.index}`}
-                    item={it}
-                    cardMap={cardMap}
-                    current={it.index === currentActionIndex}
-                    onSeek={onFeedClick}
-                  />
-                ))
+                feed.map((it) => {
+                  const isCur = it.index === currentActionIndex;
+                  const isFuture = it.index > index;
+                  return (
+                    <div
+                      key={`${it.kind}-${it.index}`}
+                      ref={isCur ? currentRowRef : null}
+                      className={cn("transition-opacity", isFuture && "opacity-45")}
+                    >
+                      <FeedRow
+                        item={it}
+                        cardMap={cardMap}
+                        current={isCur}
+                        onSeek={onFeedClick}
+                      />
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

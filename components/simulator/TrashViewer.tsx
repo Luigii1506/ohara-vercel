@@ -42,8 +42,8 @@ const TrashViewer: React.FC<Props> = ({ cards, side, onClose }) => {
       onClick={close}
     >
       <style>{`
-        @keyframes trashIn {
-          0%   { opacity: 0; transform: translateY(28px) scale(.85); }
+        @keyframes mulliDealIn {
+          0%   { opacity: 0; transform: translate(45%, -70%) scale(.55) rotate(14deg); }
           100% { opacity: 1; transform: none; }
         }
       `}</style>
@@ -75,7 +75,7 @@ const TrashViewer: React.FC<Props> = ({ cards, side, onClose }) => {
       </div>
 
       <div
-        className="flex-1 overflow-x-auto overflow-y-hidden px-5 pb-6"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-5 pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         {ordered.length === 0 ? (
@@ -83,18 +83,18 @@ const TrashViewer: React.FC<Props> = ({ cards, side, onClose }) => {
             El cementerio está vacío.
           </div>
         ) : (
-          <div className="flex h-full items-center gap-3">
+          <div className="flex h-full flex-wrap content-center items-center justify-center gap-3">
             {ordered.map((c, i) => {
               const src = (c.card as { src?: string } | undefined)?.src;
               const name = (c.card as { name?: string } | undefined)?.name;
               return (
                 <div
                   key={c.uid}
-                  className="group relative h-[78%] max-h-[440px] shrink-0 overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/15 transition-transform hover:z-10 hover:scale-105"
+                  className="relative w-[8vw] max-w-[92px] shrink-0 overflow-hidden rounded-md shadow-lg ring-1 ring-black/50 transition-transform duration-200 hover:z-10 hover:scale-[2.2]"
                   style={{
                     aspectRatio: "5 / 7",
-                    animation: "trashIn .4s cubic-bezier(.2,.8,.2,1) both",
-                    animationDelay: `${Math.min(i, 25) * 35}ms`,
+                    animation: "mulliDealIn .5s cubic-bezier(.2,.8,.2,1) both",
+                    animationDelay: `${Math.min(i, 25) * 60}ms`,
                   }}
                   title={name}
                 >

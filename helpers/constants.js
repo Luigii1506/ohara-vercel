@@ -1369,3 +1369,13 @@ export const typesOptions = [
   { value: "World Pirates", label: "World Pirates" },
   { value: "Yonta Maria Fleet", label: "Yonta Maria Fleet" },
 ];
+
+// Bloque de regulación (regulation mark). Valor = número de bloque como string.
+// Bloque 1 está rotado del formato Standard (salvo cartas reimpresas → usar "Solo legal").
+export const blockOptions = [
+  { value: "5", label: "Bloque 5" },
+  { value: "4", label: "Bloque 4" },
+  { value: "3", label: "Bloque 3" },
+  { value: "2", label: "Bloque 2" },
+  { value: "1", label: "Bloque 1 (rotado)" },
+];

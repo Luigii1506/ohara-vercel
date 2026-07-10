@@ -18,6 +18,7 @@ import {
   atributeOptions,
   setCodesOptions,
   altArtOptions,
+  blockOptions,
 } from "@/helpers/constants";
 
 import ClearFiltersButton from "../ClearFiltersButton";
@@ -59,6 +60,11 @@ interface SearchFiltersProps {
   selectedRegion?: string;
   setSelectedRegion?: (region: string) => void;
   isProVersion?: boolean;
+  // Bloque de regulación y legalidad Standard (opcionales).
+  selectedBlocks?: string[];
+  setSelectedBlocks?: (blocks: string[]) => void;
+  standardLegalOnly?: boolean;
+  setStandardLegalOnly?: (value: boolean) => void;
 }
 
 const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -96,6 +102,10 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
   selectedRegion,
   setSelectedRegion,
   isProVersion,
+  selectedBlocks,
+  setSelectedBlocks,
+  standardLegalOnly,
+  setStandardLegalOnly,
 }) => {
   const { t } = useI18n();
   // Detectar si es desktop (1024px+) para habilitar búsqueda
@@ -146,9 +156,13 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 setSelectedCodes([]);
                 setSelectedAltArts([]);
                 setSelectedRegion?.("");
+                setSelectedBlocks?.([]);
+                setStandardLegalOnly?.(false);
               }}
               isTouchable={
                 selectedColors.length > 0 ||
+                (selectedBlocks?.length ?? 0) > 0 ||
+                standardLegalOnly === true ||
                 selectedRarities.length > 0 ||
                 selectedCategories.length > 0 ||
                 selectedCounter !== "" ||
@@ -277,6 +291,41 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
               }
               searchPlaceholder="Search rarity..."
             />
+
+            {setSelectedBlocks && (
+              <MultiSelect
+                options={blockOptions}
+                selected={selectedBlocks ?? []}
+                setSelected={setSelectedBlocks}
+                displaySelectedAs={(selected) =>
+                  selected.length === 1 ? `Bloque ${selected[0]}` : "Bloque"
+                }
+                searchPlaceholder="Bloque..."
+              />
+            )}
+
+            {setStandardLegalOnly && (
+              <button
+                type="button"
+                onClick={() => setStandardLegalOnly(!standardLegalOnly)}
+                className={
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors " +
+                  (standardLegalOnly
+                    ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")
+                }
+              >
+                <span
+                  className={
+                    "h-3.5 w-3.5 rounded border " +
+                    (standardLegalOnly
+                      ? "border-emerald-500 bg-emerald-500"
+                      : "border-slate-300")
+                  }
+                />
+                Solo legal
+              </button>
+            )}
 
             <MultiSelect
               options={typesOptions}

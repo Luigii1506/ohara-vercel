@@ -20,6 +20,7 @@ import {
   atributeOptions,
   altArtOptions,
   setCodesOptions,
+  blockOptions,
 } from "@/helpers/constants";
 
 interface FiltersSidebarProps {
@@ -61,14 +62,6 @@ interface FiltersSidebarProps {
   standardLegalOnly?: boolean;
   setStandardLegalOnly?: (value: boolean) => void;
 }
-
-const blockOptions = [
-  { value: "5", label: "Bloque 5" },
-  { value: "4", label: "Bloque 4" },
-  { value: "3", label: "Bloque 3" },
-  { value: "2", label: "Bloque 2" },
-  { value: "1", label: "Bloque 1 (rotado)" },
-];
 
 const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
   (
@@ -355,6 +348,8 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
                 setSelectedPower([]);
                 setSelectedAttributes([]);
                 setSelectedCodes([]);
+                setSelectedBlocks?.([]);
+                setStandardLegalOnly?.(false);
               }}
             >
               <FilterX className="h-4 w-4" />

@@ -880,7 +880,9 @@ const CardListClient = ({
       selectedPower?.length +
       selectedAttributes?.length +
       selectedCodes?.length +
-      selectedAltArts?.length,
+      selectedAltArts?.length +
+      (selectedBlocks?.length ?? 0) +
+      (standardLegalOnly ? 1 : 0),
     [
       selectedColors,
       selectedRarities,
@@ -895,6 +897,8 @@ const CardListClient = ({
       selectedSets,
       selectedCodes,
       selectedAltArts,
+      selectedBlocks,
+      standardLegalOnly,
     ]
   );
 
@@ -1276,6 +1280,10 @@ const CardListClient = ({
             setSelectedAltArts={setSelectedAltArts}
             selectedAltArts={selectedAltArts}
             isProVersion={isProVersion}
+            selectedBlocks={selectedBlocks}
+            setSelectedBlocks={setSelectedBlocks}
+            standardLegalOnly={standardLegalOnly}
+            setStandardLegalOnly={setStandardLegalOnly}
           />
         </div>
 
@@ -1441,6 +1449,10 @@ const CardListClient = ({
             setSelectedAltArts={setSelectedAltArts}
             selectedCodes={selectedCodes}
             setSelectedCodes={setSelectedCodes}
+            selectedBlocks={selectedBlocks}
+            setSelectedBlocks={setSelectedBlocks}
+            standardLegalOnly={standardLegalOnly}
+            setStandardLegalOnly={setStandardLegalOnly}
           />
         </div>
 

@@ -147,7 +147,7 @@ async function main() {
 
   let updated = 0;
   let notFound = 0;
-  for (const [code, v] of agg) {
+  for (const [code, v] of Array.from(agg)) {
     const res = await prisma.card.updateMany({
       where: { code },
       data: { regulationMark: v.mark, standardLegal: v.legal },

@@ -31,6 +31,7 @@ import {
   altArtOptions,
   setCodesOptions,
   allRegions,
+  blockOptions,
 } from "@/helpers/constants";
 
 interface FilterOption {
@@ -81,6 +82,11 @@ interface MobileFiltersDrawerProps {
   setSelectedRegion?: (region: string) => void;
   disabledColors?: string[];
   disabledTypes?: string[];
+  // Bloque de regulación y legalidad Standard (opcionales).
+  selectedBlocks?: string[];
+  setSelectedBlocks?: (blocks: string[]) => void;
+  standardLegalOnly?: boolean;
+  setStandardLegalOnly?: (value: boolean) => void;
 }
 
 const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
@@ -116,6 +122,10 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
   setSelectedRegion,
   disabledColors = [],
   disabledTypes = [],
+  selectedBlocks,
+  setSelectedBlocks,
+  standardLegalOnly,
+  setStandardLegalOnly,
 }) => {
   const { t } = useI18n();
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -187,6 +197,19 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     { id: "rarity", label: t("filters.rarity"), options: rarityOptions, isMulti: true },
 
     { id: "costs", label: t("filters.costs"), options: costOptions, isMulti: true },
+    ...(setSelectedBlocks
+      ? [{ id: "block", label: "Bloque", options: blockOptions, isMulti: true }]
+      : []),
+    ...(setStandardLegalOnly
+      ? [
+          {
+            id: "legal",
+            label: "Legalidad",
+            options: [{ value: "true", label: "Solo legal (Standard)" }],
+            isMulti: false,
+          },
+        ]
+      : []),
     {
       id: "power",
       label: t("filters.power"),
@@ -269,6 +292,10 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
         return selectedCodes;
       case "region":
         return selectedRegion ? [selectedRegion] : [];
+      case "block":
+        return selectedBlocks ?? [];
+      case "legal":
+        return standardLegalOnly ? ["true"] : [];
       default:
         return [];
     }
@@ -320,6 +347,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
         case "codes":
           setSelectedCodes(newSelected);
           break;
+        case "block":
+          setSelectedBlocks?.(newSelected);
+          break;
       }
     } else {
       const newValue = currentSelected.includes(value) ? "" : value;
@@ -332,6 +362,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
           break;
         case "region":
           setSelectedRegion?.(newValue);
+          break;
+        case "legal":
+          setStandardLegalOnly?.(newValue === "true");
           break;
       }
     }
@@ -381,6 +414,12 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
       case "region":
         setSelectedRegion?.("");
         break;
+      case "block":
+        setSelectedBlocks?.([]);
+        break;
+      case "legal":
+        setStandardLegalOnly?.(false);
+        break;
     }
   };
 
@@ -410,10 +449,14 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     setSelectedAltArts([]);
     setSelectedCodes([]);
     setSelectedRegion?.("");
+    setSelectedBlocks?.([]);
+    setStandardLegalOnly?.(false);
   };
 
   const hasActiveFilters =
     selectedColors.length > 0 ||
+    (selectedBlocks?.length ?? 0) > 0 ||
+    standardLegalOnly === true ||
     selectedRarities.length > 0 ||
     selectedCategories.length > 0 ||
     selectedCounter !== "" ||
@@ -442,7 +485,9 @@ const MobileFiltersDrawer: React.FC<MobileFiltersDrawerProps> = ({
     selectedAttributes.length +
     selectedAltArts.length +
     selectedCodes.length +
-    ((selectedRegion ?? "") !== "" ? 1 : 0);
+    ((selectedRegion ?? "") !== "" ? 1 : 0) +
+    (selectedBlocks?.length ?? 0) +
+    (standardLegalOnly ? 1 : 0);
 
   const activeFilterConfig = filters.find((f) => f.id === activeFilter);
 

@@ -7,6 +7,7 @@ import { useSimulatorStore, SIMULATOR_CARD_FALLBACK } from "@/store/simulatorSto
 import LazyImage from "@/components/LazyImage";
 import { CardInstance, Side, ZoneId } from "@/types/simulator";
 import { cn } from "@/lib/utils";
+import TrashViewer from "./TrashViewer";
 
 // Board de SOLO LECTURA para el replay, estilo simulador oficial.
 //
@@ -34,6 +35,10 @@ const DON_IMG =
 // Contexto de hover: expone una función estable para mostrar la carta en grande.
 type HoverInfo = { src?: string; name?: string } | null;
 const HoverCtx = createContext<(info: HoverInfo) => void>(() => {});
+
+// Contexto para abrir el visor del Trash desde cualquier pila (sin prop drilling).
+type TrashView = { cards: CardInstance[]; side: Side } | null;
+const TrashCtx = createContext<(v: TrashView) => void>(() => {});
 
 const BoardCard = React.memo(
   function BoardCard({ card, className }: { card?: CardInstance; className?: string }) {
@@ -110,17 +115,26 @@ const Pile = React.memo(function Pile({
   faceDown,
   width,
   accent,
+  onClick,
 }: {
   cards: CardInstance[];
   label: string;
   faceDown?: boolean;
   width: string;
   accent?: string;
+  onClick?: () => void;
 }) {
   const top = cards[cards.length - 1];
   const count = cards.length;
   return (
-    <div className={cn("relative shrink-0", width)}>
+    <div
+      className={cn(
+        "relative shrink-0",
+        width,
+        onClick && "cursor-pointer rounded-md ring-white/0 transition hover:ring-2 hover:ring-emerald-400/50"
+      )}
+      onClick={onClick}
+    >
       {count === 0 ? (
         <div
           className={cn(
@@ -386,12 +400,19 @@ const DonDeckPile = React.memo(function DonDeckPile({ count }: { count: number }
 });
 
 // Fila EXTERIOR (borde): mazo de DON (pila) · barra ancha de DON en juego · Trash.
+// El Trash es clickable → abre el visor con carrusel.
 const DonRow = React.memo(function DonRow(d: HalfData) {
+  const openTrash = useContext(TrashCtx);
   return (
     <div className="flex min-h-0 flex-[0.9] items-stretch gap-[1.5%]">
       <DonDeckPile count={d.donDeck} />
       <DonStrip active={d.don} rested={d.donRested} />
-      <Pile cards={d.trash} label="Trash" width="w-[12%]" />
+      <Pile
+        cards={d.trash}
+        label="Trash"
+        width="w-[12%]"
+        onClick={d.trash.length ? () => openTrash({ cards: d.trash, side: d.side }) : undefined}
+      />
     </div>
   );
 });
@@ -493,9 +514,12 @@ const ReplayBoard: React.FC = () => {
   // Hover: carta ampliada para leerla durante el replay.
   const [hover, setHover] = useState<HoverInfo>(null);
   const setHoverCb = useCallback((info: HoverInfo) => setHover(info), []);
+  const [trashView, setTrashView] = useState<TrashView>(null);
+  const openTrashCb = useCallback((v: TrashView) => setTrashView(v), []);
 
   return (
     <HoverCtx.Provider value={setHoverCb}>
+    <TrashCtx.Provider value={openTrashCb}>
     <div className="relative flex h-full w-full items-center justify-center">
       <style>{`
         @keyframes lifeIn {
@@ -539,7 +563,17 @@ const ReplayBoard: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Visor del Trash (carrusel) al hacer click en la pila. */}
+      {trashView && (
+        <TrashViewer
+          cards={trashView.cards}
+          side={trashView.side}
+          onClose={() => setTrashView(null)}
+        />
+      )}
     </div>
+    </TrashCtx.Provider>
     </HoverCtx.Provider>
   );
 };

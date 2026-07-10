@@ -102,11 +102,13 @@ const BoardCard = React.memo(
             </span>
           )}
 
-          {/* Poder actual (cuando está potenciado): número VERDE grande al centro. */}
+          {/* Poder actual (cuando está potenciado): número VERDE grande al centro.
+              Si la carta está girada, contra-rotamos el número para que quede
+              siempre derecho y legible. */}
           {bonus > 0 && (
             <span className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <span
-                className="font-black leading-none text-lime-400"
+                className={cn("font-black leading-none text-lime-400", card?.rested && "-rotate-90")}
                 style={{ fontSize: "clamp(11px, 2.1vw, 26px)", textShadow: "0 1px 4px rgba(0,0,0,.95)" }}
               >
                 {totalPower ?? `+${bonus}`}

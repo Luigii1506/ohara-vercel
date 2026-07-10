@@ -453,15 +453,20 @@ const ReplayViewer: React.FC = () => {
   useEffect(() => {
     currentRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [currentActionIndex]);
+  // Un CLICK salta a la acción y PAUSA (para inspeccionar). El DOBLE-CLICK en la
+  // misma acción reproduce desde ahí. Por defecto el replay está en pausa.
   const onFeedClick = useCallback((item: FeedItem) => {
-    // Las tarjetas de setup (mano inicial / mulligan) reproducen la animación de
-    // mulligan, como al abrir la partida.
     if (item.kind === "action" && item.setup) {
       setIndex(0);
       setPlaying(false);
       setShowMulligan(true);
       return;
     }
+    setIndex(item.index);
+    setPlaying(false);
+  }, []);
+  const onFeedPlay = useCallback((item: FeedItem) => {
+    if (item.kind === "action" && item.setup) return;
     setIndex(item.index);
     setPlaying(true);
   }, []);
@@ -536,6 +541,7 @@ const ReplayViewer: React.FC = () => {
                         cardMap={cardMap}
                         current={isCur}
                         onSeek={onFeedClick}
+                        onPlay={onFeedPlay}
                       />
                     </div>
                   );
@@ -1045,10 +1051,15 @@ const FeedRow: React.FC<{
   cardMap: CardMap;
   current: boolean;
   onSeek: (item: FeedItem) => void;
-}> = ({ item, cardMap, current, onSeek }) => {
+  onPlay: (item: FeedItem) => void;
+}> = ({ item, cardMap, current, onSeek, onPlay }) => {
   if (item.kind === "turn") {
     return (
-      <button onClick={() => onSeek(item)} className="my-1.5 flex w-full items-center gap-2 first:mt-0">
+      <button
+        onClick={() => onSeek(item)}
+        onDoubleClick={() => onPlay(item)}
+        className="my-1.5 flex w-full items-center gap-2 first:mt-0"
+      >
         <div className="h-px flex-1 bg-white/10" />
         <span
           className={cn(
@@ -1072,7 +1083,7 @@ const FeedRow: React.FC<{
 
   if (item.kind === "attack") {
     return (
-      <button onClick={() => onSeek(item)} className={base}>
+      <button onClick={() => onSeek(item)} onDoubleClick={() => onPlay(item)} className={base}>
         <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-rose-300/80">⚔️ Ataque</div>
         <div className="flex items-center justify-between gap-1">
           <div className="flex flex-col items-center gap-0.5">
@@ -1111,7 +1122,7 @@ const FeedRow: React.FC<{
 
   // acción genérica
   return (
-    <button onClick={() => onSeek(item)} className={base}>
+    <button onClick={() => onSeek(item)} onDoubleClick={() => onPlay(item)} className={base}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold text-white/85">
         <span className="text-sm leading-none">{item.icon}</span>
         <span className="truncate">

@@ -17,7 +17,6 @@ import { parseReplayLog } from "@/lib/replay/parseLog";
 import { deriveSideMap, foldEvents } from "@/lib/replay/reduce";
 import { collectCodes, fetchCardMap, hydrateState, CardMap } from "@/lib/replay/hydrate";
 import { extractMulligans } from "@/lib/replay/mulligan";
-import { getActiveCombat, CombatInfo } from "@/lib/replay/combat";
 import { getPhase } from "@/lib/replay/phases";
 import { ParsedReplay, ReplayEvent } from "@/types/replay";
 import { Side } from "@/types/simulator";
@@ -417,17 +416,33 @@ const ReplayViewer: React.FC = () => {
     if (el) el.scrollTop = el.scrollHeight;
   }, [history]);
 
-  // Combate activo (para el panel de combate claro).
-  const combat = useMemo(
-    () => (replay ? getActiveCombat(replay, index, sideMap) : null),
-    [replay, index, sideMap]
-  );
-
   // Fase del turno actual (para el banner que hace todo entendible).
   const phase = useMemo(
     () => (replay ? getPhase(replay, index, sideMap) : null),
     [replay, index, sideMap]
   );
+
+  // Cola COMPLETA de acciones (se calcula una vez por partida). En pantalla solo
+  // mostramos las que ya ocurrieron (index del item <= index actual): la cola
+  // "crece" como una película y nunca se borra.
+  const feed = useMemo(
+    () => (replay ? buildFeed(replay, sideMap as Record<string, Side>) : []),
+    [replay, sideMap]
+  );
+  const visibleFeed = useMemo(() => feed.filter((f) => f.index <= index), [feed, index]);
+  // Índice de evento del último item mostrado = la acción "actual" (resaltada).
+  const currentActionIndex = visibleFeed.length
+    ? visibleFeed[visibleFeed.length - 1].index
+    : -1;
+  const feedRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [visibleFeed.length]);
+  const seekAndPlay = useCallback((i: number) => {
+    setIndex(i);
+    setPlaying(true);
+  }, []);
 
   const header = replay?.header;
   const p1 = header?.players[0];
@@ -453,47 +468,57 @@ const ReplayViewer: React.FC = () => {
 
       {replay && (
         <div className="flex h-[calc(100vh-158px)] gap-3">
-          {/* Tablero (izquierda, llena la altura) */}
-          <div className="relative h-full min-w-0 flex-1">
+          {/* Columna IZQUIERDA: cola de acciones (tipo película). Crece hacia
+              abajo, nunca se borra; clic en una acción salta a ese punto y sigue. */}
+          <div className="flex h-full w-[248px] shrink-0 flex-col gap-2 rounded-xl border border-white/10 bg-slate-900/50 p-2">
             <style>{`
               @keyframes phaseIn { 0%{opacity:0; transform:translateY(-8px) scale(.92);} 100%{opacity:1; transform:none;} }
             `}</style>
-            <ReplayBoard />
-
-            {/* Columna IZQUIERDA: fase + "última acción". No tapa la mano del
-                oponente (que va arriba al centro). pointer-events-none para no
-                bloquear el hover de las cartas del tablero. */}
-            {!showMulligan && (
-              <div className="pointer-events-none absolute left-2 top-2 z-30 flex w-[210px] max-w-[42%] flex-col gap-2">
-                {phase && (
-                  <div
-                    key={`${phase.turn}-${phase.phase}`}
-                    className="flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/90 px-3 py-1.5 shadow-xl backdrop-blur"
-                    style={{ animation: "phaseIn .4s cubic-bezier(.2,.8,.2,1)" }}
-                  >
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
-                        phase.side === "player"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : "bg-rose-500/20 text-rose-300"
-                      )}
-                    >
-                      T{phase.turn} · {phase.player}
-                    </span>
-                    <span className="text-sm leading-none">{phase.icon}</span>
-                    <span className="truncate text-xs font-bold text-white">{phase.label}</span>
-                  </div>
-                )}
-                <ActionPreview
-                  replay={replay}
-                  index={index}
-                  sideMap={sideMap as Record<string, Side>}
-                  combat={combat}
-                  cardMap={cardMap}
-                />
+            {phase && !showMulligan && (
+              <div
+                key={`${phase.turn}-${phase.phase}`}
+                className="flex shrink-0 items-center gap-2 rounded-lg border border-white/15 bg-slate-950/90 px-2.5 py-1.5 shadow"
+                style={{ animation: "phaseIn .4s cubic-bezier(.2,.8,.2,1)" }}
+              >
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
+                    phase.side === "player"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-rose-500/20 text-rose-300"
+                  )}
+                >
+                  T{phase.turn} · {phase.player}
+                </span>
+                <span className="text-sm leading-none">{phase.icon}</span>
+                <span className="truncate text-xs font-bold text-white">{phase.label}</span>
               </div>
             )}
+            <div
+              ref={feedRef}
+              className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5"
+            >
+              {visibleFeed.length === 0 ? (
+                <div className="p-2 text-[11px] text-white/40">
+                  Las acciones aparecerán aquí conforme avances…
+                </div>
+              ) : (
+                visibleFeed.map((it) => (
+                  <FeedRow
+                    key={`${it.kind}-${it.index}`}
+                    item={it}
+                    cardMap={cardMap}
+                    current={it.index === currentActionIndex}
+                    onSeek={seekAndPlay}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Tablero (centro, llena la altura) */}
+          <div className="relative h-full min-w-0 flex-1">
+            <ReplayBoard />
 
             {showMulligan && mulligans.length > 0 && (
               <MulliganIntro
@@ -790,98 +815,200 @@ function describeAction(
 
 // Panel de "última acción": ataque tipo simulador (flecha roja + poder) o el
 // evento actual (jugar carta, revelar, KO, counter, efecto On Play…).
-const ActionPreview: React.FC<{
-  replay: ParsedReplay;
-  index: number;
-  sideMap: Record<string, Side>;
-  combat: CombatInfo | null;
-  cardMap: CardMap;
-}> = ({ replay, index, sideMap, combat, cardMap }) => {
-  const box =
-    "pointer-events-none rounded-xl border border-white/15 bg-slate-950/90 p-2.5 shadow-2xl backdrop-blur";
+// ── Feed de acciones (cola tipo película): una entrada por jugada. ──
+type FeedItem =
+  | { kind: "turn"; index: number; turnLabel: string; player: string; side: Side | null }
+  | {
+      kind: "attack";
+      index: number;
+      attacker: ActionCard & { side: Side | null; power?: number };
+      defender: ActionCard & { side: Side | null; power?: number };
+      counters: { code: string; name: string; value: number }[];
+      result?: "fail" | "hit" | "destroyed";
+      damage?: number;
+    }
+  | ({ kind: "action"; index: number; side: Side | null } & ActionView);
 
-  if (combat) {
-    const ring = (s: Side | null) =>
-      s === "player" ? "ring-emerald-400/60" : "ring-rose-400/60";
-    const pw = (s: Side | null) =>
-      s === "player" ? "text-emerald-300" : "text-rose-300";
+// Construye la cola COMPLETA de acciones del replay (fusiona los ataques en una
+// sola entrada e inserta separadores de turno). Se calcula una vez por partida.
+function buildFeed(replay: ParsedReplay, sideMap: Record<string, Side>): FeedItem[] {
+  const items: FeedItem[] = [];
+  const side = (p?: string) => (p ? sideMap[p] ?? null : null);
+  const who = (p?: string) => (p ? p.split("#")[0] : "");
+  const other = (s: Side | null): Side | null =>
+    s === "player" ? "opponent" : s === "opponent" ? "player" : null;
+
+  const turnStart = new Map<number, { label: string; player: string; side: Side | null }>();
+  for (const t of replay.turns ?? []) {
+    turnStart.set(t.startEvent, {
+      label: `Turno ${t.index}`,
+      player: who(t.player),
+      side: (t as { side?: Side }).side ?? side(t.player),
+    });
+  }
+
+  let atk: Extract<FeedItem, { kind: "attack" }> | null = null;
+  const evs = replay.events;
+  for (let i = 0; i < evs.length; i += 1) {
+    if (turnStart.has(i)) {
+      const ts = turnStart.get(i)!;
+      items.push({ kind: "turn", index: i, turnLabel: ts.label, player: ts.player, side: ts.side });
+      atk = null;
+    }
+    const e = evs[i];
+    switch (e.kind) {
+      case "attackDeclare": {
+        const aSide = side(e.player);
+        atk = {
+          kind: "attack",
+          index: i,
+          attacker: { ...e.attacker, side: aSide },
+          defender: { ...e.defender, side: other(aSide) },
+          counters: [],
+        };
+        items.push(atk);
+        break;
+      }
+      case "combatResult":
+        if (atk) {
+          atk.attacker.power = e.attackerPower;
+          atk.defender.power = e.defenderPower;
+        }
+        break;
+      case "attackFail":
+        if (atk) atk.result = "fail";
+        break;
+      case "damage":
+        if (atk) {
+          atk.result = "hit";
+          atk.damage = e.amount;
+        } else {
+          items.push({ kind: "action", index: i, side: null, icon: "💥", title: `${e.amount} de daño`, player: "", cards: [] });
+        }
+        break;
+      case "counter":
+        if (atk) atk.counters.push({ code: e.card.code, name: e.card.name, value: e.value });
+        else {
+          const a = describeAction(replay, i, sideMap);
+          if (a) items.push({ kind: "action", index: i, side: side(e.player), ...a });
+        }
+        break;
+      case "destroy":
+        if (atk && e.card.code === atk.defender.code) atk.result = "destroyed";
+        else {
+          const a = describeAction(replay, i, sideMap);
+          if (a) items.push({ kind: "action", index: i, side: null, ...a });
+        }
+        break;
+      case "endTurn":
+        atk = null;
+        break;
+      default: {
+        const a = describeAction(replay, i, sideMap);
+        if (a) items.push({ kind: "action", index: i, side: side((e as { player?: string }).player), ...a });
+      }
+    }
+  }
+  return items;
+}
+
+const accentRing = (s: Side | null) =>
+  s === "player" ? "ring-emerald-400/60" : s === "opponent" ? "ring-rose-400/60" : "ring-white/20";
+const accentText = (s: Side | null) =>
+  s === "player" ? "text-emerald-300" : s === "opponent" ? "text-rose-300" : "text-white/70";
+
+// Una tarjeta del feed. Clickable → salta a ese evento.
+const FeedRow: React.FC<{
+  item: FeedItem;
+  cardMap: CardMap;
+  current: boolean;
+  onSeek: (index: number) => void;
+}> = ({ item, cardMap, current, onSeek }) => {
+  if (item.kind === "turn") {
     return (
-      <div className={box} key={`atk-${combat.attacker.code}-${combat.defender.code}`}>
-        <div className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-rose-300/80">
-          ⚔️ Ataque
-        </div>
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex flex-col items-center gap-0.5">
-            <Thumb code={combat.attacker.code} name={combat.attacker.name} cardMap={cardMap} className="h-[68px] w-[48px]" ring={ring(combat.attacker.side)} />
-            <span className={cn("text-sm font-black leading-none", pw(combat.attacker.side))}>
-              {combat.attacker.power ?? "—"}
-            </span>
-          </div>
-          <div className="flex flex-1 items-center justify-center text-2xl font-black leading-none text-rose-500">
-            →
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <Thumb code={combat.defender.code} name={combat.defender.name} cardMap={cardMap} className="h-[68px] w-[48px]" ring={ring(combat.defender.side)} />
-            <span className={cn("text-sm font-black leading-none", pw(combat.defender.side))}>
-              {combat.defender.power ?? "—"}
-            </span>
-          </div>
-        </div>
-        {combat.counters.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-            <span className="text-[10px] text-white/40">counter</span>
-            {combat.counters.map((c, i) => (
-              <div key={i} className="flex items-center gap-0.5">
-                <Thumb code={c.code} name={c.name} cardMap={cardMap} className="h-9 w-[26px]" ring="ring-sky-400/40" />
-                <span className="text-[10px] font-semibold text-sky-300">+{c.value}</span>
-              </div>
-            ))}
-            <span className="text-[11px] font-bold text-sky-300">=+{combat.counterTotal}</span>
-          </div>
-        )}
-        {combat.result && (
-          <div
-            className={cn(
-              "mt-1.5 rounded-full px-2 py-0.5 text-center text-[11px] font-bold",
-              combat.result === "fail" ? "bg-white/10 text-white/70" : "bg-rose-500/20 text-rose-300"
-            )}
-          >
-            {combat.result === "fail"
-              ? "✖ El ataque falla"
-              : combat.result === "destroyed"
-              ? "☠️ Personaje destruido"
-              : `💥 ${combat.damage ?? 1} de daño`}
-          </div>
-        )}
-      </div>
+      <button onClick={() => onSeek(item.index)} className="my-1.5 flex w-full items-center gap-2 first:mt-0">
+        <div className="h-px flex-1 bg-white/10" />
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
+            item.side === "player" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"
+          )}
+        >
+          {item.turnLabel} · {item.player}
+        </span>
+        <div className="h-px flex-1 bg-white/10" />
+      </button>
     );
   }
 
-  const act = describeAction(replay, index, sideMap);
-  if (!act) return null;
+  const base = cn(
+    "group w-full rounded-xl border p-2 text-left transition-all",
+    current
+      ? "border-emerald-400/60 bg-emerald-400/10 shadow-lg ring-1 ring-emerald-400/40"
+      : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]"
+  );
+
+  if (item.kind === "attack") {
+    return (
+      <button onClick={() => onSeek(item.index)} className={base}>
+        <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-rose-300/80">⚔️ Ataque</div>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex flex-col items-center gap-0.5">
+            <Thumb code={item.attacker.code} name={item.attacker.name} cardMap={cardMap} className="h-[56px] w-[40px]" ring={accentRing(item.attacker.side)} />
+            <span className={cn("text-xs font-black leading-none", accentText(item.attacker.side))}>{item.attacker.power ?? "—"}</span>
+          </div>
+          <span className="flex-1 text-center text-xl font-black leading-none text-rose-500">→</span>
+          <div className="flex flex-col items-center gap-0.5">
+            <Thumb code={item.defender.code} name={item.defender.name} cardMap={cardMap} className="h-[56px] w-[40px]" ring={accentRing(item.defender.side)} />
+            <span className={cn("text-xs font-black leading-none", accentText(item.defender.side))}>{item.defender.power ?? "—"}</span>
+          </div>
+        </div>
+        {item.counters.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {item.counters.map((c, i) => (
+              <div key={i} className="flex items-center gap-0.5">
+                <Thumb code={c.code} name={c.name} cardMap={cardMap} className="h-7 w-[20px]" ring="ring-sky-400/40" />
+                <span className="text-[9px] font-semibold text-sky-300">+{c.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {item.result && (
+          <div
+            className={cn(
+              "mt-1 rounded-full px-2 py-0.5 text-center text-[10px] font-bold",
+              item.result === "fail" ? "bg-white/10 text-white/70" : "bg-rose-500/20 text-rose-300"
+            )}
+          >
+            {item.result === "fail" ? "✖ Falla" : item.result === "destroyed" ? "☠️ KO" : `💥 ${item.damage ?? 1} de daño`}
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  // acción genérica
   return (
-    <div className={box} key={`act-${index}`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold text-white/85">
-        <span className="text-sm leading-none">{act.icon}</span>
+    <button onClick={() => onSeek(item.index)} className={base}>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold text-white/85">
+        <span className="text-sm leading-none">{item.icon}</span>
         <span className="truncate">
-          {act.title}
-          {act.player ? <span className="text-white/45"> · {act.player}</span> : null}
+          {item.title}
+          {item.player ? <span className={cn("font-semibold", accentText(item.side))}> · {item.player}</span> : null}
         </span>
       </div>
-      {(act.source || act.cards.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1">
-          {act.source && (
-            <Thumb code={act.source.code} name={act.source.name} cardMap={cardMap} className="h-[60px] w-[43px]" ring="ring-amber-400/50" />
+      {(item.source || item.cards.length > 0) && (
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {item.source && (
+            <Thumb code={item.source.code} name={item.source.name} cardMap={cardMap} className="h-[48px] w-[34px]" ring="ring-amber-400/50" />
           )}
-          {act.source && act.cards.length > 0 && (
-            <span className="text-lg font-black text-rose-500">→</span>
-          )}
-          {act.cards.slice(0, 6).map((c, i) => (
-            <Thumb key={i} code={c.code} name={c.name} cardMap={cardMap} className="h-[54px] w-[39px]" />
+          {item.source && item.cards.length > 0 && <span className="text-sm font-black text-rose-500">→</span>}
+          {item.cards.slice(0, 6).map((c, i) => (
+            <Thumb key={i} code={c.code} name={c.name} cardMap={cardMap} className="h-[44px] w-[31px]" />
           ))}
         </div>
       )}
-    </div>
+    </button>
   );
 };
 

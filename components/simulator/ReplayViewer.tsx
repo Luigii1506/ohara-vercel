@@ -439,8 +439,16 @@ const ReplayViewer: React.FC = () => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [visibleFeed.length]);
-  const seekAndPlay = useCallback((i: number) => {
-    setIndex(i);
+  const onFeedClick = useCallback((item: FeedItem) => {
+    // Las tarjetas de setup (mano inicial / mulligan) reproducen la animación de
+    // mulligan, como al abrir la partida.
+    if (item.kind === "action" && item.setup) {
+      setIndex(0);
+      setPlaying(false);
+      setShowMulligan(true);
+      return;
+    }
+    setIndex(item.index);
     setPlaying(true);
   }, []);
 
@@ -509,7 +517,7 @@ const ReplayViewer: React.FC = () => {
                     item={it}
                     cardMap={cardMap}
                     current={it.index === currentActionIndex}
-                    onSeek={seekAndPlay}
+                    onSeek={onFeedClick}
                   />
                 ))
               )}
@@ -827,7 +835,7 @@ type FeedItem =
       result?: "fail" | "hit" | "destroyed";
       damage?: number;
     }
-  | ({ kind: "action"; index: number; side: Side | null } & ActionView);
+  | ({ kind: "action"; index: number; side: Side | null; setup?: boolean } & ActionView);
 
 // Construye la cola COMPLETA de acciones del replay (fusiona los ataques en una
 // sola entrada e inserta separadores de turno). Se calcula una vez por partida.
@@ -849,6 +857,40 @@ function buildFeed(replay: ParsedReplay, sideMap: Record<string, Side>): FeedIte
 
   let atk: Extract<FeedItem, { kind: "attack" }> | null = null;
   const evs = replay.events;
+
+  // ── Fase inicial: colapsar los robos de apertura + mulligan en 1-2 tarjetas
+  //    por jugador (en vez de ~10 "Roba" sueltos). Los robos del setup se saltan
+  //    en el bucle; aquí emitimos "Mano inicial" y "Mulligan" (clic → animación). ──
+  const mulls = extractMulligans(replay, sideMap);
+  const nick = (p?: string, s?: Side | null) =>
+    p && p !== "Null" ? who(p) : s === "player" ? "Tú" : "Rival";
+  let setupEnd = evs.findIndex((e) => e.kind === "deploy" || e.kind === "attackDeclare");
+  if (setupEnd < 0) setupEnd = -1;
+  for (const m of mulls) {
+    items.push({
+      kind: "action",
+      index: 0,
+      setup: true,
+      side: m.side,
+      icon: "🖐️",
+      title: "Mano inicial",
+      player: nick(m.player, m.side),
+      cards: (m.opening ?? []).map((c) => ({ code: c, name: c })),
+    });
+    if (m.mulliganed) {
+      items.push({
+        kind: "action",
+        index: 0,
+        setup: true,
+        side: m.side,
+        icon: "🔄",
+        title: "Mulligan",
+        player: nick(m.player, m.side),
+        cards: (m.final ?? []).map((c) => ({ code: c, name: c })),
+      });
+    }
+  }
+
   for (let i = 0; i < evs.length; i += 1) {
     if (turnStart.has(i)) {
       const ts = turnStart.get(i)!;
@@ -903,12 +945,22 @@ function buildFeed(replay: ParsedReplay, sideMap: Record<string, Side>): FeedIte
       case "endTurn":
         atk = null;
         break;
+      case "draw": {
+        // Los robos de apertura (mano inicial / mulligan) NO se listan uno por
+        // uno: ya están resumidos en las tarjetas de setup.
+        if (setupEnd >= 0 && i <= setupEnd) break;
+        const a = describeAction(replay, i, sideMap);
+        if (a) items.push({ kind: "action", index: i, side: side(e.player), ...a });
+        break;
+      }
       default: {
         const a = describeAction(replay, i, sideMap);
         if (a) items.push({ kind: "action", index: i, side: side((e as { player?: string }).player), ...a });
       }
     }
   }
+  // Orden cronológico estable (las tarjetas de setup quedan al inicio, index 0).
+  items.sort((a, b) => a.index - b.index);
   return items;
 }
 
@@ -922,11 +974,11 @@ const FeedRow: React.FC<{
   item: FeedItem;
   cardMap: CardMap;
   current: boolean;
-  onSeek: (index: number) => void;
+  onSeek: (item: FeedItem) => void;
 }> = ({ item, cardMap, current, onSeek }) => {
   if (item.kind === "turn") {
     return (
-      <button onClick={() => onSeek(item.index)} className="my-1.5 flex w-full items-center gap-2 first:mt-0">
+      <button onClick={() => onSeek(item)} className="my-1.5 flex w-full items-center gap-2 first:mt-0">
         <div className="h-px flex-1 bg-white/10" />
         <span
           className={cn(
@@ -950,7 +1002,7 @@ const FeedRow: React.FC<{
 
   if (item.kind === "attack") {
     return (
-      <button onClick={() => onSeek(item.index)} className={base}>
+      <button onClick={() => onSeek(item)} className={base}>
         <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-rose-300/80">⚔️ Ataque</div>
         <div className="flex items-center justify-between gap-1">
           <div className="flex flex-col items-center gap-0.5">
@@ -989,7 +1041,7 @@ const FeedRow: React.FC<{
 
   // acción genérica
   return (
-    <button onClick={() => onSeek(item.index)} className={base}>
+    <button onClick={() => onSeek(item)} className={base}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold text-white/85">
         <span className="text-sm leading-none">{item.icon}</span>
         <span className="truncate">

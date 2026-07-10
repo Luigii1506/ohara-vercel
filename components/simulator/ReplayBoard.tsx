@@ -147,10 +147,10 @@ const Pile = React.memo(function Pile({
   );
 });
 
-// Cost area: DON!! activos (verticales) + rested (rotados) APILADOS en un ancho
-// FIJO (min-w-0 + overflow-hidden). El solape se ajusta al total para que SIEMPRE
-// quepan sin empujar el tablero (antes crecía el tablero al subir los DON).
-const DonArea = React.memo(function DonArea({
+// Tira de DON!! a lo ANCHO en el borde exterior (como el mat oficial): los DON
+// activos derechos + los rested rotados, repartidos en toda la fila. Ancho fijo
+// (min-w-0 + overflow-hidden) para que el tablero NUNCA crezca al subir los DON.
+const DonStrip = React.memo(function DonStrip({
   active,
   rested,
 }: {
@@ -160,32 +160,37 @@ const DonArea = React.memo(function DonArea({
   const a = Math.min(active, 10);
   const r = Math.min(rested, 10);
   const total = a + r;
-  // Paso de apilado en % del ancho: mucho cuando hay pocos, poco cuando hay
-  // muchos, de forma que el último DON nunca pase de ~88% del contenedor.
-  const step = total > 1 ? Math.min(15, 82 / (total - 1)) : 0;
+  // Paso de reparto en % del ancho: se ajusta al total para que el último DON
+  // nunca pase de ~90% (con full-width, ~8.5% deja los DON casi contiguos).
+  const step = total > 1 ? Math.min(8.5, 90 / (total - 1)) : 0;
   const items = [
     ...Array.from({ length: a }, () => false),
     ...Array.from({ length: r }, () => true),
   ];
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-1.5 py-1">
-      <div className="relative h-full min-w-0 flex-1">
+    <div className="flex min-h-0 flex-[0.85] items-center gap-2 self-stretch">
+      <div className="relative h-full min-w-0 flex-1 overflow-hidden rounded-md border border-amber-400/15 bg-amber-400/[0.05] px-2">
         {items.map((isRested, i) => (
           <div
             key={i}
             className={cn(
-              "absolute top-1/2 h-[80%] -translate-y-1/2 overflow-hidden rounded-[2px] shadow ring-1 ring-black/30",
+              "absolute top-1/2 h-[86%] -translate-y-1/2 overflow-hidden rounded-[3px] shadow ring-1 ring-black/40",
               isRested && "rotate-90 opacity-70"
             )}
-            style={{ aspectRatio: "5 / 7", left: `${i * step}%`, zIndex: i }}
+            style={{ aspectRatio: "5 / 7", left: `calc(${i * step}% + 4px)`, zIndex: i }}
             title={isRested ? "DON rested" : "DON"}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={DON_IMG} alt="" className="h-full w-full object-cover" />
           </div>
         ))}
+        {total === 0 && (
+          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold uppercase tracking-[0.3em] text-amber-300/25">
+            DON!!
+          </span>
+        )}
       </div>
-      <span className="shrink-0 text-sm font-bold text-amber-300">
+      <span className="shrink-0 text-sm font-black text-amber-300">
         {active}
         {rested > 0 && <span className="text-amber-300/50">+{rested}</span>}
       </span>
@@ -348,15 +353,18 @@ interface HalfData {
   trash: CardInstance[];
 }
 
+// Fila media (como el mat): Life a la izquierda · Leader al centro · Stage ·
+// Deck · Trash a la derecha. El DON ya NO va aquí (es la tira exterior).
 const FieldRow = React.memo(function FieldRow(d: HalfData) {
   return (
     <div className="flex min-h-0 flex-1 items-stretch justify-center gap-[1.5%]">
       <LifePile count={d.life} />
+      <div className="min-w-0 flex-1" />
       <div className="flex w-[12%] items-center justify-center">
         <BoardCard card={d.leader} />
       </div>
       <Pile cards={d.stage} label="Stage" width="w-[12%]" />
-      <DonArea active={d.don} rested={d.donRested} />
+      <div className="min-w-0 flex-1" />
       <Pile cards={d.deck} label="Deck" faceDown width="w-[12%]" />
       <Pile cards={d.trash} label="Trash" width="w-[12%]" />
     </div>
@@ -367,6 +375,9 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
   const name = <NameBar side={data.side} active={data.active} life={data.life} />;
   const field = <FieldRow {...data} />;
   const chars = <CharacterRow cards={data.chars} />;
+  const don = <DonStrip active={data.don} rested={data.donRested} />;
+  // Orden como el mat: Character Area pegada al CENTRO; la tira de DON en el
+  // borde EXTERIOR (arriba para el rival, abajo para ti).
   return (
     <div
       className={cn(
@@ -377,6 +388,7 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
       {top ? (
         <>
           {name}
+          {don}
           {field}
           {chars}
         </>
@@ -384,6 +396,7 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
         <>
           {chars}
           {field}
+          {don}
           {name}
         </>
       )}

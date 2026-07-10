@@ -147,7 +147,7 @@ const buildQueryString = (
   ];
 
   entries.forEach(([filterKey, paramKey]) => {
-    const filterValue = filters[filterKey];
+    const filterValue = filters[filterKey] as string[] | undefined;
     const value =
       filterKey === "setCodes"
         ? normalizeSetCodeList(
@@ -167,6 +167,12 @@ const buildQueryString = (
   }
   if (filters.trigger) {
     searchParams.set("trigger", filters.trigger);
+  }
+  if (filters.regulationMarks?.length) {
+    searchParams.set("blocks", filters.regulationMarks.join(","));
+  }
+  if (filters.standardLegal) {
+    searchParams.set("standardLegal", "true");
   }
   if (filters.sortBy) {
     searchParams.set("sortBy", filters.sortBy);
@@ -244,7 +250,7 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
   ];
 
   entries.forEach(([filterKey, paramKey]) => {
-    const filterValue = filters[filterKey];
+    const filterValue = filters[filterKey] as string[] | undefined;
     const value =
       filterKey === "setCodes"
         ? normalizeSetCodeList(
@@ -264,6 +270,12 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
   }
   if (filters.trigger) {
     searchParams.set("trigger", filters.trigger);
+  }
+  if (filters.regulationMarks?.length) {
+    searchParams.set("blocks", filters.regulationMarks.join(","));
+  }
+  if (filters.standardLegal) {
+    searchParams.set("standardLegal", "true");
   }
   if (filters.sortBy) {
     searchParams.set("sortBy", filters.sortBy);

@@ -55,7 +55,20 @@ interface FiltersSidebarProps {
   setSelectedAltArts: (altArts: string[]) => void;
   selectedCodes: string[];
   setSelectedCodes: (codes: string[]) => void;
+  // Bloque de regulación (1-5) y legalidad Standard — opcionales.
+  selectedBlocks?: string[];
+  setSelectedBlocks?: (blocks: string[]) => void;
+  standardLegalOnly?: boolean;
+  setStandardLegalOnly?: (value: boolean) => void;
 }
+
+const blockOptions = [
+  { value: "5", label: "Bloque 5" },
+  { value: "4", label: "Bloque 4" },
+  { value: "3", label: "Bloque 3" },
+  { value: "2", label: "Bloque 2" },
+  { value: "1", label: "Bloque 1 (rotado)" },
+];
 
 const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
   (
@@ -92,6 +105,10 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
       setSelectedAltArts,
       selectedCodes,
       setSelectedCodes,
+      selectedBlocks,
+      setSelectedBlocks,
+      standardLegalOnly,
+      setStandardLegalOnly,
     },
     ref
   ) => {
@@ -164,6 +181,44 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
               searchPlaceholder="Search rarity..."
               isSolid={true}
             />
+
+            {setSelectedBlocks && (
+              <MultiSelect
+                options={blockOptions}
+                selected={selectedBlocks ?? []}
+                setSelected={setSelectedBlocks}
+                displaySelectedAs={(selected) =>
+                  selected.length === 1
+                    ? `Bloque ${selected[0]}`
+                    : "Bloque"
+                }
+                searchPlaceholder="Bloque..."
+                isSolid={true}
+              />
+            )}
+
+            {setStandardLegalOnly && (
+              <button
+                type="button"
+                onClick={() => setStandardLegalOnly(!standardLegalOnly)}
+                className={
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors " +
+                  (standardLegalOnly
+                    ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300"
+                    : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10")
+                }
+              >
+                <span
+                  className={
+                    "h-3.5 w-3.5 rounded border " +
+                    (standardLegalOnly
+                      ? "border-emerald-400 bg-emerald-400"
+                      : "border-white/40")
+                  }
+                />
+                Solo legal (Standard)
+              </button>
+            )}
 
             <MultiSelect
               options={categoryOptions}

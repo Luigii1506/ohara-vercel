@@ -349,6 +349,12 @@ const CardListClient = ({
   const [selectedRarities, setSelectedRarities] = useState<string[]>(
     getArrayParam("rarities", initialFilters.rarities ?? [])
   );
+  const [selectedBlocks, setSelectedBlocks] = useState<string[]>(
+    getArrayParam("blocks", (initialFilters.regulationMarks ?? []).map(String))
+  );
+  const [standardLegalOnly, setStandardLegalOnly] = useState<boolean>(
+    searchParams.get("standardLegal") === "true" || initialFilters.standardLegal === true
+  );
   const [selectedCosts, setSelectedCosts] = useState<string[]>(
     getArrayParam("costs", initialFilters.costs ?? [])
   );
@@ -663,6 +669,11 @@ const CardListClient = ({
       setCodes: selectedCodes.length > 0 ? selectedCodes : undefined,
       colors: selectedColors.length > 0 ? selectedColors : undefined,
       rarities: selectedRarities.length > 0 ? selectedRarities : undefined,
+      regulationMarks:
+        selectedBlocks.length > 0
+          ? selectedBlocks.map((b) => parseInt(b, 10)).filter((n) => !Number.isNaN(n))
+          : undefined,
+      standardLegal: standardLegalOnly ? true : undefined,
       categories:
         selectedCategories.length > 0 ? selectedCategories : undefined,
       costs: selectedCosts.length > 0 ? selectedCosts : undefined,
@@ -690,6 +701,8 @@ const CardListClient = ({
     selectedSets,
     selectedColors,
     selectedRarities,
+    selectedBlocks,
+    standardLegalOnly,
     selectedCategories,
     selectedCosts,
     selectedPower,
@@ -1574,6 +1587,10 @@ const CardListClient = ({
                 setSelectedColors={setSelectedColors}
                 selectedRarities={selectedRarities}
                 setSelectedRarities={setSelectedRarities}
+                selectedBlocks={selectedBlocks}
+                setSelectedBlocks={setSelectedBlocks}
+                standardLegalOnly={standardLegalOnly}
+                setStandardLegalOnly={setStandardLegalOnly}
                 selectedCategories={selectedCategories}
                 setSelectedCategories={setSelectedCategories}
                 selectedCounter={selectedCounter}

@@ -6,7 +6,7 @@ export const serializeFiltersForKey = (filters: CardsFilters) => {
   Object.entries(filters).forEach(([key, value]) => {
     if (Array.isArray(value)) {
       const normalized = value
-        .map((item) => item.trim())
+        .map((item) => String(item).trim())
         .filter(Boolean)
         .sort();
       if (normalized.length) {

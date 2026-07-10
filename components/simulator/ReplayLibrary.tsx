@@ -14,7 +14,6 @@ import {
 import {
   isFileSystemAccessSupported,
   pickDirectory,
-  pickLogFile,
   getSavedDirectory,
   ensureReadPermission,
   queryReadPermission,
@@ -194,19 +193,62 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
     const dir = await getSavedDirectory();
     if (dir) loadFromDir(dir);
   };
-  const chooseFile = async () => {
-    if (supported) {
-      const file = await pickLogFile();
-      if (file) onPick(file);
-    } else {
-      inputRef.current?.click();
-    }
-  };
+  // Construye la biblioteca a partir de Files sueltos (input clásico o arrastrar).
+  // Este camino NO usa la File System Access API, así que funciona con archivos de
+  // ~/Library (que Chrome bloquea para el picker de carpeta).
+  const loadFromFiles = useCallback(
+    async (files: File[]) => {
+      const logs = files.filter((f) => /\.(log|txt)$/i.test(f.name));
+      if (!logs.length) {
+        setError("Esos archivos no son .log de OPTCGSim.");
+        return;
+      }
+      // Un solo archivo → abrir el replay directo.
+      if (logs.length === 1) {
+        onPick(logs[0]);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const parsed = await Promise.all(
+          logs.map(async (file) => {
+            const text = await file.text();
+            return {
+              summary: summarizeLog(file.name, text, file.lastModified),
+              open: async () => file,
+            } as Entry;
+          })
+        );
+        const valid = parsed
+          .filter((e) => e.summary.players.length > 0)
+          .sort((a, b) => b.summary.playedAt - a.summary.playedAt);
+        if (!valid.length) {
+          setError("No encontré partidas válidas en esos archivos.");
+          return;
+        }
+        setEntries(valid);
+        setLocalMode(false);
+        setSourceLabel(`${valid.length} archivos`);
+        await resolveLeaders(valid.map((e) => e.summary));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error leyendo los archivos");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onPick, resolveLeaders]
+  );
+
+  // Abre SIEMPRE el diálogo nativo clásico (no la File System Access API): es el
+  // único que puede navegar a ~/Library (con ⌘⇧G) sin que Chrome lo bloquee.
+  const chooseFile = () => inputRef.current?.click();
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) onPick(file);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) loadFromFiles(files);
   };
 
   return (
@@ -218,20 +260,23 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
             <HardDrive className="h-4 w-4" /> Carpeta local detectada
           </span>
         )}
+        {!localMode && (
+          <button
+            onClick={chooseFile}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+          >
+            <FileUp className="h-4 w-4" /> Elegir archivos (.log)
+          </button>
+        )}
         {supported && !localMode && (
           <button
             onClick={openDirectory}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+            title="Solo si copiaste los logs a una carpeta normal (Chrome bloquea ~/Library)"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20"
           >
-            <FolderOpen className="h-4 w-4" /> Abrir carpeta de partidas
+            <FolderOpen className="h-4 w-4" /> Abrir carpeta
           </button>
         )}
-        <button
-          onClick={chooseFile}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20"
-        >
-          <FileUp className="h-4 w-4" /> Elegir un archivo
-        </button>
         {supported && !localMode && savedName && entries.length === 0 && (
           <button
             onClick={reopenSaved}
@@ -265,23 +310,22 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
 
       {/* Ayuda para llegar a la carpeta oculta (~/Library en Mac). Se muestra
           cuando el picker está disponible y aún no hay partidas cargadas. */}
-      {supported && !localMode && entries.length === 0 && (
+      {!localMode && entries.length === 0 && (
         <div className="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/70">
           <p className="text-white/80">
-            La carpeta de partidas está oculta{" "}
-            {isMacPath(logsPath) ? "dentro de ~/Library" : ""}. Pulsa «Abrir
-            carpeta de partidas» y, en el diálogo
+            Pulsa <span className="font-semibold text-emerald-300">«Elegir
+            archivos (.log)»</span> y en el diálogo
             {isMacPath(logsPath) ? (
               <>
                 {" "}
-                de macOS pulsa{" "}
+                pulsa{" "}
                 <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
                   ⌘⇧G
                 </kbd>
-                , pega esta ruta y Enter:
+                , pega esta ruta, Enter, y selecciona todos tus `.log` (⌘A):
               </>
             ) : (
-              <>, pega esta ruta:</>
+              <> ve a esta ruta y selecciona tus `.log`:</>
             )}
           </p>
           <div className="flex items-center gap-2">
@@ -303,14 +347,10 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
               {copied ? "Copiado" : "Copiar"}
             </button>
           </div>
-          {isMacPath(logsPath) && (
-            <p className="text-white/50">
-              Tip: también puedes mostrar carpetas ocultas en el diálogo con{" "}
-              <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
-                ⌘⇧.
-              </kbd>
-            </p>
-          )}
+          <p className="text-white/50">
+            Chrome bloquea el acceso por <em>carpeta</em> a ~/Library, pero elegir
+            los archivos sí funciona. También puedes arrastrarlos desde Finder.
+          </p>
         </div>
       )}
 
@@ -436,10 +476,12 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
         ref={inputRef}
         type="file"
         accept=".log,.txt"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onPick(f);
+          const files = Array.from(e.target.files ?? []);
+          if (files.length) loadFromFiles(files);
+          e.target.value = ""; // permite volver a elegir los mismos archivos
         }}
       />
     </div>

@@ -94,9 +94,12 @@ async function main() {
 
   console.log(`${dryRun ? "[DRY-RUN] " : ""}Scrapeando ${sets.length} set(s)…\n`);
 
-  let totalCards = 0;
-  let updated = 0;
-  let notFound = 0;
+  // Una carta puede tener VARIOS printings (reprints) repartidos entre sets, cada uno
+  // con su propia regulation mark. Agregamos por código:
+  //   - regulationMark = la marca MÁS ALTA (el printing más nuevo → estado actual)
+  //   - standardLegal  = legal si CUALQUIER printing es legal (nivel carta)
+  const agg = new Map<string, { mark: number | null; legal: boolean | null }>();
+  let totalProfiles = 0;
 
   for (const slug of sets) {
     let parsed: Parsed[];
@@ -108,30 +111,52 @@ async function main() {
     }
     const blocks = new Set(parsed.map((p) => p.regulationMark));
     console.log(
-      `  ${slug}: ${parsed.length} cartas · bloque(s) ${Array.from(blocks).join(",")} · ${
+      `  ${slug}: ${parsed.length} printings · bloque(s) ${Array.from(blocks).join(",")} · ${
         parsed.filter((p) => p.standardLegal).length
       } legal Standard`
     );
-    totalCards += parsed.length;
+    totalProfiles += parsed.length;
 
-    if (dryRun) continue;
-
-    // Actualizar TODAS las filas con ese código (todas las regiones/alternativas).
     for (const p of parsed) {
-      const res = await prisma.card.updateMany({
-        where: { code: p.code },
-        data: { regulationMark: p.regulationMark, standardLegal: p.standardLegal },
-      });
-      if (res.count > 0) updated += res.count;
-      else notFound += 1;
+      const cur = agg.get(p.code) ?? { mark: null, legal: null };
+      // marca más alta entre printings
+      if (p.regulationMark != null) {
+        cur.mark = cur.mark == null ? p.regulationMark : Math.max(cur.mark, p.regulationMark);
+      }
+      // legal si algún printing es legal (OR, tratando null como desconocido)
+      if (p.standardLegal != null) {
+        cur.legal = cur.legal ? true : p.standardLegal;
+      }
+      agg.set(p.code, cur);
     }
     await sleep(700); // cortesía entre requests
   }
 
+  const reprintsLegalB1 = Array.from(agg.values()).filter(
+    (v) => v.mark === 1 && v.legal === true
+  ).length;
   console.log(
-    `\n${dryRun ? "[DRY-RUN] " : ""}Total: ${totalCards} cartas parseadas` +
-      (dryRun ? "" : ` · ${updated} filas actualizadas · ${notFound} códigos sin fila`)
+    `\n${totalProfiles} printings → ${agg.size} cartas únicas` +
+      ` · ${reprintsLegalB1} bloque-1 legales (reimpresas)`
   );
+
+  if (dryRun) {
+    await prisma.$disconnect();
+    return;
+  }
+
+  let updated = 0;
+  let notFound = 0;
+  for (const [code, v] of agg) {
+    const res = await prisma.card.updateMany({
+      where: { code },
+      data: { regulationMark: v.mark, standardLegal: v.legal },
+    });
+    if (res.count > 0) updated += res.count;
+    else notFound += 1;
+  }
+
+  console.log(`Actualizadas ${updated} filas · ${notFound} códigos sin fila en DB`);
   await prisma.$disconnect();
 }
 

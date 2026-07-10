@@ -348,34 +348,32 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
 
       // FIN del turno de p: se levanta la restricción "no puede atacar/bloquear"
       // de SUS cartas, pero SOLO si no se aplicó en este mismo turno (así dura
-      // durante el "next turn" del dueño y no se limpia antes de tiempo). También
-      // se quita el "recién jugado" (ya puede atacar a partir del próximo turno).
+      // durante el "next turn" del dueño y no se limpia antes de tiempo).
       if (p) {
         for (const uid of Object.keys(state.cards)) {
           const c = state.cards[uid];
-          const clearStatus = c.status && c.owner === p && c.statusTurn !== endingTurn;
-          const clearSick = c.summoningSick && c.owner === p;
-          if (clearStatus || clearSick) {
-            state.cards[uid] = {
-              ...c,
-              ...(clearStatus ? { status: undefined, statusTurn: undefined } : {}),
-              ...(clearSick ? { summoningSick: false } : {}),
-            };
+          if (c.status && c.owner === p && c.statusTurn !== endingTurn) {
+            state.cards[uid] = { ...c, status: undefined, statusTurn: undefined };
           }
         }
       }
 
-      // INICIO del turno de next (refresh): sus DON rested vuelven a activos,
-      // sus cartas se enderezan, y se limpian los buffs temporales.
+      // INICIO del turno de next (refresh): sus DON rested vuelven a activos, sus
+      // cartas se enderezan, se limpian los buffs temporales, y el "recién jugado"
+      // se quita SOLO ahora — un personaje puede atacar a partir del turno del
+      // dueño (sigue gris durante el turno del rival).
       state.donAvailable[next] += state.donRested[next];
       state.donRested[next] = 0;
       for (const uid of Object.keys(state.cards)) {
         const c = state.cards[uid];
-        if ((c.owner === next && c.rested) || c.tempPower) {
+        const unrest = c.owner === next && c.rested;
+        const wake = c.owner === next && c.summoningSick;
+        if (unrest || c.tempPower || wake) {
           state.cards[uid] = {
             ...c,
             rested: c.owner === next ? false : c.rested,
             tempPower: 0,
+            ...(wake ? { summoningSick: false } : {}),
           };
         }
       }

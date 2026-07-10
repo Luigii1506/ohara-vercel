@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, ArrowLeft, Eye, Plus, X } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
+import { proxyImage } from "@/lib/proxyImage";
 import { setCodesOptions } from "@/helpers/constants";
 
 type ImageClassification = "PRODUCT" | "CARD" | "IGNORE" | "";
@@ -471,7 +472,7 @@ const ApproveMissingProductPage = () => {
                         className="block w-full h-full"
                       >
                         <img
-                          src={image}
+                          src={proxyImage(image)}
                           alt={`${missingProduct.title} ${index + 1}`}
                           className="mx-auto h-full w-auto object-contain"
                         />

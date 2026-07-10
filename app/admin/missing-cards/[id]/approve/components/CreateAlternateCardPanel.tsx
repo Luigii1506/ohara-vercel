@@ -19,7 +19,8 @@ import SingleSelect, {
 import MultiSelect, {
   Option as MultiSelectOption,
 } from "@/components/MultiSelect";
-import { allRegions, altArtOptions } from "@/helpers/constants";
+import { altArtOptions } from "@/helpers/constants";
+import { REGION_OPTIONS } from "@/lib/regions";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 import { AlertCircle, Loader2, RefreshCw, X } from "lucide-react";
 
@@ -151,6 +152,12 @@ export default function CreateAlternateCardPanel({
     [setOptions]
   );
 
+  // Opciones de REGIÓN reales (US/JP/FR/KR/CN), no las etiquetas de "exclusivo".
+  const regionSelectOptions = useMemo<SingleSelectOption[]>(
+    () => REGION_OPTIONS.map((r) => ({ value: r.code, label: `${r.label} (${r.code})` })),
+    []
+  );
+
   const isR2Url = (url: string) =>
     /images\.oharatcg\.com|\.r2\.dev|\.workers\.dev/i.test(url);
 
@@ -238,7 +245,8 @@ export default function CreateAlternateCardPanel({
   useEffect(() => {
     setForm({
       alias: "",
-      region: "",
+      // Por defecto: región preferida del evento (o US si no hay).
+      region: (preferredRegion || "US").toUpperCase(),
       alternateArt: "",
       tcgUrl: "",
       imageUrl: missingCard.imageUrl,
@@ -684,9 +692,9 @@ export default function CreateAlternateCardPanel({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label>Región (opcional)</Label>
+                  <Label>Región</Label>
                   <SingleSelect
-                    options={allRegions}
+                    options={regionSelectOptions}
                     selected={form.region || null}
                     setSelected={(value) => handleFormChange("region", value)}
                     buttonLabel="Selecciona región"

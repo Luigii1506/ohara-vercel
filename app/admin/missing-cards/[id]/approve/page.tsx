@@ -184,6 +184,28 @@ export default function ApproveMissingCardPage() {
     [missingCard]
   );
 
+  // Región de una carta (las US suelen venir vacías/null → se tratan como US).
+  const regionOf = (card: CardOption) => (card.region || "US").toUpperCase();
+
+  // Tabs por región: agrupamos las opciones y contamos cuántas hay por región.
+  const [regionTab, setRegionTab] = useState<string>("all");
+  const regionTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of cardOptions) counts.set(regionOf(c), (counts.get(regionOf(c)) ?? 0) + 1);
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [cardOptions]);
+  const filteredOptions = useMemo(
+    () => (regionTab === "all" ? cardOptions : cardOptions.filter((c) => regionOf(c) === regionTab)),
+    [cardOptions, regionTab]
+  );
+  // Al cargar, arrancar en la región preferida del evento (por defecto US) si existe.
+  useEffect(() => {
+    if (!cardOptions.length) return;
+    const regions = new Set(cardOptions.map(regionOf));
+    const pref = (preferredRegion || "US").toUpperCase();
+    setRegionTab(regions.has(pref) ? pref : "all");
+  }, [cardOptions, preferredRegion]);
+
   const handleApprove = async () => {
     if (!missingCard || !selectedCardId) return;
 
@@ -392,8 +414,39 @@ export default function ApproveMissingCardPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {cardOptions.map((card) => (
+                  <>
+                    {/* Tabs por REGIÓN para no confundir versiones */}
+                    {regionTabs.length > 1 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setRegionTab("all")}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                            regionTab === "all"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground hover:bg-muted/70"
+                          }`}
+                        >
+                          Todas ({cardOptions.length})
+                        </button>
+                        {regionTabs.map(([region, count]) => (
+                          <button
+                            key={region}
+                            type="button"
+                            onClick={() => setRegionTab(region)}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                              regionTab === region
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground hover:bg-muted/70"
+                            }`}
+                          >
+                            {region} ({count})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredOptions.map((card) => (
                       <button
                         key={card.id}
                         onClick={() => setSelectedCardId(card.id)}
@@ -424,6 +477,12 @@ export default function ApproveMissingCardPage() {
                               >
                                 {card.code}
                               </Badge>
+                              <Badge
+                                variant="outline"
+                                className="text-xs font-bold border-sky-400/60 text-sky-600"
+                              >
+                                {regionOf(card)}
+                              </Badge>
                               {card.isFirstEdition && (
                                 <Badge variant="default" className="text-xs">
                                   1st
@@ -450,7 +509,8 @@ export default function ApproveMissingCardPage() {
                         </div>
                       </button>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

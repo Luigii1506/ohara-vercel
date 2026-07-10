@@ -168,7 +168,7 @@ const DonStrip = React.memo(function DonStrip({
     ...Array.from({ length: r }, () => true),
   ];
   return (
-    <div className="flex min-h-0 flex-[0.85] items-center gap-2 self-stretch">
+    <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2 self-stretch">
       <div className="relative h-full min-w-0 flex-1 overflow-hidden rounded-md border border-amber-400/15 bg-amber-400/[0.05] px-2">
         {items.map((isRested, i) => (
           <div
@@ -345,6 +345,8 @@ interface HalfData {
   life: number;
   don: number;
   donRested: number;
+  /** DON!! que quedan en el mazo de DON (10 - en juego - adheridos). */
+  donDeck: number;
   chars: CardInstance[];
   lifeCards: CardInstance[];
   leader?: CardInstance;
@@ -353,20 +355,60 @@ interface HalfData {
   trash: CardInstance[];
 }
 
-// Fila media (como el mat): Life a la izquierda · Leader al centro · Stage ·
-// Deck · Trash a la derecha. El DON ya NO va aquí (es la tira exterior).
+// Mazo de DON!!: pila de DON boca abajo (los que aún no has jugado) + número.
+const DonDeckPile = React.memo(function DonDeckPile({ count }: { count: number }) {
+  const n = Math.max(0, Math.min(count, 10));
+  return (
+    <div className="relative flex w-[9%] shrink-0 items-center justify-center">
+      <div className="relative h-full" style={{ aspectRatio: "5 / 7" }}>
+        {n === 0 ? (
+          <div className={cn(CARD, "flex items-center justify-center border border-amber-400/20 bg-amber-400/[0.05] text-[8px] font-black uppercase tracking-wide text-amber-300/30")}>
+            DON
+          </div>
+        ) : (
+          Array.from({ length: Math.min(n, 6) }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute inset-x-0 top-0 overflow-hidden rounded-[5px] shadow ring-1 ring-amber-400/30"
+              style={{ aspectRatio: "5 / 7", top: `${-i * 4}%`, zIndex: i }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={DON_IMG} alt="" className="h-full w-full object-cover" />
+            </div>
+          ))
+        )}
+      </div>
+      <span className="absolute -top-1.5 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-600/90 px-1.5 text-[10px] font-black leading-none text-white ring-1 ring-black/40">
+        {count}
+      </span>
+    </div>
+  );
+});
+
+// Fila EXTERIOR (borde): mazo de DON (pila) · barra ancha de DON en juego · Trash.
+const DonRow = React.memo(function DonRow(d: HalfData) {
+  return (
+    <div className="flex min-h-0 flex-[0.9] items-stretch gap-[1.5%]">
+      <DonDeckPile count={d.donDeck} />
+      <DonStrip active={d.don} rested={d.donRested} />
+      <Pile cards={d.trash} label="Trash" width="w-[12%]" />
+    </div>
+  );
+});
+
+// Fila MEDIA (como el mat): Deck · Stage · Leader · Vida (la vida crece hacia
+// arriba, hacia el área de personajes).
 const FieldRow = React.memo(function FieldRow(d: HalfData) {
   return (
     <div className="flex min-h-0 flex-1 items-stretch justify-center gap-[1.5%]">
-      <LifePile count={d.life} />
+      <Pile cards={d.deck} label="Deck" faceDown width="w-[12%]" />
       <div className="min-w-0 flex-1" />
+      <Pile cards={d.stage} label="Stage" width="w-[12%]" />
       <div className="flex w-[12%] items-center justify-center">
         <BoardCard card={d.leader} />
       </div>
-      <Pile cards={d.stage} label="Stage" width="w-[12%]" />
       <div className="min-w-0 flex-1" />
-      <Pile cards={d.deck} label="Deck" faceDown width="w-[12%]" />
-      <Pile cards={d.trash} label="Trash" width="w-[12%]" />
+      <LifePile count={d.life} />
     </div>
   );
 });
@@ -375,9 +417,9 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
   const name = <NameBar side={data.side} active={data.active} life={data.life} />;
   const field = <FieldRow {...data} />;
   const chars = <CharacterRow cards={data.chars} />;
-  const don = <DonStrip active={data.don} rested={data.donRested} />;
-  // Orden como el mat: Character Area pegada al CENTRO; la tira de DON en el
-  // borde EXTERIOR (arriba para el rival, abajo para ti).
+  const donRow = <DonRow {...data} />;
+  // Orden como el mat: Character Area pegada al CENTRO; la fila de DON (mazo +
+  // barra + trash) en el borde EXTERIOR (arriba para el rival, abajo para ti).
   return (
     <div
       className={cn(
@@ -388,7 +430,7 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
       {top ? (
         <>
           {name}
-          {don}
+          {donRow}
           {field}
           {chars}
         </>
@@ -396,7 +438,7 @@ const Half = React.memo(function Half({ data, top }: { data: HalfData; top: bool
         <>
           {chars}
           {field}
-          {don}
+          {donRow}
           {name}
         </>
       )}
@@ -422,19 +464,28 @@ const ReplayBoard: React.FC = () => {
   const list = (side: Side, s: string): CardInstance[] =>
     (zones[`${side}-${s}` as ZoneId]?.cardUids ?? []).map((uid) => cards[uid]).filter(Boolean);
 
-  const buildHalf = (side: Side): HalfData => ({
-    side,
-    active: turnOwner === side,
-    life: life[side],
-    don: donAvailable[side],
-    donRested: donRested?.[side] ?? 0,
-    chars: list(side, "front-row"),
-    lifeCards: list(side, "life"),
-    leader: list(side, "leader")[0],
-    stage: list(side, "stage"),
-    deck: list(side, "deck"),
-    trash: list(side, "trash"),
-  });
+  const buildHalf = (side: Side): HalfData => {
+    const active = donAvailable[side];
+    const rested = donRested?.[side] ?? 0;
+    const attached = Object.values(cards).reduce(
+      (s, c) => (c && c.owner === side ? s + (c.attachedDon ?? 0) : s),
+      0
+    );
+    return {
+      side,
+      active: turnOwner === side,
+      life: life[side],
+      don: active,
+      donRested: rested,
+      donDeck: Math.max(0, 10 - active - rested - attached),
+      chars: list(side, "front-row"),
+      lifeCards: list(side, "life"),
+      leader: list(side, "leader")[0],
+      stage: list(side, "stage"),
+      deck: list(side, "deck"),
+      trash: list(side, "trash"),
+    };
+  };
 
   const [topSide, bottomSide]: Side[] =
     activePerspective === "player" ? ["opponent", "player"] : ["player", "opponent"];

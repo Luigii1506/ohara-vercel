@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useMemo, useState } from "react";
+import { proxyImage } from "@/lib/proxyImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -872,7 +873,7 @@ const AdminEventScraperPage = () => {
                     {previewImages.map((src, index) => (
                       <img
                         key={`${src}-${index}`}
-                        src={src}
+                        src={proxyImage(src)}
                         alt={`Event visual ${index + 1}`}
                         className="h-40 w-40 rounded-lg border object-cover"
                         onMouseEnter={() =>
@@ -981,7 +982,7 @@ const AdminEventScraperPage = () => {
                                         .map((img: string, index: number) => (
                                           <img
                                             key={`${set.id}-img-${index}`}
-                                            src={img}
+                                            src={proxyImage(img)}
                                             alt={`${set.title} image ${
                                               index + 1
                                             }`}
@@ -1008,7 +1009,7 @@ const AdminEventScraperPage = () => {
                                         >
                                           {card.image ? (
                                             <img
-                                              src={card.image}
+                                              src={proxyImage(card.image)}
                                               alt={card.title}
                                               className="h-48 w-full rounded bg-white object-contain p-1"
                                               onMouseEnter={() =>
@@ -1076,7 +1077,7 @@ const AdminEventScraperPage = () => {
                                   .map((img: string, imgIndex: number) => (
                                     <img
                                       key={`${img}-${imgIndex}`}
-                                      src={img}
+                                      src={proxyImage(img)}
                                       alt={`${set.title} preview ${
                                         imgIndex + 1
                                       }`}
@@ -1115,7 +1116,7 @@ const AdminEventScraperPage = () => {
                           >
                             {card.image ? (
                               <img
-                                src={card.image}
+                                src={proxyImage(card.image)}
                                 alt={card.title}
                                 onMouseEnter={() =>
                                   handlePreviewEnter(
@@ -1284,7 +1285,7 @@ const AdminEventScraperPage = () => {
                           {eventImage && (
                             <div className="flex flex-wrap gap-3">
                               <img
-                                src={eventImage}
+                                src={proxyImage(eventImage)}
                                 alt={`${event.title} visual`}
                                 className="h-40 w-40 rounded-lg border object-cover"
                                 onMouseEnter={() =>
@@ -1407,7 +1408,7 @@ const AdminEventScraperPage = () => {
                                                       ) => (
                                                         <img
                                                           key={`${set.id}-img-${imgIndex}`}
-                                                          src={img}
+                                                          src={proxyImage(img)}
                                                           alt={`${
                                                             set.title
                                                           } image ${
@@ -1444,7 +1445,7 @@ const AdminEventScraperPage = () => {
                                                       >
                                                         {card.image ? (
                                                           <img
-                                                            src={card.image}
+                                                            src={proxyImage(card.image)}
                                                             alt={card.title}
                                                             className="h-48 w-full rounded bg-white object-contain p-1"
                                                           />
@@ -1512,7 +1513,7 @@ const AdminEventScraperPage = () => {
                                               ) => (
                                                 <img
                                                   key={`${img}-${imgIndex}`}
-                                                  src={img}
+                                                  src={proxyImage(img)}
                                                   alt={`${set.title} preview ${
                                                     imgIndex + 1
                                                   }`}
@@ -1556,7 +1557,7 @@ const AdminEventScraperPage = () => {
                                     >
                                       {card.image ? (
                                         <img
-                                          src={card.image}
+                                          src={proxyImage(card.image)}
                                           alt={card.title}
                                           onMouseEnter={() =>
                                             handlePreviewEnter(

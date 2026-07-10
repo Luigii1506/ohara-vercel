@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { proxyImage } from "@/lib/proxyImage";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -315,7 +316,7 @@ export default function ApproveMissingCardPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-center">
                 <img
-                  src={missingCard.imageUrl}
+                  src={proxyImage(missingCard.imageUrl)}
                   alt={missingCard.title}
                   className="w-full max-w-[200px] rounded border"
                 />
@@ -410,7 +411,7 @@ export default function ApproveMissingCardPage() {
 
                         <div className="flex flex-col items-center space-y-2">
                           <img
-                            src={card.src}
+                            src={proxyImage(card.src)}
                             alt={card.name}
                             className="w-full max-w-[150px] rounded"
                           />
@@ -465,7 +466,7 @@ export default function ApproveMissingCardPage() {
                 <div className="flex gap-6">
                   <div className="flex-shrink-0">
                     <img
-                      src={selectedCard.src}
+                      src={proxyImage(selectedCard.src)}
                       alt={selectedCard.name}
                       className="w-48 rounded border"
                     />

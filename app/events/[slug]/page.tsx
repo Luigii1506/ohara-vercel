@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { proxyImage } from "@/lib/proxyImage";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -749,7 +750,7 @@ const EventDetailPage = () => {
             </div>
             <div className="flex flex-col items-center gap-3 px-5 mb-3">
               <img
-                src={imagePreview.src}
+                src={proxyImage(imagePreview.src)}
                 className="max-w-full max-h-[calc(100dvh-130px)] object-contain"
                 alt={imagePreview.title}
                 loading="lazy"

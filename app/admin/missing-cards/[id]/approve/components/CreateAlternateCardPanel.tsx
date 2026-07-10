@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { proxyImage } from "@/lib/proxyImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -450,7 +451,7 @@ export default function CreateAlternateCardPanel({
               </p>
               <div className="flex flex-col items-center gap-3">
                 <img
-                  src={missingCard.imageUrl}
+                  src={proxyImage(missingCard.imageUrl)}
                   alt={missingCard.title}
                   className="w-full max-w-[220px] rounded-lg border"
                 />
@@ -477,7 +478,7 @@ export default function CreateAlternateCardPanel({
                   <>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                       <img
-                        src={baseCard.src}
+                        src={proxyImage(baseCard.src)}
                         alt={baseCard.name}
                         className="w-32 rounded-lg border shadow-sm"
                       />

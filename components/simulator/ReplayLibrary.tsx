@@ -38,12 +38,23 @@ const LOG_PATHS = {
   linux: "~/.config/unity3d/Batsu/OPTCGSim/CombatLogs",
 };
 
-const detectOsPath = (): string => {
-  if (typeof navigator === "undefined") return LOG_PATHS.mac;
+// Comando de una línea para abrir esa carpeta en el explorador del SO (así el
+// usuario puede arrastrar los .log al navegador). En Mac es la vía fiable porque
+// un .command descargado no trae permiso de ejecución y Gatekeeper lo bloquea.
+const OPEN_CMDS = {
+  mac: 'open "$HOME/Library/Application Support/com.Batsu.OPTCGSim/CombatLogs"',
+  win: 'explorer "%USERPROFILE%\\AppData\\LocalLow\\Batsu\\OPTCGSim\\CombatLogs"',
+  linux: 'xdg-open "$HOME/.config/unity3d/Batsu/OPTCGSim/CombatLogs"',
+};
+
+type OsKey = "mac" | "win" | "linux";
+
+const detectOs = (): OsKey => {
+  if (typeof navigator === "undefined") return "mac";
   const p = `${navigator.platform || ""} ${navigator.userAgent || ""}`;
-  if (/Win/i.test(p)) return LOG_PATHS.win;
-  if (/Linux/i.test(p) && !/Android/i.test(p)) return LOG_PATHS.linux;
-  return LOG_PATHS.mac; // mac por defecto (incluye iPad/desktop Safari)
+  if (/Win/i.test(p)) return "win";
+  if (/Linux/i.test(p) && !/Android/i.test(p)) return "linux";
+  return "mac"; // mac por defecto (incluye iPad/desktop Safari)
 };
 
 const isMacPath = (path: string) => path.startsWith("~/Library");
@@ -59,23 +70,28 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
   // él (rompería la hidratación server/cliente). Arranca en false y se detecta al
   // montar. La lógica (efectos/handlers) sí usa la detección real directamente.
   const [supported, setSupported] = useState(false);
-  // Ruta se resuelve en cliente (evita mismatch de hidratación por navigator).
-  const [logsPath, setLogsPath] = useState(LOG_PATHS.mac);
-  const [copied, setCopied] = useState(false);
+  // Ruta/comando se resuelven en cliente (evita mismatch de hidratación).
+  const [os, setOs] = useState<OsKey>("mac");
+  const [copied, setCopied] = useState<null | "path" | "cmd">(null);
   useEffect(() => {
     setSupported(isFileSystemAccessSupported());
-    setLogsPath(detectOsPath());
+    setOs(detectOs());
   }, []);
+  const logsPath = LOG_PATHS[os];
+  const openCmd = OPEN_CMDS[os];
 
-  const copyPath = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(logsPath);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard bloqueado: el usuario puede seleccionar el texto a mano */
-    }
-  }, [logsPath]);
+  const copyText = useCallback(
+    async (text: string, which: "path" | "cmd") => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(which);
+        setTimeout(() => setCopied(null), 1500);
+      } catch {
+        /* clipboard bloqueado: el usuario puede seleccionar el texto a mano */
+      }
+    },
+    []
+  );
   const [entries, setEntries] = useState<Entry[]>([]);
   const [leaderMap, setLeaderMap] = useState<CardMap>({});
   const [sourceLabel, setSourceLabel] = useState<string>(""); // carpeta local o elegida
@@ -311,46 +327,86 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
       {/* Ayuda para llegar a la carpeta oculta (~/Library en Mac). Se muestra
           cuando el picker está disponible y aún no hay partidas cargadas. */}
       {!localMode && entries.length === 0 && (
-        <div className="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-          <p className="text-white/80">
-            Pulsa <span className="font-semibold text-emerald-300">«Elegir
-            archivos (.log)»</span> y en el diálogo
-            {isMacPath(logsPath) ? (
-              <>
-                {" "}
-                pulsa{" "}
-                <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
-                  ⌘⇧G
-                </kbd>
-                , pega esta ruta, Enter, y selecciona todos tus `.log` (⌘A):
-              </>
-            ) : (
-              <> ve a esta ruta y selecciona tus `.log`:</>
-            )}
-          </p>
-          <div className="flex items-center gap-2">
-            <code
-              className="flex-1 truncate rounded bg-black/40 px-2 py-1.5 font-mono text-emerald-200"
-              title={logsPath}
-            >
-              {logsPath}
-            </code>
-            <button
-              onClick={copyPath}
-              className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 font-medium hover:bg-white/20"
-            >
-              {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-300" />
+        <div className="space-y-3 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+          {/* Opción A: elegir archivos (funciona con ~/Library vía ⌘⇧G) */}
+          <div className="space-y-1.5">
+            <p className="text-white/80">
+              <span className="font-semibold text-emerald-300">A)</span> Pulsa
+              «Elegir archivos (.log)» y en el diálogo
+              {isMacPath(logsPath) ? (
+                <>
+                  {" "}
+                  usa{" "}
+                  <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
+                    ⌘⇧G
+                  </kbd>
+                  , pega esta ruta, Enter, y selecciona todos con{" "}
+                  <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
+                    ⌘A
+                  </kbd>
+                  :
+                </>
               ) : (
-                <Copy className="h-3.5 w-3.5" />
+                <> ve a esta ruta y selecciona tus `.log`:</>
               )}
-              {copied ? "Copiado" : "Copiar"}
-            </button>
+            </p>
+            <div className="flex items-center gap-2">
+              <code
+                className="flex-1 truncate rounded bg-black/40 px-2 py-1.5 font-mono text-emerald-200"
+                title={logsPath}
+              >
+                {logsPath}
+              </code>
+              <button
+                onClick={() => copyText(logsPath, "path")}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 font-medium hover:bg-white/20"
+              >
+                {copied === "path" ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-300" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {copied === "path" ? "Copiado" : "Copiar"}
+              </button>
+            </div>
           </div>
-          <p className="text-white/50">
-            Chrome bloquea el acceso por <em>carpeta</em> a ~/Library, pero elegir
-            los archivos sí funciona. También puedes arrastrarlos desde Finder.
-          </p>
+
+          {/* Opción B: abrir la carpeta en Finder para arrastrar los archivos */}
+          <div className="space-y-1.5 border-t border-white/10 pt-2.5">
+            <p className="text-white/80">
+              <span className="font-semibold text-sky-300">B)</span> ¿Prefieres
+              arrastrar? Abre la carpeta en {os === "win" ? "el Explorador" : "Finder"}:
+              pega este comando en{" "}
+              {os === "win" ? "CMD" : "Terminal"} (
+              {os === "win" ? "tecla ⊞" : "⌘+Espacio → «Terminal»"}) y Enter; luego
+              arrastra los `.log` aquí.
+            </p>
+            <div className="flex items-center gap-2">
+              <code
+                className="flex-1 truncate rounded bg-black/40 px-2 py-1.5 font-mono text-sky-200"
+                title={openCmd}
+              >
+                {openCmd}
+              </code>
+              <button
+                onClick={() => copyText(openCmd, "cmd")}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 font-medium hover:bg-white/20"
+              >
+                {copied === "cmd" ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-300" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {copied === "cmd" ? "Copiado" : "Copiar"}
+              </button>
+            </div>
+            {isMacPath(logsPath) && (
+              <p className="text-white/40">
+                Tip: dentro de esa ventana de Finder, arrastra la carpeta a la
+                barra lateral (Favoritos) y la tendrás a un clic para siempre.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -368,15 +424,15 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
               {logsPath}
             </code>
             <button
-              onClick={copyPath}
+              onClick={() => copyText(logsPath, "path")}
               className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 text-xs font-medium text-white hover:bg-white/20"
             >
-              {copied ? (
+              {copied === "path" ? (
                 <Check className="h-3.5 w-3.5 text-emerald-300" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
-              {copied ? "Copiado" : "Copiar"}
+              {copied === "path" ? "Copiado" : "Copiar"}
             </button>
           </div>
         </div>

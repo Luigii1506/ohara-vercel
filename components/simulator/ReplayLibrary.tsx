@@ -8,6 +8,8 @@ import {
   Trophy,
   Upload,
   HardDrive,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   isFileSystemAccessSupported,
@@ -28,6 +30,25 @@ interface ReplayLibraryProps {
   onPick: (file: File) => void;
 }
 
+// Ruta por defecto de CombatLogs por SO (Unity persistentDataPath). Se muestra en
+// la UI para copiar/pegar en el diálogo del navegador, porque en macOS la carpeta
+// vive dentro de ~/Library (oculta) y no se puede navegar a mano.
+const LOG_PATHS = {
+  mac: "~/Library/Application Support/com.Batsu.OPTCGSim/CombatLogs",
+  win: "%USERPROFILE%\\AppData\\LocalLow\\Batsu\\OPTCGSim\\CombatLogs",
+  linux: "~/.config/unity3d/Batsu/OPTCGSim/CombatLogs",
+};
+
+const detectOsPath = (): string => {
+  if (typeof navigator === "undefined") return LOG_PATHS.mac;
+  const p = `${navigator.platform || ""} ${navigator.userAgent || ""}`;
+  if (/Win/i.test(p)) return LOG_PATHS.win;
+  if (/Linux/i.test(p) && !/Android/i.test(p)) return LOG_PATHS.linux;
+  return LOG_PATHS.mac; // mac por defecto (incluye iPad/desktop Safari)
+};
+
+const isMacPath = (path: string) => path.startsWith("~/Library");
+
 /** Una partida en la lista + cómo obtener su File al hacer clic. */
 interface Entry {
   summary: GameSummary;
@@ -39,7 +60,23 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
   // él (rompería la hidratación server/cliente). Arranca en false y se detecta al
   // montar. La lógica (efectos/handlers) sí usa la detección real directamente.
   const [supported, setSupported] = useState(false);
-  useEffect(() => setSupported(isFileSystemAccessSupported()), []);
+  // Ruta se resuelve en cliente (evita mismatch de hidratación por navigator).
+  const [logsPath, setLogsPath] = useState(LOG_PATHS.mac);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    setSupported(isFileSystemAccessSupported());
+    setLogsPath(detectOsPath());
+  }, []);
+
+  const copyPath = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(logsPath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard bloqueado: el usuario puede seleccionar el texto a mano */
+    }
+  }, [logsPath]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [leaderMap, setLeaderMap] = useState<CardMap>({});
   const [sourceLabel, setSourceLabel] = useState<string>(""); // carpeta local o elegida
@@ -226,11 +263,83 @@ const ReplayLibrary: React.FC<ReplayLibraryProps> = ({ onPick }) => {
         )}
       </div>
 
+      {/* Ayuda para llegar a la carpeta oculta (~/Library en Mac). Se muestra
+          cuando el picker está disponible y aún no hay partidas cargadas. */}
+      {supported && !localMode && entries.length === 0 && (
+        <div className="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+          <p className="text-white/80">
+            La carpeta de partidas está oculta{" "}
+            {isMacPath(logsPath) ? "dentro de ~/Library" : ""}. Pulsa «Abrir
+            carpeta de partidas» y, en el diálogo
+            {isMacPath(logsPath) ? (
+              <>
+                {" "}
+                de macOS pulsa{" "}
+                <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
+                  ⌘⇧G
+                </kbd>
+                , pega esta ruta y Enter:
+              </>
+            ) : (
+              <>, pega esta ruta:</>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <code
+              className="flex-1 truncate rounded bg-black/40 px-2 py-1.5 font-mono text-emerald-200"
+              title={logsPath}
+            >
+              {logsPath}
+            </code>
+            <button
+              onClick={copyPath}
+              className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 font-medium hover:bg-white/20"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-emerald-300" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              {copied ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+          {isMacPath(logsPath) && (
+            <p className="text-white/50">
+              Tip: también puedes mostrar carpetas ocultas en el diálogo con{" "}
+              <kbd className="rounded bg-black/50 px-1 py-0.5 font-mono">
+                ⌘⇧.
+              </kbd>
+            </p>
+          )}
+        </div>
+      )}
+
       {!supported && !localMode && (
-        <p className="text-xs text-amber-300/80">
-          Tu navegador no permite abrir carpetas (usa Chrome/Edge/Brave). Mientras,
-          elige o arrastra un archivo.
-        </p>
+        <div className="space-y-2 rounded-lg border border-amber-300/20 bg-amber-500/5 p-3">
+          <p className="text-xs text-amber-300/80">
+            Tu navegador no permite abrir carpetas (usa Chrome/Edge/Brave).
+            Mientras, elige o arrastra un archivo. La carpeta está en:
+          </p>
+          <div className="flex items-center gap-2">
+            <code
+              className="flex-1 truncate rounded bg-black/40 px-2 py-1.5 font-mono text-xs text-amber-200"
+              title={logsPath}
+            >
+              {logsPath}
+            </code>
+            <button
+              onClick={copyPath}
+              className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-2 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-emerald-300" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              {copied ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+        </div>
       )}
 
       {loading && (

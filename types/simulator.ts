@@ -55,6 +55,8 @@ export interface CardInstance {
   status?: string;
   /** Turno en que se aplicó el estado (para limpiarlo en el turno correcto). */
   statusTurn?: number;
+  /** Recién jugado: no puede atacar este turno (se oscurece hasta el fin de turno). */
+  summoningSick?: boolean;
   notes?: string;
   customLabel?: string;
 }

@@ -258,7 +258,9 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
       if (!side) return;
       // Sacar de la mano si está; da igual si no (reconcile arregla).
       removeCode(state, side, "hand", ev.card.code);
-      addCode(state, ctx, side, "front-row", ev.card.code);
+      const played = addCode(state, ctx, side, "front-row", ev.card.code);
+      // Recién jugado → no puede atacar este turno (se oscurece).
+      played.summoningSick = true;
       // Costo: bajar un personaje MUEVE DON de activo a rested = su costo (los
       // deploys por efecto "from Deck/Trash" son gratis). El total lo fija
       // RZ1|CHK; aquí llevamos el split activo/rested al instante.
@@ -346,12 +348,19 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
 
       // FIN del turno de p: se levanta la restricción "no puede atacar/bloquear"
       // de SUS cartas, pero SOLO si no se aplicó en este mismo turno (así dura
-      // durante el "next turn" del dueño y no se limpia antes de tiempo).
+      // durante el "next turn" del dueño y no se limpia antes de tiempo). También
+      // se quita el "recién jugado" (ya puede atacar a partir del próximo turno).
       if (p) {
         for (const uid of Object.keys(state.cards)) {
           const c = state.cards[uid];
-          if (c.status && c.owner === p && c.statusTurn !== endingTurn) {
-            state.cards[uid] = { ...c, status: undefined, statusTurn: undefined };
+          const clearStatus = c.status && c.owner === p && c.statusTurn !== endingTurn;
+          const clearSick = c.summoningSick && c.owner === p;
+          if (clearStatus || clearSick) {
+            state.cards[uid] = {
+              ...c,
+              ...(clearStatus ? { status: undefined, statusTurn: undefined } : {}),
+              ...(clearSick ? { summoningSick: false } : {}),
+            };
           }
         }
       }

@@ -46,6 +46,14 @@ const BoardCard = React.memo(
     const src = card?.card?.src;
     const don = card?.attachedDon ?? 0;
     const buff = card?.tempPower ?? 0;
+    const bonus = don * 1000 + buff;
+    // Poder total = base (de la carta) + 1000 por cada DON adherido + buff temporal.
+    const base = parseInt(
+      String((card?.card as { power?: string } | undefined)?.power ?? "").replace(/[^\d]/g, ""),
+      10
+    );
+    const totalPower = Number.isFinite(base) ? base + bonus : null;
+    const sick = !!card?.summoningSick;
     return (
       <div
         className={cn(
@@ -83,12 +91,29 @@ const BoardCard = React.memo(
             className="h-full w-full object-cover"
             objectFit="cover"
           />
-          {/* Poder temporal por buff (+N), destacado. */}
-          {buff > 0 && (
-            <span className="absolute left-0 top-0 rounded-br-md bg-lime-400/90 px-1 text-[9px] font-black leading-tight text-lime-950 shadow">
-              +{buff}
+
+          {/* Recién jugado (no puede atacar): se oscurece hasta el fin de turno. */}
+          {sick && <div className="pointer-events-none absolute inset-0 z-[15] bg-slate-950/60" />}
+
+          {/* DON adheridos: contador "×N" (como el ドン!!×3 del simulador). */}
+          {don > 0 && (
+            <span className="absolute right-0 top-0 z-20 rounded-bl-md bg-amber-500/90 px-1 text-[9px] font-black leading-tight text-amber-950 shadow">
+              ×{don}
             </span>
           )}
+
+          {/* Poder actual (cuando está potenciado): número VERDE grande al centro. */}
+          {bonus > 0 && (
+            <span className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+              <span
+                className="font-black leading-none text-lime-400"
+                style={{ fontSize: "clamp(11px, 2.1vw, 26px)", textShadow: "0 1px 4px rgba(0,0,0,.95)" }}
+              >
+                {totalPower ?? `+${bonus}`}
+              </span>
+            </span>
+          )}
+
           {/* Ficha de estado por efecto (p.ej. "No puede atacar"). */}
           {card?.status && (
             <span className="absolute inset-x-0 bottom-0 z-20 bg-rose-600/90 px-0.5 py-[1px] text-center text-[7px] font-black uppercase leading-tight tracking-tight text-white shadow">
@@ -106,7 +131,8 @@ const BoardCard = React.memo(
     a.card?.rested === b.card?.rested &&
     a.card?.attachedDon === b.card?.attachedDon &&
     a.card?.tempPower === b.card?.tempPower &&
-    a.card?.status === b.card?.status
+    a.card?.status === b.card?.status &&
+    a.card?.summoningSick === b.card?.summoningSick
 );
 
 const Pile = React.memo(function Pile({

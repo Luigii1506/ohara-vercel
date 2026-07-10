@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { RefreshCw, Eye, Trash2, ArrowUpDown } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
+import { proxyImage } from "@/lib/proxyImage";
 
 interface MissingProduct {
   id: number;
@@ -206,7 +207,7 @@ const AdminMissingProductsPage = () => {
                       className="flex-shrink-0 w-16 h-20 rounded border overflow-hidden"
                     >
                       <img
-                        src={item.thumbnailUrl}
+                        src={proxyImage(item.thumbnailUrl)}
                         alt="thumbnail"
                         className="w-full h-full object-cover"
                       />
@@ -221,7 +222,7 @@ const AdminMissingProductsPage = () => {
                       className="flex-shrink-0 w-16 h-20 rounded border overflow-hidden"
                     >
                       <img
-                        src={img}
+                        src={proxyImage(img)}
                         alt={`${idx + 1}`}
                         className="w-full h-full object-cover"
                       />

@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
+import { proxyImage } from "@/lib/proxyImage";
 
 interface MissingCardEventLink {
   linkId: number;
@@ -205,7 +206,7 @@ const AdminMissingCardsPage = () => {
                     {!editingId || editingId !== missingCard.id ? (
                       <div className="flex-shrink-0">
                         <img
-                          src={missingCard.imageUrl}
+                          src={proxyImage(missingCard.imageUrl)}
                           alt={missingCard.title}
                           className="w-16 h-22 object-contain rounded border"
                         />

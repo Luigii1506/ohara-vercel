@@ -22,6 +22,11 @@ import { cn } from "@/lib/utils";
 const CARD =
   "h-full max-w-full aspect-[5/7] rounded-[5px] overflow-hidden shadow ring-1 ring-black/40";
 
+// Cara visible de la carta (sin el tamaño). El tamaño lo pone el contenedor
+// exterior de BoardCard para poder dibujar los DON adheridos DETRÁS asomando.
+const CARD_FACE =
+  "rounded-[5px] overflow-hidden shadow ring-1 ring-black/40 bg-black/30";
+
 // Imagen de la carta DON!! estándar (teal) desde el catálogo.
 const DON_IMG =
   "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/Promotional-don-teal.webp";
@@ -38,39 +43,48 @@ const BoardCard = React.memo(
     const buff = card?.tempPower ?? 0;
     return (
       <div
-        className={cn("relative bg-black/30 transition-transform", CARD, card?.rested && "rotate-90", className)}
+        className={cn(
+          "relative h-full max-w-full aspect-[5/7] transition-transform",
+          card?.rested && "rotate-90",
+          className
+        )}
         title={card?.card?.name ?? ""}
         onMouseEnter={() => src && setHover({ src, name: card?.card?.name })}
         onMouseLeave={() => setHover(null)}
       >
-        <LazyImage
-          src={src}
-          fallbackSrc={SIMULATOR_CARD_FALLBACK}
-          alt={card?.card?.name ?? ""}
-          className="h-full w-full object-cover"
-          objectFit="cover"
-        />
-        {/* Poder temporal por buff (+N), destacado. */}
-        {buff > 0 && (
-          <span className="absolute left-0 top-0 rounded-br-md bg-lime-400/90 px-1 text-[9px] font-black leading-tight text-lime-950 shadow">
-            +{buff}
-          </span>
-        )}
-        {/* DON!! adheridos: se ven como cartas DON en la parte baja del personaje. */}
+        {/* DON!! adheridos: DETRÁS de la carta, asomando por la parte baja (como
+            en el juego real). Al estar dentro del contenedor que rota, giran
+            junto con el personaje cuando ataca/se restea. */}
         {don > 0 && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-[1px] px-0.5 pb-[3px]">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 flex h-[38%] translate-y-[30%] items-end justify-center gap-[2px] px-1">
             {Array.from({ length: Math.min(don, 10) }).map((_, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={i}
                 src={DON_IMG}
                 alt=""
-                className="w-auto rounded-[1px] ring-1 ring-black/50"
-                style={{ height: "30%", aspectRatio: "5 / 7" }}
+                className="h-full rounded-[2px] shadow ring-1 ring-black/50"
+                style={{ aspectRatio: "5 / 7" }}
               />
             ))}
           </div>
         )}
+        {/* Cara de la carta, ENCIMA de los DON adheridos. */}
+        <div className={cn(CARD_FACE, "relative z-10 h-full w-full")}>
+          <LazyImage
+            src={src}
+            fallbackSrc={SIMULATOR_CARD_FALLBACK}
+            alt={card?.card?.name ?? ""}
+            className="h-full w-full object-cover"
+            objectFit="cover"
+          />
+          {/* Poder temporal por buff (+N), destacado. */}
+          {buff > 0 && (
+            <span className="absolute left-0 top-0 rounded-br-md bg-lime-400/90 px-1 text-[9px] font-black leading-tight text-lime-950 shadow">
+              +{buff}
+            </span>
+          )}
+        </div>
       </div>
     );
   },

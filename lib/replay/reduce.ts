@@ -500,6 +500,29 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
             popDeck(state, side);
           }
         }
+
+        // "Destroy X" por efecto (p.ej. "Zeus: Destroy Zorojuro") → al cementerio.
+        // El objetivo suele ser del rival; lo buscamos en AMBOS lados.
+        if (/\bDestroy\b/i.test(t)) {
+          for (const tg of ev.targets) {
+            if (!tg?.code) continue;
+            for (const s of ["player", "opponent"] as Side[]) {
+              const uid =
+                removeCode(state, s, "front-row", tg.code) ??
+                removeCode(state, s, "stage", tg.code);
+              if (uid) {
+                state.cards[uid] = {
+                  ...state.cards[uid],
+                  zoneId: zoneKey(s, "trash"),
+                  rested: false,
+                  attachedDon: 0,
+                };
+                state.zones[zoneKey(s, "trash")].cardUids.push(uid);
+                break;
+              }
+            }
+          }
+        }
       }
       return;
     }

@@ -140,8 +140,9 @@ const Pile = React.memo(function Pile({
   );
 });
 
-// Cost area: DON!! activos (verticales) + rested (rotados). Los rested NO
-// desaparecen: se quedan girados como en el juego real.
+// Cost area: DON!! activos (verticales) + rested (rotados) APILADOS en un ancho
+// FIJO (min-w-0 + overflow-hidden). El solape se ajusta al total para que SIEMPRE
+// quepan sin empujar el tablero (antes crecía el tablero al subir los DON).
 const DonArea = React.memo(function DonArea({
   active,
   rested,
@@ -149,29 +150,31 @@ const DonArea = React.memo(function DonArea({
   active: number;
   rested: number;
 }) {
-  const total = active + rested;
+  const a = Math.min(active, 10);
+  const r = Math.min(rested, 10);
+  const total = a + r;
+  // Paso de apilado en % del ancho: mucho cuando hay pocos, poco cuando hay
+  // muchos, de forma que el último DON nunca pase de ~88% del contenedor.
+  const step = total > 1 ? Math.min(15, 82 / (total - 1)) : 0;
+  const items = [
+    ...Array.from({ length: a }, () => false),
+    ...Array.from({ length: r }, () => true),
+  ];
   return (
-    <div className="flex flex-1 items-center gap-1.5 self-stretch rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-2 py-1">
-      <div className="flex h-full flex-1 items-center">
-        {Array.from({ length: Math.min(active, 10) }).map((_, i) => (
+    <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-1.5 py-1">
+      <div className="relative h-full min-w-0 flex-1">
+        {items.map((isRested, i) => (
           <div
-            key={`a${i}`}
-            className="h-full overflow-hidden rounded-[3px] shadow ring-1 ring-black/30"
-            style={{ aspectRatio: "5 / 7", marginLeft: i === 0 ? 0 : "-3%" }}
+            key={i}
+            className={cn(
+              "absolute top-1/2 h-[80%] -translate-y-1/2 overflow-hidden rounded-[2px] shadow ring-1 ring-black/30",
+              isRested && "rotate-90 opacity-70"
+            )}
+            style={{ aspectRatio: "5 / 7", left: `${i * step}%`, zIndex: i }}
+            title={isRested ? "DON rested" : "DON"}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DON_IMG} alt="DON" className="h-full w-full object-cover" />
-          </div>
-        ))}
-        {Array.from({ length: Math.min(rested, 10) }).map((_, i) => (
-          <div
-            key={`r${i}`}
-            className="h-full shrink-0 rotate-90 overflow-hidden rounded-[3px] opacity-70 shadow ring-1 ring-black/30"
-            style={{ aspectRatio: "5 / 7", marginLeft: i === 0 && active > 0 ? "4%" : "-3%" }}
-            title="DON rested"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DON_IMG} alt="DON rested" className="h-full w-full object-cover" />
+            <img src={DON_IMG} alt="" className="h-full w-full object-cover" />
           </div>
         ))}
       </div>

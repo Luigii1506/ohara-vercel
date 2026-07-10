@@ -18,6 +18,7 @@ import { deriveSideMap, foldEvents } from "@/lib/replay/reduce";
 import { collectCodes, fetchCardMap, hydrateState, CardMap } from "@/lib/replay/hydrate";
 import { extractMulligans } from "@/lib/replay/mulligan";
 import { getPhase } from "@/lib/replay/phases";
+import { getActiveCombat } from "@/lib/replay/combat";
 import { ParsedReplay, ReplayEvent } from "@/types/replay";
 import { Side } from "@/types/simulator";
 import ReplayBoard from "./ReplayBoard";
@@ -430,6 +431,13 @@ const ReplayViewer: React.FC = () => {
     [replay, sideMap]
   );
   const visibleFeed = useMemo(() => feed.filter((f) => f.index <= index), [feed, index]);
+  // Combate activo (para el aviso central de ataque con flecha roja).
+  const combat = useMemo(
+    () => (replay ? getActiveCombat(replay, index, sideMap) : null),
+    [replay, index, sideMap]
+  );
+  // Evento actual: para el aviso central de "fin del turno".
+  const atTurnEnd = replay?.events[index]?.kind === "endTurn";
   // Índice de evento del último item mostrado = la acción "actual" (resaltada).
   const currentActionIndex = visibleFeed.length
     ? visibleFeed[visibleFeed.length - 1].index
@@ -526,7 +534,56 @@ const ReplayViewer: React.FC = () => {
 
           {/* Tablero (centro, llena la altura) */}
           <div className="relative h-full min-w-0 flex-1">
+            <style>{`
+              @keyframes centerPop { 0%{opacity:0; transform:scale(.7);} 15%{opacity:1; transform:scale(1);} 80%{opacity:1;} 100%{opacity:0; transform:scale(1.05);} }
+              @keyframes atkArrow { 0%{opacity:.15; transform:scaleX(.7);} 50%{opacity:1; transform:scaleX(1);} 100%{opacity:.15; transform:scaleX(.7);} }
+              @keyframes atkGlow { 0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.0);} 50%{box-shadow:0 0 18px 3px rgba(244,63,94,.55);} }
+            `}</style>
             <ReplayBoard />
+
+            {/* Aviso central de FIN DE TURNO */}
+            {atTurnEnd && !showMulligan && (
+              <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+                <div
+                  key={`end-${index}`}
+                  className="rounded-2xl border border-white/15 bg-slate-950/85 px-8 py-4 text-center shadow-2xl backdrop-blur"
+                  style={{ animation: "centerPop 1.6s ease-in-out" }}
+                >
+                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/50">Fin del turno</div>
+                  <div className="text-2xl font-black text-white">Turno {phase?.turn ?? currentTurn?.index ?? ""}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso central de ATAQUE: flecha roja atacante → defensor */}
+            {combat && !atTurnEnd && !showMulligan && (
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center px-4">
+                <div
+                  key={`atk-${combat.attacker.code}-${combat.defender.code}`}
+                  className="flex items-center gap-2 rounded-2xl border border-rose-500/40 bg-slate-950/85 px-4 py-2.5 shadow-2xl backdrop-blur"
+                  style={{ animation: "atkGlow 1.1s ease-in-out infinite" }}
+                >
+                  <div className="flex flex-col items-center gap-0.5">
+                    {cardMap[combat.attacker.code]?.src && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cardMap[combat.attacker.code].src} alt="" className={cn("h-16 w-[46px] rounded object-cover object-top ring-2", combat.attacker.side === "player" ? "ring-emerald-400/70" : "ring-rose-400/70")} />
+                    )}
+                    <span className={cn("text-sm font-black leading-none", combat.attacker.side === "player" ? "text-emerald-300" : "text-rose-300")}>{combat.attacker.power ?? "—"}</span>
+                  </div>
+                  <div className="flex flex-col items-center px-1">
+                    <span className="text-3xl font-black leading-none text-rose-500" style={{ animation: "atkArrow 1s ease-in-out infinite" }}>➜</span>
+                    <span className="text-[9px] font-black uppercase tracking-wide text-rose-400">ataca</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    {cardMap[combat.defender.code]?.src && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cardMap[combat.defender.code].src} alt="" className="h-16 w-[46px] rounded object-cover object-top ring-2 ring-rose-500 animate-pulse" />
+                    )}
+                    <span className={cn("text-sm font-black leading-none", combat.defender.side === "player" ? "text-emerald-300" : "text-rose-300")}>{combat.defender.power ?? "—"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {showMulligan && mulligans.length > 0 && (
               <MulliganIntro

@@ -51,6 +51,10 @@ export interface CardInstance {
   attachedDon?: number;
   /** Poder temporal por efectos ("Buff X 2000"); se muestra como +N y se limpia al fin de turno. */
   tempPower?: number;
+  /** Estado visual por efectos: p.ej. "No puede atacar". Se muestra como ficha. */
+  status?: string;
+  /** Turno en que se aplicó el estado (para limpiarlo en el turno correcto). */
+  statusTurn?: number;
   notes?: string;
   customLabel?: string;
 }

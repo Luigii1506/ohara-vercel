@@ -70,7 +70,7 @@ const BoardCard = React.memo(
           </div>
         )}
         {/* Cara de la carta, ENCIMA de los DON adheridos. */}
-        <div className={cn(CARD_FACE, "relative z-10 h-full w-full")}>
+        <div className={cn(CARD_FACE, "relative z-10 h-full w-full", card?.status && "ring-2 ring-rose-500/70")}>
           <LazyImage
             src={src}
             fallbackSrc={SIMULATOR_CARD_FALLBACK}
@@ -84,6 +84,12 @@ const BoardCard = React.memo(
               +{buff}
             </span>
           )}
+          {/* Ficha de estado por efecto (p.ej. "No puede atacar"). */}
+          {card?.status && (
+            <span className="absolute inset-x-0 bottom-0 z-20 bg-rose-600/90 px-0.5 py-[1px] text-center text-[7px] font-black uppercase leading-tight tracking-tight text-white shadow">
+              {card.status}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -94,7 +100,8 @@ const BoardCard = React.memo(
     a.card?.card?.src === b.card?.card?.src &&
     a.card?.rested === b.card?.rested &&
     a.card?.attachedDon === b.card?.attachedDon &&
-    a.card?.tempPower === b.card?.tempPower
+    a.card?.tempPower === b.card?.tempPower &&
+    a.card?.status === b.card?.status
 );
 
 const Pile = React.memo(function Pile({

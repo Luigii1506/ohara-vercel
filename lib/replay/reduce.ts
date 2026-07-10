@@ -327,6 +327,7 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
     case "endTurn": {
       const p = ctx.sideMap[ev.player];
       const next = p ? other(p) : other(state.turnOwner);
+      const endingTurn = state.turn; // turno que termina (antes de incrementar)
       state.turn += 1;
       state.turnOwner = next;
 
@@ -341,6 +342,18 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
           }
         }
         state.donRested[p] += returned;
+      }
+
+      // FIN del turno de p: se levanta la restricción "no puede atacar/bloquear"
+      // de SUS cartas, pero SOLO si no se aplicó en este mismo turno (así dura
+      // durante el "next turn" del dueño y no se limpia antes de tiempo).
+      if (p) {
+        for (const uid of Object.keys(state.cards)) {
+          const c = state.cards[uid];
+          if (c.status && c.owner === p && c.statusTurn !== endingTurn) {
+            state.cards[uid] = { ...c, status: undefined, statusTurn: undefined };
+          }
+        }
       }
 
       // INICIO del turno de next (refresh): sus DON rested vuelven a activos,
@@ -518,6 +531,23 @@ export function applyEvent(state: SimulationState, ev: ReplayEvent, ctx: ReduceC
                   attachedDon: 0,
                 };
                 state.zones[zoneKey(s, "trash")].cardUids.push(uid);
+                break;
+              }
+            }
+          }
+        }
+
+        // Restricciones tipo "X can't attack/block next turn" → ficha de estado en
+        // el objetivo (puede ser de cualquier lado). Se limpia en el fin de turno
+        // del dueño (ver case "endTurn").
+        if (/can'?t\s+(attack|block)|cannot\s+(attack|block)/i.test(t)) {
+          const label = /block/i.test(t) ? "🚫 No bloquea" : "🚫 No ataca";
+          for (const tg of ev.targets) {
+            if (!tg?.code) continue;
+            for (const s of ["player", "opponent"] as Side[]) {
+              const uid = findCode(state, s, ["leader", "front-row", "stage"], tg.code);
+              if (uid) {
+                state.cards[uid] = { ...state.cards[uid], status: label, statusTurn: state.turn };
                 break;
               }
             }

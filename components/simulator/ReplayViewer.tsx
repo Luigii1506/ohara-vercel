@@ -877,6 +877,7 @@ function describeAction(
       else if (/\brest\b/i.test(t)) icon = "↻";
       else if (/draw/i.test(t)) icon = "🃏";
       else if (/trash/i.test(t)) icon = "🗑️";
+      else if (/can'?t|cannot/i.test(t)) icon = "🚫";
       return {
         icon,
         title: clean(t).slice(0, 48) || "Efecto",

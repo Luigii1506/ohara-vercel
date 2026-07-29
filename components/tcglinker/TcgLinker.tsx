@@ -1146,9 +1146,25 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       fallbackCard?: CardWithCollectionData
     ) => {
       handleSetSelectedCard(targetCard);
-      setQueryFields({ ...defaultQueryFields });
+      const freshFields = { ...defaultQueryFields };
+      setQueryFields(freshFields);
       setSelectedLinkCard(targetCard as CardDetail);
       setLinkedProduct(null);
+      // Reconstruir búsqueda/filtros para la carta NUEVA. Antes quedaban los de
+      // la carta anterior, así que "Search" repetía la búsqueda vieja y había que
+      // pulsar "Reset filters" a mano.
+      setTextSearchQuery("");
+      setTcgSearch(
+        buildQueryFromCard(targetCard, freshFields) ||
+          targetCard.name ||
+          targetCard.code ||
+          ""
+      );
+      setDraftFilters(
+        ensureLanguageFilter(buildFiltersFromCard(targetCard, freshFields))
+      );
+      setActiveFilters([]);
+      setIsSearchDirty(true);
       setCardDetailLoading(true);
       try {
         const detail = await fetchJSON<{ card: CardDetail }>(

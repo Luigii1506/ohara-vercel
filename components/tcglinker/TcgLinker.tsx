@@ -1171,6 +1171,21 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     ]
   );
 
+  // UX: al hacer clic en una carta del panel izquierdo, disparar la búsqueda de
+  // TCGplayer automáticamente (evita el paso extra de pulsar "Search TCGplayer").
+  // Espera a que termine de cargar el detalle y solo busca al CAMBIAR de carta
+  // (no en cada update de la misma, p.ej. tras linkear un producto).
+  const autoSearchedIdRef = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (!selectedLinkCard || cardDetailLoading) return;
+    if (autoSearchedIdRef.current === selectedLinkCard.id) return;
+    autoSearchedIdRef.current = selectedLinkCard.id;
+    // Filtros reconstruidos de la carta recién seleccionada (evita usar los de la
+    // carta anterior). En modo "texto" el override se ignora y usa su nombre.
+    handleSearchTcg(0, buildFiltersFromCard(selectedLinkCard, defaultQueryFields));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLinkCard, cardDetailLoading]);
+
   const handleCardClick = async (
     e: MouseEvent<HTMLDivElement>,
     card: CardWithCollectionData,

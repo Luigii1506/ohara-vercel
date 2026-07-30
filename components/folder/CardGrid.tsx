@@ -33,6 +33,8 @@ interface CardGridProps {
   selectedCardForPlacement?: CardWithCollectionData | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
+  priceField?: "marketPrice" | "midPrice";
 }
 
 export const CardGrid: React.FC<CardGridProps> = ({
@@ -49,6 +51,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   selectedCardForPlacement,
   canEditPrice = false,
   onEditPrice,
+  priceField = "marketPrice",
 }) => {
   return (
     <div
@@ -162,7 +165,8 @@ export const CardGrid: React.FC<CardGridProps> = ({
 
                         const customPriceValue = getNumericPrice(cell.existing?.customPrice);
                         const priceValue =
-                          customPriceValue ?? getNumericPrice(cell.card.marketPrice);
+                          customPriceValue ??
+                          getNumericPrice((cell.card as any)[priceField]);
                         const currencyValue =
                           cell.existing?.customCurrency ?? cell.card.priceCurrency;
 

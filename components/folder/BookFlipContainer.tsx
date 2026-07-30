@@ -48,6 +48,7 @@ interface BookFlipContainerProps {
   selectedCardForPlacement?: CardWithCollectionData | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  priceField?: "marketPrice" | "midPrice";
   // Mode flags
   showInteriorPage?: boolean;
   // Page change callback
@@ -114,6 +115,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   selectedCardForPlacement,
   canEditPrice,
   onEditPrice,
+  priceField,
   showInteriorPage = true,
   onPageChange,
   onNavigationReady,
@@ -376,6 +378,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             selectedCardForPlacement={selectedCardForPlacement}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
+            priceField={priceField}
           />
         </FlipPage>
       );
@@ -411,6 +414,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             selectedCardForPlacement={selectedCardForPlacement}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
+            priceField={priceField}
             shareUrl={shareUrl}
           />
         </FlipPage>

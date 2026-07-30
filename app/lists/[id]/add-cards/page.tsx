@@ -3395,6 +3395,9 @@ const AddCardsPage = () => {
                         selectedCardForPlacement={selectedCardForPlacement}
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
+                        priceField={
+                          isAdmin && showListedMedian ? "midPrice" : "marketPrice"
+                        }
                         showInteriorPage={true} // add-cards shows interior page for proper synchronization
                         onPageChange={(pageIndex) => {
                           hasUserNavigated.current = true; // Mark that user has manually navigated

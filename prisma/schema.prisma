@@ -36,6 +36,7 @@ model Card {
   tcgplayerProductId    String?             @unique
   tcgplayerLinkStatus   Boolean? // null = not attempted, false = marked missing, true = linked
   marketPrice           Decimal?
+  midPrice              Decimal? // "Listed Median" de TCGplayer (mid price)
   lowPrice              Decimal?
   highPrice             Decimal?
   priceCurrency         String?             @default("USD")

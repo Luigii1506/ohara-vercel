@@ -68,6 +68,7 @@ export async function POST(
 
     if (resolvedPricing) {
       data.marketPrice = decimalOrNull(resolvedPricing.marketPrice);
+      data.midPrice = decimalOrNull(resolvedPricing.midPrice);
       data.lowPrice = decimalOrNull(resolvedPricing.lowPrice);
       data.highPrice = decimalOrNull(resolvedPricing.highPrice);
       data.priceCurrency = resolvedCurrency;
@@ -132,6 +133,7 @@ export async function DELETE(
         tcgplayerLinkStatus: null,
         tcgUrl: null,
         marketPrice: null,
+        midPrice: null,
         lowPrice: null,
         highPrice: null,
         priceUpdatedAt: null,

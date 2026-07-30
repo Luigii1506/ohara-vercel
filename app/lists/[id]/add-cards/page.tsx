@@ -483,6 +483,9 @@ const AddCardsPage = () => {
   const [isOpen, setIsOpen] = useState(false);
   const simpleModalBaseCard = selectedCard ?? null;
   const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+  // Admin-only: alternar el precio de la esquina entre Market Price y Listed Median.
+  const [showListedMedian, setShowListedMedian] = useState(false);
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
     baseCard ?? simpleModalBaseCard ?? undefined;
@@ -1076,6 +1079,15 @@ const AddCardsPage = () => {
   };
 
   const getCardPriceValue = (card: CardWithCollectionData) => {
+    // Admin: con el toggle activo muestra el "Listed Median" (midPrice) en vez
+    // del Market Price.
+    if (isAdmin && showListedMedian) {
+      return (
+        getNumericPrice((card as any).midPrice) ??
+        getNumericPrice((card.alternates?.[0] as any)?.midPrice) ??
+        null
+      );
+    }
     return (
       getNumericPrice(card.marketPrice) ??
       getNumericPrice(card.alternates?.[0]?.marketPrice) ??
@@ -2663,6 +2675,17 @@ const AddCardsPage = () => {
                       />
                     </Button>
                   </div>
+                  {isAdmin && (
+                    <Button
+                      onClick={() => setShowListedMedian((v) => !v)}
+                      variant={showListedMedian ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+                      title="Solo admin: alternar entre Market Price y Listed Median"
+                    >
+                      {showListedMedian ? "Listed Median" : "Market Price"}
+                    </Button>
+                  )}
                   <ViewSwitch
                     viewSelected={viewSelected}
                     setViewSelected={setViewSelected}

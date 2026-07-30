@@ -59,6 +59,7 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
       id: true,
       tcgplayerProductId: true,
       marketPrice: true,
+      midPrice: true,
       lowPrice: true,
       highPrice: true,
       priceCurrency: true,
@@ -103,12 +104,15 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
       const roundedMarket = roundedPrice(
         pricing.marketPrice ?? pricing.midPrice ?? null
       );
+      // "Listed Median" de TCGplayer = midPrice.
+      const roundedMid = roundedPrice(pricing.midPrice ?? null);
       const roundedLow = roundedPrice(pricing.lowPrice ?? null);
       const roundedHigh = roundedPrice(
         pricing.highPrice ?? pricing.directLowPrice ?? null
       );
 
       const marketChanged = hasChanged(card.marketPrice, roundedMarket);
+      const midChanged = hasChanged(card.midPrice, roundedMid);
       const lowChanged = hasChanged(card.lowPrice, roundedLow);
       const highChanged = hasChanged(card.highPrice, roundedHigh);
 
@@ -140,7 +144,7 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
         });
       }
 
-      if (!marketChanged && !lowChanged && !highChanged) {
+      if (!marketChanged && !midChanged && !lowChanged && !highChanged) {
         continue;
       }
 
@@ -152,6 +156,10 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
       if (marketChanged) {
         data.marketPrice =
           roundedMarket !== null ? toDecimalOrNull(roundedMarket) : null;
+      }
+
+      if (midChanged) {
+        data.midPrice = roundedMid !== null ? toDecimalOrNull(roundedMid) : null;
       }
 
       if (lowChanged) {

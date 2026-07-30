@@ -30,6 +30,7 @@ type AlternateWithRelations = {
   tcgplayerProductId?: string | null;
   tcgplayerLinkStatus?: boolean | null;
   marketPrice?: any;
+  midPrice?: any;
   lowPrice?: any;
   highPrice?: any;
   priceCurrency?: string | null;
@@ -870,6 +871,7 @@ const buildAlternateSelect = (includeRelations: boolean) => ({
   tcgplayerProductId: true,
   tcgplayerLinkStatus: true,
   marketPrice: true,
+  midPrice: true,
   lowPrice: true,
   highPrice: true,
   priceCurrency: true,

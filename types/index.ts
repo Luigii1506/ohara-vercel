@@ -55,6 +55,7 @@ export type CardData = {
   tcgplayerProductId?: string | null;
   tcgplayerLinkStatus?: boolean | null;
   marketPrice?: number | string | null;
+  midPrice?: number | string | null;
   lowPrice?: number | string | null;
   highPrice?: number | string | null;
   priceCurrency?: string | null;
@@ -99,6 +100,7 @@ export interface DeckCard {
   colors: { color: string }[];
   id: number;
   marketPrice?: number | string | null;
+  midPrice?: number | string | null;
   priceCurrency?: string | null;
 }
 
@@ -419,6 +421,7 @@ export interface CardSalesReportItem {
   subtotal: number;
   customPrice?: number | null;
   marketPrice?: number | null;
+  midPrice?: number | null;
   error?: string;
 }
 

@@ -780,9 +780,10 @@ const ListDetailPage = () => {
         </button>
       )}
 
-      {/* Botones flotantes en carpetas: importar copia (si no es mía) + toggle admin. */}
+      {/* Botones flotantes en carpetas: importar copia (si no es mía) + toggle admin.
+          Abajo-izquierda (arriba lo tapaba el navbar). */}
       {list?.isOrdered && (!isOwner || isAdmin) && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <div className="fixed bottom-6 left-6 z-[60] flex items-center gap-2">
           {!isOwner && (
             <button
               onClick={handleImportList}

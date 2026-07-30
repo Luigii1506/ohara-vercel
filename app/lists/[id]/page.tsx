@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, List, FileText } from "lucide-react";
+import { ArrowLeft, List, FileText, Copy, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { MainContentSkeleton } from "@/components/skeletons";
@@ -65,6 +65,10 @@ const ListDetailPage = () => {
   // Start at view 0 (interior cover + page 1)
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
   const [shareUrl, setShareUrl] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
+  const [importing, setImporting] = useState(false);
+  // Admin-only: alternar el precio mostrado entre Market Price y Listed Median.
+  const [showListedMedian, setShowListedMedian] = useState(false);
 
   // Helper functions for price handling
   const getNumericPrice = (value: any) => {
@@ -74,6 +78,9 @@ const ListDetailPage = () => {
   };
 
   const getCardPriceValue = (card: CardWithCollectionData) => {
+    if (isAdmin && showListedMedian) {
+      return getNumericPrice((card as any).midPrice) ?? null;
+    }
     return getNumericPrice(card.marketPrice) ?? null;
   };
 
@@ -105,7 +112,7 @@ const ListDetailPage = () => {
     });
 
     return { totalValue, currency };
-  }, [list?.cards]);
+  }, [list?.cards, showListedMedian, isAdmin]);
 
   const folderTotalLabel = formatCurrency(
     folderTotalValue.totalValue,
@@ -380,6 +387,7 @@ const ListDetailPage = () => {
       const data = await response.json();
 
       setList(data.list || data); // Handle both data.list and data formats
+      setIsOwner(Boolean(data.isOwner));
     } catch (error) {
       console.error("Error fetching list:", error);
       toast.error("Error al cargar la lista");
@@ -400,6 +408,30 @@ const ListDetailPage = () => {
   // Handle page change from flipbook
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
+  };
+
+  // Importar (copiar) esta lista a la cuenta del usuario → crea una lista nueva.
+  const handleImportList = async () => {
+    try {
+      setImporting(true);
+      const res = await fetch("/api/lists/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId: Number(listId) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "No se pudo importar la lista");
+      }
+      const created = await res.json();
+      const newId = created?.id ?? created?.list?.id;
+      toast.success("Lista importada a tu cuenta");
+      if (newId) router.push(`/lists/${newId}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al importar la lista");
+    } finally {
+      setImporting(false);
+    }
   };
 
   // Función para renderizar carpetas (isOrdered = true) sin scroll
@@ -451,6 +483,9 @@ const ListDetailPage = () => {
             getCardsForPage={getCardsForPage}
             isEditing={false}
             onCardClick={handleCardClick}
+            priceField={
+              isAdmin && showListedMedian ? "midPrice" : "marketPrice"
+            }
             showInteriorPage={true} // page.tsx shows interior page on desktop
             onPageChange={handlePageChange}
             onNavigationReady={setNavigationFunctions}
@@ -493,6 +528,37 @@ const ListDetailPage = () => {
               <h1 className="text-lg font-bold text-slate-900">{list.name}</h1>
             </div>
             <div className="flex items-center gap-3">
+              {/* Importar (copiar) la lista a mi cuenta — solo si NO es mía. */}
+              {!isOwner && (
+                <Button
+                  onClick={handleImportList}
+                  disabled={importing}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                >
+                  {importing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {importing ? "Importando…" : "Importar copia"}
+                  </span>
+                </Button>
+              )}
+              {/* Admin: alternar Market Price / Listed Median (aunque no sea mía). */}
+              {isAdmin && (
+                <Button
+                  onClick={() => setShowListedMedian((v) => !v)}
+                  variant={showListedMedian ? "default" : "outline"}
+                  size="sm"
+                  className="gap-2 text-xs font-semibold"
+                  title="Solo admin: alternar entre Market Price y Listed Median"
+                >
+                  {showListedMedian ? "Listed Median" : "Market Price"}
+                </Button>
+              )}
               {isAdmin && (
                 <Button
                   onClick={() => setShowReportDrawer(true)}

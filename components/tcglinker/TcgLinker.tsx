@@ -1030,8 +1030,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       (item) => item.card.id === selectedLinkCard.id
     );
     if (currentIndex === -1) return null;
-    return orderedCardSequence[currentIndex + 1] ?? null;
-  }, [orderedCardSequence, selectedLinkCard]);
+    // Avanzar a la siguiente carta que AÚN no está linkeada (salta las ya hechas).
+    for (let i = currentIndex + 1; i < orderedCardSequence.length; i += 1) {
+      if (!isCardLinked(orderedCardSequence[i].card)) return orderedCardSequence[i];
+    }
+    return null;
+  }, [orderedCardSequence, selectedLinkCard, isCardLinked]);
 
   // Ref para la lista de cartas (grid)
   const gridRef = useRef<HTMLDivElement>(null);
@@ -1253,6 +1257,12 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
       );
       updateLocalCard(updated);
       setLinkedProduct(productDetail);
+      // Auto-avanzar a la siguiente carta por linkear (calculado con la secuencia
+      // ANTES de que el update la saque de la vista de "no linkeadas").
+      const next = getNextCardForAutoSelection();
+      if (next) {
+        selectCardForLinking(next.card, next.fallback);
+      }
     } catch (error) {
       console.error("Failed to link card", error);
     } finally {

@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Check, DollarSign } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -197,6 +197,19 @@ export const CardGrid: React.FC<CardGridProps> = ({
                             >
                               <DollarSign className="h-4 w-4" />
                             </button>
+                          )}
+                          {/* Ir a TCGplayer (lado derecho) — si la carta está linkeada. */}
+                          {cell.card?.tcgUrl && (
+                            <a
+                              href={cell.card.tcgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-sky-500 hover:bg-sky-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              title="Ver en TCGplayer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
                           )}
                           {/* Delete Button (appears on hover) */}
                           <button

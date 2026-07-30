@@ -1402,7 +1402,9 @@ const AddCardsPage = () => {
     }
 
     return { totalValue, currency };
-  }, [existingCards, simpleListCards, list?.isOrdered]);
+    // showListedMedian/isAdmin: el toggle cambia getListCardPriceValue → el total
+    // debe recalcularse.
+  }, [existingCards, simpleListCards, list?.isOrdered, showListedMedian, isAdmin]);
 
   const folderTotalLabel = formatCurrency(
     folderTotalValue.totalValue,

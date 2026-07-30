@@ -182,15 +182,21 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
     }
   }
 
+  // Ejecutar los updates POR LOTES en vez de en una sola transacción gigante:
+  // con muchas cartas (p.ej. al backfillear midPrice) Neon cerraba la conexión.
   if (updateOperations.length) {
-    await prisma.$transaction(updateOperations);
+    const CHUNK = 100;
+    for (let i = 0; i < updateOperations.length; i += CHUNK) {
+      await prisma.$transaction(updateOperations.slice(i, i + CHUNK));
+    }
   }
 
   const alertCardIds: number[] = [];
   if (logs.length) {
-    await prisma.cardPriceLog.createMany({
-      data: logs,
-    });
+    const LOG_CHUNK = 1000;
+    for (let i = 0; i < logs.length; i += LOG_CHUNK) {
+      await prisma.cardPriceLog.createMany({ data: logs.slice(i, i + LOG_CHUNK) });
+    }
     alertCardIds.push(...Array.from(new Set(logs.map((log) => log.cardId))));
   }
 

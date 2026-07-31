@@ -45,6 +45,7 @@ type CliArgs = {
   maxPages: number;
   groupId?: number;
   dryRun: boolean;
+  region: string;
 };
 
 const USER_AGENT =
@@ -129,6 +130,8 @@ function parseCliArgs(): CliArgs {
       parsed.setTitle = value.trim();
     } else if (normalized === "setName") {
       parsed.setName = value.trim();
+    } else if (normalized === "region") {
+      parsed.region = value.trim().toUpperCase();
     }
   });
 
@@ -148,6 +151,9 @@ function parseCliArgs(): CliArgs {
         : DEFAULT_MAX_PAGES,
     groupId: parsed.groupId,
     dryRun,
+    // Estos sets vienen del catálogo US de TCGplayer, así que la base
+    // (y por tanto la alterna) SIEMPRE debe ser la versión US salvo override.
+    region: parsed.region?.length ? parsed.region : "US",
   };
 }
 
@@ -155,6 +161,7 @@ const cli = parseCliArgs();
 const TARGET_SLUG = cli.slug;
 const TARGET_SET_NAME = cli.setName;
 const TARGET_SET_TITLE = cli.setTitle;
+const TARGET_REGION = cli.region;
 
 function extractCode(text?: string | null) {
   if (!text) return "";
@@ -773,6 +780,7 @@ async function main() {
         where: {
           code: card.code,
           isFirstEdition: true,
+          region: TARGET_REGION,
         },
         include: {
           types: true,
@@ -784,7 +792,9 @@ async function main() {
       });
 
       if (!baseCard) {
-        console.log("[skip][no-base] No base card found with isFirstEdition=true");
+        console.log(
+          `[skip][no-base] No base card found with isFirstEdition=true region=${TARGET_REGION} for ${card.code}`
+        );
         stats.skippedNoBase += 1;
         continue;
       }
@@ -792,6 +802,7 @@ async function main() {
       const existingAlternate = await prisma.card.findFirst({
         where: {
           code: card.code,
+          region: TARGET_REGION,
           alternateArt: {
             equals: ALTERNATE_ART_LABEL,
             mode: "insensitive",

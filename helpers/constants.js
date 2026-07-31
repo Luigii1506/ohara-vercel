@@ -1154,6 +1154,7 @@ export const altArtOptions = [
   { value: "Textured Foil", label: "Textured Foil" },
   { value: "Jolly Roger Foil", label: "Jolly Roger Foil" },
   { value: "Pre-Release", label: "Pre-Release" },
+  { value: "Release event", label: "Release Event" },
   { value: "1st Anniversary", label: "1st Anniversary" },
   { value: "2nd Anniversary", label: "2nd Anniversary" },
   { value: "3rd Anniversary", label: "3rd Anniversary" },

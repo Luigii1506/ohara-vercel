@@ -287,6 +287,7 @@ const SEARCH_ALT_ART_MAP: Record<string, string> = {
   jollyrogerfoil: "Jolly Roger Foil",
   prerelease: "Pre-Release",
   pre: "Pre-Release",
+  releaseevent: "Release event",
   "1stanniversary": "1st Anniversary",
   "2ndanniversary": "2nd Anniversary",
   "3rdanniversary": "3rd Anniversary",
@@ -362,6 +363,9 @@ const parseSearchTokens = (search: string) => {
   }
   if (compactSearch.includes("prerelease")) {
     altArts.add("Pre-Release");
+  }
+  if (compactSearch.includes("releaseevent")) {
+    altArts.add("Release event");
   }
   if (compactSearch.includes("preerrata")) {
     altArts.add("Pre-Errata");

@@ -744,6 +744,14 @@ async function main() {
     }
   }
 
+  // En modo real el set siempre debe existir en este punto; en dry-run puede
+  // seguir siendo null (nunca se usa porque el loop hace `continue` antes).
+  if (!cli.dryRun && !targetSet) {
+    throw new Error(
+      `No se pudo resolver ni crear el set "${TARGET_SET_TITLE}".`
+    );
+  }
+
   const stats = {
     processed: 0,
     created: 0,
@@ -823,7 +831,7 @@ async function main() {
           ...createData,
           sets: {
             create: {
-              setId: targetSet.id,
+              setId: targetSet!.id,
             },
           },
         },

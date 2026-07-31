@@ -58,3 +58,8 @@ next-env.d.ts
 migration-report-*.json
 *-cards.json
 main.sql
+
+# Local junk / secrets / test artifacts
+.env*.tmp
+bot-test-*.png
+.claude/

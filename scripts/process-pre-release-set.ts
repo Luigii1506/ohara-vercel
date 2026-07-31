@@ -1,0 +1,817 @@
+#!/usr/bin/env ts-node
+
+/**
+ * Script para crear cartas Pre-Release en la base de datos.
+ * 1. Hace scraping de TCGplayer para un set pre-release específico.
+ * 2. Por cada carta obtiene la base (isFirstEdition: true) con el mismo código.
+ * 3. Si no existe ya una carta con alternateArt="Pre-Release", crea una copia como alterna.
+ * 4. Relaciona la nueva carta con el set indicado (p. ej. "Two Legends Pre-Release").
+ *
+ * Uso:
+ *   npx ts-node scripts/process-pre-release-set.ts \
+ *     --slug=two-legends-pre-release-cards \
+ *     --setName=two-legends-pre-release-cards \
+ *     --setTitle="Two Legends Pre-Release" \
+ *     --maxPages=1
+ *
+ * Flags opcionales:
+ *   --query=...    (si se requiere filtro q=)
+ *   --limit=50     (para cortar después de N cartas; por defecto ilimitado)
+ */
+
+import { PrismaClient, type Card, type CardColor, type CardCondition, type CardEffect, type CardText, type CardType } from "@prisma/client";
+import { chromium } from "playwright";
+import type { BrowserContext } from "playwright";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import sharp from "sharp";
+
+type ScrapedCard = {
+  code: string;
+  title: string;
+  image: string;
+  detailPath?: string;
+  imageSet?: string;
+};
+
+type CliArgs = {
+  slug: string;
+  setName?: string;
+  setTitle: string;
+  query?: string;
+  maxPages: number;
+  limit?: number;
+};
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+const ORIGIN = "https://www.tcgplayer.com";
+const CODE_PATTERN = /#?\b([A-Z]{1,5}(?:-\d{1,4}|\d{1,4})[A-Z0-9-]*)\b/;
+
+const REQUIRED_ENV = [
+  "DATABASE_URL",
+  "CLOUDFLARE_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET_NAME",
+  "R2_PUBLIC_URL",
+] as const;
+
+function ensureEnvVars() {
+  const missing = REQUIRED_ENV.filter(
+    (key) => !process.env[key] || process.env[key]!.trim().length === 0
+  );
+  if (missing.length) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+}
+
+ensureEnvVars();
+
+const prisma = new PrismaClient();
+
+const s3Client = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME!;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL!;
+
+const IMAGE_SIZES = {
+  tiny: { width: 20, height: 28, quality: 40, suffix: "-tiny" },
+  xs: { width: 100, height: 140, quality: 60, suffix: "-xs" },
+  thumb: { width: 200, height: 280, quality: 70, suffix: "-thumb" },
+  small: { width: 300, height: 420, quality: 75, suffix: "-small" },
+  medium: { width: 600, height: 840, quality: 80, suffix: "-medium" },
+  large: { width: 800, height: 1120, quality: 85, suffix: "-large" },
+  original: { width: null, height: null, quality: 90, suffix: "" },
+} as const;
+
+function parseCliArgs(): CliArgs {
+  const raw = process.argv.slice(2);
+  const parsed: Partial<CliArgs> = {};
+
+  raw.forEach((entry) => {
+    if (!entry.startsWith("--")) return;
+    const [key, ...rest] = entry.split("=");
+    const normalized = key.replace(/^--/, "");
+    const value = rest.join("=");
+    switch (normalized) {
+      case "slug":
+        parsed.slug = value;
+        break;
+      case "setName":
+        parsed.setName = value;
+        break;
+      case "setTitle":
+        parsed.setTitle = value;
+        break;
+      case "query":
+        parsed.query = value;
+        break;
+      case "maxPages": {
+        const num = Number(value);
+        if (Number.isFinite(num) && num > 0) {
+          parsed.maxPages = num;
+        }
+        break;
+      }
+      case "limit": {
+        const num = Number(value);
+        parsed.limit = Number.isFinite(num) && num > 0 ? num : undefined;
+        break;
+      }
+      default:
+        break;
+    }
+  });
+
+  if (!parsed.slug) {
+    throw new Error("Missing --slug parameter");
+  }
+  if (!parsed.setTitle) {
+    throw new Error("Missing --setTitle parameter");
+  }
+
+  return {
+    slug: parsed.slug,
+    setName:
+      parsed.setName && parsed.setName.length > 0
+        ? parsed.setName
+        : parsed.slug,
+    setTitle: parsed.setTitle,
+    query: parsed.query && parsed.query.length ? parsed.query : undefined,
+    maxPages: parsed.maxPages && parsed.maxPages > 0 ? parsed.maxPages : 1,
+    limit: parsed.limit,
+  };
+}
+
+const cli = parseCliArgs();
+
+function buildUrl(pageNumber: number) {
+  const params = new URLSearchParams({
+    productLineName: "one-piece-card-game",
+    page: String(pageNumber),
+    view: "grid",
+    ProductTypeName: "Cards",
+  });
+  if (cli.query) {
+    params.set("q", cli.query);
+  }
+  if (cli.setName) {
+    params.set("setName", cli.setName);
+  }
+  return `https://www.tcgplayer.com/search/one-piece-card-game/${cli.slug}?${params.toString()}`;
+}
+
+function extractCode(text?: string | null) {
+  if (!text) return "";
+  const match = text.match(CODE_PATTERN);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function isDataUrl(value?: string | null) {
+  return Boolean(value && value.trim().toLowerCase().startsWith("data:"));
+}
+
+function normalizeImageUrl(value?: string | null) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed || isDataUrl(trimmed)) {
+    return "";
+  }
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  if (trimmed.startsWith("/")) {
+    return `${ORIGIN}${trimmed}`;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return "";
+}
+
+function pickBestImage(srcset?: string | null, fallback?: string | null) {
+  if (!srcset) {
+    return normalizeImageUrl(fallback);
+  }
+  const entries = srcset
+    .split(",")
+    .map((entry) => {
+      const parts = entry.trim().split(/\s+/);
+      const url = parts[0];
+      const size = parseInt(parts[1], 10) || 0;
+      return { url, size };
+    })
+    .filter((entry) => Boolean(entry.url));
+  if (!entries.length) {
+    return fallback || "";
+  }
+  entries.sort((a, b) => b.size - a.size);
+  const bestEntry = entries.find((entry) => !isDataUrl(entry.url));
+  if (bestEntry?.url) {
+    return normalizeImageUrl(bestEntry.url);
+  }
+  return normalizeImageUrl(fallback);
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function scrapePage(context: BrowserContext, pageNumber: number) {
+  const url = buildUrl(pageNumber);
+  console.log(`[navigate][page ${pageNumber}] ${url}`);
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+  try {
+    await page.waitForSelector(".product-card__title", {
+      timeout: 20000,
+    });
+  } catch (error) {
+    console.warn(
+      `[page ${pageNumber}] Timed out waiting for product cards: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  const pageCards = (await page.$$eval(
+    ".product-card__title",
+    (titles: Element[]) => {
+      const CODE_PATTERN = /#?\b([A-Z]{1,5}(?:-\d{1,4}|\d{1,4})[A-Z0-9-]*)\b/;
+      const extractCode = (text?: string | null) => {
+        if (!text) return "";
+        const match = text.match(CODE_PATTERN);
+        return match ? match[1].toUpperCase() : "";
+      };
+
+      const pickAttr = (el: Element | null, attrs: string[]) => {
+        if (!el) return "";
+        for (const attr of attrs) {
+          const value = el.getAttribute(attr) || "";
+          const normalized = value.trim();
+          if (normalized && !normalized.toLowerCase().startsWith("data:")) {
+            return normalized;
+          }
+        }
+        return "";
+      };
+
+      const extractImageInfo = (root: Element) => {
+        const wrapper = root.querySelector(
+          ".lazy-image__wrapper"
+        ) as Element | null;
+        if (!wrapper) {
+          return { src: "", srcset: "" };
+        }
+        const img = wrapper.querySelector("img");
+        const pictureSources = Array.from(
+          wrapper.querySelectorAll("source")
+        );
+        let src = pickAttr(img, [
+          "data-src",
+          "data-lazy-src",
+          "data-original",
+          "data-placeholder",
+          "src",
+        ]);
+        if (!src && img && "currentSrc" in img) {
+          const current = (img as HTMLImageElement).currentSrc || "";
+          if (current && !current.toLowerCase().startsWith("data:")) {
+            src = current.trim();
+          }
+        }
+        let srcset = pickAttr(img, ["data-srcset", "data-lazy-srcset", "srcset"]);
+        if (!srcset && pictureSources.length) {
+          for (const source of pictureSources) {
+            srcset = pickAttr(source, [
+              "data-srcset",
+              "data-lazy-srcset",
+              "srcset",
+            ]);
+            if (srcset) break;
+          }
+        }
+        return { src, srcset };
+      };
+
+      return titles
+        .map((titleEl) => {
+          const element = titleEl as HTMLElement;
+          const cardRoot = element.closest(".search-result__content") as
+            | HTMLElement
+            | null;
+          if (!cardRoot) return null;
+
+          const title = element.textContent?.trim() ?? "";
+          if (!title) return null;
+
+          let code = extractCode(title);
+          if (!code) {
+            const subtitleText = Array.from(
+              cardRoot.querySelectorAll<HTMLSpanElement>(
+                ".product-card__subtitle span"
+              )
+            )
+              .map((span) => span.textContent?.trim() || "")
+              .join(" ");
+            code = extractCode(subtitleText);
+          }
+          if (!code) {
+            const rarityText = Array.from(
+              cardRoot.querySelectorAll<HTMLSpanElement>(
+                ".product-card__rarity__variant span"
+              )
+            )
+              .map((span) => span.textContent?.trim() || "")
+              .join(" ");
+            code = extractCode(rarityText);
+          }
+          if (!code) {
+            const cardText = cardRoot.textContent || "";
+            code = extractCode(cardText);
+          }
+          if (!code) {
+            return null;
+          }
+
+          const anchors = Array.from(
+            cardRoot.querySelectorAll<HTMLAnchorElement>("a")
+          );
+          const detailAnchor = anchors.find((anchor) =>
+            (anchor.getAttribute("href") || "").includes("/product/")
+          );
+          const detailPath = detailAnchor?.getAttribute("href") || "";
+          const imageInfo = extractImageInfo(cardRoot);
+          return {
+            title,
+            code,
+            image: imageInfo.src,
+            imageSet: imageInfo.srcset,
+            detailPath,
+          };
+        })
+        .filter(Boolean) as ScrapedCard[];
+    }
+  )) as ScrapedCard[];
+
+  await page.close();
+  return pageCards;
+}
+
+const IMAGE_RESOLUTION_WORKERS = Math.max(
+  1,
+  Math.min(6, Number(process.env.PRE_RELEASE_RESOLVE_WORKERS) || 3)
+);
+const IMAGE_PROGRESS_CHUNK = 5;
+
+async function scrapeAllCards() {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ userAgent: USER_AGENT });
+  const aggregated: ScrapedCard[] = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= cli.maxPages; pageNumber += 1) {
+      const pageCards = await scrapePage(context, pageNumber);
+      if (!pageCards.length) {
+        console.log(`[page ${pageNumber}] No cards found, stopping pagination.`);
+        break;
+      }
+      aggregated.push(...pageCards);
+      console.log(
+        `[aggregate] After page ${pageNumber}, total cards collected: ${aggregated.length}`
+      );
+      if (cli.limit && aggregated.length >= cli.limit) {
+        break;
+      }
+      await delay(1500 + Math.random() * 1000);
+    }
+    const limited = cli.limit ? aggregated.slice(0, cli.limit) : aggregated;
+    const uniqueCards = deduplicateScrapedCards(limited);
+
+    if (uniqueCards.length) {
+      await enrichCardImages(context, uniqueCards);
+    }
+
+    return uniqueCards;
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
+function deduplicateScrapedCards(cards: ScrapedCard[]) {
+  const byCode = new Map<string, ScrapedCard>();
+  let duplicates = 0;
+
+  const qualityScore = (card: ScrapedCard) => {
+    let score = 0;
+    if (card.detailPath) score += 2;
+    if (card.imageSet) score += 1;
+    if (card.image) score += 1;
+    return score;
+  };
+
+  for (const card of cards) {
+    const code = card.code.trim();
+    if (!code) continue;
+    const existing = byCode.get(code);
+    if (!existing) {
+      byCode.set(code, card);
+      continue;
+    }
+
+    duplicates += 1;
+    if (qualityScore(card) > qualityScore(existing)) {
+      byCode.set(code, card);
+    }
+  }
+
+  if (duplicates) {
+    console.log(`[aggregate] Removed ${duplicates} duplicate entries by code.`);
+  }
+
+  return Array.from(byCode.values());
+}
+
+async function enrichCardImages(
+  context: BrowserContext,
+  cards: ScrapedCard[]
+) {
+  const total = cards.length;
+  const workers = Math.min(IMAGE_RESOLUTION_WORKERS, total);
+  console.log(
+    `[images] Resolving best image for ${total} cards with ${workers} worker${
+      workers === 1 ? "" : "s"
+    }...`
+  );
+
+  let nextIndex = 0;
+  let completed = 0;
+
+  const logProgress = () => {
+    console.log(
+      `[images] Completed ${completed}/${total} cards (${Math.round(
+        (completed / total) * 100
+      )}%)`
+    );
+  };
+
+  async function worker() {
+    while (true) {
+      if (nextIndex >= total) break;
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      const target = cards[currentIndex];
+      try {
+        target.image = await resolveBestImage(context, target);
+      } catch (error) {
+        console.warn(
+          `[images][${target.code}] Failed to resolve best image: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      } finally {
+        completed += 1;
+        if (
+          completed === total ||
+          completed % IMAGE_PROGRESS_CHUNK === 0
+        ) {
+          logProgress();
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+}
+
+function buildCreateData(
+  baseCard: Card & {
+    types: CardType[];
+    colors: CardColor[];
+    effects: CardEffect[];
+    conditions: CardCondition[];
+    texts: CardText[];
+  },
+  imageUrl: string
+) {
+  return {
+    name: baseCard.name,
+    code: baseCard.code,
+    setCode: "",
+    src: imageUrl,
+    imageKey: null,
+    cost: baseCard.cost,
+    power: baseCard.power,
+    attribute: baseCard.attribute,
+    counter: baseCard.counter,
+    category: baseCard.category,
+    life: baseCard.life,
+    rarity: baseCard.rarity,
+    illustrator: baseCard.illustrator,
+    alternateArt: "Pre-Release",
+    status: baseCard.status,
+    triggerCard: baseCard.triggerCard,
+    tcgUrl: null,
+    tcgplayerProductId: null,
+    tcgplayerLinkStatus: null,
+    marketPrice: null,
+    lowPrice: null,
+    highPrice: null,
+    priceCurrency: null,
+    priceUpdatedAt: null,
+    alias: baseCard.alias,
+    order: baseCard.order,
+    isFirstEdition: false,
+    isPro: baseCard.isPro,
+    region: baseCard.region,
+    baseCardId: baseCard.id,
+    types: baseCard.types.length
+      ? { create: baseCard.types.map((t) => ({ type: t.type })) }
+      : undefined,
+    colors: baseCard.colors.length
+      ? { create: baseCard.colors.map((c) => ({ color: c.color })) }
+      : undefined,
+    effects: baseCard.effects.length
+      ? { create: baseCard.effects.map((e) => ({ effect: e.effect })) }
+      : undefined,
+    conditions: baseCard.conditions.length
+      ? { create: baseCard.conditions.map((c) => ({ condition: c.condition })) }
+      : undefined,
+    texts: baseCard.texts.length
+      ? { create: baseCard.texts.map((t) => ({ text: t.text })) }
+      : undefined,
+  };
+}
+
+async function main() {
+  console.log(
+    `Processing pre-release set slug="${cli.slug}" setTitle="${cli.setTitle}" pages=${cli.maxPages} limit=${
+      cli.limit ?? "∞"
+    }`
+  );
+
+  const cards = await scrapeAllCards();
+  console.log(`Scraped ${cards.length} cards from TCGplayer.`);
+
+  let targetSet = await prisma.set.findFirst({
+    where: {
+      title: {
+        equals: cli.setTitle,
+        mode: "insensitive",
+      },
+    },
+  });
+
+  if (!targetSet) {
+    console.log(`[set] Set "${cli.setTitle}" not found. Creating it now...`);
+    targetSet = await prisma.set.create({
+      data: {
+        title: cli.setTitle,
+        code: null,
+        image: "",
+        releaseDate: new Date(),
+        isOpen: false,
+        version: null,
+      },
+    });
+    console.log(
+      `[set] Created new set "${cli.setTitle}" (ID ${targetSet.id}).`
+    );
+  }
+
+  const stats = {
+    processed: 0,
+    created: 0,
+    skippedExisting: 0,
+    skippedNoBase: 0,
+    skippedNoImage: 0,
+    failed: 0,
+  };
+
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    stats.processed += 1;
+    console.log(
+      `\n===== [${index + 1}/${cards.length}] Processing ${card.code} =====`
+    );
+
+    try {
+      const baseCard = await prisma.card.findFirst({
+        where: {
+          code: card.code,
+          isFirstEdition: true,
+        },
+        include: {
+          types: true,
+          colors: true,
+          effects: true,
+          conditions: true,
+          texts: true,
+        },
+      });
+
+      if (!baseCard) {
+        console.log("[skip][no-base] No base card found with isFirstEdition=true");
+        stats.skippedNoBase += 1;
+        continue;
+      }
+
+      const existingPreRelease = await prisma.card.findFirst({
+        where: {
+          code: card.code,
+          alternateArt: {
+            equals: "Pre-Release",
+            mode: "insensitive",
+          },
+        },
+      });
+
+      if (existingPreRelease) {
+        console.log(
+          `[skip][existing] Card with code ${card.code} already has a Pre-Release alternate (ID ${existingPreRelease.id}).`
+        );
+        stats.skippedExisting += 1;
+        continue;
+      }
+
+      if (!card.image) {
+        console.log("[skip][no-image] Missing usable image URL from scraper");
+        stats.skippedNoImage += 1;
+        continue;
+      }
+
+      const imageBuffer = await downloadImage(card.image);
+      const imageKey = buildUniqueImageKey(card.code);
+      const publicUrl = await uploadImageVariants(imageKey, imageBuffer);
+
+      const createData = buildCreateData(baseCard, publicUrl);
+      const createdCard = await prisma.card.create({
+        data: {
+          ...createData,
+          sets: {
+            create: {
+              setId: targetSet.id,
+            },
+          },
+        },
+      });
+
+      console.log(
+        `[create] Created Pre-Release card ${createdCard.id} (${createdCard.code})`
+      );
+      stats.created += 1;
+    } catch (error) {
+      console.error(`[error] Failed processing ${card.code}:`, error);
+      stats.failed += 1;
+    }
+  }
+
+  console.log("\n========== Summary ==========");
+  console.log(`Processed: ${stats.processed}`);
+  console.log(`Created: ${stats.created}`);
+  console.log(`Skipped (existing Pre-Release): ${stats.skippedExisting}`);
+  console.log(`Skipped (no base card): ${stats.skippedNoBase}`);
+  console.log(`Skipped (no image): ${stats.skippedNoImage}`);
+  console.log(`Failed: ${stats.failed}`);
+  console.log("================================\n");
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+async function downloadImage(url: string): Promise<Buffer> {
+  console.log(`[download] Fetching image: ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download image (${response.statusText})`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  console.log(
+    `[download] Completed (${Math.round(buffer.length / 1024)}KB downloaded)`
+  );
+  return buffer;
+}
+
+function sanitizeCodeForFilename(code: string): string {
+  return code
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildImageKey(code: string): string {
+  const safeCode = sanitizeCodeForFilename(code) || "PRE-RELEASE";
+  const timestamp = Date.now().toString(36);
+  return `${safeCode}-${timestamp}`;
+}
+
+function buildUniqueImageKey(code: string): string {
+  const safeCode = sanitizeCodeForFilename(code) || "PRE-RELEASE";
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `${safeCode}-${timestamp}-${random}`;
+}
+
+async function resolveBestImage(context: BrowserContext, card: ScrapedCard) {
+  let bestImage = pickBestImage(card.imageSet, card.image);
+  const detailUrl = card.detailPath
+    ? card.detailPath.startsWith("http")
+      ? card.detailPath
+      : `${ORIGIN}${card.detailPath}`
+    : "";
+
+  if (!detailUrl) {
+    return bestImage;
+  }
+
+  const detailPage = await context.newPage();
+  try {
+    await detailPage.goto(detailUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    await detailPage.waitForSelector('img[data-testid^="product-image__container"]', {
+      timeout: 15000,
+    });
+    const detailImageInfo = await detailPage.evaluate(() => {
+      const imgs = Array.from(
+        document.querySelectorAll(
+          'img[data-testid^="product-image__container"]'
+        )
+      );
+      if (!imgs.length) return null;
+      const target = imgs[0];
+      return {
+        src: target.getAttribute("src") || "",
+        srcset: target.getAttribute("srcset") || "",
+      };
+    });
+    if (detailImageInfo) {
+      bestImage = pickBestImage(detailImageInfo.srcset, detailImageInfo.src);
+    }
+  } catch (error: any) {
+    console.warn(`Failed to load detail for ${card.code}:`, error.message);
+  } finally {
+    await detailPage.close();
+    await delay(400 + Math.random() * 400);
+  }
+
+  return normalizeImageUrl(bestImage);
+}
+
+async function uploadImageVariants(filename: string, buffer: Buffer) {
+  console.log(`[upload] Uploading image variants for ${filename}`);
+
+  for (const [sizeName, config] of Object.entries(IMAGE_SIZES)) {
+    const r2Key = `cards/${filename}${config.suffix}.webp`;
+    let transformer = sharp(buffer);
+
+    if (config.width || config.height) {
+      transformer = transformer.resize({
+        width: config.width || undefined,
+        height: config.height || undefined,
+        fit: "contain",
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      });
+    }
+
+    const transformed = await transformer
+      .webp({ quality: config.quality, effort: 6 })
+      .toBuffer();
+
+    const command = new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key,
+      Body: transformed,
+      ContentType: "image/webp",
+      CacheControl: "public, max-age=31536000, immutable",
+    });
+
+    await s3Client.send(command);
+    console.log(
+      `  [upload:${sizeName}] ${r2Key} (${Math.round(
+        transformed.length / 1024
+      )}KB)`
+    );
+  }
+
+  console.log(`[upload] All variants uploaded for ${filename}.`);
+  return `${R2_PUBLIC_URL}/cards/${filename}.webp`;
+}

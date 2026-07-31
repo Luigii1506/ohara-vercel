@@ -431,7 +431,9 @@ const EventDetailPage = () => {
             <div className="rounded-full">
               <div
                 className={cn(
-                  "rounded-full prose prose-sm max-w-none text-foreground/90 dark:prose-invert leading-relaxed [&>p]:mb-4 [&>p:last-child]:mb-0",
+                  // Contenedor bajo el que vive el CSS oficial scopeado. No
+                  // añadir `prose`: pelea con el layout del sitio oficial.
+                  "event-official-content",
                   styles.eventContentHtml,
                   extraStyles.eventContentShell
                 )}

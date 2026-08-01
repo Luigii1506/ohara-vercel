@@ -854,6 +854,33 @@ model EventMissingCard {
   @@index([missingCardId])
 }
 
+/// Huecos de cobertura del catálogo detectados por reconciliación (Capa 1).
+/// A diferencia de MissingCard (que nace de eventos y se resuelve vinculando
+/// a un evento), un CatalogGap nace de comparar un catálogo maestro contra
+/// nuestras cartas por región, y se resuelve INGIRIENDO la carta que falta.
+model CatalogGap {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique // OP15-001, ST31-001, P-040…
+  setCode        String? // prefijo de set: OP15, ST31, P…
+  name           String? // nombre de la carta según el master
+  /// MISSING_ALL = no existe en ninguna de nuestras regiones (contenido nuevo).
+  /// REGION_PARITY = existe en alguna región pero falta en otras.
+  kind           String   @default("MISSING_ALL")
+  presentRegions String[] // regiones donde SÍ la tenemos
+  missingRegions String[] // regiones donde falta
+  source         String   @default("dotgg") // fuente que detectó el hueco
+  resolved       Boolean  @default(false) // ya ingerida / ya no falta
+  ignored        Boolean  @default(false) // descartada manualmente (no aplica)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([kind])
+  @@index([resolved])
+  @@index([setCode])
+}
+
 model CardSet {
   cardId Int
   setId  Int

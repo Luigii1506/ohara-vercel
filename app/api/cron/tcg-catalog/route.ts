@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncTcgCatalog } from "@/lib/services/tcgCatalogSync";
 
+// El sync pagina todo el catálogo (~7k productos); necesita margen.
+export const maxDuration = 300;
+
 const authenticate = (request: NextRequest) => {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -20,7 +23,9 @@ export async function POST(request: NextRequest) {
     authenticate(request);
     const started = Date.now();
     console.log("[tcg-catalog-cron] Starting sync for category 68");
-    const result = await syncTcgCatalog();
+    // Escribe siempre (el default del servicio es dry-run). El mirror alimenta
+    // la reconciliación de catálogo, así que debe refrescarse de verdad.
+    const result = await syncTcgCatalog({ dryRun: false });
     const duration = ((Date.now() - started) / 1000).toFixed(2);
     console.log(
       `[tcg-catalog-cron] Finished full sync in ${duration}s`,

@@ -205,11 +205,13 @@ function buildCatalogPayload(
   const metadata = product as unknown as Prisma.InputJsonValue;
   const cardTypeValue = getExtendedValue(product, "CardType");
   const rarityValue = getExtendedValue(product, "Rarity");
+  const numberValue = getExtendedValue(product, "Number");
   const isSealed = isSealedProduct(product);
   const baseData = {
     name: product.name?.trim() || cleanName || `Product ${product.productId}`,
     cleanName: cleanName || null,
     productLineName: normalizedLineName,
+    number: numberValue ? String(numberValue).toUpperCase().trim() : null,
     cardType: cardTypeValue,
     rarity: rarityValue,
     isSealed,

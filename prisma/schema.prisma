@@ -1010,6 +1010,7 @@ model TcgCatalogProduct {
   sku             String?
   imageUrl        String?
   metadata        Json?
+  number          String? // código de carta (extendedData "Number": OP12-020, P-024…)
   cardType        String?
   rarity          String?
   isSealed        Boolean   @default(false)
@@ -1025,6 +1026,7 @@ model TcgCatalogProduct {
   @@index([linkedCardId])
   @@index([linkedProductId])
   @@index([linkedById])
+  @@index([number])
 }
 
 // Shop cart/orders models removed - moved to separate e-commerce application

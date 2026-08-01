@@ -123,6 +123,12 @@ export default function AdminDashboard() {
           icon: Sparkles,
           description: "Explora DotGG y crea alternas",
         },
+        {
+          href: "/admin/catalog-gaps",
+          label: "Cobertura de catálogo",
+          icon: Activity,
+          description: "¿Qué cartas/versiones me faltan por región?",
+        },
       ],
     },
     {

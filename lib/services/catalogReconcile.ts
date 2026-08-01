@@ -24,14 +24,17 @@ export type ReconcileRegion = (typeof RECONCILE_REGIONS)[number];
 export type ReconcileSummary = {
   dryRun: boolean;
   masterBaseCodes: number;
+  tcgBaseCodes: number;
   ourBaseCodes: number;
   missingAll: number;
   regionParity: number;
+  newUsMissing: number; // cartas del mercado US (TCGplayer) que faltan en US
   created: number;
   updated: number;
   resolved: number;
   missingRegionTotals: Record<ReconcileRegion, number>;
   sampleMissingAll: string[];
+  sampleNewUs: string[];
 };
 
 /** Prefijo de set a partir del código (OP14-054 → OP14, P-040 → P). */
@@ -95,6 +98,52 @@ async function loadOurCoverage(): Promise<Map<string, Set<string>>> {
   return byCode;
 }
 
+type TcgInfo = {
+  productId: number;
+  url: string | null;
+  imageUrl: string | null;
+  name: string | null;
+  cardType: string | null;
+  rarity: string | null;
+};
+
+/** Carga el catálogo espejo de TCGplayer (cartas del mercado US) → Map<code>.
+ *  El "Number" (código) vive en metadata.extendedData. Ignora sellados. */
+async function loadTcgplayerCatalog(): Promise<Map<string, TcgInfo>> {
+  const rows = await prisma.tcgCatalogProduct.findMany({
+    where: { isSealed: false, productStatus: "active" },
+    select: {
+      productId: true,
+      name: true,
+      cardType: true,
+      rarity: true,
+      metadata: true,
+    },
+  });
+  const byCode = new Map<string, TcgInfo>();
+  for (const r of rows) {
+    const meta: any = r.metadata ?? {};
+    const ext: any[] = Array.isArray(meta.extendedData) ? meta.extendedData : [];
+    const number = ext.find((e) => e?.name === "Number")?.value;
+    const code = String(number ?? "").toUpperCase().trim();
+    if (!code || !/^[A-Za-z]+-?\d/.test(code)) continue;
+    if (isDonNoise(code)) continue;
+    // Nos quedamos con un producto por código (el de menor productId = base).
+    const prev = byCode.get(code);
+    if (!prev || r.productId < prev.productId) {
+      byCode.set(code, {
+        productId: r.productId,
+        url: meta.url ?? null,
+        imageUrl: meta.imageUrl ?? null,
+        name: r.name ?? null,
+        cardType: r.cardType ?? null,
+        rarity: r.rarity ?? null,
+      });
+    }
+  }
+  return byCode;
+}
+
 type ComputedGap = {
   code: string;
   setCode: string;
@@ -102,6 +151,8 @@ type ComputedGap = {
   kind: "MISSING_ALL" | "REGION_PARITY";
   presentRegions: string[];
   missingRegions: string[];
+  source: string;
+  tcg: TcgInfo | null;
 };
 
 /**
@@ -113,12 +164,18 @@ export async function reconcileCatalog(
 ): Promise<ReconcileSummary> {
   const dryRun = opts.dryRun ?? false;
 
-  const [master, ours] = await Promise.all([fetchMaster(), loadOurCoverage()]);
+  const [master, ours, tcg] = await Promise.all([
+    fetchMaster(),
+    loadOurCoverage(),
+    loadTcgplayerCatalog(),
+  ]);
 
-  // Universo de códigos: los del master + los que tenemos (para detectar
-  // exclusivas regionales que el master inglés no lista).
+  // Universo de códigos: master (DotGG) + TCGplayer (mercado US) + lo que
+  // tenemos (para detectar exclusivas regionales que el inglés no lista).
   const allCodes = new Set<string>(
-    Array.from(master.keys()).concat(Array.from(ours.keys()))
+    Array.from(master.keys())
+      .concat(Array.from(tcg.keys()))
+      .concat(Array.from(ours.keys()))
   );
 
   const gaps: ComputedGap[] = [];
@@ -132,26 +189,18 @@ export async function reconcileCatalog(
     const presentRegions = RECONCILE_REGIONS.filter((r) => present.has(r));
     const missingRegions = RECONCILE_REGIONS.filter((r) => !present.has(r));
 
+    const tcgInfo = tcg.get(code) ?? null;
+    // Si TCGplayer lista la carta, es la fuente autorizada del mercado US.
+    const source = tcgInfo ? "tcgplayer" : "dotgg";
+    const name = master.get(code)?.name ?? tcgInfo?.name ?? null;
+    const base = { code, setCode: setOf(code), name, presentRegions, missingRegions, source, tcg: tcgInfo };
+
     if (presentRegions.length === 0) {
       // No la tenemos en ninguna región → contenido nuevo.
-      gaps.push({
-        code,
-        setCode: setOf(code),
-        name: master.get(code)?.name ?? null,
-        kind: "MISSING_ALL",
-        presentRegions,
-        missingRegions,
-      });
+      gaps.push({ ...base, kind: "MISSING_ALL" });
     } else if (missingRegions.length > 0) {
       // La tenemos en algunas regiones pero no en todas → paridad.
-      gaps.push({
-        code,
-        setCode: setOf(code),
-        name: master.get(code)?.name ?? null,
-        kind: "REGION_PARITY",
-        presentRegions,
-        missingRegions,
-      });
+      gaps.push({ ...base, kind: "REGION_PARITY" });
     }
     for (const r of missingRegions) {
       if (presentRegions.length > 0) missingRegionTotals[r] += 1;
@@ -160,11 +209,16 @@ export async function reconcileCatalog(
 
   const missingAll = gaps.filter((g) => g.kind === "MISSING_ALL").length;
   const regionParity = gaps.filter((g) => g.kind === "REGION_PARITY").length;
+  // Cartas del mercado US (TCGplayer) que nos faltan en US: la prioridad.
+  const newUs = gaps.filter(
+    (g) => g.source === "tcgplayer" && g.missingRegions.includes("US")
+  );
   const sampleMissingAll = gaps
     .filter((g) => g.kind === "MISSING_ALL")
     .map((g) => g.code)
     .sort()
     .slice(0, 25);
+  const sampleNewUs = newUs.map((g) => g.code).sort().slice(0, 25);
 
   let created = 0;
   let updated = 0;
@@ -189,6 +243,12 @@ export async function reconcileCatalog(
           kind: g.kind,
           presentRegions: g.presentRegions,
           missingRegions: g.missingRegions,
+          source: g.source,
+          tcgProductId: g.tcg?.productId ?? null,
+          tcgUrl: g.tcg?.url ?? null,
+          imageUrl: g.tcg?.imageUrl ?? null,
+          cardType: g.tcg?.cardType ?? null,
+          rarity: g.tcg?.rarity ?? null,
           resolved: false,
           lastSeenAt: new Date(),
         },
@@ -199,7 +259,12 @@ export async function reconcileCatalog(
           kind: g.kind,
           presentRegions: g.presentRegions,
           missingRegions: g.missingRegions,
-          source: "dotgg",
+          source: g.source,
+          tcgProductId: g.tcg?.productId ?? null,
+          tcgUrl: g.tcg?.url ?? null,
+          imageUrl: g.tcg?.imageUrl ?? null,
+          cardType: g.tcg?.cardType ?? null,
+          rarity: g.tcg?.rarity ?? null,
         },
       });
       if (isNew) created += 1;
@@ -226,13 +291,16 @@ export async function reconcileCatalog(
   return {
     dryRun,
     masterBaseCodes: master.size,
+    tcgBaseCodes: tcg.size,
     ourBaseCodes: ours.size,
     missingAll,
     regionParity,
+    newUsMissing: newUs.length,
     created,
     updated,
     resolved,
     missingRegionTotals,
     sampleMissingAll,
+    sampleNewUs,
   };
 }

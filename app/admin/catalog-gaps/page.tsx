@@ -15,7 +15,6 @@ import {
   Sparkles,
   ClipboardCheck,
   EyeOff,
-  ArrowUpRight,
   Loader2,
 } from "lucide-react";
 
@@ -27,6 +26,11 @@ type Gap = {
   kind: "MISSING_ALL" | "REGION_PARITY";
   presentRegions: string[];
   missingRegions: string[];
+  source: string;
+  tcgUrl: string | null;
+  imageUrl: string | null;
+  cardType: string | null;
+  rarity: string | null;
   resolved: boolean;
   ignored: boolean;
   lastSeenAt: string;
@@ -36,6 +40,7 @@ type Stats = {
   totalOpen: number;
   missingAll: number;
   regionParity: number;
+  newUsMissing: number;
   resolved: number;
   ignored: number;
   byRegion: Record<string, number>;
@@ -77,6 +82,8 @@ export default function CatalogGapsDashboard() {
   const [status, setStatus] = useState("open");
   const [missingRegion, setMissingRegion] = useState("");
   const [setCode, setSetCode] = useState("");
+  const [source, setSource] = useState("");
+  const [newUs, setNewUs] = useState(false);
   const [searchRaw, setSearchRaw] = useState("");
   const search = useDebounced(searchRaw, 300);
   const [page, setPage] = useState(1);
@@ -94,11 +101,13 @@ export default function CatalogGapsDashboard() {
     p.set("status", status);
     if (missingRegion) p.set("missingRegion", missingRegion);
     if (setCode) p.set("setCode", setCode);
+    if (source) p.set("source", source);
+    if (newUs) p.set("newUs", "1");
     if (search) p.set("search", search);
     p.set("page", String(page));
     p.set("pageSize", String(pageSize));
     return `/api/admin/catalog-gaps?${p.toString()}`;
-  }, [kind, status, missingRegion, setCode, search, page]);
+  }, [kind, status, missingRegion, setCode, source, newUs, search, page]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,7 +132,7 @@ export default function CatalogGapsDashboard() {
   useEffect(() => {
     setPage(1);
     setSelected(new Set());
-  }, [kind, status, missingRegion, setCode, search]);
+  }, [kind, status, missingRegion, setCode, source, newUs, search]);
 
   const flashMsg = (m: string) => {
     setFlash(m);
@@ -265,14 +274,53 @@ export default function CatalogGapsDashboard() {
           </div>
         )}
 
+        {/* Hero: Nuevas US (la prioridad) */}
+        <button
+          onClick={() => {
+            setNewUs(true);
+            setStatus("open");
+            setKind("all");
+            setMissingRegion("");
+            setSetCode("");
+            setSource("");
+          }}
+          className={`mt-6 flex w-full items-center gap-4 rounded-2xl border-2 p-5 text-left transition ${
+            newUs
+              ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+              : "border-blue-200 bg-gradient-to-r from-blue-50 to-white hover:border-blue-400 dark:border-blue-900 dark:from-blue-950/30 dark:to-slate-900"
+          }`}
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+              Prioridad · cartas nuevas del mercado US
+            </div>
+            <div className="text-sm text-slate-600 dark:text-slate-300">
+              Cartas que <strong>TCGplayer tiene y tú no</strong> en US — el
+              contenido nuevo que más te importa.
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold tabular-nums text-blue-700 dark:text-blue-300">
+              {stats?.newUsMissing ?? "—"}
+            </div>
+            <div className="text-xs font-medium text-blue-500">
+              {newUs ? "viendo ahora →" : "ver todas →"}
+            </div>
+          </div>
+        </button>
+
         {/* Stat cards */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard
             label="Huecos abiertos"
             value={stats?.totalOpen}
             icon={<Layers className="h-4 w-4" />}
-            active={kind === "all" && status === "open"}
+            active={!newUs && kind === "all" && status === "open"}
             onClick={() => {
+              setNewUs(false);
               setKind("all");
               setStatus("open");
             }}
@@ -282,8 +330,9 @@ export default function CatalogGapsDashboard() {
             value={stats?.missingAll}
             icon={<Sparkles className="h-4 w-4" />}
             tone="rose"
-            active={kind === "MISSING_ALL"}
+            active={!newUs && kind === "MISSING_ALL"}
             onClick={() => {
+              setNewUs(false);
               setKind("MISSING_ALL");
               setStatus("open");
             }}
@@ -293,8 +342,9 @@ export default function CatalogGapsDashboard() {
             value={stats?.regionParity}
             icon={<Globe2 className="h-4 w-4" />}
             tone="amber"
-            active={kind === "REGION_PARITY"}
+            active={!newUs && kind === "REGION_PARITY"}
             onClick={() => {
+              setNewUs(false);
               setKind("REGION_PARITY");
               setStatus("open");
             }}
@@ -304,16 +354,22 @@ export default function CatalogGapsDashboard() {
             value={stats?.resolved}
             icon={<ClipboardCheck className="h-4 w-4" />}
             tone="emerald"
-            active={status === "resolved"}
-            onClick={() => setStatus("resolved")}
+            active={!newUs && status === "resolved"}
+            onClick={() => {
+              setNewUs(false);
+              setStatus("resolved");
+            }}
           />
           <StatCard
             label="Ignorados"
             value={stats?.ignored}
             icon={<EyeOff className="h-4 w-4" />}
             tone="slate"
-            active={status === "ignored"}
-            onClick={() => setStatus("ignored")}
+            active={!newUs && status === "ignored"}
+            onClick={() => {
+              setNewUs(false);
+              setStatus("ignored");
+            }}
           />
         </div>
 
@@ -406,19 +462,36 @@ export default function CatalogGapsDashboard() {
           />
           <FilterSelect
             value={missingRegion}
-            onChange={setMissingRegion}
+            onChange={(v) => {
+              setNewUs(false);
+              setMissingRegion(v);
+            }}
             options={[
               ["", "Cualquier región"],
               ...(stats?.regions ?? []).map((r) => [r, `Falta en ${r}`] as [string, string]),
             ]}
           />
-          {(missingRegion || setCode || search || kind !== "all" || status !== "open") && (
+          <FilterSelect
+            value={source}
+            onChange={(v) => {
+              setNewUs(false);
+              setSource(v);
+            }}
+            options={[
+              ["", "Cualquier fuente"],
+              ["tcgplayer", "TCGplayer"],
+              ["dotgg", "DotGG"],
+            ]}
+          />
+          {(missingRegion || setCode || source || newUs || search || kind !== "all" || status !== "open") && (
             <button
               onClick={() => {
                 setKind("all");
                 setStatus("open");
                 setMissingRegion("");
                 setSetCode("");
+                setSource("");
+                setNewUs(false);
                 setSearchRaw("");
               }}
               className="rounded-lg px-3 py-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -492,11 +565,38 @@ export default function CatalogGapsDashboard() {
                         className="h-4 w-4 accent-teal-600"
                       />
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold">
-                      {g.code}
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        {g.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={g.imageUrl}
+                            alt={g.code}
+                            className="h-11 w-8 rounded object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-11 w-8 items-center justify-center rounded bg-slate-100 text-slate-300 dark:bg-slate-800">
+                            <PackageSearch className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-mono text-xs font-semibold">{g.code}</div>
+                          {g.source === "tcgplayer" && (
+                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                              TCGplayer
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
-                    <td className="max-w-[220px] truncate px-3 py-2.5 text-slate-600 dark:text-slate-300">
-                      {g.name ?? <span className="text-slate-400">—</span>}
+                    <td className="max-w-[220px] px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                      <div className="truncate">{g.name ?? <span className="text-slate-400">—</span>}</div>
+                      {(g.cardType || g.rarity) && (
+                        <div className="text-[11px] text-slate-400">
+                          {[g.cardType, g.rarity].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       {g.kind === "MISSING_ALL" ? (
@@ -518,10 +618,13 @@ export default function CatalogGapsDashboard() {
                     <td className="px-3 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <a
-                          href={`https://www.tcgplayer.com/search/one-piece-card-game/product?q=${encodeURIComponent(g.code)}`}
+                          href={
+                            g.tcgUrl ??
+                            `https://www.tcgplayer.com/search/one-piece-card-game/product?q=${encodeURIComponent(g.code)}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Buscar en TCGplayer"
+                          title={g.tcgUrl ? "Ver en TCGplayer" : "Buscar en TCGplayer"}
                           className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                         >
                           <ExternalLink className="h-4 w-4" />

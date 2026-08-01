@@ -868,7 +868,13 @@ model CatalogGap {
   kind           String   @default("MISSING_ALL")
   presentRegions String[] // regiones donde SÍ la tenemos
   missingRegions String[] // regiones donde falta
-  source         String   @default("dotgg") // fuente que detectó el hueco
+  source         String   @default("dotgg") // fuente que detectó el hueco: dotgg | tcgplayer
+  // Datos de TCGplayer cuando la fuente es tcgplayer (cartas nuevas del mercado US).
+  tcgProductId   Int?
+  tcgUrl         String?
+  imageUrl       String?
+  cardType       String?
+  rarity         String?
   resolved       Boolean  @default(false) // ya ingerida / ya no falta
   ignored        Boolean  @default(false) // descartada manualmente (no aplica)
   firstSeenAt    DateTime @default(now())

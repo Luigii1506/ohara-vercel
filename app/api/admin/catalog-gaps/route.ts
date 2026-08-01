@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     const status = sp.get("status") ?? "open";
     const missingRegion = sp.get("missingRegion") ?? "";
     const setCode = sp.get("setCode") ?? "";
+    const source = sp.get("source") ?? "";
+    const newUs = sp.get("newUs") === "1";
     const search = (sp.get("search") ?? "").trim();
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "50") || 50));
@@ -39,6 +41,12 @@ export async function GET(req: NextRequest) {
     else if (status === "ignored") where.ignored = true;
     if (missingRegion) where.missingRegions = { has: missingRegion };
     if (setCode) where.setCode = setCode;
+    if (source === "tcgplayer" || source === "dotgg") where.source = source;
+    // "Nuevas US": cartas del mercado US (TCGplayer) que nos faltan en US.
+    if (newUs) {
+      where.source = "tcgplayer";
+      where.missingRegions = { has: "US" };
+    }
     if (search) {
       where.OR = [
         { code: { contains: search, mode: "insensitive" } },
@@ -71,6 +79,11 @@ export async function GET(req: NextRequest) {
         prisma.catalogGap.count({ where: { ignored: true } }),
         prisma.catalogGap.count({ where: openBase }),
       ]);
+
+    // Prioridad: cartas nuevas del mercado US (TCGplayer) que faltan en US.
+    const newUsMissing = await prisma.catalogGap.count({
+      where: { ...openBase, source: "tcgplayer", missingRegions: { has: "US" } },
+    });
 
     // Faltantes por región (entre gaps abiertos).
     const byRegion: Record<string, number> = {};
@@ -106,6 +119,7 @@ export async function GET(req: NextRequest) {
         totalOpen,
         missingAll,
         regionParity,
+        newUsMissing,
         resolved: resolvedCount,
         ignored: ignoredCount,
         byRegion,

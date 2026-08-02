@@ -99,18 +99,67 @@ export async function GET(req: NextRequest) {
     // Excluir los que una Card ya tiene linkeados (falsos "sin linkear").
     const unlinked = unlinkedRaw.filter((p) => !linkedPids.has(p.productId));
 
+    // alternateArt que YA tenemos por código (para no re-ofrecer prizes que ya tienes).
+    const ourAlts = await prisma.card.findMany({
+      where: {
+        isFirstEdition: false,
+        alternateArt: { not: null },
+        OR: [{ region: "US" }, { region: null }],
+      },
+      select: { code: true, alternateArt: true },
+    });
+    const ourAltByCode = new Map<string, string[]>();
+    for (const c of ourAlts) {
+      if (!c.code || !c.alternateArt) continue;
+      const k = c.code.toUpperCase();
+      const arr = ourAltByCode.get(k) ?? [];
+      arr.push(c.alternateArt);
+      ourAltByCode.set(k, arr);
+    }
+    const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
     // 2c) Cartas detectadas en EVENTOS (prize/winner/judge/serial que no se
     // venden) cuyo código lo tenemos en US → alt-arts que ninguna otra fuente da.
-    const eventCards = await prisma.missingCard.findMany({
+    const eventCardsRaw = await prisma.missingCard.findMany({
       where: { isApproved: false },
-      select: { id: true, code: true, title: true, imageUrl: true },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        imageUrl: true,
+        events: { select: { event: { select: { title: true, sourceUrl: true } } } },
+      },
     });
-    const eventByCode = new Map<string, typeof eventCards>();
-    for (const m of eventCards) {
+    type EventCard = {
+      id: number;
+      code: string;
+      title: string | null;
+      imageUrl: string | null;
+      sourceUrl: string | null;
+      eventText: string;
+    };
+    const eventByCode = new Map<string, EventCard[]>();
+    for (const m of eventCardsRaw) {
       const code = (m.code ?? "").toUpperCase();
       if (!ourCount.has(code)) continue;
+      const eventTitles = m.events.map((e) => e.event.title).filter(Boolean).join(" ");
+      const sourceUrl = m.events.map((e) => e.event.sourceUrl).find(Boolean) ?? null;
+      const eventText = norm(`${eventTitles} ${m.title ?? ""}`);
+
+      // ¿Ya tenemos este prize? Si algún alternateArt nuestro (no genérico)
+      // coincide con el texto del evento, lo tenemos → no lo re-ofrecemos.
+      const haveIt = (ourAltByCode.get(code) ?? []).some((alt) => {
+        const na = norm(alt);
+        if (!na || na === "alternate art") return false;
+        return (
+          eventText.includes(na) ||
+          na.split(" ").filter((w) => w.length > 4).some((w) => eventText.includes(w))
+        );
+      });
+      if (haveIt) continue;
+
       const arr = eventByCode.get(code) ?? [];
-      arr.push(m);
+      arr.push({ id: m.id, code, title: m.title, imageUrl: m.imageUrl, sourceUrl, eventText });
       eventByCode.set(code, arr);
     }
 
@@ -182,7 +231,7 @@ export async function GET(req: NextRequest) {
           rarity: null,
           cardType: null,
           imageUrl: m.imageUrl || null,
-          url: null,
+          url: m.sourceUrl, // link al evento oficial, no a TCGplayer
           ourCount: our,
           tcgTotal: tcgTotal.get(code) ?? 0,
           dotggTotal: dotgg.get(code)?.total ?? 0,

@@ -257,9 +257,8 @@ export async function GET(req: NextRequest) {
       status: reviewByKey.get(refKeyOf(c)) ?? null,
     }));
     const reviewedCount = withStatus.filter((c) => c.status).length;
-    if (!showReviewed) {
-      withStatus = withStatus.filter((c) => !c.status);
-    }
+    // Por defecto: solo NO revisadas. Con "Ver revisadas": solo las revisadas.
+    withStatus = withStatus.filter((c) => (showReviewed ? c.status : !c.status));
     candidates = withStatus as any;
 
     // Stats (antes de filtros de UI).
@@ -287,7 +286,14 @@ export async function GET(req: NextRequest) {
     // Filtros de UI.
     if (onlyMissing) candidates = candidates.filter((c) => c.likelyMissing);
     if (onlyCorroborated) candidates = candidates.filter((c) => c.sources.length >= 2);
-    if (sourceFilter) candidates = candidates.filter((c) => c.sources.includes(sourceFilter));
+    // Filtro por fuente: TCGplayer/Eventos = por ORIGEN de la fila (no por el
+    // sources[] del código, que incluiría todas). DotGG = corroboración.
+    if (sourceFilter === "tcgplayer")
+      candidates = candidates.filter((c: any) => c.origin === "tcgplayer");
+    else if (sourceFilter === "events")
+      candidates = candidates.filter((c: any) => c.origin === "events");
+    else if (sourceFilter === "dotgg")
+      candidates = candidates.filter((c) => c.sources.includes("dotgg"));
     if (typeFilter) candidates = candidates.filter((c) => c.type === typeFilter);
     if (setCode) candidates = candidates.filter((c) => c.setCode === setCode);
     if (rarity) candidates = candidates.filter((c) => (c.rarity ?? "?") === rarity);

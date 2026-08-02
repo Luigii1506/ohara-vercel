@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { proxyImage } from "@/lib/proxyImage";
 import { useUser } from "@/app/context/UserContext";
@@ -10,7 +9,6 @@ import {
   ExternalLink,
   Loader2,
   Images,
-  Layers,
   Check,
   X,
   Undo2,
@@ -19,6 +17,7 @@ import {
 type Row = {
   productId: number;
   origin: string;
+  type: string; // "new" | "alt-art"
   code: string;
   setCode: string;
   name: string;
@@ -41,6 +40,8 @@ type Stats = {
   likelyMissing: number;
   corroborated: number;
   fromEvents: number;
+  newCards: number;
+  altArts: number;
   reviewed: number;
   codesAffected: number;
   bySet: { setCode: string; count: number }[];
@@ -68,6 +69,7 @@ export default function UsAlternatesPage() {
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [showReviewed, setShowReviewed] = useState(false);
   const [setCode, setSetCode] = useState("");
   const [rarity, setRarity] = useState("");
@@ -87,6 +89,7 @@ export default function UsAlternatesPage() {
       if (onlyMissing) p.set("onlyMissing", "1");
       if (onlyCorroborated) p.set("corroborated", "1");
       if (sourceFilter) p.set("source", sourceFilter);
+      if (typeFilter) p.set("type", typeFilter);
       if (showReviewed) p.set("showReviewed", "1");
       if (setCode) p.set("setCode", setCode);
       if (rarity) p.set("rarity", rarity);
@@ -103,14 +106,14 @@ export default function UsAlternatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [onlyMissing, onlyCorroborated, sourceFilter, showReviewed, setCode, rarity, search, page]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, typeFilter, showReviewed, setCode, rarity, search, page]);
 
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
     setPage(1);
-  }, [onlyMissing, onlyCorroborated, sourceFilter, showReviewed, setCode, rarity, search]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, typeFilter, showReviewed, setCode, rarity, search]);
 
   const review = async (r: Row, status: "have" | "ignored" | "none") => {
     // Optimista: si estamos ocultando revisadas, quitar la fila.
@@ -145,38 +148,31 @@ export default function UsAlternatesPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Tabs */}
-        <div className="mb-5 flex items-center gap-1 text-sm">
-          <Link
-            href="/admin/catalog-gaps"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <Layers className="h-4 w-4" />
-            Catálogo base
-          </Link>
-          <span className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white dark:bg-white dark:text-slate-900">
-            <Images className="h-4 w-4" />
-            Alternas US
-          </span>
-        </div>
-
         {/* Header */}
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400">
           <Images className="h-4 w-4" />
-          Meta principal · alt-arts US
+          Cobertura US
         </div>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">
-          Alternas US que me faltan
+          Cartas US que me faltan
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Impresiones que <strong>TCGplayer o DotGG</strong> tienen para una
-          carta que ya tienes en US, pero que no están en tu catálogo. Las{" "}
-          <strong>corroboradas por 2+ fuentes</strong> son las más confiables.
+          Todo lo que <strong>TCGplayer, DotGG o los eventos</strong> reportan
+          para US y no está en tu catálogo: <strong>cartas nuevas</strong> que no
+          tienes y <strong>alt-arts</strong> de cartas que sí tienes.
         </p>
 
+        {/* Filtro rápido por tipo */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <TypeBtn active={typeFilter === ""} onClick={() => setTypeFilter("")} label="Todo" value={stats?.likelyMissing} />
+          <TypeBtn active={typeFilter === "new"} onClick={() => setTypeFilter("new")} label="Cartas nuevas" value={stats?.newCards} tone="blue" />
+          <TypeBtn active={typeFilter === "alt-art"} onClick={() => setTypeFilter("alt-art")} label="Alt-arts" value={stats?.altArts} tone="rose" />
+          <TypeBtn active={typeFilter === "" && false} onClick={() => setSourceFilter(sourceFilter === "events" ? "" : "events")} label="Solo prize (eventos)" value={stats?.fromEvents} tone="violet" activeOverride={sourceFilter === "events"} />
+        </div>
+
         {/* Stats */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Stat label="Alt-arts faltantes" value={stats?.likelyMissing} tone="rose" />
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Stat label="Total faltantes" value={stats?.likelyMissing} tone="rose" />
           <Stat label="Corroboradas 2+" value={stats?.corroborated} tone="emerald" />
           <Stat label="De eventos (prize)" value={stats?.fromEvents} tone="violet" />
           <Stat label="Códigos afectados" value={stats?.codesAffected} tone="amber" />
@@ -334,6 +330,11 @@ export default function UsAlternatesPage() {
                     {r.origin === "events" ? "Evento" : "TCGplayer"} <ExternalLink className="h-3 w-3" />
                   </div>
                   <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
+                    {r.type === "new" && (
+                      <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        NUEVA
+                      </span>
+                    )}
                     {r.rarity && (
                       <span className="rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800">
                         {r.rarity}
@@ -454,6 +455,45 @@ export default function UsAlternatesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function TypeBtn({
+  label,
+  value,
+  active,
+  onClick,
+  tone = "slate",
+  activeOverride,
+}: {
+  label: string;
+  value?: number;
+  active: boolean;
+  onClick: () => void;
+  tone?: "slate" | "blue" | "rose" | "violet";
+  activeOverride?: boolean;
+}) {
+  const on = activeOverride ?? active;
+  const tones: Record<string, string> = {
+    slate: "border-slate-800 bg-slate-900 text-white dark:bg-white dark:text-slate-900",
+    blue: "border-blue-500 bg-blue-600 text-white",
+    rose: "border-rose-500 bg-rose-600 text-white",
+    violet: "border-violet-500 bg-violet-600 text-white",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition ${
+        on
+          ? tones[tone]
+          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+      }`}
+    >
+      {label}
+      {value !== undefined && (
+        <span className={on ? "opacity-80" : "text-slate-400"}>{value.toLocaleString()}</span>
+      )}
+    </button>
   );
 }
 

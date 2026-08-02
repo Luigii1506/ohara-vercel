@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     const onlyMissing = sp.get("onlyMissing") === "1";
     const onlyCorroborated = sp.get("corroborated") === "1";
     const sourceFilter = sp.get("source") ?? ""; // tcgplayer | dotgg | events
+    const typeFilter = sp.get("type") ?? ""; // new | alt-art
     const showReviewed = sp.get("showReviewed") === "1"; // incluir have/ignored
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "60") || 60));
@@ -105,8 +106,10 @@ export async function GET(req: NextRequest) {
       return s;
     };
 
+    const isDonNoise = (c: string) => /^DON-?\d{4,}$/i.test(c);
+
     let candidates = unlinked
-      .filter((p) => p.number && ourCount.has(p.number)) // código que sí tenemos
+      .filter((p) => p.number && /^[A-Za-z]+-?\d/.test(p.number) && !isDonNoise(p.number))
       .map((p) => {
         const code = p.number!;
         const our = ourCount.get(code) ?? 0;
@@ -114,9 +117,12 @@ export async function GET(req: NextRequest) {
         const dotggT = dotgg.get(code)?.total ?? 0;
         const expected = Math.max(total, dotggT);
         const sources = sourcesFor(code, our);
+        // "new" = no tenemos esa carta en US; "alt-art" = la tenemos pero faltan versiones.
+        const type = our === 0 ? "new" : "alt-art";
         return {
           productId: p.productId,
           origin: "tcgplayer" as string,
+          type,
           code,
           setCode: setOf(code),
           name: p.name,
@@ -129,7 +135,7 @@ export async function GET(req: NextRequest) {
           dotggTotal: dotggT,
           expected,
           sources,
-          likelyMissing: expected > our || eventByCode.has(code),
+          likelyMissing: our === 0 ? true : expected > our || eventByCode.has(code),
         };
       });
 
@@ -140,6 +146,7 @@ export async function GET(req: NextRequest) {
         candidates.push({
           productId: -m.id, // sintético para el key de React
           origin: "events",
+          type: our === 0 ? "new" : "alt-art",
           code,
           setCode: setOf(code),
           name: m.title ?? code,
@@ -182,6 +189,10 @@ export async function GET(req: NextRequest) {
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
     const corroborated = candidates.filter((c) => c.sources.length >= 2).length;
     const fromEvents = candidates.filter((c) => c.origin === "events").length;
+    const newCards = new Set(
+      candidates.filter((c) => c.type === "new").map((c) => c.code)
+    ).size;
+    const altArts = candidates.filter((c) => c.type === "alt-art" && c.likelyMissing).length;
     const codesAffected = new Set(candidates.map((c) => c.code)).size;
     const bySetMap = new Map<string, number>();
     const byRarityMap = new Map<string, number>();
@@ -199,6 +210,7 @@ export async function GET(req: NextRequest) {
     if (onlyMissing) candidates = candidates.filter((c) => c.likelyMissing);
     if (onlyCorroborated) candidates = candidates.filter((c) => c.sources.length >= 2);
     if (sourceFilter) candidates = candidates.filter((c) => c.sources.includes(sourceFilter));
+    if (typeFilter) candidates = candidates.filter((c) => c.type === typeFilter);
     if (setCode) candidates = candidates.filter((c) => c.setCode === setCode);
     if (rarity) candidates = candidates.filter((c) => (c.rarity ?? "?") === rarity);
     if (search) candidates = candidates.filter((c) => c.code.includes(search) || (c.name ?? "").toUpperCase().includes(search));
@@ -219,7 +231,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, reviewed: reviewedCount, codesAffected, bySet, byRarity },
+      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, newCards, altArts, reviewed: reviewedCount, codesAffected, bySet, byRarity },
     });
   } catch (error: any) {
     console.error("[us-alternates] GET failed:", error);

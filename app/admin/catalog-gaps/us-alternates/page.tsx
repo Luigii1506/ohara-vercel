@@ -16,7 +16,6 @@ import {
 
 type Row = {
   productId: number;
-  origin: string;
   type: string; // "new" | "alt-art"
   code: string;
   setCode: string;
@@ -29,8 +28,13 @@ type Row = {
   tcgTotal: number;
   dotggTotal: number;
   expected: number;
+  gap: number;
+  certainty: string; // missing | ambiguous | unlinked
   sources: string[];
   likelyMissing: boolean;
+  hasEvent: boolean;
+  hasTcg: boolean;
+  prints: { productId: number; imageUrl: string | null; url: string | null; origin: string }[];
   refKey: string;
   status: string | null;
 };
@@ -316,7 +320,7 @@ export default function UsAlternatesPage() {
                   {r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl}
+                      src={r.hasTcg ? r.imageUrl : proxyImage(r.imageUrl)}
                       alt={r.code}
                       className="h-full w-full object-cover"
                       loading="lazy"
@@ -327,7 +331,7 @@ export default function UsAlternatesPage() {
                     </div>
                   )}
                   <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                    {r.origin === "events" ? "Evento" : "TCGplayer"} <ExternalLink className="h-3 w-3" />
+                    {r.hasTcg ? "TCGplayer" : "Evento"} <ExternalLink className="h-3 w-3" />
                   </div>
                   <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
                     {r.type === "new" && (
@@ -340,7 +344,7 @@ export default function UsAlternatesPage() {
                         {r.rarity}
                       </span>
                     )}
-                    {r.origin === "events" && (
+                    {r.hasEvent && (
                       <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                         PRIZE
                       </span>
@@ -397,33 +401,37 @@ export default function UsAlternatesPage() {
                 <div className="p-2">
                   <div className="flex items-center justify-between gap-1">
                     <span className="truncate font-mono text-xs font-semibold">{r.code}</span>
-                    {r.sources.length >= 2 && (
-                      <span
-                        title="Confirmada por 2+ fuentes"
-                        className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                      >
-                        2+
-                      </span>
-                    )}
+                    {/* Puntos de fuente: qué fuentes lo corroboran */}
+                    <span className="flex shrink-0 items-center gap-0.5" title={`Fuentes: ${r.sources.join(", ") || "—"}`}>
+                      {r.sources.includes("tcgplayer") && <span className="h-2 w-2 rounded-full bg-blue-500" />}
+                      {r.sources.includes("dotgg") && <span className="h-2 w-2 rounded-full bg-fuchsia-500" />}
+                      {r.sources.includes("events") && <span className="h-2 w-2 rounded-full bg-violet-500" />}
+                    </span>
                   </div>
                   <div className="truncate text-[11px] text-slate-500">{r.name}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                    <span className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      tú {r.ourCount}
-                    </span>
-                    <span className="rounded bg-blue-100 px-1 py-0.5 font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-                      TCG {r.tcgTotal}
-                    </span>
-                    {r.dotggTotal > 0 && (
-                      <span className="rounded bg-fuchsia-100 px-1 py-0.5 font-semibold text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-300">
-                        DotGG {r.dotggTotal}
+                  <div className="mt-1.5 flex items-center justify-between gap-1">
+                    {/* Lo importante: cuántas faltan */}
+                    {r.type === "new" ? (
+                      <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                        Carta nueva
+                      </span>
+                    ) : (
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-bold text-white ${
+                          r.certainty === "missing" ? "bg-rose-600" : "bg-amber-500"
+                        }`}
+                        title={
+                          r.certainty === "ambiguous"
+                            ? `Faltan ${r.gap}, pero hay ${r.prints.length} versiones sin identificar — revisa cuál`
+                            : `Te faltan ${r.gap} versión(es)`
+                        }
+                      >
+                        {r.certainty === "ambiguous" ? `Faltan ${r.gap} de ${r.prints.length}?` : `Faltan ${r.gap}`}
                       </span>
                     )}
-                    {r.sources.includes("events") && (
-                      <span className="rounded bg-violet-100 px-1 py-0.5 font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
-                        evento
-                      </span>
-                    )}
+                    <span className="text-[10px] text-slate-400" title="Tú tienes / esperadas">
+                      {r.ourCount}/{r.expected}
+                    </span>
                   </div>
                 </div>
               </a>

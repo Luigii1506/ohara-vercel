@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const refKey = String(body.refKey ?? "");
     const code = String(body.code ?? "");
     const status = String(body.status ?? "");
-    if (!refKey || !/^(tcg|mc):/.test(refKey)) {
+    if (!refKey || !/^(tcg|mc|code):/.test(refKey)) {
       return NextResponse.json({ error: "refKey inválido" }, { status: 400 });
     }
 

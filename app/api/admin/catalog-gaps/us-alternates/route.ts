@@ -181,19 +181,71 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Decisiones de triage (have/ignored) por refKey.
+    // Agrupar por CÓDIGO: una tarjeta por carta, no una por impresión. Antes se
+    // veían 6 filas idénticas del mismo código con "TCG 6 / DotGG 6" cada una.
+    // Ahora es una tarjeta por carta que muestra CUÁNTAS te faltan (gap).
+    const grouped = new Map<string, any>();
+    for (const c of candidates as any[]) {
+      const print = { productId: c.productId, imageUrl: c.imageUrl, url: c.url, origin: c.origin };
+      const g = grouped.get(c.code);
+      if (!g) {
+        const gap = c.type === "new" ? c.expected : Math.max(0, c.expected - c.ourCount);
+        grouped.set(c.code, {
+          code: c.code,
+          setCode: c.setCode,
+          type: c.type,
+          name: c.name,
+          rarity: c.rarity,
+          cardType: c.cardType,
+          imageUrl: c.imageUrl,
+          url: c.url,
+          ourCount: c.ourCount,
+          tcgTotal: c.tcgTotal,
+          dotggTotal: c.dotggTotal,
+          expected: c.expected,
+          gap,
+          sources: c.sources,
+          likelyMissing: c.likelyMissing,
+          hasEvent: c.origin === "events",
+          hasTcg: c.origin === "tcgplayer",
+          prints: [print],
+        });
+      } else {
+        g.prints.push(print);
+        // Preferir una imagen/nombre/rareza de producto TCGplayer como representativa.
+        if (c.origin === "tcgplayer" && c.imageUrl) {
+          g.imageUrl = c.imageUrl;
+          g.url = c.url;
+          if (c.rarity) g.rarity = c.rarity;
+        } else if (!g.imageUrl && c.imageUrl) {
+          g.imageUrl = c.imageUrl;
+        }
+        if (c.origin === "events") g.hasEvent = true;
+        if (c.origin === "tcgplayer") g.hasTcg = true;
+        g.likelyMissing = g.likelyMissing || c.likelyMissing;
+      }
+    }
+    candidates = Array.from(grouped.values()).map((g: any) => {
+      const tcgPrints = g.prints.filter((p: any) => p.origin === "tcgplayer").length;
+      return {
+        ...g,
+        productId: g.prints[0].productId, // key de React
+        // missing = falta y sabemos cuál; ambiguous = falta alguna pero hay más
+        // impresiones sin linkear que huecos; unlinked = completo, solo falta link.
+        certainty:
+          g.gap === 0 ? "unlinked" : tcgPrints > g.gap ? "ambiguous" : "missing",
+      };
+    }) as any;
+
+    // Triage por CÓDIGO (refKey = "code:<CODE>").
     const reviews = await prisma.altArtReview.findMany({
       select: { refKey: true, status: true },
     });
     const reviewByKey = new Map(reviews.map((r) => [r.refKey, r.status]));
-    const refKeyOf = (c: { origin: string; productId: number }) =>
-      c.origin === "events" ? `mc:${-c.productId}` : `tcg:${c.productId}`;
-
-    // Adjuntar status y (por defecto) ocultar los ya revisados.
-    let withStatus = candidates.map((c) => ({
+    let withStatus = (candidates as any[]).map((c) => ({
       ...c,
-      refKey: refKeyOf(c),
-      status: reviewByKey.get(refKeyOf(c)) ?? null,
+      refKey: `code:${c.code}`,
+      status: reviewByKey.get(`code:${c.code}`) ?? null,
     }));
     const reviewedCount = withStatus.filter((c) => c.status).length;
     if (!showReviewed) {
@@ -205,10 +257,8 @@ export async function GET(req: NextRequest) {
     const totalCandidates = candidates.length;
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
     const corroborated = candidates.filter((c) => c.sources.length >= 2).length;
-    const fromEvents = candidates.filter((c) => c.origin === "events").length;
-    const newCards = new Set(
-      candidates.filter((c) => c.type === "new").map((c) => c.code)
-    ).size;
+    const fromEvents = candidates.filter((c: any) => c.hasEvent).length;
+    const newCards = candidates.filter((c) => c.type === "new").length;
     const altArts = candidates.filter((c) => c.type === "alt-art" && c.likelyMissing).length;
     const codesAffected = new Set(candidates.map((c) => c.code)).size;
     const bySetMap = new Map<string, number>();

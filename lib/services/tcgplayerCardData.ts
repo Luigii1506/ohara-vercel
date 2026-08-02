@@ -84,6 +84,60 @@ export function cleanDescription(raw: string | null): string {
     .trim();
 }
 
+/** Separa el aviso "Disclaimer:" (pre-errata / no legal / reprint) del efecto.
+ *  TCGplayer lo pega al final del Description, en un span rojo. */
+export function splitDisclaimer(rawDescription: string | null): {
+  effect: string;
+  disclaimer: string | null;
+} {
+  if (!rawDescription) return { effect: "", disclaimer: null };
+  const idx = rawDescription.search(/Disclaimer\s*:/i);
+  if (idx === -1) return { effect: rawDescription, disclaimer: null };
+  const disclaimer = cleanDescription(rawDescription.slice(idx))
+    .replace(/^Disclaimer\s*:\s*/i, "")
+    .trim();
+  return {
+    effect: rawDescription.slice(0, idx),
+    disclaimer: disclaimer || null,
+  };
+}
+
+/** Clasifica el alternateArt a partir del nombre del producto + disclaimer.
+ *  Devuelve un value de altArtOptions (o "Alternate Art" por defecto). */
+export function classifyAlternateArt(
+  productName: string | null,
+  disclaimer: string | null
+): string {
+  const n = (productName ?? "").toLowerCase();
+  const d = (disclaimer ?? "").toLowerCase();
+
+  // Pre-errata tiene prioridad (viene del disclaimer, no del nombre).
+  if (/pre-?errata|original,? pre-?errata print/.test(d)) return "Pre-Errata";
+
+  if (/demo deck|demo version/.test(n)) return "Demo Version";
+  if (/\[winner\]|winner\b/.test(n)) return "Winner Version";
+  if (/\[finalist\]|finalist\b/.test(n)) return "Finalist Version";
+  if (/\[participant\]|participation/.test(n)) return "Participation Version";
+  if (/top ?player/.test(n)) return "Top Player Version";
+  if (/\bjudge\b/.test(n)) return "Judge";
+  if (/treasure cup/.test(n)) return "Treasure Cup";
+  if (/treasure rare/.test(n)) return "Treasure Rare";
+  if (/serial/.test(n)) return "Serial";
+  if (/pre-?release/.test(n)) return "Pre-Release";
+  if (/release event/.test(n)) return "Release event";
+  if (/1st anniversary/.test(n)) return "1st Anniversary";
+  if (/2nd anniversary/.test(n)) return "2nd Anniversary";
+  if (/3rd anniversary/.test(n)) return "3rd Anniversary";
+  if (/jolly roger/.test(n)) return "Jolly Roger Foil";
+  if (/textured/.test(n)) return "Textured Foil";
+  if (/full art/.test(n)) return "Full Art";
+  if (/manga/.test(n)) return "Manga Art";
+  if (/reprint/.test(n)) return "Reprint";
+  if (/special/.test(n)) return "Special Card";
+  if (/parallel|alternate art/.test(n)) return "Alternate Art";
+  return "Alternate Art";
+}
+
 /** Extrae los efectos (tags [..] conocidos) del texto de la descripción. */
 export function extractEffects(text: string): string[] {
   const found: string[] = [];
@@ -135,6 +189,7 @@ export type ParsedTcgCard = {
   types: string[];
   effects: string[];
   texts: string[];
+  disclaimer: string | null;
 };
 
 /**
@@ -182,7 +237,8 @@ export function parseTcgCard(
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const descriptionText = cleanDescription(ext(extendedData, "Description"));
+  const { effect: effectRaw, disclaimer } = splitDisclaimer(ext(extendedData, "Description"));
+  const descriptionText = cleanDescription(effectRaw);
   const effects = extractEffects(descriptionText);
   const texts = descriptionText ? [descriptionText] : [];
 
@@ -201,5 +257,6 @@ export function parseTcgCard(
     types,
     effects,
     texts,
+    disclaimer,
   };
 }

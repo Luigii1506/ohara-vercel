@@ -24,6 +24,7 @@ model Card {
   alternateArt          String?
   status                String?
   triggerCard           String?
+  disclaimer            String?   @db.Text // aviso de TCGplayer: pre-errata / no legal / reprint, etc.
   regulationMark        Int?      // bloque de regulación (1-5); null = sin marca / promo
   standardLegal         Boolean?  // legal en el formato Standard
   code                  String

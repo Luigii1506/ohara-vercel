@@ -5,7 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadCardImageToR2 } from "@/lib/r2/uploadCardImage";
 import { tcgplayerFetch } from "@/lib/services/tcgplayerClient";
-import { parseTcgCard } from "@/lib/services/tcgplayerCardData";
+import {
+  parseTcgCard,
+  classifyAlternateArt,
+  splitDisclaimer,
+} from "@/lib/services/tcgplayerCardData";
 
 /**
  * POST /api/admin/catalog-gaps/us-alternates/create
@@ -17,23 +21,6 @@ import { parseTcgCard } from "@/lib/services/tcgplayerCardData";
  *  - sube la imagen de TCGplayer a R2
  *  - deja la alterna linkeada al producto (tcgplayerProductId + linkedCardId)
  */
-
-/** Deriva un alternateArt legible del nombre del producto de TCGplayer. */
-function altArtLabel(name: string | null): string {
-  const n = (name ?? "").toLowerCase();
-  if (/reprint/.test(n)) return "Reprint";
-  if (/parallel/.test(n)) return "Parallel";
-  if (/manga/.test(n)) return "Manga";
-  if (/serial/.test(n)) return "Serial Number";
-  if (/\bsp\b|special/.test(n)) return "Special";
-  // Paréntesis final que no sea el código (ej. "Yamato (Treasure Cup)").
-  const m = (name ?? "").match(/\(([^)]+)\)\s*$/);
-  if (m) {
-    const inner = m[1].trim();
-    if (!/^[A-Za-z]+-?\d+$/.test(inner) && !/alternate art/i.test(inner)) return inner;
-  }
-  return "Alternate Art";
-}
 
 /** Encuentra (o crea) nuestro Set a partir del grupo de TCGplayer. */
 async function resolveSetId(groupId: number | null): Promise<number | null> {
@@ -101,13 +88,19 @@ export async function POST(req: NextRequest) {
     const filename = `${code}-tcg${pid}`;
     const { r2Url } = await uploadCardImageToR2(imageUrl, filename, true);
 
+    // Disclaimer (pre-errata / no legal / reprint) desde el Description.
+    const description =
+      (prod.metadata as any)?.extendedData?.find((e: any) => e.name === "Description")
+        ?.value ?? null;
+    const { disclaimer } = splitDisclaimer(description);
+
     let card: { id: number };
     let mode: "alternate" | "new-base";
 
     if (base) {
       // === Ya tenemos la carta → crear ALTERNA clonando la base ===
       mode = "alternate";
-      const alternateArt = altArtLabel(prod.name);
+      const alternateArt = classifyAlternateArt(prod.name, disclaimer);
       card = await prisma.card.create({
         data: {
           name: base.name,
@@ -124,6 +117,7 @@ export async function POST(req: NextRequest) {
           rarity: prod.rarity ?? base.rarity,
           illustrator: base.illustrator,
           alternateArt,
+          disclaimer,
           status: base.status,
           triggerCard: base.triggerCard,
           tcgUrl: prod.url ?? null,
@@ -169,6 +163,7 @@ export async function POST(req: NextRequest) {
           life: parsed.life,
           rarity: parsed.rarity,
           alternateArt: null,
+          disclaimer: parsed.disclaimer,
           tcgUrl: prod.url ?? null,
           tcgplayerProductId: String(pid),
           tcgplayerLinkStatus: true,
@@ -192,7 +187,13 @@ export async function POST(req: NextRequest) {
       data: { linkedCardId: card.id, linkedAt: new Date() },
     });
 
-    return NextResponse.json({ cardId: card.id, mode, setId });
+    return NextResponse.json({
+      cardId: card.id,
+      mode,
+      setId,
+      alternateArt: base ? classifyAlternateArt(prod.name, disclaimer) : null,
+      hasDisclaimer: Boolean(disclaimer),
+    });
   } catch (error: any) {
     console.error("[us-alternates/create] failed:", error);
     return NextResponse.json(

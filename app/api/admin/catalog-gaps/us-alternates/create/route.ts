@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
     const setId = await resolveSetId(groupId);
 
     // Imagen: subir a R2 la de ALTA resolución (1000x1000) con fallback a 400w.
-    const filename = `${code}-tcg${pid}`;
+    // Nombre ÚNICO (con sufijo) para evitar el caché immutable de R2/CDN: si se
+    // re-crea la carta, la URL cambia y no sirve una imagen vieja cacheada.
+    const filename = `${code}-tcg${pid}-${Date.now().toString(36)}`;
     const hiRes = `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_in_1000x1000.jpg`;
     const loRes =
       prod.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_400w.jpg`;

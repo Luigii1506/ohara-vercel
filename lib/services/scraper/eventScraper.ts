@@ -1970,6 +1970,43 @@ async function detectSetsAndCards(
     }
   }
 
+  // === Layout 2026 (editor_row / text-area / photo-panel) ===
+  // El sitio oficial ya no usa section.contentsmcol. Ahora los códigos de carta
+  // aparecen en headings/list-items/captions con contexto de premio
+  // ("Top 64 Alt-Art Card OP15-092 …") y las imágenes en .photo-panel.
+  // Escaneamos texto suelto, extraemos código y asociamos imagen cercana.
+  const seenModern = new Set(
+    cardCandidates.map((c) => `${c.code}|${c.image ?? ""}`)
+  );
+  const textEls = $(
+    "h1,h2,h3,h4,h5,h6,li,figcaption,.text-area,.menuColListLinkTit,.menuColListLinkTxt"
+  ).toArray();
+  for (const el of textEls) {
+    const $el = $(el);
+    // Evitar contenedores grandes que anidan otros headings/listas.
+    if ($el.find("h1,h2,h3,h4,h5,h6,li").length > 0) continue;
+    const rawText = $el.text().replace(/\s+/g, " ").trim();
+    if (!rawText || rawText.length > 220) continue;
+    const codeInfo = extractCardCode(rawText);
+    if (!codeInfo) continue;
+    const container = $el.closest(
+      ".editor_row, .bgFrame, .row, section, article, .menuColListItem"
+    );
+    const imgSrc =
+      container
+        .find("img.img-card, .photo-panel img, img.img-middle, img.img-zoom")
+        .first()
+        .attr("src") ||
+      $el.nextAll().find("img").first().attr("src") ||
+      undefined;
+    const image = resolveImageUrl(imgSrc, baseUrl);
+    const key = `${codeInfo.code}|${image ?? ""}`;
+    if (seenModern.has(key)) continue;
+    seenModern.add(key);
+    const title = extractCardTitle(rawText, codeInfo.match, undefined) || rawText;
+    cardCandidates.push({ code: codeInfo.code, title, image });
+  }
+
   return { sets: setCandidates, cards: cardCandidates };
 }
 

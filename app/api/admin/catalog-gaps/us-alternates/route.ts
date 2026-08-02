@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
     const search = (sp.get("search") ?? "").trim().toUpperCase();
     const onlyMissing = sp.get("onlyMissing") === "1";
     const onlyCorroborated = sp.get("corroborated") === "1";
+    const sourceFilter = sp.get("source") ?? ""; // tcgplayer | dotgg | events
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "60") || 60));
 
@@ -79,6 +80,30 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // 2c) Cartas detectadas en EVENTOS (prize/winner/judge/serial que no se
+    // venden) cuyo código lo tenemos en US → alt-arts que ninguna otra fuente da.
+    const eventCards = await prisma.missingCard.findMany({
+      where: { isApproved: false },
+      select: { id: true, code: true, title: true, imageUrl: true },
+    });
+    const eventByCode = new Map<string, typeof eventCards>();
+    for (const m of eventCards) {
+      const code = (m.code ?? "").toUpperCase();
+      if (!ourCount.has(code)) continue;
+      const arr = eventByCode.get(code) ?? [];
+      arr.push(m);
+      eventByCode.set(code, arr);
+    }
+
+    // Fuentes que reportan más impresiones/versiones de las que tenemos, por código.
+    const sourcesFor = (code: string, our: number): string[] => {
+      const s: string[] = [];
+      if ((tcgTotal.get(code) ?? 0) > our) s.push("tcgplayer");
+      if ((dotgg.get(code)?.total ?? 0) > our) s.push("dotgg");
+      if (eventByCode.has(code)) s.push("events");
+      return s;
+    };
+
     let candidates = unlinked
       .filter((p) => p.number && ourCount.has(p.number)) // código que sí tenemos
       .map((p) => {
@@ -86,14 +111,11 @@ export async function GET(req: NextRequest) {
         const our = ourCount.get(code) ?? 0;
         const total = tcgTotal.get(code) ?? 0;
         const dotggT = dotgg.get(code)?.total ?? 0;
-        // Impresiones "esperadas" = lo máximo que reporta cualquier fuente.
         const expected = Math.max(total, dotggT);
-        // Fuentes que reportan MÁS impresiones de las que tenemos.
-        const sources: string[] = [];
-        if (total > our) sources.push("tcgplayer");
-        if (dotggT > our) sources.push("dotgg");
+        const sources = sourcesFor(code, our);
         return {
           productId: p.productId,
+          origin: "tcgplayer" as string,
           code,
           setCode: setOf(code),
           name: p.name,
@@ -106,14 +128,39 @@ export async function GET(req: NextRequest) {
           dotggTotal: dotggT,
           expected,
           sources,
-          likelyMissing: expected > our,
+          likelyMissing: expected > our || eventByCode.has(code),
         };
       });
+
+    // Añadir las de eventos como filas propias (prize/alt-arts no vendidas).
+    for (const [code, cards] of Array.from(eventByCode.entries())) {
+      const our = ourCount.get(code) ?? 0;
+      for (const m of cards) {
+        candidates.push({
+          productId: -m.id, // sintético para el key de React
+          origin: "events",
+          code,
+          setCode: setOf(code),
+          name: m.title ?? code,
+          rarity: null,
+          cardType: null,
+          imageUrl: m.imageUrl || null,
+          url: null,
+          ourCount: our,
+          tcgTotal: tcgTotal.get(code) ?? 0,
+          dotggTotal: dotgg.get(code)?.total ?? 0,
+          expected: Math.max(tcgTotal.get(code) ?? 0, dotgg.get(code)?.total ?? 0),
+          sources: sourcesFor(code, our),
+          likelyMissing: true,
+        });
+      }
+    }
 
     // Stats (antes de filtros de UI).
     const totalCandidates = candidates.length;
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
     const corroborated = candidates.filter((c) => c.sources.length >= 2).length;
+    const fromEvents = candidates.filter((c) => c.origin === "events").length;
     const codesAffected = new Set(candidates.map((c) => c.code)).size;
     const bySetMap = new Map<string, number>();
     const byRarityMap = new Map<string, number>();
@@ -130,6 +177,7 @@ export async function GET(req: NextRequest) {
     // Filtros de UI.
     if (onlyMissing) candidates = candidates.filter((c) => c.likelyMissing);
     if (onlyCorroborated) candidates = candidates.filter((c) => c.sources.length >= 2);
+    if (sourceFilter) candidates = candidates.filter((c) => c.sources.includes(sourceFilter));
     if (setCode) candidates = candidates.filter((c) => c.setCode === setCode);
     if (rarity) candidates = candidates.filter((c) => (c.rarity ?? "?") === rarity);
     if (search) candidates = candidates.filter((c) => c.code.includes(search) || (c.name ?? "").toUpperCase().includes(search));
@@ -150,7 +198,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      stats: { totalCandidates, likelyMissing, corroborated, codesAffected, bySet, byRarity },
+      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, codesAffected, bySet, byRarity },
     });
   } catch (error: any) {
     console.error("[us-alternates] GET failed:", error);

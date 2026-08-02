@@ -15,6 +15,7 @@ export const setCodes = [
   "OP14",
   "OP15",
   "OP16",
+  "OP17",
   "EB01",
   "EB02",
   "EB03",

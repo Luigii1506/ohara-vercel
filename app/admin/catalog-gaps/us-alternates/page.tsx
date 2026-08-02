@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { proxyImage } from "@/lib/proxyImage";
 import { useUser } from "@/app/context/UserContext";
 import {
   Search,
@@ -15,6 +16,7 @@ import {
 
 type Row = {
   productId: number;
+  origin: string;
   code: string;
   setCode: string;
   name: string;
@@ -34,6 +36,7 @@ type Stats = {
   totalCandidates: number;
   likelyMissing: number;
   corroborated: number;
+  fromEvents: number;
   codesAffected: number;
   bySet: { setCode: string; count: number }[];
   byRarity: { rarity: string; count: number }[];
@@ -59,6 +62,7 @@ export default function UsAlternatesPage() {
 
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState("");
   const [setCode, setSetCode] = useState("");
   const [rarity, setRarity] = useState("");
   const [searchRaw, setSearchRaw] = useState("");
@@ -76,6 +80,7 @@ export default function UsAlternatesPage() {
       const p = new URLSearchParams();
       if (onlyMissing) p.set("onlyMissing", "1");
       if (onlyCorroborated) p.set("corroborated", "1");
+      if (sourceFilter) p.set("source", sourceFilter);
       if (setCode) p.set("setCode", setCode);
       if (rarity) p.set("rarity", rarity);
       if (search) p.set("search", search);
@@ -91,14 +96,14 @@ export default function UsAlternatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [onlyMissing, onlyCorroborated, setCode, rarity, search, page]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, setCode, rarity, search, page]);
 
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
     setPage(1);
-  }, [onlyMissing, onlyCorroborated, setCode, rarity, search]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, setCode, rarity, search]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -146,8 +151,8 @@ export default function UsAlternatesPage() {
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label="Alt-arts faltantes" value={stats?.likelyMissing} tone="rose" />
           <Stat label="Corroboradas 2+" value={stats?.corroborated} tone="emerald" />
+          <Stat label="De eventos (prize)" value={stats?.fromEvents} tone="violet" />
           <Stat label="Códigos afectados" value={stats?.codesAffected} tone="amber" />
-          <Stat label="Candidatos totales" value={stats?.totalCandidates} tone="slate" />
           <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="text-xs font-medium text-slate-500">Por rareza</div>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -208,6 +213,16 @@ export default function UsAlternatesPage() {
               </option>
             ))}
           </select>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          >
+            <option value="">Cualquier fuente</option>
+            <option value="tcgplayer">TCGplayer</option>
+            <option value="dotgg">DotGG</option>
+            <option value="events">Eventos (prize)</option>
+          </select>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
             <input
               type="checkbox"
@@ -226,12 +241,13 @@ export default function UsAlternatesPage() {
             />
             Solo corroboradas 2+
           </label>
-          {(setCode || rarity || search || !onlyMissing || onlyCorroborated) && (
+          {(setCode || rarity || search || sourceFilter || !onlyMissing || onlyCorroborated) && (
             <button
               onClick={() => {
                 setSetCode("");
                 setRarity("");
                 setSearchRaw("");
+                setSourceFilter("");
                 setOnlyMissing(true);
                 setOnlyCorroborated(false);
               }}
@@ -267,20 +283,32 @@ export default function UsAlternatesPage() {
                 <div className="relative aspect-[5/7] bg-slate-100 dark:bg-slate-800">
                   {r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.imageUrl} alt={r.code} className="h-full w-full object-cover" loading="lazy" />
+                    <img
+                      src={r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl}
+                      alt={r.code}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
                   ) : (
                     <div className="flex h-full items-center justify-center text-slate-300">
                       <Images className="h-8 w-8" />
                     </div>
                   )}
                   <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                    TCGplayer <ExternalLink className="h-3 w-3" />
+                    {r.origin === "events" ? "Evento" : "TCGplayer"} <ExternalLink className="h-3 w-3" />
                   </div>
-                  {r.rarity && (
-                    <span className="absolute left-1.5 top-1.5 rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800">
-                      {r.rarity}
-                    </span>
-                  )}
+                  <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
+                    {r.rarity && (
+                      <span className="rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800">
+                        {r.rarity}
+                      </span>
+                    )}
+                    {r.origin === "events" && (
+                      <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        PRIZE
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-2">
                   <div className="flex items-center justify-between gap-1">
@@ -303,8 +331,13 @@ export default function UsAlternatesPage() {
                       TCG {r.tcgTotal}
                     </span>
                     {r.dotggTotal > 0 && (
-                      <span className="rounded bg-violet-100 px-1 py-0.5 font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                      <span className="rounded bg-fuchsia-100 px-1 py-0.5 font-semibold text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-300">
                         DotGG {r.dotggTotal}
+                      </span>
+                    )}
+                    {r.sources.includes("events") && (
+                      <span className="rounded bg-violet-100 px-1 py-0.5 font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                        evento
                       </span>
                     )}
                   </div>
@@ -348,13 +381,14 @@ function Stat({
 }: {
   label: string;
   value?: number;
-  tone?: "rose" | "amber" | "slate" | "emerald";
+  tone?: "rose" | "amber" | "slate" | "emerald" | "violet";
 }) {
   const tones: Record<string, string> = {
     rose: "text-rose-600 dark:text-rose-400",
     amber: "text-amber-600 dark:text-amber-400",
     slate: "text-slate-500 dark:text-slate-400",
     emerald: "text-emerald-600 dark:text-emerald-400",
+    violet: "text-violet-600 dark:text-violet-400",
   };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

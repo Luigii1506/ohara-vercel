@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadCardImageToR2 } from "@/lib/r2/uploadCardImage";
 import { tcgplayerFetch } from "@/lib/services/tcgplayerClient";
+import { parseTcgCard } from "@/lib/services/tcgplayerCardData";
 
 /**
  * POST /api/admin/catalog-gaps/us-alternates/create
@@ -84,21 +85,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ cardId: already.id, alreadyExisted: true });
     }
 
-    // Carta base US.
+    // Carta base US (para clonar cuando SÍ la tenemos y esto es una alterna).
     const base = await prisma.card.findFirst({
       where: { code, isFirstEdition: true, OR: [{ region: "US" }, { region: null }] },
       include: { types: true, colors: true, effects: true, conditions: true, texts: true },
     });
-    if (!base) {
-      return NextResponse.json(
-        { error: `No hay carta base US para ${code} (súbela primero desde Limitless)` },
-        { status: 422 }
-      );
-    }
 
+    // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
     const setId = await resolveSetId(groupId);
-    const alternateArt = altArtLabel(prod.name);
 
     // Imagen: subir la de TCGplayer a R2.
     const imageUrl =
@@ -106,43 +101,90 @@ export async function POST(req: NextRequest) {
     const filename = `${code}-tcg${pid}`;
     const { r2Url } = await uploadCardImageToR2(imageUrl, filename, true);
 
-    // Crear la alterna clonando la base.
-    const card = await prisma.card.create({
-      data: {
-        name: base.name,
-        code: base.code,
-        setCode: base.setCode,
-        src: r2Url,
-        imageKey: null,
-        cost: base.cost,
-        power: base.power,
-        attribute: base.attribute,
-        counter: base.counter,
-        category: base.category,
-        life: base.life,
-        rarity: prod.rarity ?? base.rarity,
-        illustrator: base.illustrator,
-        alternateArt,
-        status: base.status,
-        triggerCard: base.triggerCard,
-        tcgUrl: prod.url ?? null,
-        tcgplayerProductId: String(pid),
-        tcgplayerLinkStatus: true,
-        alias: base.alias,
-        order: base.order,
-        isFirstEdition: false,
-        isPro: base.isPro,
-        region: base.region ?? "US",
-        baseCardId: base.id,
-        types: base.types.length ? { create: base.types.map((t) => ({ type: t.type })) } : undefined,
-        colors: base.colors.length ? { create: base.colors.map((c) => ({ color: c.color })) } : undefined,
-        effects: base.effects.length ? { create: base.effects.map((e) => ({ effect: e.effect })) } : undefined,
-        conditions: base.conditions.length ? { create: base.conditions.map((c) => ({ condition: c.condition })) } : undefined,
-        texts: base.texts.length ? { create: base.texts.map((t) => ({ text: t.text })) } : undefined,
-        ...(setId ? { sets: { create: { setId } } } : {}),
-      },
-      select: { id: true },
-    });
+    let card: { id: number };
+    let mode: "alternate" | "new-base";
+
+    if (base) {
+      // === Ya tenemos la carta → crear ALTERNA clonando la base ===
+      mode = "alternate";
+      const alternateArt = altArtLabel(prod.name);
+      card = await prisma.card.create({
+        data: {
+          name: base.name,
+          code: base.code,
+          setCode: base.setCode,
+          src: r2Url,
+          imageKey: null,
+          cost: base.cost,
+          power: base.power,
+          attribute: base.attribute,
+          counter: base.counter,
+          category: base.category,
+          life: base.life,
+          rarity: prod.rarity ?? base.rarity,
+          illustrator: base.illustrator,
+          alternateArt,
+          status: base.status,
+          triggerCard: base.triggerCard,
+          tcgUrl: prod.url ?? null,
+          tcgplayerProductId: String(pid),
+          tcgplayerLinkStatus: true,
+          alias: base.alias,
+          order: base.order,
+          isFirstEdition: false,
+          isPro: base.isPro,
+          region: base.region ?? "US",
+          baseCardId: base.id,
+          types: base.types.length ? { create: base.types.map((t) => ({ type: t.type })) } : undefined,
+          colors: base.colors.length ? { create: base.colors.map((c) => ({ color: c.color })) } : undefined,
+          effects: base.effects.length ? { create: base.effects.map((e) => ({ effect: e.effect })) } : undefined,
+          conditions: base.conditions.length ? { create: base.conditions.map((c) => ({ condition: c.condition })) } : undefined,
+          texts: base.texts.length ? { create: base.texts.map((t) => ({ text: t.text })) } : undefined,
+          ...(setId ? { sets: { create: { setId } } } : {}),
+        },
+        select: { id: true },
+      });
+    } else {
+      // === No la tenemos → crear la carta COMPLETA desde TCGplayer (base) ===
+      mode = "new-base";
+      const parsed = parseTcgCard((prod.metadata as any)?.extendedData ?? [], prod.name);
+      if (!parsed) {
+        return NextResponse.json(
+          { error: `TCGplayer no tiene datos suficientes para ${code}` },
+          { status: 422 }
+        );
+      }
+      card = await prisma.card.create({
+        data: {
+          name: parsed.name,
+          code: parsed.code,
+          setCode: parsed.setCode,
+          src: r2Url,
+          imageKey: null,
+          cost: parsed.cost,
+          power: parsed.power,
+          attribute: parsed.attribute,
+          counter: parsed.counter,
+          category: parsed.category,
+          life: parsed.life,
+          rarity: parsed.rarity,
+          alternateArt: null,
+          tcgUrl: prod.url ?? null,
+          tcgplayerProductId: String(pid),
+          tcgplayerLinkStatus: true,
+          // Mejores prácticas: primera versión US, sin base (es la base).
+          isFirstEdition: true,
+          region: "US",
+          baseCardId: null,
+          colors: parsed.colors.length ? { create: parsed.colors.map((color) => ({ color })) } : undefined,
+          types: parsed.types.length ? { create: parsed.types.map((type) => ({ type })) } : undefined,
+          effects: parsed.effects.length ? { create: parsed.effects.map((effect) => ({ effect })) } : undefined,
+          texts: parsed.texts.length ? { create: parsed.texts.map((text) => ({ text })) } : undefined,
+          ...(setId ? { sets: { create: { setId } } } : {}),
+        },
+        select: { id: true },
+      });
+    }
 
     // Linkear el producto del mirror a la nueva carta.
     await prisma.tcgCatalogProduct.update({
@@ -150,7 +192,7 @@ export async function POST(req: NextRequest) {
       data: { linkedCardId: card.id, linkedAt: new Date() },
     });
 
-    return NextResponse.json({ cardId: card.id, alternateArt, setId });
+    return NextResponse.json({ cardId: card.id, mode, setId });
   } catch (error: any) {
     console.error("[us-alternates/create] failed:", error);
     return NextResponse.json(

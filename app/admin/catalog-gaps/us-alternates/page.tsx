@@ -150,7 +150,9 @@ export default function UsAlternatesPage() {
       const data = await res.json();
       if (res.ok && data.cardId) {
         setRows((rs) => rs.filter((x) => x.refKey !== r.refKey));
-        setMsg(`✓ ${r.code} creada como alterna "${data.alternateArt ?? ""}"`);
+        setMsg(
+          `✓ ${r.code} creada (${data.mode === "new-base" ? "carta nueva completa" : "alterna"})`
+        );
       } else {
         setMsg(`✕ ${r.code}: ${data.error ?? "no se pudo crear"}`);
       }
@@ -437,7 +439,11 @@ export default function UsAlternatesPage() {
                             ) : (
                               <Plus className="h-3.5 w-3.5" />
                             )}
-                            {busy.has(r.refKey) ? "Creando…" : "Crear alterna"}
+                            {busy.has(r.refKey)
+                              ? "Creando…"
+                              : r.type === "new"
+                                ? "Crear carta"
+                                : "Crear alterna"}
                           </button>
                         ) : (
                           <button

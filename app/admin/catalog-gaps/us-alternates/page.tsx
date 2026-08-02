@@ -16,7 +16,9 @@ import {
 
 type Row = {
   productId: number;
+  origin: string; // "tcgplayer" | "events"
   type: string; // "new" | "alt-art"
+  variant: string | null; // reprint | parallel | manga | prize | null
   code: string;
   setCode: string;
   name: string;
@@ -28,13 +30,8 @@ type Row = {
   tcgTotal: number;
   dotggTotal: number;
   expected: number;
-  gap: number;
-  certainty: string; // missing | ambiguous | unlinked
   sources: string[];
   likelyMissing: boolean;
-  hasEvent: boolean;
-  hasTcg: boolean;
-  prints: { productId: number; imageUrl: string | null; url: string | null; origin: string }[];
   refKey: string;
   status: string | null;
 };
@@ -320,7 +317,7 @@ export default function UsAlternatesPage() {
                   {r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={r.hasTcg ? r.imageUrl : proxyImage(r.imageUrl)}
+                      src={r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl}
                       alt={r.code}
                       className="h-full w-full object-cover"
                       loading="lazy"
@@ -331,7 +328,7 @@ export default function UsAlternatesPage() {
                     </div>
                   )}
                   <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                    {r.hasTcg ? "TCGplayer" : "Evento"} <ExternalLink className="h-3 w-3" />
+                    {r.origin === "events" ? "Evento" : "TCGplayer"} <ExternalLink className="h-3 w-3" />
                   </div>
                   <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
                     {r.type === "new" && (
@@ -344,9 +341,24 @@ export default function UsAlternatesPage() {
                         {r.rarity}
                       </span>
                     )}
-                    {r.hasEvent && (
+                    {r.variant === "prize" && (
                       <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                         PRIZE
+                      </span>
+                    )}
+                    {r.variant === "reprint" && (
+                      <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        REPRINT
+                      </span>
+                    )}
+                    {r.variant === "parallel" && (
+                      <span className="rounded bg-fuchsia-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        PARALLEL
+                      </span>
+                    )}
+                    {r.variant === "manga" && (
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        MANGA
                       </span>
                     )}
                     {r.status === "have" && (
@@ -408,29 +420,16 @@ export default function UsAlternatesPage() {
                       {r.sources.includes("events") && <span className="h-2 w-2 rounded-full bg-violet-500" />}
                     </span>
                   </div>
-                  <div className="truncate text-[11px] text-slate-500">{r.name}</div>
-                  <div className="mt-1.5 flex items-center justify-between gap-1">
-                    {/* Lo importante: cuántas faltan */}
-                    {r.type === "new" ? (
-                      <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                        Carta nueva
-                      </span>
-                    ) : (
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-[11px] font-bold text-white ${
-                          r.certainty === "missing" ? "bg-rose-600" : "bg-amber-500"
-                        }`}
-                        title={
-                          r.certainty === "ambiguous"
-                            ? `Faltan ${r.gap}, pero hay ${r.prints.length} versiones sin identificar — revisa cuál`
-                            : `Te faltan ${r.gap} versión(es)`
-                        }
-                      >
-                        {r.certainty === "ambiguous" ? `Faltan ${r.gap} de ${r.prints.length}?` : `Faltan ${r.gap}`}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-400" title="Tú tienes / esperadas">
-                      {r.ourCount}/{r.expected}
+                  <div className="truncate text-[11px] text-slate-500" title={r.name}>{r.name}</div>
+                  <div className="mt-1 flex items-center justify-between gap-1">
+                    <span className="text-[10px] text-slate-400">
+                      {r.type === "new" ? "No la tienes" : "Sin linkear en tu catálogo"}
+                    </span>
+                    {/* Fuentes que la corroboran */}
+                    <span className="flex shrink-0 items-center gap-0.5" title={`Fuentes: ${r.sources.join(", ") || "—"}`}>
+                      {r.sources.includes("tcgplayer") && <span className="h-2 w-2 rounded-full bg-blue-500" />}
+                      {r.sources.includes("dotgg") && <span className="h-2 w-2 rounded-full bg-fuchsia-500" />}
+                      {r.sources.includes("events") && <span className="h-2 w-2 rounded-full bg-violet-500" />}
                     </span>
                   </div>
                 </div>

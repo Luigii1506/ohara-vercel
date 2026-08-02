@@ -63,8 +63,23 @@ export async function GET(req: NextRequest) {
       console.warn("[us-alternates] DotGG no disponible:", (e as Error).message);
     }
 
-    // 3) Productos TCGplayer SIN linkear cuyo código lo tenemos en US → candidatos.
-    const unlinked = await prisma.tcgCatalogProduct.findMany({
+    // Verdad del linkeo: una carta puede apuntar al producto vía
+    // Card.tcgplayerProductId aunque TcgCatalogProduct.linkedCardId siga null
+    // (los dos lados están desincronizados). Usamos AMBOS para no marcar como
+    // faltante algo que en realidad ya tenemos linkeado.
+    const cardLinkedRows = await prisma.card.findMany({
+      where: { tcgplayerProductId: { not: null } },
+      select: { tcgplayerProductId: true },
+    });
+    // tcgplayerProductId es String; productId es Int → normalizamos a número.
+    const linkedPids = new Set<number>(
+      cardLinkedRows
+        .map((r) => Number(r.tcgplayerProductId))
+        .filter((n) => Number.isFinite(n))
+    );
+
+    // 3) Productos TCGplayer SIN linkear (por ninguna de las dos vías).
+    const unlinkedRaw = await prisma.tcgCatalogProduct.findMany({
       where: {
         isSealed: false,
         productStatus: "active",
@@ -81,6 +96,8 @@ export async function GET(req: NextRequest) {
         url: true,
       },
     });
+    // Excluir los que una Card ya tiene linkeados (falsos "sin linkear").
+    const unlinked = unlinkedRaw.filter((p) => !linkedPids.has(p.productId));
 
     // 2c) Cartas detectadas en EVENTOS (prize/winner/judge/serial que no se
     // venden) cuyo código lo tenemos en US → alt-arts que ninguna otra fuente da.

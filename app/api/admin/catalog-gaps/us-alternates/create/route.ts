@@ -4,7 +4,10 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadCardImageToR2 } from "@/lib/r2/uploadCardImage";
-import { tcgplayerFetch } from "@/lib/services/tcgplayerClient";
+import {
+  tcgplayerFetch,
+  getTcgplayerProductPricing,
+} from "@/lib/services/tcgplayerClient";
 import {
   parseTcgCard,
   classifyAlternateArt,
@@ -82,11 +85,46 @@ export async function POST(req: NextRequest) {
     const groupId = (prod.metadata as any)?.groupId ?? null;
     const setId = await resolveSetId(groupId);
 
-    // Imagen: subir la de TCGplayer a R2.
-    const imageUrl =
-      prod.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_400w.jpg`;
+    // Imagen: subir a R2 la de ALTA resolución (1000x1000) con fallback a 400w.
     const filename = `${code}-tcg${pid}`;
-    const { r2Url } = await uploadCardImageToR2(imageUrl, filename, true);
+    const hiRes = `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_in_1000x1000.jpg`;
+    const loRes =
+      prod.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_400w.jpg`;
+    let r2Url: string;
+    try {
+      ({ r2Url } = await uploadCardImageToR2(hiRes, filename, true));
+    } catch {
+      ({ r2Url } = await uploadCardImageToR2(loRes, filename, true));
+    }
+
+    // Precio: traerlo de TCGplayer al momento (para ver la data al instante, sin
+    // esperar al sync). Elegimos la entrada con market/mid disponible.
+    let priceData: {
+      marketPrice?: number | null;
+      midPrice?: number | null;
+      lowPrice?: number | null;
+      highPrice?: number | null;
+      priceCurrency?: string;
+      priceUpdatedAt?: Date;
+    } = {};
+    try {
+      const pricing = await getTcgplayerProductPricing([pid]);
+      const entry =
+        pricing.find((e: any) => e.marketPrice != null || e.midPrice != null) ??
+        pricing[0];
+      if (entry) {
+        priceData = {
+          marketPrice: entry.marketPrice ?? entry.midPrice ?? null,
+          midPrice: entry.midPrice ?? null,
+          lowPrice: entry.lowPrice ?? null,
+          highPrice: entry.highPrice ?? entry.directLowPrice ?? null,
+          priceCurrency: "USD",
+          priceUpdatedAt: new Date(),
+        };
+      }
+    } catch (e) {
+      console.warn("[create] pricing no disponible:", (e as Error).message);
+    }
 
     // Disclaimer (pre-errata / no legal / reprint) desde el Description.
     const description =
@@ -100,7 +138,7 @@ export async function POST(req: NextRequest) {
     if (base) {
       // === Ya tenemos la carta → crear ALTERNA clonando la base ===
       mode = "alternate";
-      const alternateArt = classifyAlternateArt(prod.name, disclaimer);
+      const alternateArt = classifyAlternateArt(prod.name, disclaimer, prod.rarity);
       card = await prisma.card.create({
         data: {
           name: base.name,
@@ -123,6 +161,7 @@ export async function POST(req: NextRequest) {
           tcgUrl: prod.url ?? null,
           tcgplayerProductId: String(pid),
           tcgplayerLinkStatus: true,
+          ...priceData,
           alias: base.alias,
           order: base.order,
           isFirstEdition: false,
@@ -167,6 +206,7 @@ export async function POST(req: NextRequest) {
           tcgUrl: prod.url ?? null,
           tcgplayerProductId: String(pid),
           tcgplayerLinkStatus: true,
+          ...priceData,
           // Mejores prácticas: primera versión US, sin base (es la base).
           isFirstEdition: true,
           region: "US",
@@ -191,7 +231,8 @@ export async function POST(req: NextRequest) {
       cardId: card.id,
       mode,
       setId,
-      alternateArt: base ? classifyAlternateArt(prod.name, disclaimer) : null,
+      alternateArt: base ? classifyAlternateArt(prod.name, disclaimer, prod.rarity) : null,
+      hasPrice: priceData.marketPrice != null,
       hasDisclaimer: Boolean(disclaimer),
     });
   } catch (error: any) {

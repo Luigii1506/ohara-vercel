@@ -106,10 +106,12 @@ export function splitDisclaimer(rawDescription: string | null): {
  *  Devuelve un value de altArtOptions (o "Alternate Art" por defecto). */
 export function classifyAlternateArt(
   productName: string | null,
-  disclaimer: string | null
+  disclaimer: string | null,
+  rarity?: string | null
 ): string {
   const n = (productName ?? "").toLowerCase();
   const d = (disclaimer ?? "").toLowerCase();
+  const r = (rarity ?? "").toUpperCase().trim();
 
   // Pre-errata tiene prioridad (viene del disclaimer, no del nombre).
   if (/pre-?errata|original,? pre-?errata print/.test(d)) return "Pre-Errata";
@@ -134,6 +136,9 @@ export function classifyAlternateArt(
   if (/manga/.test(n)) return "Manga Art";
   if (/reprint/.test(n)) return "Reprint";
   if (/special/.test(n)) return "Special Card";
+  // Por rareza (cuando el nombre no marca variante): TR = Treasure Rare, etc.
+  if (r === "TR" || /treasure rare/.test(n)) return "Treasure Rare";
+  if (r === "SP" || r === "SPC") return "Special Card";
   if (/parallel|alternate art/.test(n)) return "Alternate Art";
   return "Alternate Art";
 }

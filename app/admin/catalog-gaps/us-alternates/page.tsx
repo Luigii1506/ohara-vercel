@@ -11,6 +11,7 @@ import {
   Images,
   Check,
   X,
+  Plus,
   Undo2,
 } from "lucide-react";
 
@@ -66,6 +67,8 @@ export default function UsAlternatesPage() {
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [msg, setMsg] = useState<string | null>(null);
 
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
@@ -136,6 +139,33 @@ export default function UsAlternatesPage() {
     }
   };
 
+  const createAlternate = async (r: Row) => {
+    setBusy((b) => new Set(b).add(r.refKey));
+    try {
+      const res = await fetch("/api/admin/catalog-gaps/us-alternates/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: r.productId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.cardId) {
+        setRows((rs) => rs.filter((x) => x.refKey !== r.refKey));
+        setMsg(`✓ ${r.code} creada como alterna "${data.alternateArt ?? ""}"`);
+      } else {
+        setMsg(`✕ ${r.code}: ${data.error ?? "no se pudo crear"}`);
+      }
+    } catch (e: any) {
+      setMsg(`✕ ${r.code}: ${e?.message ?? "error"}`);
+    } finally {
+      setBusy((b) => {
+        const n = new Set(b);
+        n.delete(r.refKey);
+        return n;
+      });
+      setTimeout(() => setMsg(null), 4000);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   if (roleLoading || role !== "ADMIN") {
@@ -148,6 +178,11 @@ export default function UsAlternatesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      {msg && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-lg dark:border-slate-700 dark:bg-slate-900">
+          {msg}
+        </div>
+      )}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400">
@@ -387,21 +422,50 @@ export default function UsAlternatesPage() {
                       </button>
                     ) : (
                       <>
+                        {r.origin === "tcgplayer" ? (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              createAlternate(r);
+                            }}
+                            disabled={busy.has(r.refKey)}
+                            className="flex flex-1 items-center justify-center gap-1 bg-blue-600/95 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-70"
+                            title="Crear la alterna en tu catálogo (set desde TCGplayer)"
+                          >
+                            {busy.has(r.refKey) ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Plus className="h-3.5 w-3.5" />
+                            )}
+                            {busy.has(r.refKey) ? "Creando…" : "Crear alterna"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              review(r, "have");
+                            }}
+                            className="flex flex-1 items-center justify-center gap-1 bg-emerald-600/90 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Ya la tengo
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.preventDefault();
                             review(r, "have");
                           }}
-                          className="flex flex-1 items-center justify-center gap-1 bg-emerald-600/90 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                          className="flex items-center justify-center gap-1 bg-emerald-600/80 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                          title="Ya la tengo (solo marcar, no crear)"
                         >
-                          <Check className="h-3.5 w-3.5" /> Ya la tengo
+                          <Check className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
                             review(r, "ignored");
                           }}
-                          className="flex items-center justify-center gap-1 bg-slate-700/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                          className="flex items-center justify-center gap-1 bg-slate-700/90 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                           title="Ignorar"
                         >
                           <X className="h-3.5 w-3.5" />

@@ -1695,3 +1695,25 @@ export const countCardsByFilters = async (
 
   return prisma.card.count({ where });
 };
+
+/** Suma el marketPrice de las cartas que matchean el filtro (mismo where que
+ *  el conteo). Devuelve el total en USD y cuántas tienen precio. */
+export const sumCardsValueByFilters = async (
+  filters: CardsFilters
+): Promise<{ value: number; withPrice: number }> => {
+  const shouldCountBaseOnly = Boolean(filters.baseOnly);
+  const where = shouldCountBaseOnly
+    ? buildWhere(filters, false)
+    : buildDirectWhere(filters);
+
+  const agg = await prisma.card.aggregate({
+    where,
+    _sum: { marketPrice: true },
+    _count: { marketPrice: true },
+  });
+
+  return {
+    value: Number(agg._sum.marketPrice ?? 0),
+    withPrice: agg._count.marketPrice ?? 0,
+  };
+};

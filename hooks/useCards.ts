@@ -436,6 +436,35 @@ export const useCardsCount = (
   });
 };
 
+const fetchCardsValue = async (
+  filters: CardsFilters
+): Promise<{ value: number; withPrice: number }> => {
+  const queryString = buildQueryString({ filters });
+  const url = queryString ? `/api/cards/value?${queryString}` : "/api/cards/value";
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Error al calcular el valor");
+  const data = await res.json();
+  return {
+    value: typeof data.value === "number" ? data.value : 0,
+    withPrice: typeof data.withPrice === "number" ? data.withPrice : 0,
+  };
+};
+
+/** Valor total (suma de marketPrice) de las cartas filtradas. */
+export const useCardsValue = (
+  filters: CardsFilters,
+  options?: { enabled?: boolean }
+) => {
+  const serializedFilters = serializeFiltersForKey(filters);
+  return useQuery({
+    queryKey: ["cards-value", serializedFilters],
+    queryFn: () => fetchCardsValue(filters),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    enabled: options?.enabled ?? true,
+  });
+};
+
 type UseAllCardsOptions = FetchAllCardsClientParams & {
   enabled?: boolean;
   initialData?: CardWithCollectionData[];

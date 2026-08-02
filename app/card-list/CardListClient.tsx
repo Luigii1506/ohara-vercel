@@ -50,6 +50,7 @@ import {
   useCardsSyncStatus,
   usePaginatedCards,
   useCardsCount,
+  useCardsValue,
   serializeFiltersForKey,
 } from "@/hooks/useCards";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -810,6 +811,7 @@ const CardListClient = ({
     status !== "loading" && !isCollectionSummaryLoading;
 
   const { data: countData, isFetching: isCounting } = useCardsCount(filters);
+  const { data: valueData } = useCardsValue(filters);
 
   useEffect(() => {
     if (
@@ -1637,6 +1639,16 @@ const CardListClient = ({
             {t("cardList.cardsFound", {
               count: totalResults?.toLocaleString() ?? "0",
             })}
+            {typeof valueData?.value === "number" && valueData.value > 0 && (
+              <span className="ml-2 font-semibold text-emerald-600">
+                ·{" "}
+                {valueData.value.toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                  maximumFractionDigits: 0,
+                })}
+              </span>
+            )}
             {(isFetching || isFetchingNextPage || isCounting) && (
               <span className="ml-2 text-blue-600">{t("common.loading")}</span>
             )}

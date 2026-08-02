@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     const onlyMissing = sp.get("onlyMissing") === "1";
     const onlyCorroborated = sp.get("corroborated") === "1";
     const sourceFilter = sp.get("source") ?? ""; // tcgplayer | dotgg | events
+    const showReviewed = sp.get("showReviewed") === "1"; // incluir have/ignored
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "60") || 60));
 
@@ -156,6 +157,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Decisiones de triage (have/ignored) por refKey.
+    const reviews = await prisma.altArtReview.findMany({
+      select: { refKey: true, status: true },
+    });
+    const reviewByKey = new Map(reviews.map((r) => [r.refKey, r.status]));
+    const refKeyOf = (c: { origin: string; productId: number }) =>
+      c.origin === "events" ? `mc:${-c.productId}` : `tcg:${c.productId}`;
+
+    // Adjuntar status y (por defecto) ocultar los ya revisados.
+    let withStatus = candidates.map((c) => ({
+      ...c,
+      refKey: refKeyOf(c),
+      status: reviewByKey.get(refKeyOf(c)) ?? null,
+    }));
+    const reviewedCount = withStatus.filter((c) => c.status).length;
+    if (!showReviewed) {
+      withStatus = withStatus.filter((c) => !c.status);
+    }
+    candidates = withStatus as any;
+
     // Stats (antes de filtros de UI).
     const totalCandidates = candidates.length;
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
@@ -198,7 +219,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, codesAffected, bySet, byRarity },
+      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, reviewed: reviewedCount, codesAffected, bySet, byRarity },
     });
   } catch (error: any) {
     console.error("[us-alternates] GET failed:", error);

@@ -887,6 +887,22 @@ model CatalogGap {
   @@index([setCode])
 }
 
+/// Decisiones de triage sobre candidatos de alt-art US (vista us-alternates).
+/// Los candidatos se calculan al vuelo desde 3 fuentes (TCGplayer/DotGG/eventos)
+/// con IDs distintos, así que la decisión se guarda por una clave estable:
+///   refKey = "tcg:<productId>"  |  "mc:<missingCardId>"
+model AltArtReview {
+  id        Int      @id @default(autoincrement())
+  refKey    String   @unique
+  code      String
+  status    String // "have" (ya la tengo) | "ignored" (no aplica)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+}
+
 model CardSet {
   cardId Int
   setId  Int

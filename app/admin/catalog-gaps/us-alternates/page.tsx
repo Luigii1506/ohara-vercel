@@ -11,7 +11,9 @@ import {
   Loader2,
   Images,
   Layers,
-  ArrowLeft,
+  Check,
+  X,
+  Undo2,
 } from "lucide-react";
 
 type Row = {
@@ -30,6 +32,8 @@ type Row = {
   expected: number;
   sources: string[];
   likelyMissing: boolean;
+  refKey: string;
+  status: string | null;
 };
 
 type Stats = {
@@ -37,6 +41,7 @@ type Stats = {
   likelyMissing: number;
   corroborated: number;
   fromEvents: number;
+  reviewed: number;
   codesAffected: number;
   bySet: { setCode: string; count: number }[];
   byRarity: { rarity: string; count: number }[];
@@ -63,6 +68,7 @@ export default function UsAlternatesPage() {
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("");
+  const [showReviewed, setShowReviewed] = useState(false);
   const [setCode, setSetCode] = useState("");
   const [rarity, setRarity] = useState("");
   const [searchRaw, setSearchRaw] = useState("");
@@ -81,6 +87,7 @@ export default function UsAlternatesPage() {
       if (onlyMissing) p.set("onlyMissing", "1");
       if (onlyCorroborated) p.set("corroborated", "1");
       if (sourceFilter) p.set("source", sourceFilter);
+      if (showReviewed) p.set("showReviewed", "1");
       if (setCode) p.set("setCode", setCode);
       if (rarity) p.set("rarity", rarity);
       if (search) p.set("search", search);
@@ -96,14 +103,34 @@ export default function UsAlternatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [onlyMissing, onlyCorroborated, sourceFilter, setCode, rarity, search, page]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, showReviewed, setCode, rarity, search, page]);
 
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
     setPage(1);
-  }, [onlyMissing, onlyCorroborated, sourceFilter, setCode, rarity, search]);
+  }, [onlyMissing, onlyCorroborated, sourceFilter, showReviewed, setCode, rarity, search]);
+
+  const review = async (r: Row, status: "have" | "ignored" | "none") => {
+    // Optimista: si estamos ocultando revisadas, quitar la fila.
+    if (!showReviewed && status !== "none") {
+      setRows((rs) => rs.filter((x) => x.refKey !== r.refKey));
+    } else {
+      setRows((rs) =>
+        rs.map((x) => (x.refKey === r.refKey ? { ...x, status: status === "none" ? null : status } : x))
+      );
+    }
+    try {
+      await fetch("/api/admin/catalog-gaps/us-alternates/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refKey: r.refKey, code: r.code, status }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -241,6 +268,15 @@ export default function UsAlternatesPage() {
             />
             Solo corroboradas 2+
           </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+            <input
+              type="checkbox"
+              checked={showReviewed}
+              onChange={(e) => setShowReviewed(e.target.checked)}
+              className="h-4 w-4 accent-slate-600"
+            />
+            Ver revisadas {stats?.reviewed ? `(${stats.reviewed})` : ""}
+          </label>
           {(setCode || rarity || search || sourceFilter || !onlyMissing || onlyCorroborated) && (
             <button
               onClick={() => {
@@ -307,6 +343,53 @@ export default function UsAlternatesPage() {
                       <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                         PRIZE
                       </span>
+                    )}
+                    {r.status === "have" && (
+                      <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        YA LA TENGO
+                      </span>
+                    )}
+                    {r.status === "ignored" && (
+                      <span className="rounded bg-slate-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        IGNORADA
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Acciones de triage */}
+                  <div className="absolute inset-x-0 bottom-0 flex opacity-0 transition group-hover:opacity-100">
+                    {r.status ? (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          review(r, "none");
+                        }}
+                        className="flex flex-1 items-center justify-center gap-1 bg-slate-800/90 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" /> Deshacer
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            review(r, "have");
+                          }}
+                          className="flex flex-1 items-center justify-center gap-1 bg-emerald-600/90 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Ya la tengo
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            review(r, "ignored");
+                          }}
+                          className="flex items-center justify-center gap-1 bg-slate-700/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                          title="Ignorar"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

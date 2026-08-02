@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getDotggPrintings } from "@/lib/services/dotggCatalog";
 
 /**
  * GET /api/admin/catalog-gaps/us-alternates
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
     const rarity = sp.get("rarity") ?? "";
     const search = (sp.get("search") ?? "").trim().toUpperCase();
     const onlyMissing = sp.get("onlyMissing") === "1";
+    const onlyCorroborated = sp.get("corroborated") === "1";
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "60") || 60));
 
@@ -49,6 +51,14 @@ export async function GET(req: NextRequest) {
     });
     const tcgTotal = new Map<string, number>();
     for (const r of tcgTotals) if (r.number) tcgTotal.set(r.number, r._count._all);
+
+    // 2b) Impresiones que conoce DotGG por código (base + variantes _P1/_R1).
+    let dotgg = new Map<string, { total: number }>();
+    try {
+      dotgg = await getDotggPrintings();
+    } catch (e) {
+      console.warn("[us-alternates] DotGG no disponible:", (e as Error).message);
+    }
 
     // 3) Productos TCGplayer SIN linkear cuyo código lo tenemos en US → candidatos.
     const unlinked = await prisma.tcgCatalogProduct.findMany({
@@ -75,6 +85,13 @@ export async function GET(req: NextRequest) {
         const code = p.number!;
         const our = ourCount.get(code) ?? 0;
         const total = tcgTotal.get(code) ?? 0;
+        const dotggT = dotgg.get(code)?.total ?? 0;
+        // Impresiones "esperadas" = lo máximo que reporta cualquier fuente.
+        const expected = Math.max(total, dotggT);
+        // Fuentes que reportan MÁS impresiones de las que tenemos.
+        const sources: string[] = [];
+        if (total > our) sources.push("tcgplayer");
+        if (dotggT > our) sources.push("dotgg");
         return {
           productId: p.productId,
           code,
@@ -86,13 +103,17 @@ export async function GET(req: NextRequest) {
           url: p.url,
           ourCount: our,
           tcgTotal: total,
-          likelyMissing: total > our,
+          dotggTotal: dotggT,
+          expected,
+          sources,
+          likelyMissing: expected > our,
         };
       });
 
     // Stats (antes de filtros de UI).
     const totalCandidates = candidates.length;
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
+    const corroborated = candidates.filter((c) => c.sources.length >= 2).length;
     const codesAffected = new Set(candidates.map((c) => c.code)).size;
     const bySetMap = new Map<string, number>();
     const byRarityMap = new Map<string, number>();
@@ -108,13 +129,17 @@ export async function GET(req: NextRequest) {
 
     // Filtros de UI.
     if (onlyMissing) candidates = candidates.filter((c) => c.likelyMissing);
+    if (onlyCorroborated) candidates = candidates.filter((c) => c.sources.length >= 2);
     if (setCode) candidates = candidates.filter((c) => c.setCode === setCode);
     if (rarity) candidates = candidates.filter((c) => (c.rarity ?? "?") === rarity);
     if (search) candidates = candidates.filter((c) => c.code.includes(search) || (c.name ?? "").toUpperCase().includes(search));
 
-    // Orden: primero los que faltan, luego por código.
+    // Orden: primero corroboradas (2+ fuentes), luego las que faltan, luego código.
     candidates.sort(
-      (a, b) => Number(b.likelyMissing) - Number(a.likelyMissing) || a.code.localeCompare(b.code)
+      (a, b) =>
+        b.sources.length - a.sources.length ||
+        Number(b.likelyMissing) - Number(a.likelyMissing) ||
+        a.code.localeCompare(b.code)
     );
 
     const total = candidates.length;
@@ -125,7 +150,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      stats: { totalCandidates, likelyMissing, codesAffected, bySet, byRarity },
+      stats: { totalCandidates, likelyMissing, corroborated, codesAffected, bySet, byRarity },
     });
   } catch (error: any) {
     console.error("[us-alternates] GET failed:", error);

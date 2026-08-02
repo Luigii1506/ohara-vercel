@@ -24,12 +24,16 @@ type Row = {
   url: string | null;
   ourCount: number;
   tcgTotal: number;
+  dotggTotal: number;
+  expected: number;
+  sources: string[];
   likelyMissing: boolean;
 };
 
 type Stats = {
   totalCandidates: number;
   likelyMissing: number;
+  corroborated: number;
   codesAffected: number;
   bySet: { setCode: string; count: number }[];
   byRarity: { rarity: string; count: number }[];
@@ -54,6 +58,7 @@ export default function UsAlternatesPage() {
   const [loading, setLoading] = useState(true);
 
   const [onlyMissing, setOnlyMissing] = useState(true);
+  const [onlyCorroborated, setOnlyCorroborated] = useState(false);
   const [setCode, setSetCode] = useState("");
   const [rarity, setRarity] = useState("");
   const [searchRaw, setSearchRaw] = useState("");
@@ -70,6 +75,7 @@ export default function UsAlternatesPage() {
     try {
       const p = new URLSearchParams();
       if (onlyMissing) p.set("onlyMissing", "1");
+      if (onlyCorroborated) p.set("corroborated", "1");
       if (setCode) p.set("setCode", setCode);
       if (rarity) p.set("rarity", rarity);
       if (search) p.set("search", search);
@@ -85,14 +91,14 @@ export default function UsAlternatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [onlyMissing, setCode, rarity, search, page]);
+  }, [onlyMissing, onlyCorroborated, setCode, rarity, search, page]);
 
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
     setPage(1);
-  }, [onlyMissing, setCode, rarity, search]);
+  }, [onlyMissing, onlyCorroborated, setCode, rarity, search]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -131,14 +137,15 @@ export default function UsAlternatesPage() {
           Alternas US que me faltan
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Impresiones que <strong>TCGplayer tiene</strong> para una carta que ya
-          tienes en US, pero que no están en tu catálogo. La señal:{" "}
-          <strong>TCGplayer tiene más versiones que tú</strong>.
+          Impresiones que <strong>TCGplayer o DotGG</strong> tienen para una
+          carta que ya tienes en US, pero que no están en tu catálogo. Las{" "}
+          <strong>corroboradas por 2+ fuentes</strong> son las más confiables.
         </p>
 
         {/* Stats */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label="Alt-arts faltantes" value={stats?.likelyMissing} tone="rose" />
+          <Stat label="Corroboradas 2+" value={stats?.corroborated} tone="emerald" />
           <Stat label="Códigos afectados" value={stats?.codesAffected} tone="amber" />
           <Stat label="Candidatos totales" value={stats?.totalCandidates} tone="slate" />
           <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -210,13 +217,23 @@ export default function UsAlternatesPage() {
             />
             Solo donde faltan
           </label>
-          {(setCode || rarity || search || !onlyMissing) && (
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+            <input
+              type="checkbox"
+              checked={onlyCorroborated}
+              onChange={(e) => setOnlyCorroborated(e.target.checked)}
+              className="h-4 w-4 accent-emerald-600"
+            />
+            Solo corroboradas 2+
+          </label>
+          {(setCode || rarity || search || !onlyMissing || onlyCorroborated) && (
             <button
               onClick={() => {
                 setSetCode("");
                 setRarity("");
                 setSearchRaw("");
                 setOnlyMissing(true);
+                setOnlyCorroborated(false);
               }}
               className="rounded-lg px-3 py-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
             >
@@ -266,15 +283,30 @@ export default function UsAlternatesPage() {
                   )}
                 </div>
                 <div className="p-2">
-                  <div className="truncate font-mono text-xs font-semibold">{r.code}</div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="truncate font-mono text-xs font-semibold">{r.code}</span>
+                    {r.sources.length >= 2 && (
+                      <span
+                        title="Confirmada por 2+ fuentes"
+                        className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      >
+                        2+
+                      </span>
+                    )}
+                  </div>
                   <div className="truncate text-[11px] text-slate-500">{r.name}</div>
-                  <div className="mt-1 flex items-center gap-1 text-[10px]">
-                    <span className="rounded bg-emerald-100 px-1 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                    <span className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       tú {r.ourCount}
                     </span>
                     <span className="rounded bg-blue-100 px-1 py-0.5 font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                       TCG {r.tcgTotal}
                     </span>
+                    {r.dotggTotal > 0 && (
+                      <span className="rounded bg-violet-100 px-1 py-0.5 font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                        DotGG {r.dotggTotal}
+                      </span>
+                    )}
                   </div>
                 </div>
               </a>
@@ -316,12 +348,13 @@ function Stat({
 }: {
   label: string;
   value?: number;
-  tone?: "rose" | "amber" | "slate";
+  tone?: "rose" | "amber" | "slate" | "emerald";
 }) {
   const tones: Record<string, string> = {
     rose: "text-rose-600 dark:text-rose-400",
     amber: "text-amber-600 dark:text-amber-400",
     slate: "text-slate-500 dark:text-slate-400",
+    emerald: "text-emerald-600 dark:text-emerald-400",
   };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

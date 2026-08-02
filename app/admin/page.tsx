@@ -129,6 +129,12 @@ export default function AdminDashboard() {
           icon: Activity,
           description: "¿Qué cartas/versiones me faltan por región?",
         },
+        {
+          href: "/admin/catalog-audit",
+          label: "Auditor de catálogo",
+          icon: Shield,
+          description: "Corrige alt-arts mal clasificados vs TCGplayer",
+        },
       ],
     },
     {

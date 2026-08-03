@@ -70,6 +70,11 @@ export default function UsAlternatesPage() {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Modal de revisión: comparar el candidato con las cartas que ya tengo.
+  const [detailRow, setDetailRow] = useState<Row | null>(null);
+  const [haveCards, setHaveCards] = useState<any[]>([]);
+  const [haveLoading, setHaveLoading] = useState(false);
+
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("");
@@ -136,6 +141,61 @@ export default function UsAlternatesPage() {
       });
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Al abrir el modal, trae las cartas que YA tengo con ese código.
+  useEffect(() => {
+    if (!detailRow) {
+      setHaveCards([]);
+      return;
+    }
+    let cancelled = false;
+    setHaveLoading(true);
+    fetch(`/api/admin/cards/by-code/${encodeURIComponent(detailRow.code)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setHaveCards(Array.isArray(d) ? d : []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setHaveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailRow]);
+
+  // "Ya la tengo, ES ESTA": linkea el candidato a una carta existente.
+  const linkToCard = async (r: Row, cardId: number) => {
+    setBusy((b) => new Set(b).add(r.refKey));
+    try {
+      const isEvent = r.origin === "events";
+      const payload = isEvent
+        ? { origin: "events", missingCardId: -r.productId, cardId }
+        : { origin: "tcgplayer", productId: r.productId, cardId };
+      const res = await fetch("/api/admin/catalog-gaps/us-alternates/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setRows((rs) => rs.filter((x) => x.refKey !== r.refKey));
+        setDetailRow(null);
+        setMsg(`✓ ${r.code} linkeada a una carta que ya tenías`);
+      } else {
+        setMsg(`✕ ${r.code}: ${data.error ?? "no se pudo linkear"}`);
+      }
+    } catch (e: any) {
+      setMsg(`✕ ${r.code}: ${e?.message ?? "error"}`);
+    } finally {
+      setBusy((b) => {
+        const n = new Set(b);
+        n.delete(r.refKey);
+        return n;
+      });
+      setTimeout(() => setMsg(null), 4000);
     }
   };
 
@@ -354,14 +414,18 @@ export default function UsAlternatesPage() {
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {rows.map((r) => (
-              <a
+              <div
                 key={r.productId}
-                href={r.url ?? `https://www.tcgplayer.com/search/one-piece-card-game/product?q=${encodeURIComponent(r.code)}`}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="group overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
               >
-                <div className="relative aspect-[5/7] bg-slate-100 dark:bg-slate-800">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDetailRow(r)}
+                  onKeyDown={(e) => e.key === "Enter" && setDetailRow(r)}
+                  className="relative aspect-[5/7] cursor-pointer bg-slate-100 dark:bg-slate-800"
+                  title="Revisar: comparar con lo que ya tengo y linkear"
+                >
                   {r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -376,7 +440,7 @@ export default function UsAlternatesPage() {
                     </div>
                   )}
                   <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                    {r.origin === "events" ? "Evento" : "TCGplayer"} <ExternalLink className="h-3 w-3" />
+                    Revisar <Search className="h-3 w-3" />
                   </div>
                   <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
                     {r.type === "new" && (
@@ -518,7 +582,7 @@ export default function UsAlternatesPage() {
                     </span>
                   </div>
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         )}
@@ -546,6 +610,159 @@ export default function UsAlternatesPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de revisión: comparar con lo que ya tengo y linkear/crear */}
+      {detailRow && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDetailRow(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-mono text-sm font-bold">{detailRow.code}</div>
+                <div className="text-sm text-slate-500">{detailRow.name}</div>
+              </div>
+              <button
+                onClick={() => setDetailRow(null)}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]">
+              {/* Candidato */}
+              <div>
+                <div className="aspect-[5/7] overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                  {detailRow.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={
+                        detailRow.origin === "events"
+                          ? proxyImage(detailRow.imageUrl)
+                          : detailRow.imageUrl
+                      }
+                      alt={detailRow.code}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-slate-300">
+                      <Images className="h-8 w-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white bg-slate-700">
+                    {detailRow.origin === "events" ? "Evento (prize)" : "TCGplayer"}
+                  </span>
+                  {detailRow.rarity && (
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
+                      {detailRow.rarity}
+                    </span>
+                  )}
+                  {detailRow.variant && (
+                    <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+                      {detailRow.variant}
+                    </span>
+                  )}
+                </div>
+                {detailRow.url && (
+                  <a
+                    href={detailRow.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    Ver fuente <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+
+              {/* Cartas que ya tengo */}
+              <div>
+                <h3 className="text-sm font-semibold">
+                  Cartas que ya tengo con{" "}
+                  <span className="font-mono">{detailRow.code}</span>
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Compara la imagen. Si alguna es esta misma versión, linkéala; si
+                  no, crea una nueva alterna.
+                </p>
+
+                {haveLoading ? (
+                  <div className="py-8 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
+                  </div>
+                ) : haveCards.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-300 py-6 text-center text-sm text-slate-400 dark:border-slate-700">
+                    No tienes ninguna carta con este código.
+                  </div>
+                ) : (
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {haveCards.map((c: any) => (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border border-slate-200 p-1.5 text-center dark:border-slate-700"
+                      >
+                        {c.src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.src}
+                            alt={c.alternateArt || "base"}
+                            className="w-full rounded"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="aspect-[5/7] rounded bg-slate-200" />
+                        )}
+                        <div className="mt-1 truncate text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                          {c.isFirstEdition ? "Base" : c.alternateArt || "Alterna"}
+                        </div>
+                        <button
+                          onClick={() => linkToCard(detailRow, Number(c.id))}
+                          disabled={busy.has(detailRow.refKey)}
+                          className="mt-1 w-full rounded bg-emerald-600 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          Es esta
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      const r = detailRow;
+                      setDetailRow(null);
+                      createAlternate(r);
+                    }}
+                    disabled={busy.has(detailRow.refKey)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {detailRow.type === "new" ? "Crear carta nueva" : "Crear nueva alterna"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const r = detailRow;
+                      setDetailRow(null);
+                      review(r, "ignored");
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    <X className="h-3.5 w-3.5" /> Ignorar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -36,13 +36,18 @@ async function resolveSetId(groupId: number | null): Promise<number | null> {
     return null;
   }
   if (!name) return null;
-  const existing = await prisma.set.findFirst({
-    where: { title: { equals: name, mode: "insensitive" } },
-    select: { id: true },
+  const trimmed = name.trim();
+  // Match tolerante a espacios (evita duplicar sets tipo "Título " vs "Título").
+  const candidates = await prisma.set.findMany({
+    where: { title: { contains: trimmed, mode: "insensitive" } },
+    select: { id: true, title: true },
   });
-  if (existing) return existing.id;
+  const match = candidates.find(
+    (s) => s.title.trim().toLowerCase() === trimmed.toLowerCase()
+  );
+  if (match) return match.id;
   const created = await prisma.set.create({
-    data: { title: name, image: "", code: null, releaseDate: new Date(), isOpen: false },
+    data: { title: trimmed, image: "", code: null, releaseDate: new Date(), isOpen: false },
     select: { id: true },
   });
   return created.id;

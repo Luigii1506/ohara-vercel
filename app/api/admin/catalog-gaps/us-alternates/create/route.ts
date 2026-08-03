@@ -12,7 +12,7 @@ import {
   parseTcgCard,
   classifyAlternateArt,
   splitDisclaimer,
-  extractPromoPack,
+  deriveSetTitles,
 } from "@/lib/services/tcgplayerCardData";
 
 /**
@@ -45,31 +45,30 @@ async function findOrCreateSetByTitle(title: string): Promise<number> {
 }
 
 /**
- * Encuentra (o crea) nuestro Set. Para el grupo promo de TCGplayer ("One Piece
- * Promotion Cards"), NO usamos el grupo genérico sino el PACK real del nombre
- * ("Chaka & Pell (Winner Pack 2026 Vol. 3)" → "Winner Pack 2026 Vol. 3"), para
- * poder ligar la carta a su sobre (precios/EV por sobre).
+ * Encuentra (o crea) los Sets de una carta a partir del grupo/nombre de
+ * TCGplayer. Devuelve [principal, ...secundarios]:
+ *   - Promo   → [pack/playmat real, "One Piece Promotion Cards"].
+ *   - Deck    → [nombre del deck formateado, ej. "RED Monkey.D.Luffy"].
+ *   - Booster → [nombre del grupo].
+ * El pack/deck queda como set PRINCIPAL (el primero) para ligar la carta a su
+ * sobre (precios/EV), y el umbrella promo como secundario para browsing.
  */
-async function resolveSetId(
+async function resolveSetIds(
   groupId: number | null,
   productName: string | null
-): Promise<number | null> {
-  if (!groupId) return null;
+): Promise<number[]> {
+  if (!groupId) return [];
   let groupName: string | null = null;
   try {
     const res: any = await tcgplayerFetch(`/catalog/groups/${groupId}`);
     groupName = res?.results?.[0]?.name ?? res?.Results?.[0]?.name ?? null;
   } catch {
-    return null;
+    return [];
   }
-  if (!groupName) return null;
-
-  // Grupo promo → usa el pack del nombre si lo hay.
-  if (/promotion/i.test(groupName)) {
-    const pack = extractPromoPack(productName);
-    if (pack) return findOrCreateSetByTitle(pack);
-  }
-  return findOrCreateSetByTitle(groupName);
+  const titles = deriveSetTitles(groupName, productName);
+  const ids: number[] = [];
+  for (const t of titles) ids.push(await findOrCreateSetByTitle(t));
+  return ids;
 }
 
 export async function POST(req: NextRequest) {
@@ -107,7 +106,11 @@ export async function POST(req: NextRequest) {
 
     // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
-    const setId = await resolveSetId(groupId, prod.name);
+    const setIds = await resolveSetIds(groupId, prod.name);
+    const setId = setIds[0] ?? null; // principal (para la respuesta)
+    const setsCreate = setIds.length
+      ? { sets: { create: setIds.map((id) => ({ setId: id })) } }
+      : {};
 
     // Imagen: subir a R2 la de ALTA resolución (1000x1000) con fallback a 400w.
     // Nombre ÚNICO (con sufijo) para evitar el caché immutable de R2/CDN: si se
@@ -199,7 +202,7 @@ export async function POST(req: NextRequest) {
           effects: base.effects.length ? { create: base.effects.map((e) => ({ effect: e.effect })) } : undefined,
           conditions: base.conditions.length ? { create: base.conditions.map((c) => ({ condition: c.condition })) } : undefined,
           texts: base.texts.length ? { create: base.texts.map((t) => ({ text: t.text })) } : undefined,
-          ...(setId ? { sets: { create: { setId } } } : {}),
+          ...setsCreate,
         },
         select: { id: true },
       });
@@ -241,7 +244,7 @@ export async function POST(req: NextRequest) {
           types: parsed.types.length ? { create: parsed.types.map((type) => ({ type })) } : undefined,
           effects: parsed.effects.length ? { create: parsed.effects.map((effect) => ({ effect })) } : undefined,
           texts: parsed.texts.length ? { create: parsed.texts.map((text) => ({ text })) } : undefined,
-          ...(setId ? { sets: { create: { setId } } } : {}),
+          ...setsCreate,
         },
         select: { id: true },
       });

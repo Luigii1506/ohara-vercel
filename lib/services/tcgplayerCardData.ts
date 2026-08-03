@@ -133,6 +133,39 @@ export function extractPromoPack(productName: string | null): string | null {
   return pack;
 }
 
+/** Formatea el nombre de un set de deck a nuestro estándar: quita el prefijo
+ *  secuencial "Starter Deck NN:" ("Starter Deck 31: RED Monkey.D.Luffy" →
+ *  "RED Monkey.D.Luffy", como "YELLOW Charlotte Katakuri" del ST20). NO toca
+ *  "Super Pre-Release Starter Deck N:" ni "Ultra Deck:". */
+export function normalizeDeckSetName(groupName: string): string {
+  return (
+    groupName.replace(/^Starter Deck\s*\d+:\s*/i, "").trim() || groupName.trim()
+  );
+}
+
+/**
+ * Sets a los que debe pertenecer una carta según el grupo/nombre de TCGplayer.
+ * Devuelve títulos ORDENADOS: [principal, ...secundarios].
+ *   - Promo  → [pack/playmat real, "One Piece Promotion Cards"] (umbrella 2°).
+ *   - Deck   → [nombre del deck formateado].
+ *   - Otro   → [nombre del grupo] (booster, etc.).
+ */
+export function deriveSetTitles(
+  groupName: string | null,
+  productName: string | null
+): string[] {
+  const g = (groupName ?? "").trim();
+  if (!g) return [];
+  if (/promotion/i.test(g)) {
+    const pack = extractPromoPack(productName);
+    return pack ? [pack, g] : [g];
+  }
+  if (/^Starter Deck\s*\d+:/i.test(g)) {
+    return [normalizeDeckSetName(g)];
+  }
+  return [g];
+}
+
 /** Clasifica el alternateArt a partir del nombre del producto + disclaimer.
  *  Devuelve un value de altArtOptions (o "Alternate Art" por defecto). */
 export function classifyAlternateArt(

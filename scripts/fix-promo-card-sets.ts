@@ -1,11 +1,15 @@
 #!/usr/bin/env -S npx tsx
 /**
- * Reclasifica las cartas promo que quedaron en el set genérico "One Piece
- * Promotion Cards" hacia su PACK real (del paréntesis del nombre del producto
- * TCGplayer), para poder ligarlas a su sobre (precios/EV por sobre).
+ * Política de sets para cartas promo (grupo TCGplayer "One Piece Promotion
+ * Cards", gid 17675):
+ *   - Set PRINCIPAL = el pack/playmat real del paréntesis del nombre.
+ *   - Set SECUNDARIO = "One Piece Promotion Cards" (umbrella, para browsing).
  *
- * Mueve el link del set genérico al pack (crea el pack si no existe). Las cartas
- * sin producto/pack se dejan como están.
+ * Este script deja la base así, de forma idempotente:
+ *   (a) cartas que quedaron SOLO en el umbrella genérico → les crea/asigna su
+ *       pack real como principal (sin borrar el umbrella).
+ *   (b) TODAS las cartas promo → se aseguran de estar también en el umbrella.
+ * No re-deriva packs de cartas que ya tienen un set específico (evita duplicar).
  *
  *   npx tsx scripts/fix-promo-card-sets.ts           # dry-run
  *   npx tsx scripts/fix-promo-card-sets.ts --apply    # aplica
@@ -15,6 +19,8 @@ import { prisma } from "../lib/prisma";
 import { extractPromoPack } from "../lib/services/tcgplayerCardData";
 
 const APPLY = process.argv.includes("--apply");
+const UMBRELLA = "One Piece Promotion Cards";
+const PROMO_GID = 17675;
 
 async function findOrCreateSet(title: string): Promise<number> {
   const t = title.trim();
@@ -32,82 +38,95 @@ async function findOrCreateSet(title: string): Promise<number> {
 }
 
 async function main() {
-  // Sets genéricos de promoción a vaciar.
-  const generic = await prisma.set.findMany({
-    where: {
-      OR: [
-        { title: { equals: "One Piece Promotion Cards", mode: "insensitive" } },
-        { title: { equals: "One Piece Promotional Cards", mode: "insensitive" } },
-      ],
-    },
-    select: { id: true, title: true },
+  const umbrellaId = APPLY ? await findOrCreateSet(UMBRELLA) : -273;
+
+  // Productos promo linkeados (gid 17675).
+  const prods = await prisma.tcgCatalogProduct.findMany({
+    where: { linkedCardId: { not: null } },
+    select: { name: true, linkedCardId: true, metadata: true },
   });
-  const genericIds = generic.map((s) => s.id);
-  console.log(
-    "Sets genéricos:",
-    generic.map((s) => `[${s.id}] ${s.title}`).join(", ") || "ninguno"
-  );
-  if (!genericIds.length) return;
+  const promo = prods.filter((p) => (p.metadata as any)?.groupId === PROMO_GID);
+  const packByCard = new Map<number, string>();
+  const cardIds = new Set<number>();
+  for (const p of promo) {
+    const cid = p.linkedCardId!;
+    cardIds.add(cid);
+    const pack = extractPromoPack(p.name);
+    if (pack && !packByCard.has(cid)) packByCard.set(cid, pack);
+  }
+  console.log(`Cartas promo (gid ${PROMO_GID}): ${cardIds.size}`);
 
-  const cards = await prisma.card.findMany({
-    where: { sets: { some: { setId: { in: genericIds } } } },
-    select: { id: true, code: true, tcgplayerProductId: true },
-  });
-  console.log(`Cartas en set(s) genérico(s): ${cards.length}`);
-
-  let moved = 0;
-  let noProduct = 0;
-  let noPack = 0;
-  const setCache = new Map<string, number>();
-
-  for (const c of cards) {
-    if (!c.tcgplayerProductId) {
-      noProduct++;
-      continue;
-    }
-    const prod = await prisma.tcgCatalogProduct.findUnique({
-      where: { productId: Number(c.tcgplayerProductId) },
-      select: { name: true },
+  // Links actuales de esas cartas (título del set) en un solo query por lotes.
+  const ids = Array.from(cardIds);
+  const linksByCard = new Map<number, { setId: number; title: string }[]>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const rows = await prisma.cardSet.findMany({
+      where: { cardId: { in: chunk } },
+      select: { cardId: true, setId: true, set: { select: { title: true } } },
     });
-    const pack = extractPromoPack(prod?.name ?? null);
-    if (!pack) {
-      noPack++;
-      continue;
+    for (const r of rows) {
+      const arr = linksByCard.get(r.cardId) ?? [];
+      arr.push({ setId: r.setId, title: r.set.title });
+      linksByCard.set(r.cardId, arr);
     }
+  }
 
-    let packSetId = setCache.get(pack.toLowerCase());
-    if (packSetId == null) {
-      packSetId = APPLY
-        ? await findOrCreateSet(pack)
-        : -1; // dry-run: no crea
-      setCache.set(pack.toLowerCase(), packSetId);
-    }
+  const genericIds = new Set<number>();
+  const g = await prisma.set.findMany({
+    where: { title: { equals: UMBRELLA, mode: "insensitive" } },
+    select: { id: true },
+  });
+  g.forEach((s) => genericIds.add(s.id));
 
-    console.log(`  ${c.code.padEnd(10)} genérico → "${pack}"`);
-    moved++;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  const packSetCache = new Map<string, number>();
+  let assignedPack = 0;
+  let addedUmbrella = 0;
+  const umbrellaToCreate: { cardId: number; setId: number }[] = [];
 
-    if (APPLY) {
-      // Crea el link al pack (si no existe) y borra el link genérico.
-      // CardSet no tiene unique compuesto: verificamos a mano.
-      const exists = await prisma.cardSet.findFirst({
-        where: { cardId: c.id, setId: packSetId },
-        select: { id: true },
-      });
-      if (!exists) {
-        await prisma.cardSet.create({
-          data: { cardId: c.id, setId: packSetId },
-        });
+  for (const cid of ids) {
+    const links = linksByCard.get(cid) ?? [];
+    const titles = links.map((l) => l.title);
+    const specific = links.filter((l) => !genericIds.has(l.setId));
+
+    // (a) Solo en el umbrella genérico (sin set específico) → asignar el pack.
+    const pack = packByCard.get(cid);
+    if (specific.length === 0 && pack) {
+      const key = norm(pack);
+      let psid = packSetCache.get(key);
+      if (psid == null) {
+        psid = APPLY ? await findOrCreateSet(pack) : -1;
+        packSetCache.set(key, psid);
       }
-      await prisma.cardSet.deleteMany({
-        where: { cardId: c.id, setId: { in: genericIds } },
-      });
+      assignedPack++;
+      if (APPLY) {
+        const exists = await prisma.cardSet.findFirst({
+          where: { cardId: cid, setId: psid },
+          select: { id: true },
+        });
+        if (!exists) await prisma.cardSet.create({ data: { cardId: cid, setId: psid } });
+      }
+    }
+
+    // (b) Asegurar el umbrella secundario.
+    const hasUmbrella = links.some((l) => genericIds.has(l.setId));
+    if (!hasUmbrella) {
+      addedUmbrella++;
+      if (APPLY) umbrellaToCreate.push({ cardId: cid, setId: umbrellaId });
+    }
+    void titles;
+  }
+
+  if (APPLY && umbrellaToCreate.length) {
+    for (let i = 0; i < umbrellaToCreate.length; i += 500) {
+      await prisma.cardSet.createMany({ data: umbrellaToCreate.slice(i, i + 500) });
     }
   }
 
   console.log(`\n${APPLY ? "✅ APLICADO" : "[DRY-RUN]"}`);
-  console.log(`  Reclasificadas al pack: ${moved}`);
-  console.log(`  Sin producto TCGplayer (se dejan): ${noProduct}`);
-  console.log(`  Sin pack en el nombre (se dejan): ${noPack}`);
+  console.log(`  Pack asignado (estaban solo en genérico): ${assignedPack}`);
+  console.log(`  Umbrella secundario agregado: ${addedUmbrella}`);
   if (!APPLY) console.log(`\nCorre con --apply para aplicar.`);
   await prisma.$disconnect();
 }

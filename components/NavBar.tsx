@@ -40,7 +40,6 @@ import {
   MapPin,
   MoreHorizontal,
   List,
-  Swords,
   Sparkles,
 } from "lucide-react";
 import {
@@ -193,7 +192,6 @@ const NavBar = () => {
   const mainMenuItems: MenuItem[] = [
     { href: "/", label: t("nav.home"), icon: Home, priority: 1 },
     { href: "/deckbuilder", label: t("nav.deckbuilder"), icon: Layers, priority: 2 },
-    { href: "/simulator", label: "Simulator", icon: Swords, priority: 3 },
     { href: "/events", label: t("nav.events"), icon: Calendar, priority: 3 },
     { href: "/tournaments", label: t("nav.tournaments"), icon: Trophy, priority: 4 },
   ];
@@ -202,7 +200,10 @@ const NavBar = () => {
   const secondaryMenuItems: MenuItem[] = [
     { href: "/proxies", label: "Proxies", icon: Copy, priority: 5 },
     { href: "/products", label: "Products", icon: ShoppingBag, priority: 6 },
-    { href: "/market", label: "Mercado", icon: Sparkles, priority: 7 },
+    // Mercado: análisis de mercado, solo admin.
+    ...(role === "ADMIN"
+      ? [{ href: "/market", label: "Mercado", icon: Sparkles, priority: 7 }]
+      : []),
   ];
 
   // Items privados (solo usuarios logueados)

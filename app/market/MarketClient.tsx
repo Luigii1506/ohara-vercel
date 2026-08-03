@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@/app/context/UserContext";
 import {
   Loader2,
   Search,
@@ -96,6 +97,7 @@ const SUB = {
 };
 
 export default function MarketClient() {
+  const { role, loading: roleLoading } = useUser();
   const [tab, setTab] = useState<TabKey>("sealed");
   const [tf, setTf] = useState("30");
   const [search, setSearch] = useState("");
@@ -202,6 +204,28 @@ export default function MarketClient() {
     return { n: vals.length, avg, best };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardsFiltered, tab, tf]);
+
+  // Solo admin.
+  if (roleLoading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+  if (role !== "ADMIN") {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-2 bg-slate-50 px-6 text-center dark:bg-slate-950">
+        <Sparkles className="h-8 w-8 text-slate-300" />
+        <h1 className="text-lg font-bold text-slate-700 dark:text-slate-200">
+          Sección de análisis interna
+        </h1>
+        <p className="max-w-sm text-sm text-slate-500">
+          El dashboard de mercado está disponible solo para administradores.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">

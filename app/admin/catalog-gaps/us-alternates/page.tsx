@@ -255,7 +255,7 @@ export default function UsAlternatesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       {msg && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-lg dark:border-slate-700 dark:bg-slate-900">
           {msg}

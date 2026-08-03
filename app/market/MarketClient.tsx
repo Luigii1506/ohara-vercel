@@ -204,7 +204,7 @@ export default function MarketClient() {
   }, [cardsFiltered, tab, tf]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-screen w-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-amber-600">
           <Sparkles className="h-4 w-4" /> Análisis de mercado

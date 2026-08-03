@@ -202,7 +202,7 @@ const NavBar = () => {
   const secondaryMenuItems: MenuItem[] = [
     { href: "/proxies", label: "Proxies", icon: Copy, priority: 5 },
     { href: "/products", label: "Products", icon: ShoppingBag, priority: 6 },
-    { href: "/sealed-ev", label: "¿Vale la pena?", icon: Sparkles, priority: 7 },
+    { href: "/market", label: "Mercado", icon: Sparkles, priority: 7 },
   ];
 
   // Items privados (solo usuarios logueados)

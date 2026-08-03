@@ -75,6 +75,7 @@ model Card {
   baseGroupLinks        CardGroupLink[]
   variantGroupLinks     CardVariantLink[]
   sources               CardSource[]
+  priceStat             CardPriceStat?
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -938,6 +939,33 @@ model CardPriceLog {
 
   @@index([cardId])
   @@index([collectedAt])
+  // Para computar rápido "precio a fecha X por carta" (DISTINCT ON).
+  @@index([priceType, cardId, collectedAt])
+}
+
+/**
+ * Estadísticas de precio PRECOMPUTADAS por carta (refrescadas por cron). Evita
+ * recorrer los millones de CardPriceLog en cada request del dashboard de mercado.
+ */
+model CardPriceStat {
+  cardId      Int       @id
+  priceNow    Decimal?
+  price7dAgo  Decimal?
+  price30dAgo Decimal?
+  price90dAgo Decimal?
+  pct7d       Float?
+  pct30d      Float?
+  pct90d      Float?
+  ath         Decimal? // máximo histórico (ventana)
+  atl         Decimal? // mínimo histórico (ventana)
+  athPct      Float? // % desde el ATH (negativo = descuento)
+  points      Int       @default(0) // puntos de historial (confianza)
+  computedAt  DateTime  @default(now())
+  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([pct7d])
+  @@index([pct30d])
+  @@index([athPct])
 }
 
 model CardPriceAlert {

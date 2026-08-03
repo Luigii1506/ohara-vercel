@@ -155,7 +155,12 @@ export default function UsAlternatesPage() {
     fetch(`/api/admin/cards/by-code/${encodeURIComponent(detailRow.code)}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => {
-        if (!cancelled) setHaveCards(Array.isArray(d) ? d : []);
+        if (cancelled) return;
+        // Solo US (region null = US legacy). Las demás regiones no aplican aquí.
+        const list = Array.isArray(d) ? d : [];
+        setHaveCards(
+          list.filter((c: any) => c?.region === "US" || c?.region == null)
+        );
       })
       .catch(() => {})
       .finally(() => {

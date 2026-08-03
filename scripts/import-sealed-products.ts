@@ -37,7 +37,11 @@ function classifyType(name: string): ProductType {
   if (/double pack/.test(s)) return "DOUBLE_PACK";
   if (/gift collection|collection|collector/.test(s)) return "COLLECTORS_SET";
   if (/starter deck/.test(s)) return "STARTER_DECK";
-  if (/release event|promotion pack|tournament pack|promo pack|dash pack/.test(s))
+  if (
+    /release event|promotion pack|tournament pack|promo pack|dash pack|winner pack|finalist pack|championship pack|entry pack|welcome pack|event pack|gift collection|regional/.test(
+      s
+    )
+  )
     return "PROMO_PACK";
   if (/booster box|display|box case|booster case|\bcase\b/.test(s)) return "DISPLAY_BOX";
   if (/booster pack|booster/.test(s)) return "BOOSTER";

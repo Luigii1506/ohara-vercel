@@ -264,6 +264,17 @@ const ProductsClient = () => {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [modalCards, setModalCards] = useState<
+    {
+      id: number;
+      name: string;
+      code: string;
+      src: string | null;
+      rarity: string | null;
+      marketPrice: string | number | null;
+    }[]
+  >([]);
+  const [modalCardsLoading, setModalCardsLoading] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(
     null,
@@ -313,7 +324,24 @@ const ProductsClient = () => {
   useEffect(() => {
     if (!selectedProduct) {
       setShowLargeImage(false);
+      setModalCards([]);
+      return;
     }
+    let cancelled = false;
+    setModalCardsLoading(true);
+    setModalCards([]);
+    fetch(`/api/products/${selectedProduct.id}/cards`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setModalCards(d.cards ?? []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setModalCardsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProduct]);
 
   const loadMore = async () => {
@@ -610,14 +638,19 @@ const ProductsClient = () => {
         onClick={() => setSelectedProduct(product)}
         className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
       >
-        <div className="relative aspect-square bg-slate-50">
+        <div className="relative aspect-square bg-white">
           {img ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={img}
               alt={product.name}
-              className="h-full w-full object-contain p-2 transition group-hover:scale-[1.03]"
+              className="absolute inset-0 h-full w-full object-contain p-3 transition group-hover:scale-[1.03]"
               loading="lazy"
+              onError={(e) => {
+                const t = e.currentTarget;
+                if (t.src.includes("_in_1000x1000"))
+                  t.src = t.src.replace("_in_1000x1000", "_400w");
+              }}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-slate-300">
@@ -691,7 +724,7 @@ const ProductsClient = () => {
 
               {/* Chips rápidos de los tipos más comunes */}
               <div className="flex flex-wrap gap-2">
-                {["all", "BOOSTER", "DISPLAY_BOX", "STARTER_DECK", "PREMIUM_CARD_COLLECTION", "ANNIVERSARY_SET"].map(
+                {["all", "BOOSTER", "DISPLAY_BOX", "STARTER_DECK", "PROMO_PACK", "PREMIUM_CARD_COLLECTION", "ANNIVERSARY_SET"].map(
                   (key) => {
                     const label =
                       PRODUCT_TYPES.find((t) => t.key === key)?.label ?? key;
@@ -882,14 +915,53 @@ const ProductsClient = () => {
                       Ver en TCGplayer
                     </a>
                   )}
-                  {selectedProduct.description ? (
+                  {selectedProduct.description && (
                     <p className="text-sm text-slate-600">
                       {selectedProduct.description}
                     </p>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      Sin descripcion adicional.
-                    </p>
+                  )}
+                  {/* Cartas incluidas (las del set del producto) */}
+                  {selectedProduct.set && (
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-slate-700">
+                          Cartas del set
+                          {modalCards.length > 0 && ` (${modalCards.length})`}
+                        </h3>
+                      </div>
+                      {modalCardsLoading ? (
+                        <div className="py-6 text-center text-sm text-slate-400">
+                          Cargando cartas…
+                        </div>
+                      ) : modalCards.length === 0 ? (
+                        <div className="py-3 text-center text-xs text-slate-400">
+                          Sin cartas asociadas a este set.
+                        </div>
+                      ) : (
+                        <div className="grid max-h-[360px] grid-cols-4 gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2 sm:grid-cols-6 md:grid-cols-8">
+                          {modalCards.map((c) => (
+                            <a
+                              key={c.id}
+                              href={`/card-list?search=${encodeURIComponent(c.code)}`}
+                              className="group block"
+                              title={`${c.code} · ${c.name}`}
+                            >
+                              {c.src ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={c.src}
+                                  alt={c.code}
+                                  className="w-full rounded-md ring-1 ring-slate-200 transition group-hover:ring-2 group-hover:ring-blue-400"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="aspect-[5/7] rounded-md bg-slate-200" />
+                              )}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { CardWithCollectionData } from "@/types";
 import { highlightText, getColors } from "@/helpers/functions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -224,93 +224,8 @@ const CardDetails: React.FC<CardInfoProps> = ({
             </div>
           </div>
         )}
-
-        {/* ¿De qué booster/producto sale? */}
-        {card?.id && <CardOrigins cardId={card.id} />}
       </CardContent>
     </Card>
-  );
-};
-
-type OriginProduct = {
-  id: number;
-  name: string;
-  productType: string;
-  imageUrl: string | null;
-  thumbnailUrl: string | null;
-  marketPrice: number | string | null;
-  tcgUrl: string | null;
-};
-
-/** "Disponible en": los productos sellados del set de la carta. */
-const CardOrigins: React.FC<{ cardId: string | number }> = ({ cardId }) => {
-  const [products, setProducts] = useState<OriginProduct[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/cards/${cardId}/products`)
-      .then((r) => (r.ok ? r.json() : { products: [] }))
-      .then((d) => {
-        if (!cancelled) setProducts(d.products ?? []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [cardId]);
-
-  if (products.length === 0) return null;
-
-  return (
-    <div className="mt-6">
-      <h4 className="text-sm font-bold mb-2">Disponible en</h4>
-      <div className="flex flex-col gap-1.5">
-        {products.slice(0, 6).map((p) => {
-          const price =
-            p.marketPrice != null
-              ? `$${Number(p.marketPrice).toLocaleString()}`
-              : null;
-          const inner = (
-            <div className="flex items-center gap-2.5">
-              {(p.thumbnailUrl || p.imageUrl) && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.thumbnailUrl || p.imageUrl || ""}
-                  alt=""
-                  className="w-9 h-9 object-contain rounded bg-white shrink-0"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-medium truncate">{p.name}</p>
-                <p className="text-[10px] text-gray-500 capitalize">
-                  {p.productType.replace(/_/g, " ").toLowerCase()}
-                </p>
-              </div>
-              {price && (
-                <span className="text-[12px] font-semibold text-emerald-600 shrink-0">
-                  {price}
-                </span>
-              )}
-            </div>
-          );
-          return p.tcgUrl ? (
-            <a
-              key={p.id}
-              href={p.tcgUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg p-1.5 hover:bg-gray-50 transition-colors"
-            >
-              {inner}
-            </a>
-          ) : (
-            <div key={p.id} className="p-1.5">
-              {inner}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 };
 

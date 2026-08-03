@@ -70,10 +70,36 @@ async function main() {
   }
   console.log(`Grupos TCGplayer: ${groupName.size}`);
 
-  // Mapa nombre-de-set normalizado → setId (nuestros sets).
-  const sets = await prisma.set.findMany({ select: { id: true, title: true } });
-  const setByName = new Map<string, number>();
-  for (const s of sets) setByName.set(norm(s.title), s.id);
+  // Sets con conteo de cartas para un match inteligente.
+  const sets = await prisma.set.findMany({
+    select: { id: true, title: true, _count: { select: { cards: true } } },
+  });
+  // Match exacto por nombre normalizado, prefiriendo el que tiene más cartas.
+  const exactSet = new Map<string, { id: number; cards: number }>();
+  for (const s of sets) {
+    const k = norm(s.title);
+    const cur = exactSet.get(k);
+    if (!cur || s._count.cards > cur.cards)
+      exactSet.set(k, { id: s.id, cards: s._count.cards });
+  }
+  // Sets con cartas, por longitud de título desc (para match por substring).
+  const bearing = sets
+    .filter((s) => s._count.cards > 0)
+    .map((s) => ({ id: s.id, n: norm(s.title), cards: s._count.cards }))
+    .sort((a, b) => b.n.length - a.n.length);
+
+  const resolveSetIdByName = (groupName?: string): number | null => {
+    if (!groupName) return null;
+    const g = norm(groupName);
+    const ex = exactSet.get(g);
+    if (ex && ex.cards > 0) return ex.id; // exacto con cartas
+    // Substring: el título de un set con cartas aparece dentro del grupo
+    // (ej. "Worst Generation" ⊂ "Super Pre-Release Starter Deck 2: Worst Generation").
+    for (const s of bearing) {
+      if (s.n.length >= 6 && g.includes(s.n)) return s.id;
+    }
+    return ex?.id ?? null; // último recurso: exacto aunque tenga 0 cartas
+  };
 
   // Precios en lote.
   const pids = sealed.map((s) => s.productId);
@@ -101,7 +127,7 @@ async function main() {
   for (const s of sealed) {
     const gid = (s.metadata as any)?.groupId as number | undefined;
     const gname = gid ? groupName.get(gid) : undefined;
-    const setId = gname ? setByName.get(norm(gname)) ?? null : null;
+    const setId = resolveSetIdByName(gname);
     const type = classifyType(s.name);
     byType.set(type, (byType.get(type) ?? 0) + 1);
     if (setId) linkedSet++;

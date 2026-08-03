@@ -857,40 +857,42 @@ const ProductsClient = () => {
             if (!open) setSelectedProduct(null);
           }}
         >
-          <DialogContent className="max-w-3xl bg-gradient-to-b from-slate-50 to-white">
+          <DialogContent className="max-h-[88vh] max-w-4xl overflow-y-auto bg-white p-5 sm:p-6">
             {selectedProduct && (
-              <div className="grid gap-6 md:grid-cols-[240px_1fr]">
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-lg">
-                  {selectedProduct.imageUrl || selectedProduct.thumbnailUrl ? (
-                    <img
-                      src={
-                        selectedProduct.imageUrl ||
-                        selectedProduct.thumbnailUrl ||
-                        ""
-                      }
-                      alt={selectedProduct.name}
-                      className="h-full w-full object-cover animate-card-float"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
-                      Sin imagen
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-4">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl">
-                      {selectedProduct.name}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">
-                      {selectedProduct.productType}
-                    </Badge>
-                    {selectedProduct.set && (
-                      <Badge variant="outline">{selectedProduct.set.title}</Badge>
+              <div className="space-y-5">
+                <div className="flex flex-col gap-5 sm:flex-row">
+                  <div className="mx-auto flex aspect-square w-44 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:mx-0">
+                    {selectedProduct.imageUrl || selectedProduct.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={selectedProduct.imageUrl || selectedProduct.thumbnailUrl || ""}
+                        alt={selectedProduct.name}
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          const t = e.currentTarget;
+                          if (t.src.includes("_in_1000x1000"))
+                            t.src = t.src.replace("_in_1000x1000", "_400w");
+                        }}
+                      />
+                    ) : (
+                      <div className="text-xs text-slate-400">Sin imagen</div>
                     )}
                   </div>
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <DialogHeader className="space-y-0">
+                      <DialogTitle className="text-left text-lg leading-snug sm:text-xl">
+                        {selectedProduct.name}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">
+                        {PRODUCT_TYPES.find((t) => t.key === selectedProduct.productType)?.label ??
+                          selectedProduct.productType}
+                      </Badge>
+                      {selectedProduct.set && (
+                        <Badge variant="outline">{selectedProduct.set.title}</Badge>
+                      )}
+                    </div>
                   {/* Precio real de mercado (TCGplayer) */}
                   {formatPrice(selectedProduct.marketPrice, selectedProduct.priceCurrency ?? "USD") && (
                     <div className="flex flex-wrap items-center gap-3">
@@ -920,15 +922,15 @@ const ProductsClient = () => {
                       {selectedProduct.description}
                     </p>
                   )}
-                  {/* Cartas incluidas (las del set del producto) */}
-                  {selectedProduct.set && (
-                    <div>
-                      <div className="mb-2 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-slate-700">
-                          Cartas del set
-                          {modalCards.length > 0 && ` (${modalCards.length})`}
-                        </h3>
-                      </div>
+                  </div>
+                </div>
+                {/* Cartas del set (full width) */}
+                {selectedProduct.set && (
+                  <div className="border-t border-slate-100 pt-4">
+                      <h3 className="mb-2.5 text-sm font-semibold text-slate-700">
+                        Cartas del set
+                        {modalCards.length > 0 && ` · ${modalCards.length}`}
+                      </h3>
                       {modalCardsLoading ? (
                         <div className="py-6 text-center text-sm text-slate-400">
                           Cargando cartas…
@@ -938,7 +940,7 @@ const ProductsClient = () => {
                           Sin cartas asociadas a este set.
                         </div>
                       ) : (
-                        <div className="grid max-h-[360px] grid-cols-4 gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2 sm:grid-cols-6 md:grid-cols-8">
+                        <div className="grid max-h-[44vh] grid-cols-4 gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
                           {modalCards.map((c) => (
                             <a
                               key={c.id}
@@ -964,7 +966,6 @@ const ProductsClient = () => {
                     </div>
                   )}
                 </div>
-              </div>
             )}
           </DialogContent>
         </Dialog>

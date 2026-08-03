@@ -17,6 +17,7 @@ import {
   TranslationStats,
 } from "./translation";
 import { translateWithDictionary } from "./localeDictionary";
+import { buildCardIdentityKey } from "../tcgplayerCardData";
 
 type EventListSourceType = "current" | "past";
 
@@ -1599,57 +1600,53 @@ export async function syncEventMissingCardsInDb(
   eventId: number,
   candidates: DetectedCardCandidate[]
 ) {
-  const candidateKeys = candidates.map((candidate) =>
-    [candidate.code, candidate.title, candidate.image || ""].join("|")
-  );
+  // El título del evento da contexto de variante ("Treasure Cup" → variante
+  // "Treasure Cup") para construir la identidad canónica de cada carta.
+  const eventRow = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true },
+  });
+  const eventTitle = eventRow?.title ?? "";
 
-  if (candidateKeys.length === 0) {
-    await prisma.eventMissingCard.deleteMany({
-      where: { eventId },
-    });
+  // Enriquece cada candidato con imagen + llave canónica (independiente del evento).
+  const enriched = candidates.map((candidate) => ({
+    code: candidate.code,
+    title: candidate.title,
+    imageUrl: candidate.image || "",
+    canonicalKey: buildCardIdentityKey(
+      candidate.code,
+      candidate.title,
+      eventTitle
+    ),
+  }));
+
+  if (enriched.length === 0) {
+    await prisma.eventMissingCard.deleteMany({ where: { eventId } });
     await prisma.missingCard.deleteMany({
-      where: {
-        isApproved: false,
-        events: { none: {} },
-      },
+      where: { isApproved: false, events: { none: {} } },
     });
     return;
   }
 
+  const canonicalSet = new Set(enriched.map((e) => e.canonicalKey));
+
   const existing = await prisma.eventMissingCard.findMany({
     where: { eventId },
-    include: {
-      missingCard: true,
-    },
+    include: { missingCard: true },
   });
 
-  console.log("[missing-cards] Existing event links:",
-    existing.map((record) => ({
-      eventId: record.eventId,
-      missingCardId: record.missingCardId,
-      code: record.missingCard.code,
-      title: record.missingCard.title,
-      imageUrl: record.missingCard.imageUrl,
-    }))
-  );
-
-  console.log("[missing-cards] Incoming candidates:",
-    candidates.map((candidate) => ({
-      code: candidate.code,
-      title: candidate.title,
-      image: candidate.image || "",
-    }))
-  );
-
-  const candidateKeySet = new Set(candidateKeys);
+  // Borra links cuya carta (por identidad canónica) ya no se detecta en este
+  // evento. Fallback al key derivado para filas viejas sin canonicalKey.
   const toDeleteIds = existing
     .filter((record) => {
-      const key = [
-        record.missingCard.code,
-        record.missingCard.title,
-        record.missingCard.imageUrl || "",
-      ].join("|");
-      return !candidateKeySet.has(key);
+      const key =
+        record.missingCard.canonicalKey ??
+        buildCardIdentityKey(
+          record.missingCard.code,
+          record.missingCard.title,
+          eventTitle
+        );
+      return !canonicalSet.has(key);
     })
     .map((record) => record.id);
 
@@ -1657,70 +1654,65 @@ export async function syncEventMissingCardsInDb(
     await prisma.eventMissingCard.deleteMany({
       where: { id: { in: toDeleteIds } },
     });
-
     console.log(
-      `[missing-cards] Removed ${toDeleteIds.length} event missing card links (no longer detected)`
+      `[missing-cards] Removed ${toDeleteIds.length} event links (no longer detected)`
     );
   }
 
-  for (const candidate of candidates) {
-    const imageUrlValue = candidate.image || "";
-    const missingCard = await prisma.missingCard.upsert({
-      where: {
-        code_title_imageUrl: {
-          code: candidate.code,
-          title: candidate.title,
-          imageUrl: imageUrlValue,
-        },
-      },
-      create: {
-        code: candidate.code,
-        title: candidate.title,
-        imageUrl: imageUrlValue,
-      },
-      update: {
-        imageUrl: imageUrlValue || undefined,
-      },
+  for (const cand of enriched) {
+    // Deduplicación cross-evento: reutiliza el MissingCard con la misma llave
+    // canónica (misma carta física en otro evento) en vez de crear uno nuevo.
+    let missingCard = await prisma.missingCard.findFirst({
+      where: { canonicalKey: cand.canonicalKey },
+      orderBy: { id: "asc" },
     });
 
-    console.log(
-      `[missing-cards] Upserted missing card #${missingCard.id} (${candidate.code} / ${candidate.title}) with image ${imageUrlValue}`
-    );
+    if (!missingCard) {
+      missingCard = await prisma.missingCard.upsert({
+        where: {
+          code_title_imageUrl: {
+            code: cand.code,
+            title: cand.title,
+            imageUrl: cand.imageUrl,
+          },
+        },
+        create: {
+          code: cand.code,
+          title: cand.title,
+          imageUrl: cand.imageUrl,
+          canonicalKey: cand.canonicalKey,
+        },
+        update: {
+          imageUrl: cand.imageUrl || undefined,
+          canonicalKey: cand.canonicalKey,
+        },
+      });
+    } else if (!missingCard.imageUrl && cand.imageUrl) {
+      // Rellena la imagen si el primer evento no la traía y este sí.
+      missingCard = await prisma.missingCard.update({
+        where: { id: missingCard.id },
+        data: { imageUrl: cand.imageUrl },
+      });
+    }
 
     if (missingCard.isApproved) {
       await prisma.eventMissingCard.deleteMany({
-        where: {
-          eventId,
-          missingCardId: missingCard.id,
-        },
+        where: { eventId, missingCardId: missingCard.id },
       });
       continue;
     }
 
-    const eventLink = await prisma.eventMissingCard.upsert({
+    await prisma.eventMissingCard.upsert({
       where: {
-        eventId_missingCardId: {
-          eventId,
-          missingCardId: missingCard.id,
-        },
+        eventId_missingCardId: { eventId, missingCardId: missingCard.id },
       },
-      create: {
-        eventId,
-        missingCardId: missingCard.id,
-      },
+      create: { eventId, missingCardId: missingCard.id },
       update: {},
     });
-
-    console.log(
-      `[missing-cards] Linked event ${eventId} -> missing card ${missingCard.id} (link id ${eventLink.id})`
-    );
   }
 
   await prisma.missingCard.deleteMany({
-    where: {
-      isApproved: false,
-      events: { none: {} },
-    },
+    where: { isApproved: false, events: { none: {} } },
   });
 }
 

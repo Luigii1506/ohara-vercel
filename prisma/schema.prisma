@@ -832,6 +832,10 @@ model MissingCard {
   code       String
   title      String
   imageUrl   String
+  // Identidad canónica INDEPENDIENTE del evento (`CÓDIGO|variante`, ej.
+  // "OP15-113|treasure-cup"). La misma carta en distintos eventos comparte
+  // canonicalKey → se colapsa a un solo MissingCard con múltiples eventos.
+  canonicalKey String?
   isApproved Boolean            @default(false)
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
@@ -839,6 +843,7 @@ model MissingCard {
 
   @@unique([code, title, imageUrl], name: "code_title_imageUrl")
   @@index([code])
+  @@index([canonicalKey])
 }
 
 model EventMissingCard {

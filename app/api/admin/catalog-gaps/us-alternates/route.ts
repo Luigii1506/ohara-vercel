@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getDotggPrintings } from "@/lib/services/dotggCatalog";
+import {
+  buildCardIdentityKey,
+  variantSlug,
+} from "@/lib/services/tcgplayerCardData";
 
 /**
  * GET /api/admin/catalog-gaps/us-alternates
@@ -109,12 +113,21 @@ export async function GET(req: NextRequest) {
       select: { code: true, alternateArt: true },
     });
     const ourAltByCode = new Map<string, string[]>();
+    // Variantes (slug canónico) que YA tenemos por código, para el match por
+    // identidad: "OP15-113" → { "treasure-cup", "winner-version", … }.
+    const ourVariantByCode = new Map<string, Set<string>>();
     for (const c of ourAlts) {
       if (!c.code || !c.alternateArt) continue;
       const k = c.code.toUpperCase();
       const arr = ourAltByCode.get(k) ?? [];
       arr.push(c.alternateArt);
       ourAltByCode.set(k, arr);
+      const slug = variantSlug(c.alternateArt);
+      if (slug && slug !== "alternate-art") {
+        const set = ourVariantByCode.get(k) ?? new Set<string>();
+        set.add(slug);
+        ourVariantByCode.set(k, set);
+      }
     }
     const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -127,6 +140,7 @@ export async function GET(req: NextRequest) {
         code: true,
         title: true,
         imageUrl: true,
+        canonicalKey: true,
         events: { select: { event: { select: { title: true, sourceUrl: true } } } },
       },
     });
@@ -137,6 +151,7 @@ export async function GET(req: NextRequest) {
       imageUrl: string | null;
       sourceUrl: string | null;
       eventText: string;
+      variant: string;
     };
     const eventByCode = new Map<string, EventCard[]>();
     for (const m of eventCardsRaw) {
@@ -146,20 +161,33 @@ export async function GET(req: NextRequest) {
       const sourceUrl = m.events.map((e) => e.event.sourceUrl).find(Boolean) ?? null;
       const eventText = norm(`${eventTitles} ${m.title ?? ""}`);
 
-      // ¿Ya tenemos este prize? Si algún alternateArt nuestro (no genérico)
-      // coincide con el texto del evento, lo tenemos → no lo re-ofrecemos.
-      const haveIt = (ourAltByCode.get(code) ?? []).some((alt) => {
-        const na = norm(alt);
-        if (!na || na === "alternate art") return false;
-        return (
-          eventText.includes(na) ||
-          na.split(" ").filter((w) => w.length > 4).some((w) => eventText.includes(w))
-        );
-      });
-      if (haveIt) continue;
+      // Variante canónica de la carta de evento (independiente del evento).
+      const canonicalKey =
+        m.canonicalKey ??
+        buildCardIdentityKey(code, m.title ?? "", eventTitles);
+      const variant = canonicalKey.split("|")[1] || "alternate-art";
+
+      // ¿Ya la tenemos? Señales por orden de confianza:
+      //   1) Variante normalizada: tenemos una alterna del mismo código con la
+      //      misma variante canónica (treasure-cup, winner-version, serial…).
+      //   2) Fuzzy de texto (fallback para variantes sin clasificar).
+      const haveByVariant =
+        variant !== "alternate-art" &&
+        (ourVariantByCode.get(code)?.has(variant) ?? false);
+      const haveByFuzzy =
+        !haveByVariant &&
+        (ourAltByCode.get(code) ?? []).some((alt) => {
+          const na = norm(alt);
+          if (!na || na === "alternate art") return false;
+          return (
+            eventText.includes(na) ||
+            na.split(" ").filter((w) => w.length > 4).some((w) => eventText.includes(w))
+          );
+        });
+      if (haveByVariant || haveByFuzzy) continue;
 
       const arr = eventByCode.get(code) ?? [];
-      arr.push({ id: m.id, code, title: m.title, imageUrl: m.imageUrl, sourceUrl, eventText });
+      arr.push({ id: m.id, code, title: m.title, imageUrl: m.imageUrl, sourceUrl, eventText, variant });
       eventByCode.set(code, arr);
     }
 
@@ -220,11 +248,12 @@ export async function GET(req: NextRequest) {
     for (const [code, cards] of Array.from(eventByCode.entries())) {
       const our = ourCount.get(code) ?? 0;
       for (const m of cards) {
-        candidates.push({
+        (candidates as any[]).push({
           productId: -m.id, // sintético para el key de React
           origin: "events",
           type: our === 0 ? "new" : "alt-art",
           variant: "prize",
+          prizeVariant: m.variant, // variante canónica: treasure-cup, serial…
           code,
           setCode: setOf(code),
           name: m.title ?? code,

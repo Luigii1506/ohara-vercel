@@ -265,3 +265,62 @@ export function parseTcgCard(
     disclaimer,
   };
 }
+
+/**
+ * === Identidad canónica de una carta de premio/alt-art de EVENTO ===
+ *
+ * El texto de un evento ("Treasure Cup August 2026 Top 16 Alt-Art Card
+ * OP15-113 Roronoa Zoro") mezcla identidad (código+nombre), variante ("Alt-Art
+ * Card"/"Serial") y RUIDO del evento ("Treasure Cup August 2026", "Top 16").
+ * Para saber si dos apariciones en eventos distintos son la MISMA carta,
+ * necesitamos una llave estable e independiente del evento.
+ *
+ * La llave = `CÓDIGO|variante-canónica`, donde la variante sale de
+ * classifyAlternateArt (Treasure Cup, Serial, Winner, Alternate Art…). Se
+ * descartan la colocación (Top 8/16/64) y el nombre/fecha del evento.
+ */
+
+/** Slug estable de una variante ("Treasure Cup" → "treasure-cup"). */
+export function variantSlug(variant: string | null | undefined): string {
+  return (variant ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Variante canónica de una carta de evento a partir del texto del evento
+ * (título del evento + título de la carta detectada). Reusa la misma
+ * clasificación que usamos para TCGplayer, así ambas fuentes hablan el mismo
+ * idioma de variantes.
+ */
+export function eventCardVariant(eventText: string | null): string {
+  return classifyAlternateArt(eventText, null, null);
+}
+
+/**
+ * Llave canónica de identidad para una carta detectada (evento o TCGplayer),
+ * independiente del evento concreto. Misma carta en dos eventos → misma llave.
+ *   buildCardIdentityKey("OP15-113", "Treasure Cup Aug 2026 Top 16 Alt-Art…")
+ *     → "OP15-113|treasure-cup"
+ *
+ * `cardText` es el texto propio de la carta y tiene PRIORIDAD: un descriptor
+ * intrínseco (Serial, Winner, Judge…) gana sobre el nombre del evento. Solo si
+ * el texto de la carta no revela variante se usa `eventContext` como respaldo
+ * (útil para layouts viejos donde el <li> solo trae el nombre de la carta).
+ */
+export function buildCardIdentityKey(
+  code: string,
+  cardText: string | null,
+  eventContext?: string | null
+): string {
+  const c = (code ?? "").toUpperCase().trim();
+  let variant = variantSlug(eventCardVariant(cardText));
+  if ((!variant || variant === "alternate-art") && eventContext) {
+    const fallback = variantSlug(
+      eventCardVariant(`${eventContext} ${cardText ?? ""}`)
+    );
+    if (fallback) variant = fallback;
+  }
+  return `${c}|${variant || "alternate-art"}`;
+}

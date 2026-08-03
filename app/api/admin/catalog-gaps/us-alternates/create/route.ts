@@ -13,6 +13,7 @@ import {
   classifyAlternateArt,
   splitDisclaimer,
   deriveSetTitles,
+  normalizeSetCode,
 } from "@/lib/services/tcgplayerCardData";
 
 /**
@@ -37,14 +38,16 @@ async function findOrCreateSet(
   code: string | null
 ): Promise<number> {
   const trimmed = title.trim();
-  // Deck: matchea por code (prefiere el set con más cartas si hay varios).
+  // Con code (deck/premium/booster) matchea por code NORMALIZADO — así "PRB-01"
+  // (TCGplayer) cae en nuestro "PRB01". Prefiere el set con más cartas.
   if (code) {
-    const byCode = await prisma.set.findMany({
-      where: { code: { equals: code, mode: "insensitive" } },
-      select: { id: true, _count: { select: { cards: true } } },
+    const coded = await prisma.set.findMany({
+      where: { code: { not: null } },
+      select: { id: true, code: true, _count: { select: { cards: true } } },
       orderBy: { cards: { _count: "desc" } },
     });
-    if (byCode.length) return byCode[0].id;
+    const match = coded.find((s) => normalizeSetCode(s.code) === code);
+    if (match) return match.id;
   }
   const candidates = await prisma.set.findMany({
     where: { title: { contains: trimmed, mode: "insensitive" } },
@@ -76,13 +79,16 @@ async function resolveSetIds(
 ): Promise<number[]> {
   if (!groupId) return [];
   let groupName: string | null = null;
+  let groupAbbrev: string | null = null;
   try {
     const res: any = await tcgplayerFetch(`/catalog/groups/${groupId}`);
-    groupName = res?.results?.[0]?.name ?? res?.Results?.[0]?.name ?? null;
+    const grp = res?.results?.[0] ?? res?.Results?.[0];
+    groupName = grp?.name ?? null;
+    groupAbbrev = grp?.abbreviation ?? null;
   } catch {
     return [];
   }
-  const targets = deriveSetTitles(groupName, productName);
+  const targets = deriveSetTitles(groupName, groupAbbrev, productName);
   const ids: number[] = [];
   for (const t of targets) ids.push(await findOrCreateSet(t.title, t.code));
   return ids;

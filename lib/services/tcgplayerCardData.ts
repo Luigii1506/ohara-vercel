@@ -143,19 +143,28 @@ export function normalizeDeckSetName(groupName: string): string {
   );
 }
 
+/** Normaliza el abbreviation del grupo TCGplayer a nuestro code: "PRB-01" →
+ *  "PRB01", "ST-31" → "ST31", "OP-01" → "OP01". Vacío → null. */
+export function normalizeSetCode(abbreviation: string | null): string | null {
+  const c = (abbreviation ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return c || null;
+}
+
 /**
- * Sets a los que debe pertenecer una carta según el grupo/nombre de TCGplayer.
- * Devuelve ORDENADOS [principal, ...secundarios] con su code (los DECKS llevan
- * code — ST31, ST10… — a diferencia de la mayoría de sets, que no).
- *   - Promo  → [pack/playmat real, "One Piece Promotion Cards"] (umbrella 2°).
- *   - Deck   → [nombre del deck formateado] con code = ST-NN del GRUPO
- *     ("Starter Deck 31: RED Monkey.D.Luffy" → title "RED Monkey.D.Luffy",
- *     code "ST31"). OJO: el code del deck viene del número del deck, NO del
- *     número de la carta (una carta ST21-001 puede venir en el deck ST-31).
- *   - Otro   → [nombre del grupo] (booster, etc.).
+ * Sets a los que debe pertenecer una carta según el grupo de TCGplayer.
+ * Devuelve ORDENADOS [principal, ...secundarios] con su code.
+ *   - Promo  → [pack/playmat real, "One Piece Promotion Cards"] (umbrella 2°),
+ *     sin code (el abbreviation OP-PR es del paraguas, no de cada pack).
+ *   - Deck   → [nombre del deck formateado] con code del GRUPO (ST31, etc.).
+ *   - Otro   → [nombre del grupo] con code del GRUPO (PRB01, OP01, EB04…).
+ *
+ * El code SIEMPRE sale del `abbreviation` del grupo TCGplayer (no del número de
+ * la carta): un producto "The Best" con carta OP01-121 pertenece al set PRB-01;
+ * una carta ST21-001 puede venir en el deck ST-31.
  */
 export function deriveSetTitles(
   groupName: string | null,
+  groupAbbreviation: string | null,
   productName: string | null
 ): { title: string; code: string | null }[] {
   const g = (groupName ?? "").trim();
@@ -166,12 +175,10 @@ export function deriveSetTitles(
       ? [{ title: pack, code: null }, { title: g, code: null }]
       : [{ title: g, code: null }];
   }
-  const deck = g.match(/^Starter Deck\s*(\d+):/i);
-  if (deck) {
-    const code = `ST${deck[1].padStart(2, "0")}`;
-    return [{ title: normalizeDeckSetName(g), code }];
-  }
-  return [{ title: g, code: null }];
+  const code = normalizeSetCode(groupAbbreviation);
+  // Deck → título formateado ("Starter Deck 31: X" → "X"); demás, grupo tal cual.
+  const title = /^Starter Deck\s*\d+:/i.test(g) ? normalizeDeckSetName(g) : g;
+  return [{ title, code }];
 }
 
 /** Clasifica el alternateArt a partir del nombre del producto + disclaimer.

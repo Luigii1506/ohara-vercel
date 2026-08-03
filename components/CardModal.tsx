@@ -603,7 +603,7 @@ const CardModal: React.FC<CardModalProps> = ({
                 >
                   <div className="">
                     <CardDetails
-                      card={baseCard}
+                      card={selectedCard ?? baseCard}
                       searchTerm=""
                       isModal={true}
                       isTextOnly={false}

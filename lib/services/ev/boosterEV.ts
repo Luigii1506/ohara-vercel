@@ -64,6 +64,52 @@ export interface CardForEv {
   alternateArt: string | null;
   // number | string | Prisma.Decimal | null (estructural para no importar Prisma).
   marketPrice: number | string | { toString(): string } | null;
+  code?: string | null;
+}
+
+/** Prefijo de set de un código: "OP15-118" → "OP15", "P-040" → "P". */
+export function codePrefix(code: string | null | undefined): string {
+  const m = (code ?? "").toUpperCase().match(/^([A-Z]+\d*|[A-Z]+)/);
+  return m ? m[1] : "";
+}
+
+/**
+ * Sets "curados" (reimpresiones/promos) que LEGÍTIMAMENTE mezclan cartas de
+ * muchos sets: ahí no hay que filtrar por prefijo. Ej. "One Piece The Best",
+ * "Premium Booster", "Anime 25th Collection", promos.
+ */
+export function isCuratedSet(name: string | null | undefined): boolean {
+  const n = (name ?? "").toLowerCase();
+  return /\bbest\b|premium|collection|promo|promotional|limited|misc|anniversary|memorial|the best/.test(
+    n
+  );
+}
+
+/**
+ * Pool de cartas que REALMENTE puede salir del sobre de este set. En un booster
+ * normal el pool es su prefijo dominante; la cola foránea (cartas mal linkeadas
+ * de otros sets) se descarta para no inflar el EV. En sets curados se conserva
+ * todo (su mezcla es real).
+ */
+export function selectEvPool<T extends { code?: string | null }>(
+  cards: T[],
+  setName?: string | null
+): T[] {
+  if (cards.length === 0) return cards;
+  if (isCuratedSet(setName)) return cards;
+
+  // Prefijo dominante por conteo.
+  const byPrefix = new Map<string, number>();
+  for (const c of cards) {
+    const p = codePrefix(c.code);
+    if (!p) continue;
+    byPrefix.set(p, (byPrefix.get(p) ?? 0) + 1);
+  }
+  if (byPrefix.size <= 1) return cards;
+  const dominant = Array.from(byPrefix.entries()).sort(
+    (a, b) => b[1] - a[1]
+  )[0][0];
+  return cards.filter((c) => codePrefix(c.code) === dominant);
 }
 
 /** Mapea el bucket base a partir del string de rareza. */
@@ -216,10 +262,16 @@ function verdictFor(ratio: number | null): EvVerdict | null {
  * el tipo/nombre, escala el EV y emite veredicto vs el precio de mercado.
  */
 export function computeProductEv(
-  product: { productType: string; name: string; marketPrice: number | string | null },
-  cards: CardForEv[]
+  product: {
+    productType: string;
+    name: string;
+    marketPrice: number | string | { toString(): string } | null;
+  },
+  cards: CardForEv[],
+  setName?: string | null
 ): ProductEv {
-  const box = computeBoxEv(cards);
+  const pool = selectEvPool(cards, setName);
+  const box = computeBoxEv(pool);
   const { unit, multiplier } = productEvUnit(product.productType, product.name);
   const price = num(product.marketPrice);
 

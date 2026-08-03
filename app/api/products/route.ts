@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
             OR: [{ region: "US" }, { region: null }],
           },
           select: {
+            code: true,
             rarity: true,
             alternateArt: true,
             marketPrice: true,
@@ -118,7 +119,8 @@ export async function GET(req: NextRequest) {
           if (!pool.length) return { ...p, ev: null };
           const ev = computeProductEv(
             { productType: p.productType, name: p.name, marketPrice: p.marketPrice as any },
-            pool
+            pool,
+            p.set?.title
           );
           return {
             ...p,

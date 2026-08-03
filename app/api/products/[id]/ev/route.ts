@@ -2,7 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { computeProductEv, bucketOf } from "@/lib/services/ev/boosterEV";
+import {
+  computeProductEv,
+  bucketOf,
+  selectEvPool,
+} from "@/lib/services/ev/boosterEV";
 
 /**
  * GET /api/products/[id]/ev — desglose de valor esperado de un producto sellado:
@@ -54,11 +58,13 @@ export async function GET(
         name: product.name,
         marketPrice: product.marketPrice as any,
       },
-      cards
+      cards,
+      product.set.title
     );
 
-    // Top cartas "chase": mayor precio de mercado, solo las que salen en sobres.
-    const topCards = cards
+    // Top cartas "chase": del pool real (mismo filtro que el EV), mayor precio.
+    const pool = selectEvPool(cards, product.set.title);
+    const topCards = pool
       .filter((c) => bucketOf(c) && c.marketPrice != null)
       .map((c) => ({
         id: c.id,

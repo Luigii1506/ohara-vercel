@@ -45,6 +45,12 @@ type ProductItem = {
   priceCurrency?: string | null;
   tcgUrl?: string | null;
   set?: { id: number; title: string } | null;
+  ev?: {
+    unit: "pack" | "box" | "case" | null;
+    ev: number | null;
+    marginPct: number | null;
+    verdict: "oro" | "justo" | "caro" | null;
+  } | null;
   createdAt: string;
 };
 
@@ -231,6 +237,14 @@ const formatPrice = (
   }).format(numeric);
 };
 
+/** Clase de color del badge de EV según el veredicto. */
+const evBadgeClass = (verdict: "oro" | "justo" | "caro") =>
+  verdict === "oro"
+    ? "bg-amber-400 text-amber-950"
+    : verdict === "justo"
+      ? "bg-slate-200 text-slate-700"
+      : "bg-rose-100 text-rose-700";
+
 const formatReleaseDate = (value?: string | null) => {
   if (!value) return null;
   const parsed = new Date(value);
@@ -275,6 +289,32 @@ const ProductsClient = () => {
     }[]
   >([]);
   const [modalCardsLoading, setModalCardsLoading] = useState(false);
+  const [productEv, setProductEv] = useState<{
+    applicable: boolean;
+    unit: "pack" | "box" | "case" | null;
+    ev: number | null;
+    price: number | null;
+    marginPct: number | null;
+    verdict: "oro" | "justo" | "caro" | null;
+    evBox: number;
+    evPack: number;
+    buckets: {
+      bucket: string;
+      count: number;
+      avgPrice: number;
+      ratePerBox: number;
+      evPerBox: number;
+    }[];
+    topCards: {
+      id: number;
+      name: string;
+      code: string;
+      rarity: string | null;
+      alternateArt: string | null;
+      marketPrice: number;
+      src: string | null;
+    }[];
+  } | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(
     null,
@@ -296,6 +336,7 @@ const ProductsClient = () => {
     if (debouncedSearch.trim()) {
       params.set("search", debouncedSearch.trim());
     }
+    params.set("withEv", "1"); // trae EV para el badge "es oro" del grid
 
     const response = await fetch(`/api/products?${params.toString()}`);
     if (!response.ok) {
@@ -325,11 +366,13 @@ const ProductsClient = () => {
     if (!selectedProduct) {
       setShowLargeImage(false);
       setModalCards([]);
+      setProductEv(null);
       return;
     }
     let cancelled = false;
     setModalCardsLoading(true);
     setModalCards([]);
+    setProductEv(null);
     fetch(`/api/products/${selectedProduct.id}/cards`)
       .then((r) => r.json())
       .then((d) => {
@@ -339,6 +382,12 @@ const ProductsClient = () => {
       .finally(() => {
         if (!cancelled) setModalCardsLoading(false);
       });
+    fetch(`/api/products/${selectedProduct.id}/ev`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d && d.applicable !== false) setProductEv(d);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -660,6 +709,22 @@ const ProductsClient = () => {
           <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
             {typeLabel}
           </span>
+          {product.ev?.verdict && (
+            <span
+              className={`absolute right-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold shadow-sm ${evBadgeClass(
+                product.ev.verdict
+              )}`}
+              title={`EV estimado ${
+                product.ev.ev != null ? `$${product.ev.ev.toFixed(2)}` : ""
+              } (${product.ev.unit})`}
+            >
+              {product.ev.verdict === "oro"
+                ? "★ ES ORO"
+                : `${product.ev.marginPct! >= 0 ? "+" : ""}${Math.round(
+                    product.ev.marginPct ?? 0
+                  )}%`}
+            </span>
+          )}
         </div>
         <div className="flex flex-1 flex-col p-2.5">
           <div className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">
@@ -670,15 +735,132 @@ const ProductsClient = () => {
               {product.set.title}
             </div>
           )}
-          <div className="mt-auto pt-2">
+          <div className="mt-auto flex items-center justify-between pt-2">
             {priceLabel ? (
               <span className="text-base font-bold text-emerald-600">{priceLabel}</span>
             ) : (
               <span className="text-xs text-slate-400">Sin precio</span>
             )}
+            {product.ev?.ev != null && (
+              <span className="text-[11px] font-medium text-slate-500">
+                EV ${product.ev.ev.toFixed(2)}
+              </span>
+            )}
           </div>
         </div>
       </button>
+    );
+  };
+
+  // Panel de EV para el modal (desktop y mobile).
+  const prettyBucket = (b: string) =>
+    b
+      .replace(/^ALT_/, "Alt ")
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const renderEvPanel = () => {
+    if (!productEv?.applicable) return null;
+    const { verdict, ev, price, marginPct, unit, evPack, buckets, topCards } =
+      productEv;
+    const unitLabel =
+      unit === "pack" ? "sobre" : unit === "case" ? "case" : "caja";
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">
+              Valor esperado ({unitLabel})
+            </h3>
+            <p className="mt-0.5 text-2xl font-bold text-slate-900">
+              {ev != null ? `$${ev.toFixed(2)}` : "—"}
+              {price != null && (
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  vs ${price.toFixed(2)}
+                </span>
+              )}
+            </p>
+          </div>
+          {verdict && (
+            <span
+              className={`rounded-lg px-3 py-1.5 text-sm font-bold ${evBadgeClass(
+                verdict,
+              )}`}
+            >
+              {verdict === "oro"
+                ? "★ ES ORO"
+                : verdict === "justo"
+                  ? "JUSTO"
+                  : "CARO"}
+              {marginPct != null && (
+                <span className="ml-1 font-semibold">
+                  {marginPct >= 0 ? "+" : ""}
+                  {Math.round(marginPct)}%
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-1.5 text-[11px] text-slate-400">
+          EV por sobre ${evPack.toFixed(2)} · estimado con precios de mercado y
+          tasas estándar de pull (editable).
+        </p>
+
+        {topCards.length > 0 && (
+          <div className="mt-3">
+            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Cartas chase
+            </h4>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {topCards.map((c) => (
+                <div key={c.id} className="w-16 shrink-0 text-center">
+                  {c.src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.src}
+                      alt={c.code}
+                      className="w-full rounded ring-1 ring-slate-200"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="aspect-[5/7] rounded bg-slate-200" />
+                  )}
+                  <div className="mt-0.5 text-[10px] font-semibold text-emerald-600">
+                    ${c.marketPrice.toFixed(0)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {buckets.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Aporte por rareza (caja)
+            </h4>
+            {buckets
+              .filter((b) => b.evPerBox > 0.01)
+              .slice(0, 6)
+              .map((b) => (
+                <div
+                  key={b.bucket}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="text-slate-600">{prettyBucket(b.bucket)}</span>
+                  <span className="tabular-nums text-slate-400">
+                    {b.ratePerBox}× ${b.avgPrice.toFixed(2)} ={" "}
+                    <span className="font-semibold text-slate-700">
+                      ${b.evPerBox.toFixed(2)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -924,6 +1106,8 @@ const ProductsClient = () => {
                   )}
                   </div>
                 </div>
+                {/* Valor esperado / "es oro" */}
+                {renderEvPanel()}
                 {/* Cartas del set (full width) */}
                 {selectedProduct.set && (
                   <div className="border-t border-slate-100 pt-4">
@@ -1129,6 +1313,9 @@ const ProductsClient = () => {
                   </p>
                 )}
               </div>
+
+              {/* Valor esperado / "es oro" */}
+              {renderEvPanel()}
 
               {/* Cartas del set */}
               {selectedProduct.set && (

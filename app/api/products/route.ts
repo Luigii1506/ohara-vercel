@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { computeProductEv } from "@/lib/services/ev/boosterEV";
 
 const DEFAULT_LIMIT = 24;
 
@@ -82,9 +83,61 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
+    // EV opcional para el badge del grid: una sola query de cartas para todos
+    // los sets de la página, luego EV por producto.
+    let itemsOut: any[] = items;
+    if (req.nextUrl.searchParams.get("withEv") === "1") {
+      const setIds = Array.from(
+        new Set(items.map((p) => p.set?.id).filter((v): v is number => !!v))
+      );
+      if (setIds.length) {
+        const cards = await prisma.card.findMany({
+          where: {
+            sets: { some: { setId: { in: setIds } } },
+            OR: [{ region: "US" }, { region: null }],
+          },
+          select: {
+            rarity: true,
+            alternateArt: true,
+            marketPrice: true,
+            sets: { select: { setId: true } },
+          },
+        });
+        const cardsBySet = new Map<number, any[]>();
+        for (const c of cards) {
+          for (const s of c.sets) {
+            if (!setIds.includes(s.setId)) continue;
+            const arr = cardsBySet.get(s.setId) ?? [];
+            arr.push(c);
+            cardsBySet.set(s.setId, arr);
+          }
+        }
+        itemsOut = items.map((p) => {
+          const setId = p.set?.id;
+          const pool = setId ? cardsBySet.get(setId) ?? [] : [];
+          if (!pool.length) return { ...p, ev: null };
+          const ev = computeProductEv(
+            { productType: p.productType, name: p.name, marketPrice: p.marketPrice as any },
+            pool
+          );
+          return {
+            ...p,
+            ev: ev.applicable
+              ? {
+                  unit: ev.unit,
+                  ev: ev.ev,
+                  marginPct: ev.marginPct,
+                  verdict: ev.verdict,
+                }
+              : null,
+          };
+        });
+      }
+    }
+
     return NextResponse.json(
       {
-        items,
+        items: itemsOut,
         total,
         page,
         pageSize: limit,

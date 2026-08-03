@@ -596,105 +596,132 @@ const ProductsClient = () => {
     setGlarePosition({ x: 50, y: 50 });
   }, []);
 
+  const renderCompactCard = (product: ProductItem) => {
+    const priceLabel =
+      formatPrice(product.marketPrice, product.priceCurrency ?? "USD") ??
+      formatPrice(product.officialPrice, product.officialPriceCurrency);
+    const img = product.imageUrl || product.thumbnailUrl;
+    const typeLabel =
+      PRODUCT_TYPES.find((t) => t.key === product.productType)?.label ??
+      product.productType.replaceAll("_", " ");
+    return (
+      <button
+        key={product.id}
+        onClick={() => setSelectedProduct(product)}
+        className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+      >
+        <div className="relative aspect-square bg-slate-50">
+          {img ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={img}
+              alt={product.name}
+              className="h-full w-full object-contain p-2 transition group-hover:scale-[1.03]"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-slate-300">
+              <Boxes className="h-8 w-8" />
+            </div>
+          )}
+          <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            {typeLabel}
+          </span>
+        </div>
+        <div className="flex flex-1 flex-col p-2.5">
+          <div className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">
+            {product.name}
+          </div>
+          {product.set && (
+            <div className="mt-0.5 truncate text-[11px] text-slate-400">
+              {product.set.title}
+            </div>
+          )}
+          <div className="mt-auto pt-2">
+            {priceLabel ? (
+              <span className="text-base font-bold text-emerald-600">{priceLabel}</span>
+            ) : (
+              <span className="text-xs text-slate-400">Sin precio</span>
+            )}
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="min-h-screen w-full bg-[radial-gradient(circle_at_top_left,_rgba(255,237,213,0.85),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(219,234,254,0.85),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)]">
       <div className="mx-auto max-w-7xl px-4 pb-14 pt-6 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <Card className="border-white/70 bg-white/85 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur">
             <CardContent className="space-y-5 p-4 sm:p-5">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Buscar por nombre, línea o set..."
+                    placeholder="Buscar producto..."
                     className="h-11 rounded-2xl border-slate-200 bg-white pl-10"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="md:hidden"
-                    onClick={() => setIsFilterOpen(true)}
-                  >
-                    <SlidersHorizontal className="mr-2 h-4 w-4" />
-                    Filtros
-                  </Button>
-                  <Button
-                    variant={viewMode === "grid" ? "default" : "outline"}
-                    size="icon"
-                    onClick={() => setViewMode("grid")}
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === "list" ? "default" : "outline"}
-                    size="icon"
-                    onClick={() => setViewMode("list")}
-                  >
-                    <LayoutList className="h-4 w-4" />
-                  </Button>
-                </div>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400"
+                >
+                  {PRODUCT_TYPES.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400"
+                >
+                  {SORT_OPTIONS.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="hidden items-center justify-between gap-4 md:flex">
-                <div className="flex flex-wrap gap-2">
-                  {SORT_OPTIONS.map((option) => {
-                    const isActive = sort === option.key;
+              {/* Chips rápidos de los tipos más comunes */}
+              <div className="flex flex-wrap gap-2">
+                {["all", "BOOSTER", "DISPLAY_BOX", "STARTER_DECK", "PREMIUM_CARD_COLLECTION", "ANNIVERSARY_SET"].map(
+                  (key) => {
+                    const label =
+                      PRODUCT_TYPES.find((t) => t.key === key)?.label ?? key;
+                    const isActive = typeFilter === key;
                     return (
                       <button
-                        key={option.key}
-                        onClick={() => setSort(option.key)}
+                        key={key}
+                        onClick={() => setTypeFilter(key)}
                         className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
                           isActive
                             ? "border-slate-900 bg-slate-900 text-white"
                             : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        {option.label}
+                        {label}
                       </button>
                     );
-                  })}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span>
-                    {loading ? "Cargando..." : `${total} producto(s)`}
-                  </span>
-                  {hasActiveFilters && (
-                    <Badge variant="secondary" className="text-[11px]">
-                      {activeTypeLabel || "Filtrado"}
-                    </Badge>
-                  )}
+                  }
+                )}
+                <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+                  <span>{loading ? "Cargando..." : `${total.toLocaleString()} producto(s)`}</span>
                   {hasActiveFilters && (
                     <button
                       onClick={clearFilters}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-600 hover:bg-slate-50"
                     >
-                      Limpiar filtros
+                      Limpiar
                     </button>
                   )}
                 </div>
-              </div>
-
-              <div className="hidden flex-wrap gap-2 md:flex">
-                {PRODUCT_TYPES.map((filter) => {
-                  const isActive = typeFilter === filter.key;
-                  return (
-                    <button
-                      key={filter.key}
-                      onClick={() => setTypeFilter(filter.key)}
-                      className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
-                        isActive
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {filter.label}
-                    </button>
-                  );
-                })}
               </div>
             </CardContent>
           </Card>
@@ -708,70 +735,8 @@ const ProductsClient = () => {
               No se encontraron productos con esos filtros.
             </div>
           ) : (
-            <div className="space-y-10">
-              {sections.map((section) => (
-                <section key={section.key} className="space-y-5">
-                  <div className="flex flex-col gap-3 rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] backdrop-blur sm:flex-row sm:items-end sm:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br ${
-                          getTypeMeta(section.layoutKey).surface
-                        } text-slate-800`}
-                      >
-                        {(() => {
-                          const SectionIcon = getTypeMeta(
-                            section.layoutKey,
-                          ).icon;
-                          return <SectionIcon className="h-6 w-6" />;
-                        })()}
-                      </div>
-                      <div className="space-y-1">
-                        <h2 className="text-xl font-semibold text-slate-950">
-                          {section.label}
-                        </h2>
-                        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                          {getTypeMeta(section.layoutKey).description}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      {section.products.length} item(s)
-                    </span>
-                  </div>
-
-                  <div className="space-y-6">
-                    {groupBySet(section.products).map((group) => (
-                      <div
-                        key={group.key}
-                        className="rounded-[28px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5"
-                      >
-                        <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
-                          <div>
-                            <span className="font-semibold uppercase tracking-[0.18em]">
-                              {group.title}
-                            </span>
-                            <p className="mt-1 text-[11px] text-slate-400">
-                              {group.products.length} producto(s) agrupados por
-                              set
-                            </p>
-                          </div>
-                        </div>
-                        <div
-                          className={
-                            viewMode === "grid"
-                              ? resolveGridClass(section.layoutKey)
-                              : "w-full space-y-4"
-                          }
-                        >
-                          {group.products.map((product) =>
-                            renderProductCard(product, viewMode === "list"),
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {products.map((product) => renderCompactCard(product))}
             </div>
           )}
 

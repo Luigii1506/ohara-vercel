@@ -1970,14 +1970,36 @@ async function detectSetsAndCards(
     }
   }
 
-  // === Layout 2026 (editor_row / text-area / photo-panel) ===
+  // === Layout 2026 (text-area / galería js-setGallery) ===
   // El sitio oficial ya no usa section.contentsmcol. Ahora los códigos de carta
-  // aparecen en headings/list-items/captions con contexto de premio
-  // ("Top 64 Alt-Art Card OP15-092 …") y las imágenes en .photo-panel.
-  // Escaneamos texto suelto, extraemos código y asociamos imagen cercana.
-  const seenModern = new Set(
-    cardCandidates.map((c) => `${c.code}|${c.image ?? ""}`)
-  );
+  // aparecen en headings/list-items con contexto de premio ("Top 64 Alt-Art Card
+  // OP15-092 …") y las imágenes viven en una GALERÍA compartida (.js-setGallery),
+  // NO junto a cada carta. Pero el nombre del archivo lleva el código
+  // (batch_OP15-092.webp, OP12_020.webp), así que asociamos la imagen por código.
+  //
+  // 1) Mapa código → imagen a partir del filename de cada <img> de la página.
+  const imageByCode = new Map<string, string>();
+  $("img").each((_, img) => {
+    const src = $(img).attr("src") || $(img).attr("data-src");
+    if (!src) return;
+    const fileName = src.split("/").pop() || "";
+    // Normaliza OP15_092 → OP15-092 para que extractCardCode lo reconozca.
+    const normalized = fileName.replace(/_/g, "-");
+    const codeInfo = extractCardCode(normalized);
+    if (!codeInfo) return;
+    if (!imageByCode.has(codeInfo.code)) {
+      const resolved = resolveImageUrl(src, baseUrl);
+      if (resolved) imageByCode.set(codeInfo.code, resolved);
+    }
+  });
+
+  // 2) Texto suelto → código. Deduplicamos por CÓDIGO (el <li> de ranking y el
+  //    <h4> de galería son la misma carta), prefiriendo el título "Alt-Art".
+  const modernByCode = new Map<
+    string,
+    { code: string; title: string; image: string | null }
+  >();
+  const existingCodes = new Set(cardCandidates.map((c) => c.code));
   const textEls = $(
     "h1,h2,h3,h4,h5,h6,li,figcaption,.text-area,.menuColListLinkTit,.menuColListLinkTxt"
   ).toArray();
@@ -1989,22 +2011,25 @@ async function detectSetsAndCards(
     if (!rawText || rawText.length > 220) continue;
     const codeInfo = extractCardCode(rawText);
     if (!codeInfo) continue;
-    const container = $el.closest(
-      ".editor_row, .bgFrame, .row, section, article, .menuColListItem"
-    );
-    const imgSrc =
-      container
-        .find("img.img-card, .photo-panel img, img.img-middle, img.img-zoom")
-        .first()
-        .attr("src") ||
-      $el.nextAll().find("img").first().attr("src") ||
-      undefined;
-    const image = resolveImageUrl(imgSrc, baseUrl);
-    const key = `${codeInfo.code}|${image ?? ""}`;
-    if (seenModern.has(key)) continue;
-    seenModern.add(key);
-    const title = extractCardTitle(rawText, codeInfo.match, undefined) || rawText;
-    cardCandidates.push({ code: codeInfo.code, title, image });
+    if (existingCodes.has(codeInfo.code)) continue; // ya lo detectó el pass clásico
+
+    const title =
+      extractCardTitle(rawText, codeInfo.match, undefined) || rawText;
+    const image = imageByCode.get(codeInfo.code) ?? null;
+    const prev = modernByCode.get(codeInfo.code);
+    // Prefiere el candidato con imagen y/o con título "Alt-Art" (más descriptivo).
+    const isAltArt = /alt-?art/i.test(title);
+    const prevIsAltArt = prev ? /alt-?art/i.test(prev.title) : false;
+    if (
+      !prev ||
+      (image && !prev.image) ||
+      (isAltArt && !prevIsAltArt)
+    ) {
+      modernByCode.set(codeInfo.code, { code: codeInfo.code, title, image });
+    }
+  }
+  for (const candidate of Array.from(modernByCode.values())) {
+    cardCandidates.push(candidate);
   }
 
   return { sets: setCandidates, cards: cardCandidates };

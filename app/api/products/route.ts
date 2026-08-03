@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const type = req.nextUrl.searchParams.get("type") ?? "all";
     const sort = req.nextUrl.searchParams.get("sort") ?? "recent";
     const archived = req.nextUrl.searchParams.get("archived") ?? "false";
+    const setIdParam = req.nextUrl.searchParams.get("setId") ?? "";
     const limitParam = req.nextUrl.searchParams.get("limit");
     const pageParam = req.nextUrl.searchParams.get("page");
 
@@ -32,12 +33,19 @@ export async function GET(req: NextRequest) {
     if (archived !== "all") {
       where.isArchived = archived === "true";
     }
+    if (setIdParam && Number(setIdParam)) {
+      where.setId = Number(setIdParam);
+    }
 
     const orderBy: Prisma.ProductOrderByWithRelationInput =
       sort === "name"
         ? { name: "asc" }
         : sort === "type"
         ? { productType: "asc" }
+        : sort === "price_desc"
+        ? { marketPrice: { sort: "desc", nulls: "last" } }
+        : sort === "price_asc"
+        ? { marketPrice: { sort: "asc", nulls: "last" } }
         : { createdAt: "desc" };
 
     const [items, total] = await Promise.all([
@@ -57,6 +65,11 @@ export async function GET(req: NextRequest) {
           releaseDate: true,
           officialPrice: true,
           officialPriceCurrency: true,
+          marketPrice: true,
+          lowPrice: true,
+          highPrice: true,
+          priceCurrency: true,
+          tcgUrl: true,
           set: {
             select: {
               id: true,

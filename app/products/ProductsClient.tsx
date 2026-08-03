@@ -39,6 +39,11 @@ type ProductItem = {
   releaseDate?: string | null;
   officialPrice?: string | number | null;
   officialPriceCurrency?: string | null;
+  marketPrice?: string | number | null;
+  lowPrice?: string | number | null;
+  highPrice?: string | number | null;
+  priceCurrency?: string | null;
+  tcgUrl?: string | null;
   set?: { id: number; title: string } | null;
   createdAt: string;
 };
@@ -78,14 +83,31 @@ const PRODUCT_TYPES = [
 
 const SORT_OPTIONS = [
   { key: "recent", label: "Recientes" },
+  { key: "price_desc", label: "Precio: mayor" },
+  { key: "price_asc", label: "Precio: menor" },
   { key: "name", label: "Nombre" },
   { key: "type", label: "Tipo" },
 ];
 
 const SECTION_ORDER = [
-  { key: "SLEEVE", label: "Sleeves" },
-  { key: "PLAYMAT", label: "Playmats" },
+  { key: "BOOSTER", label: "Booster Packs" },
+  { key: "DISPLAY_BOX", label: "Booster Boxes" },
+  { key: "PREMIUM_BOOSTER_BOX", label: "Premium Booster Boxes" },
+  { key: "STARTER_DECK", label: "Starter Decks" },
+  { key: "DECK", label: "Decks" },
+  { key: "DOUBLE_PACK", label: "Double Packs" },
+  { key: "PREMIUM_CARD_COLLECTION", label: "Premium Collections" },
+  { key: "ANNIVERSARY_SET", label: "Anniversary Sets" },
+  { key: "COLLECTORS_SET", label: "Collector Sets" },
+  { key: "TIN_PACK", label: "Tins" },
+  { key: "PROMO_PACK", label: "Promo Packs" },
+  { key: "DEVIL_FRUIT", label: "Devil Fruit" },
+  { key: "ILLUSTRATION_BOX", label: "Illustration Boxes" },
   { key: "UNCUT_SHEET", label: "Uncut Sheets" },
+  { key: "PLAYMAT", label: "Playmats" },
+  { key: "SLEEVE", label: "Sleeves" },
+  { key: "DECK_BOX", label: "Deck Boxes" },
+  { key: "STORAGE_BOX", label: "Storage Boxes" },
 ];
 
 const TYPE_METADATA: Record<
@@ -438,10 +460,10 @@ const ProductsClient = () => {
 
   const renderProductCard = (product: ProductItem, isList: boolean) => {
     const meta = getTypeMeta(product.productType);
-    const priceLabel = formatPrice(
-      product.officialPrice,
-      product.officialPriceCurrency,
-    );
+    // Preferir el precio real de mercado (TCGplayer); fallback al oficial.
+    const priceLabel =
+      formatPrice(product.marketPrice, product.priceCurrency ?? "USD") ??
+      formatPrice(product.officialPrice, product.officialPriceCurrency);
     const releaseLabel = formatReleaseDate(product.releaseDate);
 
     return (
@@ -867,8 +889,34 @@ const ProductsClient = () => {
                     <Badge variant="secondary">
                       {selectedProduct.productType}
                     </Badge>
-                    <Badge variant="outline">Producto oficial</Badge>
+                    {selectedProduct.set && (
+                      <Badge variant="outline">{selectedProduct.set.title}</Badge>
+                    )}
                   </div>
+                  {/* Precio real de mercado (TCGplayer) */}
+                  {formatPrice(selectedProduct.marketPrice, selectedProduct.priceCurrency ?? "USD") && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-3xl font-bold text-emerald-600">
+                        {formatPrice(selectedProduct.marketPrice, selectedProduct.priceCurrency ?? "USD")}
+                      </span>
+                      {(selectedProduct.lowPrice || selectedProduct.highPrice) && (
+                        <span className="text-xs text-slate-500">
+                          Rango {formatPrice(selectedProduct.lowPrice, "USD") ?? "—"} –{" "}
+                          {formatPrice(selectedProduct.highPrice, "USD") ?? "—"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {selectedProduct.tcgUrl && (
+                    <a
+                      href={selectedProduct.tcgUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Ver en TCGplayer
+                    </a>
+                  )}
                   {selectedProduct.description ? (
                     <p className="text-sm text-slate-600">
                       {selectedProduct.description}

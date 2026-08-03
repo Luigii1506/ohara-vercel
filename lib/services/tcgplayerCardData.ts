@@ -143,24 +143,20 @@ export function normalizeDeckSetName(groupName: string): string {
   );
 }
 
-/** Prefijo de set/deck de un número de carta: "ST21-001" → "ST21", "P-135" → "P". */
-export function setCodeFromNumber(cardNumber: string | null): string | null {
-  const m = (cardNumber ?? "").toUpperCase().match(/^([A-Z]+\d*)/);
-  return m ? m[1] : null;
-}
-
 /**
  * Sets a los que debe pertenecer una carta según el grupo/nombre de TCGplayer.
  * Devuelve ORDENADOS [principal, ...secundarios] con su code (los DECKS llevan
- * code — ST21, ST10… — a diferencia de la mayoría de sets, que no).
+ * code — ST31, ST10… — a diferencia de la mayoría de sets, que no).
  *   - Promo  → [pack/playmat real, "One Piece Promotion Cards"] (umbrella 2°).
- *   - Deck   → [nombre del deck formateado] con code = prefijo del número.
+ *   - Deck   → [nombre del deck formateado] con code = ST-NN del GRUPO
+ *     ("Starter Deck 31: RED Monkey.D.Luffy" → title "RED Monkey.D.Luffy",
+ *     code "ST31"). OJO: el code del deck viene del número del deck, NO del
+ *     número de la carta (una carta ST21-001 puede venir en el deck ST-31).
  *   - Otro   → [nombre del grupo] (booster, etc.).
  */
 export function deriveSetTitles(
   groupName: string | null,
-  productName: string | null,
-  cardNumber?: string | null
+  productName: string | null
 ): { title: string; code: string | null }[] {
   const g = (groupName ?? "").trim();
   if (!g) return [];
@@ -170,9 +166,10 @@ export function deriveSetTitles(
       ? [{ title: pack, code: null }, { title: g, code: null }]
       : [{ title: g, code: null }];
   }
-  if (/^Starter Deck\s*\d+:/i.test(g)) {
-    // Deck → nombre formateado + code del número (ST21).
-    return [{ title: normalizeDeckSetName(g), code: setCodeFromNumber(cardNumber ?? null) }];
+  const deck = g.match(/^Starter Deck\s*(\d+):/i);
+  if (deck) {
+    const code = `ST${deck[1].padStart(2, "0")}`;
+    return [{ title: normalizeDeckSetName(g), code }];
   }
   return [{ title: g, code: null }];
 }

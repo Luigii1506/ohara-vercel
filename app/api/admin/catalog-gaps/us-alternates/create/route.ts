@@ -72,8 +72,7 @@ async function findOrCreateSet(
  */
 async function resolveSetIds(
   groupId: number | null,
-  productName: string | null,
-  cardNumber: string | null
+  productName: string | null
 ): Promise<number[]> {
   if (!groupId) return [];
   let groupName: string | null = null;
@@ -83,7 +82,7 @@ async function resolveSetIds(
   } catch {
     return [];
   }
-  const targets = deriveSetTitles(groupName, productName, cardNumber);
+  const targets = deriveSetTitles(groupName, productName);
   const ids: number[] = [];
   for (const t of targets) ids.push(await findOrCreateSet(t.title, t.code));
   return ids;
@@ -124,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
-    const setIds = await resolveSetIds(groupId, prod.name, prod.number);
+    const setIds = await resolveSetIds(groupId, prod.name);
     const setId = setIds[0] ?? null; // principal (para la respuesta)
     const setsCreate = setIds.length
       ? { sets: { create: setIds.map((id) => ({ setId: id })) } }

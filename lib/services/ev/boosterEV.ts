@@ -33,22 +33,31 @@ export const BOXES_PER_CASE = 12;
 
 /**
  * TASAS = copias esperadas de cada bucket POR CAJA (24 sobres = 288 cartas).
- * Los no-hit (Common/Uncommon/Rare) llenan el grueso; los ALT_* y SEC son los
- * drivers de valor. EDITABLE: son estimaciones estándar de OP, ajústalas.
+ *
+ * Calibradas con datos de la comunidad (Bandai NO publica odds oficiales), que
+ * convergen en, por caja de 24 sobres:
+ *   · Super Rare (base) ~4–5   · Secret Rare (base) ~0.5   · Leader base 2
+ *   · Rare ~24                  · Parallels/alt-art TOTALES ~1.5 (incl. Leader
+ *     parallel)                 · Special Rare (SP) ~1 por case (0.08/caja)
+ *   · Manga Rare "casi nunca"   · el resto Common/Uncommon
+ * Los ALT_* (parallels) reparten ese ~1.5 pesando hacia R/SR (más frecuentes) y
+ * menos hacia Leader/SEC (raros). EDITABLE: ajusta por set si tienes mejores
+ * datos. Fuentes: archivedrops, cardcosmos, tcgtalk (community pull-rate guides).
  */
 export const PULL_RATES: Record<EvBucket, number> = {
-  COMMON: 132,
-  UNCOMMON: 60,
-  RARE: 48,
-  LEADER: 24,
-  SUPER_RARE: 20,
-  SECRET_RARE: 1.0,
-  TREASURE_RARE: 0.15,
-  SPECIAL_CARD: 0.3,
-  ALT_RARE: 2.0,
-  ALT_SUPER_RARE: 1.2,
-  ALT_SECRET_RARE: 0.25,
-  ALT_LEADER: 0.5,
+  COMMON: 144, // ~6/sobre
+  UNCOMMON: 72, // ~3/sobre
+  RARE: 24, // ~1/sobre (base)
+  LEADER: 2, // 2 líderes base por caja
+  SUPER_RARE: 5, // 4–5 SR base por caja
+  SECRET_RARE: 0.5, // ~1 cada 2 cajas
+  TREASURE_RARE: 0.05,
+  SPECIAL_CARD: 0.08, // SP ~1 por case
+  // Parallels / alt-art: ~1.5 en total por caja
+  ALT_RARE: 0.6,
+  ALT_SUPER_RARE: 0.55,
+  ALT_SECRET_RARE: 0.08,
+  ALT_LEADER: 0.25,
 };
 
 /** Umbrales del veredicto (EV / precio). */

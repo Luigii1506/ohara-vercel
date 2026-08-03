@@ -143,27 +143,38 @@ export function normalizeDeckSetName(groupName: string): string {
   );
 }
 
+/** Prefijo de set/deck de un número de carta: "ST21-001" → "ST21", "P-135" → "P". */
+export function setCodeFromNumber(cardNumber: string | null): string | null {
+  const m = (cardNumber ?? "").toUpperCase().match(/^([A-Z]+\d*)/);
+  return m ? m[1] : null;
+}
+
 /**
  * Sets a los que debe pertenecer una carta según el grupo/nombre de TCGplayer.
- * Devuelve títulos ORDENADOS: [principal, ...secundarios].
+ * Devuelve ORDENADOS [principal, ...secundarios] con su code (los DECKS llevan
+ * code — ST21, ST10… — a diferencia de la mayoría de sets, que no).
  *   - Promo  → [pack/playmat real, "One Piece Promotion Cards"] (umbrella 2°).
- *   - Deck   → [nombre del deck formateado].
+ *   - Deck   → [nombre del deck formateado] con code = prefijo del número.
  *   - Otro   → [nombre del grupo] (booster, etc.).
  */
 export function deriveSetTitles(
   groupName: string | null,
-  productName: string | null
-): string[] {
+  productName: string | null,
+  cardNumber?: string | null
+): { title: string; code: string | null }[] {
   const g = (groupName ?? "").trim();
   if (!g) return [];
   if (/promotion/i.test(g)) {
     const pack = extractPromoPack(productName);
-    return pack ? [pack, g] : [g];
+    return pack
+      ? [{ title: pack, code: null }, { title: g, code: null }]
+      : [{ title: g, code: null }];
   }
   if (/^Starter Deck\s*\d+:/i.test(g)) {
-    return [normalizeDeckSetName(g)];
+    // Deck → nombre formateado + code del número (ST21).
+    return [{ title: normalizeDeckSetName(g), code: setCodeFromNumber(cardNumber ?? null) }];
   }
-  return [g];
+  return [{ title: g, code: null }];
 }
 
 /** Clasifica el alternateArt a partir del nombre del producto + disclaimer.

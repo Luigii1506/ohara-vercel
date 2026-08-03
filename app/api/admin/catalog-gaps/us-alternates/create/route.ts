@@ -26,9 +26,26 @@ import {
  *  - deja la alterna linkeada al producto (tcgplayerProductId + linkedCardId)
  */
 
-/** Find-or-create de un Set por título (tolerante a espacios/mayúsculas). */
-async function findOrCreateSetByTitle(title: string): Promise<number> {
+/**
+ * Find-or-create de un Set. Si viene `code` (los DECKS lo tienen: ST21, ST10…),
+ * se busca PRIMERO por code — el code identifica al deck, así que un ST21 nuevo
+ * cae en el set ST21 existente (ej. "EX Gear 5") en vez de duplicarlo. Sin code
+ * (booster/promo), se matchea por título.
+ */
+async function findOrCreateSet(
+  title: string,
+  code: string | null
+): Promise<number> {
   const trimmed = title.trim();
+  // Deck: matchea por code (prefiere el set con más cartas si hay varios).
+  if (code) {
+    const byCode = await prisma.set.findMany({
+      where: { code: { equals: code, mode: "insensitive" } },
+      select: { id: true, _count: { select: { cards: true } } },
+      orderBy: { cards: { _count: "desc" } },
+    });
+    if (byCode.length) return byCode[0].id;
+  }
   const candidates = await prisma.set.findMany({
     where: { title: { contains: trimmed, mode: "insensitive" } },
     select: { id: true, title: true },
@@ -38,7 +55,7 @@ async function findOrCreateSetByTitle(title: string): Promise<number> {
   );
   if (match) return match.id;
   const created = await prisma.set.create({
-    data: { title: trimmed, image: "", code: null, releaseDate: new Date(), isOpen: false },
+    data: { title: trimmed, image: "", code, releaseDate: new Date(), isOpen: false },
     select: { id: true },
   });
   return created.id;
@@ -55,7 +72,8 @@ async function findOrCreateSetByTitle(title: string): Promise<number> {
  */
 async function resolveSetIds(
   groupId: number | null,
-  productName: string | null
+  productName: string | null,
+  cardNumber: string | null
 ): Promise<number[]> {
   if (!groupId) return [];
   let groupName: string | null = null;
@@ -65,9 +83,9 @@ async function resolveSetIds(
   } catch {
     return [];
   }
-  const titles = deriveSetTitles(groupName, productName);
+  const targets = deriveSetTitles(groupName, productName, cardNumber);
   const ids: number[] = [];
-  for (const t of titles) ids.push(await findOrCreateSetByTitle(t));
+  for (const t of targets) ids.push(await findOrCreateSet(t.title, t.code));
   return ids;
 }
 
@@ -106,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
-    const setIds = await resolveSetIds(groupId, prod.name);
+    const setIds = await resolveSetIds(groupId, prod.name, prod.number);
     const setId = setIds[0] ?? null; // principal (para la respuesta)
     const setsCreate = setIds.length
       ? { sets: { create: setIds.map((id) => ({ setId: id })) } }

@@ -165,6 +165,19 @@ export default function MarketClient() {
         ? c.athPct
         : c.pct30d;
 
+  // Pulso: promedio y máximo de la señal de la pestaña sobre lo cargado.
+  const pulse = useMemo(() => {
+    if (tab === "sealed") return null;
+    const vals = cardsFiltered
+      .map((c) => pctForTab(c))
+      .filter((v): v is number => v != null);
+    if (!vals.length) return null;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const best = tab === "dip" ? Math.min(...vals) : Math.max(...vals);
+    return { n: vals.length, avg, best };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsFiltered, tab, tf]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -239,6 +252,23 @@ export default function MarketClient() {
             />
           </div>
         </div>
+
+        {/* Pulso del conjunto */}
+        {!loading && pulse && (
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white px-4 py-2 text-sm shadow-sm dark:bg-slate-800">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
+              {pulse.n} cartas
+            </span>
+            <span className="text-slate-500">
+              promedio{" "}
+              <span className={pctClass(pulse.avg)}>{pctStr(pulse.avg)}</span>
+            </span>
+            <span className="text-slate-500">
+              {tab === "dip" ? "mayor descuento" : "top"}{" "}
+              <span className={pctClass(pulse.best)}>{pctStr(pulse.best)}</span>
+            </span>
+          </div>
+        )}
 
         {/* Contenido */}
         {loading ? (

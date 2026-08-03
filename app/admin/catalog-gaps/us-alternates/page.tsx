@@ -142,17 +142,28 @@ export default function UsAlternatesPage() {
   const createAlternate = async (r: Row) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
-      const res = await fetch("/api/admin/catalog-gaps/us-alternates/create", {
+      // Eventos: crear desde el MissingCard (productId es -missingCardId).
+      const isEvent = r.origin === "events";
+      const endpoint = isEvent
+        ? "/api/admin/catalog-gaps/us-alternates/create-from-event"
+        : "/api/admin/catalog-gaps/us-alternates/create";
+      const payload = isEvent
+        ? { missingCardId: -r.productId }
+        : { productId: r.productId };
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: r.productId }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok && data.cardId) {
         setRows((rs) => rs.filter((x) => x.refKey !== r.refKey));
-        setMsg(
-          `✓ ${r.code} creada (${data.mode === "new-base" ? "carta nueva completa" : "alterna"})`
-        );
+        const detail = isEvent
+          ? `${data.alternateArt}${data.setTitle ? ` · ${data.setTitle}` : ""}`
+          : data.mode === "new-base"
+            ? "carta nueva completa"
+            : "alterna";
+        setMsg(`✓ ${r.code} creada (${detail})`);
       } else {
         setMsg(`✕ ${r.code}: ${data.error ?? "no se pudo crear"}`);
       }
@@ -424,7 +435,7 @@ export default function UsAlternatesPage() {
                       </button>
                     ) : (
                       <>
-                        {r.origin === "tcgplayer" ? (
+                        {r.origin === "tcgplayer" || r.origin === "events" ? (
                           <button
                             onClick={(e) => {
                               e.preventDefault();
@@ -432,7 +443,11 @@ export default function UsAlternatesPage() {
                             }}
                             disabled={busy.has(r.refKey)}
                             className="flex flex-1 items-center justify-center gap-1 bg-blue-600/95 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-70"
-                            title="Crear la alterna en tu catálogo (set desde TCGplayer)"
+                            title={
+                              r.origin === "events"
+                                ? "Crear la alterna con la imagen del evento (tipo y set automáticos)"
+                                : "Crear la alterna en tu catálogo (set desde TCGplayer)"
+                            }
                           >
                             {busy.has(r.refKey) ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />

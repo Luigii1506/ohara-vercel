@@ -102,6 +102,37 @@ export function splitDisclaimer(rawDescription: string | null): {
   };
 }
 
+/**
+ * Extrae el "pack" real de un producto promo de TCGplayer desde el paréntesis
+ * del nombre. TCGplayer agrupa todo en "One Piece Promotion Cards", pero el set
+ * real está en el nombre: "Chaka & Pell (Tournament Pack 2026 Vol. 3)" → el pack
+ * es "Tournament Pack 2026 Vol. 3". Clasificarlo así (y no en el grupo genérico)
+ * nos deja ligar la carta a su sobre → precios y EV por sobre.
+ *
+ * Devuelve null si el paréntesis es un descriptor de variante (Parallel, Full
+ * Art…) o un código de carta, o si no hay paréntesis.
+ */
+export function extractPromoPack(productName: string | null): string | null {
+  if (!productName) return null;
+  const parens = Array.from(productName.matchAll(/\(([^)]+)\)/g)).map((m) =>
+    m[1].trim()
+  );
+  if (parens.length === 0) return null;
+  const pack = parens[parens.length - 1];
+  if (!pack) return null;
+  // Descriptores de variante, no son packs.
+  if (
+    /^(parallel|alternate art|alt art|full art|manga|reprint|foil|textured|box topper|jolly roger)$/i.test(
+      pack
+    )
+  ) {
+    return null;
+  }
+  // Un código de carta suelto tampoco es un pack.
+  if (/^[A-Z]{1,4}-?\d{2,3}[A-Za-z]?$/i.test(pack)) return null;
+  return pack;
+}
+
 /** Clasifica el alternateArt a partir del nombre del producto + disclaimer.
  *  Devuelve un value de altArtOptions (o "Alternate Art" por defecto). */
 export function classifyAlternateArt(

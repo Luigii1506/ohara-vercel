@@ -46,6 +46,7 @@ type CardItem = {
   ath: number | string | null;
   athPct: number | null;
   points: number;
+  spark: number[];
 };
 
 /* ---------- helpers ---------- */
@@ -356,6 +357,7 @@ export default function MarketClient() {
                       {money(c.priceNow)}
                     </div>
                   </div>
+                  <Sparkline data={c.spark} />
                   <div className="w-16 shrink-0 text-right">
                     <div
                       className={`text-base font-bold ${pctClass(pv)}`}
@@ -416,3 +418,41 @@ const Empty = () => (
     Sin resultados con estos filtros.
   </div>
 );
+
+/** Sparkline SVG de la serie semanal de precio (90d). */
+const Sparkline = ({ data }: { data: number[] }) => {
+  if (!data || data.length < 2) {
+    return <div className="h-8 w-20 shrink-0" />;
+  }
+  const w = 80;
+  const h = 32;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const step = w / (data.length - 1);
+  const pts = data.map((v, i) => {
+    const x = i * step;
+    const y = h - 2 - ((v - min) / range) * (h - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const up = data[data.length - 1] >= data[0];
+  const stroke = up ? "#059669" : "#e11d48";
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className="hidden shrink-0 sm:block"
+      preserveAspectRatio="none"
+    >
+      <polyline
+        points={pts.join(" ")}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};

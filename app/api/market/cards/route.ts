@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
       ath: s.ath,
       athPct: s.athPct,
       points: s.points,
+      spark: Array.isArray(s.spark) ? (s.spark as number[]) : [],
     }));
 
     return NextResponse.json({ items, tab, tf });

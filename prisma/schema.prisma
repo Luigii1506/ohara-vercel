@@ -960,6 +960,7 @@ model CardPriceStat {
   atl         Decimal? // mínimo histórico (ventana)
   athPct      Float? // % desde el ATH (negativo = descuento)
   points      Int       @default(0) // puntos de historial (confianza)
+  spark       Json? // serie semanal de precio (90d) para el sparkline
   computedAt  DateTime  @default(now())
   card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
 

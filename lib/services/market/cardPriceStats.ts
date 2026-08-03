@@ -71,6 +71,23 @@ export async function computeCardPriceStats(now: Date = new Date()) {
     });
   }
 
+  // Serie SEMANAL (90d) por carta para el sparkline — una sola query.
+  const spark = await prisma.$queryRaw<
+    { cardId: number; wk: Date; p: string }[]
+  >`
+    SELECT "cardId", date_trunc('week', "collectedAt") wk, avg(price) p
+    FROM "CardPriceLog"
+    WHERE "priceType" = 'MARKET' AND "collectedAt" >= ${d(90)}
+    GROUP BY "cardId", wk
+    ORDER BY "cardId", wk`;
+  const sparkMap = new Map<number, number[]>();
+  for (const s of spark) {
+    const arr = sparkMap.get(s.cardId) ?? [];
+    const p = num(s.p);
+    if (p != null) arr.push(Math.round(p * 100) / 100);
+    sparkMap.set(s.cardId, arr);
+  }
+
   const rows: Prisma.CardPriceStatCreateManyInput[] = [];
   for (const [cardId, priceNow] of Array.from(pNow.entries())) {
     const e = extMap.get(cardId);
@@ -88,6 +105,7 @@ export async function computeCardPriceStats(now: Date = new Date()) {
       atl: (e?.atl ?? null) as any,
       athPct: pct(priceNow, ath),
       points: e?.n ?? 0,
+      spark: (sparkMap.get(cardId) ?? []) as any,
       computedAt: now,
     });
   }

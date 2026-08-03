@@ -870,6 +870,7 @@ const buildAlternateSelect = (includeRelations: boolean) => ({
   alias: true,
   order: true,
   alternateArt: true,
+  disclaimer: true,
   isFirstEdition: true,
   tcgUrl: true,
   tcgplayerProductId: true,

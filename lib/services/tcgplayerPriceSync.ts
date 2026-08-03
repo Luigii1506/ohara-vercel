@@ -213,3 +213,85 @@ export async function syncTcgplayerPrices(options: SyncOptions = {}) {
     alertsTriggered,
   };
 }
+
+/**
+ * Sincroniza los precios de los PRODUCTOS (sellados: boosters, displays, decks,
+ * promo packs…) linkeados a TCGplayer. El cron de precios solo cubría cartas;
+ * los sellados quedaban con precio viejo, lo que rompe cualquier cálculo de EV
+ * ("¿cuánto vale un sobre?"). Mismo patrón que las cartas pero sin logs/alertas.
+ */
+export async function syncProductPrices() {
+  const products = await prisma.product.findMany({
+    where: { tcgplayerProductId: { not: null } },
+    select: {
+      id: true,
+      tcgplayerProductId: true,
+      marketPrice: true,
+      lowPrice: true,
+      highPrice: true,
+      priceCurrency: true,
+    },
+  });
+
+  if (!products.length) {
+    return { productsProcessed: 0, productsUpdated: 0 };
+  }
+
+  const now = new Date();
+  let productsUpdated = 0;
+  const updateOperations: Prisma.PrismaPromise<any>[] = [];
+
+  for (let i = 0; i < products.length; i += BATCH_SIZE) {
+    const chunk = products.slice(i, i + BATCH_SIZE);
+    const validProductIds = chunk
+      .map((p) => Number(p.tcgplayerProductId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (!validProductIds.length) continue;
+
+    const pricingEntries = await getTcgplayerProductPricing(validProductIds);
+    const priceMap = new Map(
+      pricingEntries.map((entry) => [entry.productId, entry])
+    );
+
+    for (const product of chunk) {
+      const productId = Number(product.tcgplayerProductId);
+      const pricing = priceMap.get(productId);
+      if (!pricing) continue;
+
+      const roundedMarket = roundedPrice(
+        pricing.marketPrice ?? pricing.midPrice ?? null
+      );
+      const roundedLow = roundedPrice(pricing.lowPrice ?? null);
+      const roundedHigh = roundedPrice(
+        pricing.highPrice ?? pricing.directLowPrice ?? null
+      );
+
+      const marketChanged = hasChanged(product.marketPrice, roundedMarket);
+      const lowChanged = hasChanged(product.lowPrice, roundedLow);
+      const highChanged = hasChanged(product.highPrice, roundedHigh);
+      if (!marketChanged && !lowChanged && !highChanged) continue;
+
+      const data: Prisma.ProductUpdateInput = {
+        priceUpdatedAt: now,
+        priceCurrency: product.priceCurrency || "USD",
+      };
+      if (marketChanged) data.marketPrice = toDecimalOrNull(roundedMarket);
+      if (lowChanged) data.lowPrice = toDecimalOrNull(roundedLow);
+      if (highChanged) data.highPrice = toDecimalOrNull(roundedHigh);
+
+      productsUpdated += 1;
+      updateOperations.push(
+        prisma.product.update({ where: { id: product.id }, data })
+      );
+    }
+  }
+
+  if (updateOperations.length) {
+    const CHUNK = 100;
+    for (let i = 0; i < updateOperations.length; i += CHUNK) {
+      await prisma.$transaction(updateOperations.slice(i, i + CHUNK));
+    }
+  }
+
+  return { productsProcessed: products.length, productsUpdated };
+}

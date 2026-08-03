@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncTcgplayerPrices } from "@/lib/services/tcgplayerPriceSync";
+import {
+  syncTcgplayerPrices,
+  syncProductPrices,
+} from "@/lib/services/tcgplayerPriceSync";
 
 const authenticate = (request: NextRequest) => {
   const authHeader = request.headers.get("authorization");
@@ -26,14 +29,24 @@ async function runPriceSync(request: NextRequest) {
   const result = await syncTcgplayerPrices({
     onlyWatchlisted: watchlistOnly,
   });
+  // Los sellados (boosters, displays, decks…) solo se sincronizan en el barrido
+  // completo, no en el modo watchlist (rápido).
+  const productResult = watchlistOnly
+    ? { productsProcessed: 0, productsUpdated: 0 }
+    : await syncProductPrices();
   const duration = ((Date.now() - started) / 1000).toFixed(2);
 
-  console.log("✅ Price sync completed", { ...result, duration });
+  console.log("✅ Price sync completed", {
+    ...result,
+    ...productResult,
+    duration,
+  });
   return NextResponse.json(
     {
       success: true,
       duration,
       ...result,
+      ...productResult,
     },
     { status: 200 }
   );

@@ -42,6 +42,17 @@ const CardList = ({ params }: { params: { id: string } }) => {
     CardWithCollectionData[]
   >([]);
   const [search, setSearch] = useState("");
+  const [cardProducts, setCardProducts] = useState<
+    {
+      id: number;
+      name: string;
+      productType: string;
+      imageUrl: string | null;
+      thumbnailUrl: string | null;
+      marketPrice: number | string | null;
+      tcgUrl: string | null;
+    }[]
+  >([]);
   const [initialCards, setInitialCards] = useState<CardWithCollectionData[]>(
     []
   );
@@ -303,6 +314,31 @@ const CardList = ({ params }: { params: { id: string } }) => {
     return () => clearTimeout(debounceTimeout);
   }, [cardQuantity]);
 
+  // "¿De qué booster/producto sale?": al abrir el modal, trae los productos
+  // sellados del set de la carta.
+  useEffect(() => {
+    if (!isOpen || !selectedCard?._id) {
+      setCardProducts([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/cards/${selectedCard._id}/products`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setCardProducts(data.products ?? []);
+      } catch {
+        /* silencioso: la sección simplemente no se muestra */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, selectedCard?._id]);
+
   useEffect(() => {
     if (cards) {
       const sortedCards = cards.sort((a, b) => {
@@ -515,6 +551,86 @@ const CardList = ({ params }: { params: { id: string } }) => {
                             -EMPERORS IN THE NEW WORLD- [OP-09]
                           </p>
                         </div>
+
+                        {/* Disclaimer de TCGplayer: pre-errata / no legal /
+                            reprint. Solo aparece en versiones especiales. */}
+                        {selectedCard?.disclaimer && (
+                          <div className="flex gap-3 items-start bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-lg">
+                            <span
+                              aria-hidden
+                              className="text-xl leading-none mt-0.5"
+                            >
+                              ⚠️
+                            </span>
+                            <div>
+                              <h3 className="text-sm font-bold uppercase tracking-wide mb-1">
+                                Aviso
+                              </h3>
+                              <p className="text-sm leading-relaxed">
+                                {selectedCard.disclaimer}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ¿De qué booster/producto sale? */}
+                        {cardProducts.length > 0 && (
+                          <div className="bg-gray-100 p-4 rounded-lg">
+                            <h3 className="text-xl font-bold mb-3">
+                              Disponible en
+                            </h3>
+                            <div className="flex flex-col gap-2">
+                              {cardProducts.slice(0, 6).map((p) => {
+                                const price =
+                                  p.marketPrice != null
+                                    ? `$${Number(p.marketPrice).toLocaleString()}`
+                                    : null;
+                                const row = (
+                                  <div className="flex items-center gap-3">
+                                    {(p.thumbnailUrl || p.imageUrl) && (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={p.thumbnailUrl || p.imageUrl || ""}
+                                        alt=""
+                                        className="w-10 h-10 object-contain rounded bg-white shrink-0"
+                                      />
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate">
+                                        {p.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 capitalize">
+                                        {p.productType
+                                          .replace(/_/g, " ")
+                                          .toLowerCase()}
+                                      </p>
+                                    </div>
+                                    {price && (
+                                      <span className="text-sm font-semibold text-gray-800 shrink-0">
+                                        {price}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                                return p.tcgUrl ? (
+                                  <a
+                                    key={p.id}
+                                    href={p.tcgUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block rounded-lg p-2 hover:bg-white transition-colors"
+                                  >
+                                    {row}
+                                  </a>
+                                ) : (
+                                  <div key={p.id} className="p-2">
+                                    {row}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1082,8 +1082,43 @@ const ProductsClient = () => {
                   <Badge variant="secondary">
                     {selectedProduct.productType}
                   </Badge>
-                  <Badge variant="outline">Producto oficial</Badge>
+                  {selectedProduct.set && (
+                    <Badge variant="outline">{selectedProduct.set.title}</Badge>
+                  )}
                 </div>
+
+                {/* Precio real de mercado (TCGplayer) */}
+                {formatPrice(
+                  selectedProduct.marketPrice,
+                  selectedProduct.priceCurrency ?? "USD",
+                ) && (
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {formatPrice(
+                        selectedProduct.marketPrice,
+                        selectedProduct.priceCurrency ?? "USD",
+                      )}
+                    </span>
+                    {(selectedProduct.lowPrice || selectedProduct.highPrice) && (
+                      <span className="text-xs text-slate-500">
+                        Rango {formatPrice(selectedProduct.lowPrice, "USD") ?? "—"} –{" "}
+                        {formatPrice(selectedProduct.highPrice, "USD") ?? "—"}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {selectedProduct.tcgUrl && (
+                  <a
+                    href={selectedProduct.tcgUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Ver en TCGplayer
+                  </a>
+                )}
+
                 {selectedProduct.description ? (
                   <p className="text-sm text-slate-600">
                     {selectedProduct.description}
@@ -1094,6 +1129,48 @@ const ProductsClient = () => {
                   </p>
                 )}
               </div>
+
+              {/* Cartas del set */}
+              {selectedProduct.set && (
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="mb-2.5 text-sm font-semibold text-slate-700">
+                    Cartas del set
+                    {modalCards.length > 0 && ` · ${modalCards.length}`}
+                  </h3>
+                  {modalCardsLoading ? (
+                    <div className="py-6 text-center text-sm text-slate-400">
+                      Cargando cartas…
+                    </div>
+                  ) : modalCards.length === 0 ? (
+                    <div className="py-3 text-center text-xs text-slate-400">
+                      Sin cartas asociadas a este set.
+                    </div>
+                  ) : (
+                    <div className="grid max-h-[50vh] grid-cols-4 gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2.5">
+                      {modalCards.map((c) => (
+                        <a
+                          key={c.id}
+                          href={`/card-list?search=${encodeURIComponent(c.code)}`}
+                          className="group block"
+                          title={`${c.code} · ${c.name}`}
+                        >
+                          {c.src ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={c.src}
+                              alt={c.code}
+                              className="w-full rounded-md ring-1 ring-slate-200 transition group-hover:ring-2 group-hover:ring-blue-400"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="aspect-[5/7] rounded-md bg-slate-200" />
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </BaseDrawer>

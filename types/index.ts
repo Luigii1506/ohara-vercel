@@ -39,6 +39,7 @@ export type CardData = {
   set: string;
   illustrator?: string | null;
   alternateArt?: string | null;
+  disclaimer?: string | null;
   status?: string | [];
   triggerCard?: string | null;
   effects?: { effect: string }[];

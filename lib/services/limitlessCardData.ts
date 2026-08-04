@@ -64,8 +64,11 @@ export async function fetchLimitlessCardComparison(
     const row = priceLink.closest("tr");
     const cells = row.find("td");
     if (cells.length < 2) return;
-
-    const title = normalizeWhitespace($(cells[0]).text());
+    const titleCell = $(cells[0]);
+    const titleAnchor = titleCell.find("a").first();
+    const titleClone = titleAnchor.clone();
+    titleClone.find(".prints-table-card-number").remove();
+    const title = normalizeWhitespace(titleClone.text());
     const usdPrice = normalizeWhitespace($(cells[1]).text()) || null;
     const tcgUrl = extractTcgplayerUrl(priceLink.attr("href"));
     const resolvedProductId = extractTcgplayerProductId(tcgUrl);

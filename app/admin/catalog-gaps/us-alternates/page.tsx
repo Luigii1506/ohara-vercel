@@ -50,6 +50,54 @@ type Stats = {
   byRarity: { rarity: string; count: number }[];
 };
 
+type CompareSetOption = {
+  setId: number | null;
+  title: string;
+  code: string | null;
+  sources: string[];
+  matchedBy: string | null;
+};
+
+type ComparePayload = {
+  productId: number;
+  code: string;
+  productName: string | null;
+  tcgplayer: {
+    groupName: string | null;
+    groupAbbreviation: string | null;
+    suggestedSets: {
+      setId: number | null;
+      title: string;
+      code: string | null;
+      matchedBy: string | null;
+    }[];
+  };
+  limitless: {
+    cardUrl: string;
+    pageTitle: string | null;
+    matchedPrint: {
+      setId: number | null;
+      title: string;
+      code: string | null;
+      matchedBy: string | null;
+      productId: number | null;
+      tcgUrl: string | null;
+      usdPrice: string | null;
+    } | null;
+    prints: {
+      title: string;
+      productId: number | null;
+      tcgUrl: string | null;
+      usdPrice: string | null;
+      matchedProduct: boolean;
+    }[];
+  };
+  setOptions: CompareSetOption[];
+  conflicts: {
+    set: boolean;
+  };
+};
+
 function useDebounced<T>(value: T, ms: number) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -74,6 +122,9 @@ export default function UsAlternatesPage() {
   const [detailRow, setDetailRow] = useState<Row | null>(null);
   const [haveCards, setHaveCards] = useState<any[]>([]);
   const [haveLoading, setHaveLoading] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareData, setCompareData] = useState<ComparePayload | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
 
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
@@ -171,6 +222,49 @@ export default function UsAlternatesPage() {
     };
   }, [detailRow]);
 
+  useEffect(() => {
+    if (!detailRow || detailRow.origin !== "tcgplayer") {
+      setCompareData(null);
+      setSelectedSetId(null);
+      setCompareLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCompareLoading(true);
+    fetch(
+      `/api/admin/catalog-gaps/us-alternates/compare?productId=${detailRow.productId}&code=${encodeURIComponent(
+        detailRow.code
+      )}`
+    )
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("compare failed"))))
+      .then((data: ComparePayload) => {
+        if (cancelled) return;
+        setCompareData(data);
+        const defaultSetId =
+          data.limitless.matchedPrint?.setId ??
+          data.setOptions.find((option) => option.sources.includes("limitless"))
+            ?.setId ??
+          data.tcgplayer.suggestedSets[0]?.setId ??
+          null;
+        setSelectedSetId(defaultSetId);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(error);
+          setCompareData(null);
+          setSelectedSetId(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCompareLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailRow]);
+
   // "Ya la tengo, ES ESTA": linkea el candidato a una carta existente.
   const linkToCard = async (r: Row, cardId: number) => {
     setBusy((b) => new Set(b).add(r.refKey));
@@ -204,7 +298,7 @@ export default function UsAlternatesPage() {
     }
   };
 
-  const createAlternate = async (r: Row) => {
+  const createAlternate = async (r: Row, overrideSetId?: number | null) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
       // Eventos: crear desde el MissingCard (productId es -missingCardId).
@@ -214,7 +308,12 @@ export default function UsAlternatesPage() {
         : "/api/admin/catalog-gaps/us-alternates/create";
       const payload = isEvent
         ? { missingCardId: -r.productId }
-        : { productId: r.productId };
+        : {
+            productId: r.productId,
+            ...(Number.isFinite(Number(overrideSetId))
+              ? { overrideSetId: Number(overrideSetId) }
+              : {}),
+          };
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -698,6 +797,131 @@ export default function UsAlternatesPage() {
                   no, crea una nueva alterna.
                 </p>
 
+                {detailRow.origin === "tcgplayer" && (
+                  <div className="mt-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Comparación de Fuentes
+                      </h4>
+                      {compareData?.conflicts.set && (
+                        <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          Conflicto de set
+                        </span>
+                      )}
+                    </div>
+
+                    {compareLoading ? (
+                      <div className="py-4 text-center">
+                        <Loader2 className="mx-auto h-4 w-4 animate-spin text-slate-400" />
+                      </div>
+                    ) : compareData ? (
+                      <div className="mt-3 space-y-3 text-xs">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/60">
+                            <div className="font-semibold text-slate-700 dark:text-slate-200">
+                              TCGplayer
+                            </div>
+                            <div className="mt-1 text-slate-500">
+                              Grupo: {compareData.tcgplayer.groupName ?? "—"}
+                            </div>
+                            <div className="text-slate-500">
+                              Code grupo: {compareData.tcgplayer.groupAbbreviation ?? "—"}
+                            </div>
+                            <div className="mt-1 text-slate-500">
+                              Sets sugeridos:{" "}
+                              {compareData.tcgplayer.suggestedSets.length
+                                ? compareData.tcgplayer.suggestedSets
+                                    .map((set) => set.title)
+                                    .join(" · ")
+                                : "—"}
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/60">
+                            <div className="font-semibold text-slate-700 dark:text-slate-200">
+                              Limitless
+                            </div>
+                            <div className="mt-1 text-slate-500">
+                              Match por productId:{" "}
+                              {compareData.limitless.matchedPrint?.title ?? "No encontrado"}
+                            </div>
+                            <div className="text-slate-500">
+                              Card page:{" "}
+                              <a
+                                href={compareData.limitless.cardUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                abrir
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-semibold text-slate-700 dark:text-slate-200">
+                            Elegir set canónico para crear
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            {compareData.setOptions.map((option, index) => {
+                              const disabled = option.setId == null;
+                              return (
+                                <label
+                                  key={`${option.setId ?? "missing"}-${option.title}-${index}`}
+                                  className={`flex items-start gap-2 rounded-md border p-2 ${
+                                    disabled
+                                      ? "border-slate-200 opacity-60 dark:border-slate-700"
+                                      : "cursor-pointer border-slate-200 hover:border-blue-400 dark:border-slate-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="canonical-set"
+                                    disabled={disabled}
+                                    checked={selectedSetId === option.setId}
+                                    onChange={() => setSelectedSetId(option.setId)}
+                                    className="mt-0.5 h-4 w-4 accent-blue-600"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-slate-800 dark:text-slate-100">
+                                      {option.title}
+                                      {option.code ? ` (${option.code})` : ""}
+                                    </div>
+                                    <div className="mt-0.5 flex flex-wrap gap-1">
+                                      {option.sources.map((source) => (
+                                        <span
+                                          key={source}
+                                          className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                        >
+                                          {source}
+                                        </span>
+                                      ))}
+                                      {option.matchedBy && (
+                                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                          match {option.matchedBy}
+                                        </span>
+                                      )}
+                                      {disabled && (
+                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                          no existe en DB
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-slate-500">
+                        No se pudo cargar la comparación de fuentes.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {haveLoading ? (
                   <div className="py-8 text-center">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
@@ -743,8 +967,9 @@ export default function UsAlternatesPage() {
                   <button
                     onClick={() => {
                       const r = detailRow;
+                      const overrideSet = selectedSetId;
                       setDetailRow(null);
-                      createAlternate(r);
+                      createAlternate(r, overrideSet);
                     }}
                     disabled={busy.has(detailRow.refKey)}
                     className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"

@@ -12,9 +12,8 @@ import {
   parseTcgCard,
   classifyAlternateArt,
   splitDisclaimer,
-  deriveSetTitles,
-  normalizeSetCode,
 } from "@/lib/services/tcgplayerCardData";
+import { findBestSetMatch, resolveTcgSetTargets } from "@/lib/services/catalogSetResolver";
 
 /**
  * POST /api/admin/catalog-gaps/us-alternates/create
@@ -33,32 +32,18 @@ import {
  * cae en el set ST21 existente (ej. "EX Gear 5") en vez de duplicarlo. Sin code
  * (booster/promo), se matchea por título.
  */
-async function findOrCreateSet(
-  title: string,
-  code: string | null
-): Promise<number> {
-  const trimmed = title.trim();
-  // Con code (deck/premium/booster) matchea por code NORMALIZADO — así "PRB-01"
-  // (TCGplayer) cae en nuestro "PRB01". Prefiere el set con más cartas.
-  if (code) {
-    const coded = await prisma.set.findMany({
-      where: { code: { not: null } },
-      select: { id: true, code: true, _count: { select: { cards: true } } },
-      orderBy: { cards: { _count: "desc" } },
-    });
-    const match = coded.find((s) => normalizeSetCode(s.code) === code);
-    if (match) return match.id;
-  }
-  const candidates = await prisma.set.findMany({
-    where: { title: { contains: trimmed, mode: "insensitive" } },
-    select: { id: true, title: true },
-  });
-  const match = candidates.find(
-    (s) => s.title.trim().toLowerCase() === trimmed.toLowerCase()
-  );
-  if (match) return match.id;
+async function findOrCreateSet(title: string, code: string | null): Promise<number> {
+  const match = await findBestSetMatch(title, code);
+  if (match.setId) return match.setId;
+
   const created = await prisma.set.create({
-    data: { title: trimmed, image: "", code, releaseDate: new Date(), isOpen: false },
+    data: {
+      title: title.trim(),
+      image: "",
+      code,
+      releaseDate: new Date(),
+      isOpen: false,
+    },
     select: { id: true },
   });
   return created.id;
@@ -88,9 +73,9 @@ async function resolveSetIds(
   } catch {
     return [];
   }
-  const targets = deriveSetTitles(groupName, groupAbbrev, productName);
+  const targets = await resolveTcgSetTargets(groupName, groupAbbrev, productName);
   const ids: number[] = [];
-  for (const t of targets) ids.push(await findOrCreateSet(t.title, t.code));
+  for (const t of targets) ids.push(t.setId ?? (await findOrCreateSet(t.title, t.code)));
   return ids;
 }
 
@@ -98,6 +83,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const pid = Number(body.productId);
+    const overrideSetId = Number(body.overrideSetId);
     if (!Number.isFinite(pid)) {
       return NextResponse.json({ error: "productId inválido" }, { status: 400 });
     }
@@ -129,10 +115,17 @@ export async function POST(req: NextRequest) {
 
     // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
-    const setIds = await resolveSetIds(groupId, prod.name);
-    const setId = setIds[0] ?? null; // principal (para la respuesta)
+    const resolvedSetIds = await resolveSetIds(groupId, prod.name);
+    const setIds = Array.from(
+      new Set([
+        ...(Number.isFinite(overrideSetId) ? [overrideSetId] : []),
+        ...resolvedSetIds,
+      ])
+    );
+    const setId =
+      (Number.isFinite(overrideSetId) ? overrideSetId : null) ?? setIds[0] ?? null;
     const setsCreate = setIds.length
-      ? { sets: { create: setIds.map((id) => ({ setId: id })) } }
+      ? { sets: { create: setIds.map((id) => ({ setId: Number(id) })) } }
       : {};
 
     // Imagen: subir a R2 la de ALTA resolución (1000x1000) con fallback a 400w.

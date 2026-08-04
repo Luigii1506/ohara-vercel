@@ -201,6 +201,189 @@ const buildContainsAllCondition = (
   };
 };
 
+const SET_SEARCH_MARKERS = new Set([
+  "pack",
+  "welcome",
+  "tournament",
+  "event",
+  "regional",
+  "participation",
+  "promotion",
+  "promo",
+  "collection",
+  "dash",
+  "starter",
+  "deck",
+  "anniversary",
+  "premium",
+  "battle",
+  "kit",
+  "binder",
+  "gift",
+  "championship",
+  "celebration",
+  "campaign",
+  "vol",
+  "volume",
+  "set",
+]);
+
+const SET_SEARCH_STOPWORDS = new Set(["the", "of", "and", "edition"]);
+
+const normalizeSetSearchText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\bvolume\b/g, "vol")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const canonicalizeSetToken = (token: string) => {
+  if (token === "volume") return "vol";
+  return token;
+};
+
+const tokenizeSetSearchText = (value: string) =>
+  normalizeSetSearchText(value)
+    .split(" ")
+    .map((token) => canonicalizeSetToken(token.trim()))
+    .filter(Boolean);
+
+const isOneEditAway = (a: string, b: string) => {
+  if (a === b) return true;
+  const lenDiff = Math.abs(a.length - b.length);
+  if (lenDiff > 1) return false;
+
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+
+    edits += 1;
+    if (edits > 1) return false;
+
+    if (a.length > b.length) {
+      i += 1;
+    } else if (b.length > a.length) {
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+
+  if (i < a.length || j < b.length) {
+    edits += 1;
+  }
+
+  return edits <= 1;
+};
+
+const setTokensMatch = (queryToken: string, titleToken: string) => {
+  if (queryToken === titleToken) return true;
+  if (/^\d+$/.test(queryToken) || /^\d+$/.test(titleToken)) {
+    return queryToken === titleToken;
+  }
+  if (queryToken.length >= 4 && titleToken.length >= 4) {
+    return isOneEditAway(queryToken, titleToken);
+  }
+  return false;
+};
+
+type SearchableSet = { id: number; title: string; code: string | null };
+
+let searchableSetsCache:
+  | { at: number; data: SearchableSet[] }
+  | null = null;
+const SEARCHABLE_SETS_TTL_MS = 60 * 60 * 1000;
+
+async function getSearchableSets(): Promise<SearchableSet[]> {
+  if (searchableSetsCache && Date.now() - searchableSetsCache.at < SEARCHABLE_SETS_TTL_MS) {
+    return searchableSetsCache.data;
+  }
+
+  const data = await prisma.set.findMany({
+    select: { id: true, title: true, code: true },
+  });
+  searchableSetsCache = { at: Date.now(), data };
+  return data;
+}
+
+async function resolveSearchSetIds(search?: string): Promise<number[] | null> {
+  const rawSearch = search?.trim();
+  if (!rawSearch) return null;
+
+  const normalizedQuery = normalizeSetSearchText(rawSearch);
+  if (!normalizedQuery) return null;
+
+  const queryTokens = tokenizeSetSearchText(normalizedQuery);
+  if (queryTokens.length < 2) return null;
+
+  const hasSetIntent = queryTokens.some((token) => SET_SEARCH_MARKERS.has(token));
+  if (!hasSetIntent) return null;
+
+  const significantTokens = queryTokens.filter(
+    (token) => !SET_SEARCH_STOPWORDS.has(token)
+  );
+  const numericTokens = significantTokens.filter((token) => /^\d+$/.test(token));
+  const wordTokens = significantTokens.filter((token) => !/^\d+$/.test(token));
+
+  const sets = await getSearchableSets();
+  const candidates = sets
+    .map((set) => {
+      const normalizedTitle = normalizeSetSearchText(set.title);
+      const titleTokens = tokenizeSetSearchText(set.title);
+      const titleTokenSet = new Set(titleTokens);
+
+      if (numericTokens.length > 0) {
+        const allNumericMatch = numericTokens.every((token) =>
+          titleTokens.some((titleToken) => setTokensMatch(token, titleToken))
+        );
+        if (!allNumericMatch) return null;
+      }
+
+      if (wordTokens.length > 0) {
+        const allWordsMatch = wordTokens.every((token) =>
+          titleTokens.some((titleToken) => setTokensMatch(token, titleToken))
+        );
+        if (!allWordsMatch) return null;
+      }
+
+      let score = 0;
+      if (normalizedTitle === normalizedQuery) score += 100;
+      if (normalizedTitle.includes(normalizedQuery)) score += 30;
+      score +=
+        wordTokens.filter((token) =>
+          titleTokens.some((titleToken) => setTokensMatch(token, titleToken))
+        ).length * 5;
+      score +=
+        numericTokens.filter((token) =>
+          titleTokens.some((titleToken) => setTokensMatch(token, titleToken))
+        ).length * 15;
+      if (titleTokens.length === significantTokens.length) score += 5;
+
+      return { id: set.id, normalizedTitle, score };
+    })
+    .filter((candidate): candidate is { id: number; normalizedTitle: string; score: number } =>
+      Boolean(candidate)
+    )
+    .sort((a, b) => b.score - a.score || a.normalizedTitle.localeCompare(b.normalizedTitle));
+
+  if (!candidates.length) return null;
+
+  const topScore = candidates[0].score;
+  const top = candidates.filter((candidate) => candidate.score === topScore);
+  if (top.length !== 1) return null;
+
+  return [top[0].id];
+}
+
 const hasAltArtSearch = (filters: CardsFilters) => {
   if (filters.altArts?.length) return true;
   if (!filters.search) return false;
@@ -403,6 +586,24 @@ const buildWhere = (
         );
       }
     }
+  }
+
+  if (filters.searchSetIds?.length) {
+    andConditions.push({
+      OR: [
+        { sets: { some: { setId: { in: filters.searchSetIds } } } },
+        {
+          alternateCards: {
+            some: {
+              AND: [
+                alternateRegionCondition,
+                { sets: { some: { setId: { in: filters.searchSetIds } } } },
+              ],
+            },
+          },
+        },
+      ],
+    });
   }
 
   if (filters.sets?.length) {
@@ -739,13 +940,17 @@ const fetchCardsPageByPrice = async (
     includeRelations = false,
     includeAlternates = true,
   } = options;
+  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
+  const enrichedFilters = resolvedSearchSetIds?.length
+    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+    : filters;
 
   // Para ordenamiento por precio, usamos buildDirectWhere que NO usa withAlternates
   // Esto asegura que solo traemos cartas que coinciden directamente con los filtros
   // (ej: solo Leaders, no cartas cuyas alternativas sean Leaders)
-  const priceWhere = buildDirectWhere(filters);
+  const priceWhere = buildDirectWhere(enrichedFilters);
   const take = Math.min(Math.max(limit, 1), 200);
-  const isHighToLow = filters.sortBy === "price_high";
+  const isHighToLow = enrichedFilters.sortBy === "price_high";
 
   // Ordenar por precio directamente en la consulta
   // Para ambos casos (high to low y low to high), los nulls van al final
@@ -866,12 +1071,16 @@ const fetchCardsPageWithAlternates = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
   const { filters, limit, cursor = null, includeRelations = false } = options;
+  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
+  const enrichedFilters = resolvedSearchSetIds?.length
+    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+    : filters;
 
-  const where = buildDirectWhere(filters);
+  const where = buildDirectWhere(enrichedFilters);
   const take = Math.min(Math.max(limit, 1), 200);
 
   const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
-  switch (filters.sortBy) {
+  switch (enrichedFilters.sortBy) {
     case "code_asc":
       orderBy.push({ code: "asc" }, { id: "asc" });
       break;
@@ -982,29 +1191,37 @@ export const fetchCardsPageFromDb = async (
     includeAlternates = true,
     includeCounts = false,
   } = options;
+  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
+  const enrichedFilters = resolvedSearchSetIds?.length
+    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+    : filters;
 
   const isPriceSorting =
-    filters.sortBy === "price_high" || filters.sortBy === "price_low";
+    enrichedFilters.sortBy === "price_high" || enrichedFilters.sortBy === "price_low";
 
   // Para ordenamiento por precio, necesitamos traer base + alternativas juntas
   if (isPriceSorting) {
-    return fetchCardsPageByPrice(options);
+    return fetchCardsPageByPrice({ ...options, filters: enrichedFilters });
   }
 
-  if (hasAltArtSearch(filters)) {
-    return fetchCardsPageWithAlternates(options);
+  if (hasAltArtSearch(enrichedFilters)) {
+    return fetchCardsPageWithAlternates({ ...options, filters: enrichedFilters });
   }
 
   // Ordenamiento normal (solo cartas base)
-  const where = buildWhere(filters);
-  const include = buildInclude(includeRelations, includeAlternates, filters.region);
+  const where = buildWhere(enrichedFilters);
+  const include = buildInclude(
+    includeRelations,
+    includeAlternates,
+    enrichedFilters.region
+  );
 
   const take = Math.min(Math.max(limit, 1), 200);
 
   // Build orderBy based on sortBy filter
   const orderBy: Prisma.CardOrderByWithRelationInput[] = [];
 
-  switch (filters.sortBy) {
+  switch (enrichedFilters.sortBy) {
     case "code_asc":
       orderBy.push({ code: "asc" }, { id: "asc" });
       break;
@@ -1050,7 +1267,7 @@ export const fetchCardsPageFromDb = async (
     mapCard(card, includeAlternates, includeCounts)
   );
 
-  const selectedRegion = normalizeRegion(filters.region);
+  const selectedRegion = normalizeRegion(enrichedFilters.region);
   if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
     const codes = trimmed.map((card) => card.code);
     const exclusiveAlternatesRaw = await prisma.card.findMany({
@@ -1112,9 +1329,17 @@ export const fetchAllCardsFromDb = async (
     includeCounts = false,
     limit = null,
   } = options;
+  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
+  const enrichedFilters = resolvedSearchSetIds?.length
+    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+    : filters;
 
-  const where = buildWhere(filters);
-  const include = buildInclude(includeRelations, includeAlternates, filters.region);
+  const where = buildWhere(enrichedFilters);
+  const include = buildInclude(
+    includeRelations,
+    includeAlternates,
+    enrichedFilters.region
+  );
 
   const args: Prisma.CardFindManyArgs = {
     where,
@@ -1132,7 +1357,7 @@ export const fetchAllCardsFromDb = async (
     mapCard(card, includeAlternates, includeCounts)
   );
 
-  const selectedRegion = normalizeRegion(filters.region);
+  const selectedRegion = normalizeRegion(enrichedFilters.region);
   if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
     const codes = cards.map((card) => card.code);
     const exclusiveAlternatesRaw = await prisma.card.findMany({
@@ -1315,6 +1540,12 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
         );
       }
     }
+  }
+
+  if (filters.searchSetIds?.length) {
+    andConditions.push({
+      sets: { some: { setId: { in: filters.searchSetIds } } },
+    });
   }
 
   if (filters.sets?.length) {

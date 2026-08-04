@@ -152,6 +152,33 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     "ilustrador",
     "artist",
   ]);
+  const setContextMarkers = new Set([
+    "vol",
+    "volume",
+    "pack",
+    "deck",
+    "starter",
+    "event",
+    "tournament",
+    "welcome",
+    "regional",
+    "participation",
+    "collection",
+    "set",
+    "dash",
+    "promotion",
+    "promo",
+    "anniversary",
+    "premium",
+    "battle",
+    "kit",
+    "celebration",
+    "championship",
+    "binder",
+    "gift",
+    "store",
+    "campaign",
+  ]);
   const normalizedSearch = search.toLowerCase().replace(/[^a-z0-9\s-]/g, " ");
   const compactSearch = normalizedSearch.replace(/\s+/g, "");
   const rawTokens = normalizedSearch.match(/[a-z0-9-]+/gi) ?? [];
@@ -199,9 +226,11 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     triggers.add("No trigger");
   }
 
-  rawTokens.forEach((raw) => {
+  rawTokens.forEach((raw, index) => {
     const token = normalizeSearchToken(raw);
     if (!token) return;
+    const previousToken = normalizeSearchToken(rawTokens[index - 1] ?? "");
+    const nextToken = normalizeSearchToken(rawTokens[index + 1] ?? "");
 
     const mappedRarity = SEARCH_RARITY_MAP[token];
     if (mappedRarity) {
@@ -238,6 +267,12 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     }
 
     if (/^\d+$/.test(token)) {
+      const isSetContextNumber =
+        setContextMarkers.has(previousToken) || setContextMarkers.has(nextToken);
+      if (isSetContextNumber) {
+        textTokens.push(token);
+        return;
+      }
       if (token.length <= 2) {
         costs.add(String(parseInt(token, 10)));
         return;

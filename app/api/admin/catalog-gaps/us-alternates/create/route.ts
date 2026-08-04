@@ -84,6 +84,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const pid = Number(body.productId);
     const overrideSetId = Number(body.overrideSetId);
+    const overrideSetTitle =
+      typeof body.overrideSetTitle === "string" ? body.overrideSetTitle.trim() : "";
+    const overrideSetCode =
+      typeof body.overrideSetCode === "string" && body.overrideSetCode.trim()
+        ? body.overrideSetCode.trim()
+        : null;
     if (!Number.isFinite(pid)) {
       return NextResponse.json({ error: "productId inválido" }, { status: 400 });
     }
@@ -116,14 +122,20 @@ export async function POST(req: NextRequest) {
     // Set correcto desde el grupo de TCGplayer (lo crea si no existe).
     const groupId = (prod.metadata as any)?.groupId ?? null;
     const resolvedSetIds = await resolveSetIds(groupId, prod.name);
+    const manualSetId =
+      Number.isFinite(overrideSetId) && overrideSetId > 0
+        ? overrideSetId
+        : overrideSetTitle
+          ? await findOrCreateSet(overrideSetTitle, overrideSetCode)
+          : null;
     const setIds = Array.from(
       new Set([
-        ...(Number.isFinite(overrideSetId) ? [overrideSetId] : []),
+        ...(manualSetId ? [manualSetId] : []),
         ...resolvedSetIds,
       ])
     );
     const setId =
-      (Number.isFinite(overrideSetId) ? overrideSetId : null) ?? setIds[0] ?? null;
+      manualSetId ?? setIds[0] ?? null;
     const setsCreate = setIds.length
       ? { sets: { create: setIds.map((id) => ({ setId: Number(id) })) } }
       : {};

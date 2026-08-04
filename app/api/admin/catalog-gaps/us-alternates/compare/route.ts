@@ -12,6 +12,7 @@ type SetOption = {
   code: string | null;
   sources: string[];
   matchedBy: string | null;
+  existsInDb: boolean;
 };
 
 function mergeSetOptions(
@@ -28,6 +29,7 @@ function mergeSetOptions(
     existing.sources = Array.from(new Set(existing.sources.concat(next.sources)));
     existing.matchedBy = existing.matchedBy ?? next.matchedBy;
     existing.code = existing.code ?? next.code;
+    existing.existsInDb = existing.existsInDb || next.existsInDb;
     return;
   }
 
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest) {
         code: target.code,
         sources: ["tcgplayer"],
         matchedBy: target.matchedBy,
+        existsInDb: target.setId != null,
       })
     );
 
@@ -107,6 +110,7 @@ export async function GET(req: NextRequest) {
         code: matchedLimitlessSet.code,
         sources: ["limitless"],
         matchedBy: matchedLimitlessSet.matchedBy,
+        existsInDb: matchedLimitlessSet.setId != null,
       });
     }
 

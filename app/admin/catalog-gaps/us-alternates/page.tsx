@@ -56,6 +56,7 @@ type CompareSetOption = {
   code: string | null;
   sources: string[];
   matchedBy: string | null;
+  existsInDb?: boolean;
 };
 
 type ComparePayload = {
@@ -124,7 +125,7 @@ export default function UsAlternatesPage() {
   const [haveLoading, setHaveLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareData, setCompareData] = useState<ComparePayload | null>(null);
-  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+  const [selectedSetKey, setSelectedSetKey] = useState<string | null>(null);
 
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
@@ -225,7 +226,7 @@ export default function UsAlternatesPage() {
   useEffect(() => {
     if (!detailRow || detailRow.origin !== "tcgplayer") {
       setCompareData(null);
-      setSelectedSetId(null);
+      setSelectedSetKey(null);
       setCompareLoading(false);
       return;
     }
@@ -241,19 +242,22 @@ export default function UsAlternatesPage() {
       .then((data: ComparePayload) => {
         if (cancelled) return;
         setCompareData(data);
-        const defaultSetId =
-          data.limitless.matchedPrint?.setId ??
-          data.setOptions.find((option) => option.sources.includes("limitless"))
-            ?.setId ??
-          data.tcgplayer.suggestedSets[0]?.setId ??
+        const preferred =
+          data.setOptions.find((option) => option.sources.includes("limitless")) ??
+          data.setOptions[0] ??
           null;
-        setSelectedSetId(defaultSetId);
+        const defaultKey = preferred
+          ? preferred.setId != null
+            ? `id:${preferred.setId}`
+            : `title:${preferred.title}::${preferred.code ?? ""}`
+          : null;
+        setSelectedSetKey(defaultKey);
       })
       .catch((error) => {
         if (!cancelled) {
           console.error(error);
           setCompareData(null);
-          setSelectedSetId(null);
+          setSelectedSetKey(null);
         }
       })
       .finally(() => {
@@ -298,7 +302,10 @@ export default function UsAlternatesPage() {
     }
   };
 
-  const createAlternate = async (r: Row, overrideSetId?: number | null) => {
+  const createAlternate = async (
+    r: Row,
+    overrideSet?: { setId: number | null; title: string; code: string | null } | null
+  ) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
       // Eventos: crear desde el MissingCard (productId es -missingCardId).
@@ -310,8 +317,14 @@ export default function UsAlternatesPage() {
         ? { missingCardId: -r.productId }
         : {
             productId: r.productId,
-            ...(Number.isFinite(Number(overrideSetId))
-              ? { overrideSetId: Number(overrideSetId) }
+            ...(overrideSet?.setId != null
+              ? { overrideSetId: Number(overrideSet.setId) }
+              : {}),
+            ...(overrideSet?.setId == null && overrideSet?.title
+              ? {
+                  overrideSetTitle: overrideSet.title,
+                  overrideSetCode: overrideSet.code,
+                }
               : {}),
           };
       const res = await fetch(endpoint, {
@@ -864,22 +877,20 @@ export default function UsAlternatesPage() {
                           </div>
                           <div className="mt-2 space-y-1.5">
                             {compareData.setOptions.map((option, index) => {
-                              const disabled = option.setId == null;
+                              const optionKey =
+                                option.setId != null
+                                  ? `id:${option.setId}`
+                                  : `title:${option.title}::${option.code ?? ""}`;
                               return (
                                 <label
                                   key={`${option.setId ?? "missing"}-${option.title}-${index}`}
-                                  className={`flex items-start gap-2 rounded-md border p-2 ${
-                                    disabled
-                                      ? "border-slate-200 opacity-60 dark:border-slate-700"
-                                      : "cursor-pointer border-slate-200 hover:border-blue-400 dark:border-slate-700"
-                                  }`}
+                                  className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 p-2 hover:border-blue-400 dark:border-slate-700"
                                 >
                                   <input
                                     type="radio"
                                     name="canonical-set"
-                                    disabled={disabled}
-                                    checked={selectedSetId === option.setId}
-                                    onChange={() => setSelectedSetId(option.setId)}
+                                    checked={selectedSetKey === optionKey}
+                                    onChange={() => setSelectedSetKey(optionKey)}
                                     className="mt-0.5 h-4 w-4 accent-blue-600"
                                   />
                                   <div className="min-w-0">
@@ -901,9 +912,9 @@ export default function UsAlternatesPage() {
                                           match {option.matchedBy}
                                         </span>
                                       )}
-                                      {disabled && (
+                                      {option.setId == null && (
                                         <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                                          no existe en DB
+                                          se creara al confirmar
                                         </span>
                                       )}
                                     </div>
@@ -967,7 +978,14 @@ export default function UsAlternatesPage() {
                   <button
                     onClick={() => {
                       const r = detailRow;
-                      const overrideSet = selectedSetId;
+                      const overrideSet =
+                        compareData?.setOptions.find((option) => {
+                          const optionKey =
+                            option.setId != null
+                              ? `id:${option.setId}`
+                              : `title:${option.title}::${option.code ?? ""}`;
+                          return optionKey === selectedSetKey;
+                        }) ?? null;
                       setDetailRow(null);
                       createAlternate(r, overrideSet);
                     }}

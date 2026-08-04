@@ -38,6 +38,7 @@ import { Oswald } from "next/font/google";
 import BaseCardsToggle from "@/components/BaseCardsToggle";
 import FAB from "@/components/Fab";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
+import { parseSearchTokens } from "@/lib/cards/searchTokens";
 import {
   Tooltip,
   TooltipContent,
@@ -120,6 +121,100 @@ const formatCurrencyStatic = (value: number, currency?: string | null) =>
     currency: currency || "USD",
     minimumFractionDigits: 2,
   }).format(value);
+
+const alternateMatchesActiveFilters = (
+  alternate: CardWithCollectionData,
+  options: {
+    search: string;
+    selectedSets: string[];
+    selectedCodes: string[];
+    selectedAltArts: string[];
+  }
+) => {
+  const { search, selectedSets, selectedCodes, selectedAltArts } = options;
+
+  if (selectedSets.length > 0) {
+    const normalizedSets = selectedSets.map((value) => value.toLowerCase());
+    const altSetCodes = (alternate.sets ?? [])
+      .map((entry) => entry.set.code?.trim().toLowerCase())
+      .filter((code): code is string => Boolean(code));
+    const altSetTitles = (alternate.sets ?? [])
+      .map((entry) => entry.set.title?.trim().toLowerCase())
+      .filter((title): title is string => Boolean(title));
+    const matchesSet =
+      altSetCodes.some((code) => normalizedSets.includes(code)) ||
+      altSetTitles.some((title) => normalizedSets.includes(title));
+    if (!matchesSet) return false;
+  }
+
+  if (selectedCodes.length > 0) {
+    const normalizedCodes = selectedCodes.map((value) => value.toLowerCase());
+    const altCode = alternate.code?.toLowerCase() ?? "";
+    const matchesCode = normalizedCodes.some((value) => altCode.includes(value));
+    if (!matchesCode) return false;
+  }
+
+  if (selectedAltArts.length > 0) {
+    const matchesAltArt = selectedAltArts.includes(alternate.alternateArt ?? "");
+    if (!matchesAltArt) return false;
+  }
+
+  const rawSearch = search.trim();
+  if (!rawSearch) return true;
+
+  const normalizedSearch = rawSearch.toLowerCase();
+  const parsed = parseSearchTokens(rawSearch);
+  const searchableValues = [
+    alternate.name,
+    alternate.code,
+    alternate.rarity,
+    alternate.illustrator,
+    alternate.alternateArt,
+    alternate.attribute,
+    alternate.cost,
+    alternate.power,
+    alternate.triggerCard,
+    ...(alternate.effects ?? []).map((effect) => effect.effect),
+    ...(alternate.texts ?? []).map((text) => text.text),
+    ...(alternate.types ?? []).map((type) => type.type),
+    ...(alternate.colors ?? []).map((color) => color.color),
+    ...(alternate.sets ?? []).flatMap((entry) => [entry.set.title, entry.set.code ?? ""]),
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  const includesToken = (token: string) =>
+    searchableValues.some((value) => value.includes(token.toLowerCase()));
+
+  if (parsed.textTokens.length > 0) {
+    const matchesTextTokens = parsed.textTokens.every((token) => includesToken(token));
+    if (!matchesTextTokens) return false;
+  } else {
+    const compact = normalizedSearch.replace(/[^a-z0-9]+/g, " ").trim();
+    if (compact && !includesToken(compact)) {
+      const words = compact.split(/\s+/).filter(Boolean);
+      if (words.length && !words.every((word) => includesToken(word))) {
+        return false;
+      }
+    }
+  }
+
+  if (parsed.codeTokens.length > 0) {
+    const matchesParsedCode = parsed.codeTokens.some((token) =>
+      (alternate.code ?? "").toLowerCase().includes(token.toLowerCase())
+    );
+    if (!matchesParsedCode) return false;
+  }
+
+  if (parsed.codeSuffixTokens.length > 0) {
+    const matchesSuffix = parsed.codeSuffixTokens.some((token) =>
+      (alternate.code ?? "").toLowerCase().endsWith(token.toLowerCase())
+    );
+    if (!matchesSuffix) return false;
+  }
+
+  return true;
+};
 
 // Componente PriceTag memoizado - fuera del componente principal
 const PriceTag = React.memo(
@@ -922,19 +1017,35 @@ const CardListClient = ({
     if (!dataSource?.length) return [];
 
     const normalizedCards = dataSource.map((card) => {
-      // Filtrar alternates pro (client-side porque es específico del usuario)
-      if (!isProVersion && card.alternates && card.alternates.length > 0) {
-        const filteredAlts = card.alternates.filter(
-          (alt) => alt.isPro === false
+      let nextCard = card;
+
+      if (card.alternates?.length) {
+        const filteredByActiveSearch = card.alternates.filter((alt) =>
+          alternateMatchesActiveFilters(alt, {
+            search,
+            selectedSets,
+            selectedCodes,
+            selectedAltArts,
+          })
         );
-        if (filteredAlts.length !== card.alternates.length) {
-          return { ...card, alternates: filteredAlts };
+        if (filteredByActiveSearch.length !== card.alternates.length) {
+          nextCard = { ...nextCard, alternates: filteredByActiveSearch };
         }
       }
-      if (showOnlyBaseCards && card.alternates?.length) {
-        return { ...card, alternates: [] };
+
+      // Filtrar alternates pro (client-side porque es específico del usuario)
+      if (!isProVersion && nextCard.alternates && nextCard.alternates.length > 0) {
+        const filteredAlts = nextCard.alternates.filter(
+          (alt) => alt.isPro === false
+        );
+        if (filteredAlts.length !== nextCard.alternates.length) {
+          nextCard = { ...nextCard, alternates: filteredAlts };
+        }
       }
-      return card;
+      if (showOnlyBaseCards && nextCard.alternates?.length) {
+        nextCard = { ...nextCard, alternates: [] };
+      }
+      return nextCard;
     });
 
     // Para ordenamiento por precio, el backend ya devuelve las cartas ordenadas
@@ -966,7 +1077,17 @@ const CardListClient = ({
     }
 
     return sortedCards;
-  }, [dataSource, isProVersion, selectedSort, isPriceSort, showOnlyBaseCards]);
+  }, [
+    dataSource,
+    isProVersion,
+    selectedSort,
+    isPriceSort,
+    showOnlyBaseCards,
+    search,
+    selectedSets,
+    selectedCodes,
+    selectedAltArts,
+  ]);
 
   const handleOpenCard = useCallback(
     (card: CardWithCollectionData, base: CardWithCollectionData) => {

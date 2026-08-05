@@ -115,6 +115,7 @@ type ReconcileResponse = {
       id: number;
       code: string;
       name: string;
+      src: string | null;
       region: string | null;
       tcgplayerProductId: string | null;
       isFirstEdition: boolean;
@@ -1710,23 +1711,76 @@ export default function LimitlessSyncPage() {
               empty="No hay cartas extras en el set."
               rows={report.report.extraInDbSet.map((card) => (
                 <tr key={card.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{card.code}</td>
-                  <td className="px-4 py-3 text-sm text-slate-800">{card.name}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{card.id}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex items-start gap-3">
+                      <div className="h-16 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                        {card.src ? (
+                          <img
+                            src={card.src}
+                            alt={`${card.code} ${card.name}`}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            No img
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                          {card.code}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          {card.name}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            {card.region ?? "No region"}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            {card.baseCardId ? "Alterna" : "Base"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-top text-sm text-slate-800 dark:text-slate-100">
+                    <div className="space-y-1">
+                      <div>Card ID #{card.id}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {card.tcgplayerProductId ? `PID ${card.tcgplayerProductId}` : "Sin PID"}
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{card.tcgplayerProductId ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleRemoveExtra(card.id)}
-                      disabled={removingIds.has(card.id)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-                    >
-                      {removingIds.has(card.id) ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                      Quitar del set
-                    </button>
+                  <td className="px-4 py-3 align-top text-xs text-slate-500">
+                    {card.isFirstEdition ? "1st edition" : "Unlimited"}
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={`/card-list/${card.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Abrir carta
+                      </a>
+                      <button
+                        onClick={() => handleRemoveExtra(card.id)}
+                        disabled={removingIds.has(card.id)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                      >
+                        {removingIds.has(card.id) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Quitar del set
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

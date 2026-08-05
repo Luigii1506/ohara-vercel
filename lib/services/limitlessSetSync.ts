@@ -72,6 +72,7 @@ export type DbSetCardRecord = {
   id: number;
   code: string;
   name: string;
+  src: string | null;
   region: string | null;
   tcgplayerProductId: string | null;
   isFirstEdition: boolean;
@@ -502,6 +503,7 @@ async function loadDbCardsForSet(
       id: true,
       code: true,
       name: true,
+      src: true,
       region: true,
       tcgplayerProductId: true,
       isFirstEdition: true,
@@ -519,6 +521,7 @@ async function loadDbCardsForSet(
     id: card.id,
     code: card.code,
     name: card.name,
+    src: card.src,
     region: card.region,
     tcgplayerProductId: card.tcgplayerProductId,
     isFirstEdition: card.isFirstEdition,
@@ -550,6 +553,7 @@ async function loadDbCandidates(
       id: true,
       code: true,
       name: true,
+      src: true,
       region: true,
       tcgplayerProductId: true,
       isFirstEdition: true,
@@ -567,6 +571,7 @@ async function loadDbCandidates(
     id: card.id,
     code: card.code,
     name: card.name,
+    src: card.src,
     region: card.region,
     tcgplayerProductId: card.tcgplayerProductId,
     isFirstEdition: card.isFirstEdition,

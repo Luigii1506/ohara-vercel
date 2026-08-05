@@ -349,7 +349,10 @@ export async function getLimitlessCatalogFeed(options?: {
   };
 }
 
-async function scrapeCardPrintDetails(cardUrl: string): Promise<{
+async function scrapeCardPrintDetails(
+  cardUrl: string,
+  version: number | null
+): Promise<{
   currentPrintTitle: string | null;
   currentPrintProductId: number | null;
   currentPrintTcgUrl: string | null;
@@ -388,7 +391,13 @@ async function scrapeCardPrintDetails(cardUrl: string): Promise<{
     });
   });
 
+  const versionPrint =
+    version && Number.isFinite(version) && version > 0 && version <= prints.length
+      ? prints[version - 1]
+      : null;
+
   const currentPrint =
+    versionPrint ??
     (currentPrintTitle
       ? prints.find(
           (print) => normalizeTitle(print.title) === normalizeTitle(currentPrintTitle)
@@ -440,7 +449,7 @@ export async function scrapeLimitlessSetMembership(
 
   const resolvedCards: LimitlessSetCard[] = [];
   for (const card of cards) {
-    const details = await scrapeCardPrintDetails(card.cardUrl);
+    const details = await scrapeCardPrintDetails(card.cardUrl, card.version);
     resolvedCards.push({
       ...card,
       ...details,
@@ -653,6 +662,31 @@ export async function reconcileLimitlessSetMembership(
       continue;
     }
 
+    if (inSetByCode.length === 1) {
+      matchedByCodeOnly.push({
+        code: card.code,
+        cardUrl: card.cardUrl,
+        printTitle: card.currentPrintTitle,
+        productId: card.currentPrintProductId,
+        card: inSetByCode[0],
+      });
+      matchedSetCardIds.add(inSetByCode[0].id);
+      continue;
+    }
+
+    if (inSetByCode.length > 1) {
+      missing.push({
+        code: card.code,
+        name: card.name,
+        cardUrl: card.cardUrl,
+        printTitle: card.currentPrintTitle,
+        productId: card.currentPrintProductId,
+        reason: "ambiguous-code",
+        candidateCardIds: inSetByCode.map((entry) => entry.id),
+      });
+      continue;
+    }
+
     if (globalByProduct.length === 1) {
       wrongSet.push({
         code: card.code,
@@ -675,31 +709,6 @@ export async function reconcileLimitlessSetMembership(
         productId: card.currentPrintProductId,
         reason: "ambiguous-product-id",
         candidateCardIds: globalByProduct.map((entry) => entry.id),
-      });
-      continue;
-    }
-
-    if (inSetByCode.length === 1) {
-      matchedByCodeOnly.push({
-        code: card.code,
-        cardUrl: card.cardUrl,
-        printTitle: card.currentPrintTitle,
-        productId: card.currentPrintProductId,
-        card: inSetByCode[0],
-      });
-      matchedSetCardIds.add(inSetByCode[0].id);
-      continue;
-    }
-
-    if (inSetByCode.length > 1) {
-      missing.push({
-        code: card.code,
-        name: card.name,
-        cardUrl: card.cardUrl,
-        printTitle: card.currentPrintTitle,
-        productId: card.currentPrintProductId,
-        reason: "ambiguous-code",
-        candidateCardIds: inSetByCode.map((entry) => entry.id),
       });
       continue;
     }

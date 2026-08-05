@@ -1198,13 +1198,14 @@ export const fetchCardsPageFromDb = async (
 
   const isPriceSorting =
     enrichedFilters.sortBy === "price_high" || enrichedFilters.sortBy === "price_low";
+  const hasResolvedSearchSet = Boolean(enrichedFilters.searchSetIds?.length);
 
   // Para ordenamiento por precio, necesitamos traer base + alternativas juntas
   if (isPriceSorting) {
     return fetchCardsPageByPrice({ ...options, filters: enrichedFilters });
   }
 
-  if (hasAltArtSearch(enrichedFilters)) {
+  if (hasResolvedSearchSet || hasAltArtSearch(enrichedFilters)) {
     return fetchCardsPageWithAlternates({ ...options, filters: enrichedFilters });
   }
 

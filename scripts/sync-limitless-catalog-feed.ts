@@ -1,7 +1,12 @@
 #!/usr/bin/env -S npx tsx --tsconfig tsconfig.scripts.json
 
 import "dotenv/config";
-import { syncLimitlessCatalogReviews } from "@/lib/services/limitlessSetSync";
+import {
+  getLimitlessCatalogFeed,
+  persistLimitlessSetReview,
+  reconcileLimitlessSetMembership,
+  type LimitlessCatalogFeedEntry,
+} from "@/lib/services/limitlessSetSync";
 import { prisma } from "@/lib/prisma";
 
 type Options = {
@@ -31,31 +36,93 @@ function parseArgs(): Options {
   return {
     category,
     region,
-    limit: Number.isFinite(limitRaw) ? limitRaw : null,
+    limit: Number.isFinite(limitRaw) ? Math.max(1, limitRaw) : null,
     newOnly: hasFlag("--new-only"),
-    staleHours: Number.isFinite(staleHoursRaw) ? staleHoursRaw : 24,
+    staleHours: Number.isFinite(staleHoursRaw) ? Math.max(1, staleHoursRaw) : 24,
     forceAll: hasFlag("--force-all"),
   };
 }
 
+function filterEntries(entries: LimitlessCatalogFeedEntry[], options: Options) {
+  return entries.filter((entry) => {
+    if (options.category !== "all" && entry.category !== options.category) {
+      return false;
+    }
+    if (options.forceAll) {
+      return true;
+    }
+    if (options.newOnly) {
+      return entry.isNew;
+    }
+    return entry.needsSync;
+  });
+}
+
 async function main() {
   const options = parseArgs();
-  const result = await syncLimitlessCatalogReviews(options);
+  const feed = await getLimitlessCatalogFeed({
+    region: options.region,
+    staleHours: options.staleHours,
+  });
+
+  const eligible = filterEntries(feed.entries, options);
+  const queue =
+    options.limit && Number.isFinite(options.limit)
+      ? eligible.slice(0, options.limit)
+      : eligible;
 
   console.log("");
   console.log(
-    `[limitless-catalog-feed] category=${options.category} region=${options.region} discovered=${result.discovered} eligible=${result.eligible} synced=${result.synced} failed=${result.failed}`
+    `[limitless-catalog-feed] discovered=${feed.stats.total} eligible=${eligible.length} queued=${queue.length} category=${options.category} region=${options.region} mode=${options.forceAll ? "force-all" : options.newOnly ? "new-only" : "stale"}`
   );
 
-  result.results.forEach((item) => {
-    if (item.ok) {
+  const results: Array<{
+    slug: string;
+    ok: boolean;
+    reviewId?: number;
+    wrongSetCount?: number;
+    missingCount?: number;
+    extraCount?: number;
+    error?: string;
+  }> = [];
+
+  for (const [index, entry] of queue.entries()) {
+    console.log(
+      `[${index + 1}/${queue.length}] syncing ${entry.slug} · ${entry.title}`
+    );
+
+    try {
+      const report = await reconcileLimitlessSetMembership({
+        setUrlOrSlug: entry.url,
+        region: options.region,
+      });
+      const review = await persistLimitlessSetReview(report, entry.category);
+      results.push({
+        slug: entry.slug,
+        ok: true,
+        reviewId: review.id,
+        wrongSetCount: report.wrongSet.length,
+        missingCount: report.missing.length,
+        extraCount: report.extraInDbSet.length,
+      });
       console.log(
-        `  ✓ ${item.slug} · review ${item.reviewId} · wrong=${item.wrongSetCount} missing=${item.missingCount} extra=${item.extraCount}`
+        `  ✓ review ${review.id} · wrong=${report.wrongSet.length} missing=${report.missing.length} extra=${report.extraInDbSet.length}`
       );
-    } else {
-      console.log(`  ✕ ${item.slug} · ${item.error}`);
+    } catch (error: any) {
+      const message = error?.message ?? "Unknown error";
+      results.push({
+        slug: entry.slug,
+        ok: false,
+        error: message,
+      });
+      console.log(`  ✕ ${message}`);
     }
-  });
+  }
+
+  console.log("");
+  console.log(
+    `[limitless-catalog-feed] done discovered=${feed.stats.total} eligible=${eligible.length} queued=${queue.length} synced=${results.filter((item) => item.ok).length} failed=${results.filter((item) => !item.ok).length}`
+  );
 }
 
 main()

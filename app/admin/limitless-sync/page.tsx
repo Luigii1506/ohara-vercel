@@ -8,6 +8,7 @@ import Select from "react-select";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   Database,
   ExternalLink,
   Layers,
@@ -16,6 +17,7 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
 
 type SetOption = {
@@ -199,15 +201,23 @@ export default function LimitlessSyncPage() {
   const [catalogStats, setCatalogStats] = useState<CatalogResponse["stats"] | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogFilter, setCatalogFilter] = useState("");
+  const [catalogKindFilter, setCatalogKindFilter] = useState<"all" | "main" | "promo">("all");
+  const [catalogStateFilter, setCatalogStateFilter] = useState<
+    "all" | "new" | "tracked" | "issues" | "pending"
+  >("all");
+  const [catalogVisibleCount, setCatalogVisibleCount] = useState(18);
   const [batchRunning, setBatchRunning] = useState(false);
   const [feedRunning, setFeedRunning] = useState<"all" | "new" | "stale" | null>(null);
   const [batchLimit, setBatchLimit] = useState("20");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("all");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewsVisibleCount, setReviewsVisibleCount] = useState(12);
   const [reviews, setReviews] = useState<ReviewsResponse["reviews"]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [writingSources, setWritingSources] = useState(false);
   const [report, setReport] = useState<ReconcileResponse | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
@@ -269,6 +279,10 @@ export default function LimitlessSyncPage() {
   }, [reviewStatusFilter]);
 
   useEffect(() => {
+    setReviewsVisibleCount(12);
+  }, [reviewStatusFilter, reviewSearch]);
+
+  useEffect(() => {
     let cancelled = false;
     setCatalogLoading(true);
     fetch("/api/admin/limitless/set-catalog")
@@ -297,6 +311,10 @@ export default function LimitlessSyncPage() {
     };
   }, []);
 
+  useEffect(() => {
+    setCatalogVisibleCount(18);
+  }, [catalogFilter, catalogKindFilter, catalogStateFilter]);
+
   const setOptions = useMemo(
     () =>
       sets.map((set) => ({
@@ -311,15 +329,43 @@ export default function LimitlessSyncPage() {
 
   const filteredCatalog = useMemo(() => {
     const needle = catalogFilter.trim().toLowerCase();
-    if (!needle) return catalog.slice(0, 60);
-    return catalog
-      .filter((entry) =>
-        [entry.title, entry.code ?? "", entry.slug, entry.dbSetTitle ?? ""].some((value) =>
-          value.toLowerCase().includes(needle)
-        )
-      )
-      .slice(0, 60);
-  }, [catalog, catalogFilter]);
+    return catalog.filter((entry) => {
+      if (catalogKindFilter !== "all" && entry.category !== catalogKindFilter) {
+        return false;
+      }
+      if (catalogStateFilter === "new" && !entry.isNew) return false;
+      if (catalogStateFilter === "tracked" && !entry.isTracked) return false;
+      if (catalogStateFilter === "issues" && entry.issueCount === 0) return false;
+      if (catalogStateFilter === "pending" && entry.reviewStatus !== "PENDING") return false;
+      if (!needle) return true;
+      return [entry.title, entry.code ?? "", entry.slug, entry.dbSetTitle ?? ""].some((value) =>
+        value.toLowerCase().includes(needle)
+      );
+    });
+  }, [catalog, catalogFilter, catalogKindFilter, catalogStateFilter]);
+
+  const visibleCatalog = useMemo(
+    () => filteredCatalog.slice(0, catalogVisibleCount),
+    [filteredCatalog, catalogVisibleCount]
+  );
+
+  const filteredReviews = useMemo(() => {
+    const needle = reviewSearch.trim().toLowerCase();
+    return reviews.filter((review) => {
+      if (!needle) return true;
+      return [
+        review.sourceTitle,
+        review.slug,
+        review.dbSet?.title ?? "",
+        review.dbSet?.code ?? "",
+      ].some((value) => value.toLowerCase().includes(needle));
+    });
+  }, [reviews, reviewSearch]);
+
+  const visibleReviews = useMemo(
+    () => filteredReviews.slice(0, reviewsVisibleCount),
+    [filteredReviews, reviewsVisibleCount]
+  );
 
   const loadCatalog = async () => {
     setCatalogLoading(true);
@@ -338,8 +384,23 @@ export default function LimitlessSyncPage() {
     }
   };
 
-  const runReconcile = async (writeSources: boolean = false) => {
-    if (!setUrlOrSlug.trim()) {
+  const runReconcile = async (
+    writeSources: boolean = false,
+    overrides?: {
+      setUrlOrSlug?: string;
+      dbSetId?: number | null;
+      region?: string;
+      openModal?: boolean;
+    }
+  ) => {
+    const targetSetUrlOrSlug = overrides?.setUrlOrSlug ?? setUrlOrSlug;
+    const targetSetId =
+      overrides && Object.prototype.hasOwnProperty.call(overrides, "dbSetId")
+        ? overrides.dbSetId ?? null
+        : selectedSetId;
+    const targetRegion = overrides?.region ?? region;
+
+    if (!targetSetUrlOrSlug.trim()) {
       setError("Necesitas pegar un URL o slug de Limitless.");
       return;
     }
@@ -359,9 +420,9 @@ export default function LimitlessSyncPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            setUrlOrSlug,
-            dbSetId: selectedSetId,
-            region,
+            setUrlOrSlug: targetSetUrlOrSlug,
+            dbSetId: targetSetId,
+            region: targetRegion,
             writeSources,
           }),
         }
@@ -371,6 +432,14 @@ export default function LimitlessSyncPage() {
         throw new Error(data?.error ?? "No se pudo reconciliar el set");
       }
       setReport(data);
+      if (overrides?.setUrlOrSlug) setSetUrlOrSlug(targetSetUrlOrSlug);
+      if (overrides && Object.prototype.hasOwnProperty.call(overrides, "dbSetId")) {
+        setSelectedSetId(targetSetId);
+      }
+      if (overrides?.region) setRegion(targetRegion);
+      if (overrides?.openModal !== false) {
+        setReportModalOpen(true);
+      }
       if (writeSources && data?.sourceWriteSummary) {
         setActionMessage(
           `Sources guardados: ${data.sourceWriteSummary.created} creados, ${data.sourceWriteSummary.updated} actualizados.`
@@ -382,6 +451,24 @@ export default function LimitlessSyncPage() {
       setRunning(false);
       setWritingSources(false);
     }
+  };
+
+  const openReviewReport = async (review: ReviewsResponse["reviews"][number]) => {
+    await runReconcile(false, {
+      setUrlOrSlug: review.sourceUrl,
+      dbSetId: review.dbSetId ?? null,
+      region: review.region ?? "US",
+      openModal: true,
+    });
+  };
+
+  const openCatalogReport = async (entry: CatalogResponse["entries"][number]) => {
+    await runReconcile(false, {
+      setUrlOrSlug: entry.url,
+      dbSetId: entry.dbSetId ?? null,
+      region,
+      openModal: true,
+    });
   };
 
   const handleRemoveExtra = async (cardId: number) => {
@@ -782,6 +869,12 @@ export default function LimitlessSyncPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <input
+                value={reviewSearch}
+                onChange={(event) => setReviewSearch(event.target.value)}
+                placeholder="Buscar review..."
+                className="w-44 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"
+              />
               <select
                 value={reviewStatusFilter}
                 onChange={(event) => setReviewStatusFilter(event.target.value)}
@@ -797,7 +890,10 @@ export default function LimitlessSyncPage() {
               )}
             </div>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Mostrando {visibleReviews.length} de {filteredReviews.length} reviews
+          </div>
+          <div className="mt-4 max-h-[520px] overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="min-w-full">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
                 <tr>
@@ -809,7 +905,7 @@ export default function LimitlessSyncPage() {
                 </tr>
               </thead>
               <tbody>
-                {reviews.map((review) => (
+                {visibleReviews.map((review) => (
                   <tr key={review.id} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="px-4 py-3">
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -830,20 +926,15 @@ export default function LimitlessSyncPage() {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => {
-                          setSetUrlOrSlug(review.sourceUrl);
-                          setSelectedSetId(review.dbSetId ?? null);
-                          setRegion(review.region ?? "US");
-                          void runReconcile(false);
-                        }}
+                        onClick={() => void openReviewReport(review)}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-900"
                       >
-                        Open
+                        Abrir issues
                       </button>
                     </td>
                   </tr>
                 ))}
-                {reviews.length === 0 && !reviewsLoading && (
+                {filteredReviews.length === 0 && !reviewsLoading && (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                       No reviews yet.
@@ -853,6 +944,17 @@ export default function LimitlessSyncPage() {
               </tbody>
             </table>
           </div>
+          {visibleReviews.length < filteredReviews.length && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setReviewsVisibleCount((current) => current + 12)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-900"
+              >
+                Ver más reviews
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
         </div>
 
@@ -932,17 +1034,47 @@ export default function LimitlessSyncPage() {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_180px_180px]">
             <input
               value={catalogFilter}
               onChange={(event) => setCatalogFilter(event.target.value)}
               placeholder="Buscar lista de Limitless, slug o set resuelto en DB..."
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100 dark:focus:ring-blue-500/30"
             />
+            <select
+              value={catalogKindFilter}
+              onChange={(event) =>
+                setCatalogKindFilter(event.target.value as "all" | "main" | "promo")
+              }
+              className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"
+            >
+              <option value="all">Todas las secciones</option>
+              <option value="main">Main sets</option>
+              <option value="promo">Promos</option>
+            </select>
+            <select
+              value={catalogStateFilter}
+              onChange={(event) =>
+                setCatalogStateFilter(
+                  event.target.value as "all" | "new" | "tracked" | "issues" | "pending"
+                )
+              }
+              className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="issues">Con issues</option>
+              <option value="pending">Pendientes</option>
+              <option value="new">Nuevas</option>
+              <option value="tracked">Trackeadas</option>
+            </select>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {filteredCatalog.map((entry) => (
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Mostrando {visibleCatalog.length} de {filteredCatalog.length} listas
+          </div>
+
+          <div className="mt-4 grid max-h-[900px] gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3">
+            {visibleCatalog.map((entry) => (
               <div
                 key={entry.slug}
                 className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-800 dark:bg-slate-950/50"
@@ -989,6 +1121,13 @@ export default function LimitlessSyncPage() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
+                    onClick={() => void openCatalogReport(entry)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                  >
+                    Abrir issues
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setSetUrlOrSlug(entry.url);
                       setCatalogFilter(entry.title);
@@ -1023,58 +1162,78 @@ export default function LimitlessSyncPage() {
               </div>
             ))}
           </div>
+          {visibleCatalog.length < filteredCatalog.length && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setCatalogVisibleCount((current) => current + 18)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-900"
+              >
+                Ver más listas
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {report && (
-          <>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <StatCard
-                label="Limitless"
-                value={report.report.snapshot.declaredCardCount}
-                tone="blue"
-              />
-              <StatCard label="DB Set" value={report.report.dbSetCardCount} tone="slate" />
-              <StatCard
-                label="Matched pid"
-                value={report.report.matchedByProductId.length}
-                tone="emerald"
-              />
-              <StatCard
-                label="Wrong set"
-                value={report.report.wrongSet.length}
-                tone="amber"
-              />
-              <StatCard
-                label="Extras"
-                value={report.report.extraInDbSet.length}
-                tone="rose"
-              />
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                    {report.report.snapshot.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    DB target:{" "}
-                    {report.report.dbSet?.setId
-                      ? `${report.report.dbSet.title} (#${report.report.dbSet.setId})`
-                      : "No resuelto"}
-                  </p>
+        {report && reportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div className="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950 sm:p-6">
+              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:-mx-6 sm:-mt-6 sm:px-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      {report.report.snapshot.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      DB target:{" "}
+                      {report.report.dbSet?.setId
+                        ? `${report.report.dbSet.title} (#${report.report.dbSet.setId})`
+                        : "No resuelto"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={report.report.snapshot.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+                    >
+                      Abrir Limitless
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                    <button
+                      onClick={() => setReportModalOpen(false)}
+                      className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
-                <a
-                  href={report.report.snapshot.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
-                >
-                  Abrir Limitless
-                  <ExternalLink className="h-4 w-4" />
-                </a>
               </div>
-            </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                <StatCard
+                  label="Limitless"
+                  value={report.report.snapshot.declaredCardCount}
+                  tone="blue"
+                />
+                <StatCard label="DB Set" value={report.report.dbSetCardCount} tone="slate" />
+                <StatCard
+                  label="Matched pid"
+                  value={report.report.matchedByProductId.length}
+                  tone="emerald"
+                />
+                <StatCard
+                  label="Wrong set"
+                  value={report.report.wrongSet.length}
+                  tone="amber"
+                />
+                <StatCard
+                  label="Extras"
+                  value={report.report.extraInDbSet.length}
+                  tone="rose"
+                />
+              </div>
 
             <SectionTable
               title="Wrong Set"
@@ -1214,7 +1373,8 @@ export default function LimitlessSyncPage() {
                 </tr>
               ))}
             />
-          </>
+            </div>
+          </div>
         )}
         </div>
       </div>

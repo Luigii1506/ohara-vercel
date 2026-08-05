@@ -1403,6 +1403,7 @@ const CardListClient = ({
             setSelectedAltArts={setSelectedAltArts}
             selectedAltArts={selectedAltArts}
             isProVersion={isProVersion}
+            suggestionsEndpoint="/api/cards/search-suggestions"
             selectedBlocks={selectedBlocks}
             setSelectedBlocks={setSelectedBlocks}
             standardLegalOnly={standardLegalOnly}
@@ -1419,6 +1420,7 @@ const CardListClient = ({
                 placeholder={`${t(
                   "cardList.search.placeholderPrefix"
                 )} ${dynamicPlaceholder}`}
+                suggestionsEndpoint="/api/cards/search-suggestions"
               />
             </div>
             <button

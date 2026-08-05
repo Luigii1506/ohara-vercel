@@ -60,6 +60,7 @@ interface SearchFiltersProps {
   selectedRegion?: string;
   setSelectedRegion?: (region: string) => void;
   isProVersion?: boolean;
+  suggestionsEndpoint?: string;
   // Bloque de regulación y legalidad Standard (opcionales).
   selectedBlocks?: string[];
   setSelectedBlocks?: (blocks: string[]) => void;
@@ -102,6 +103,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
   selectedRegion,
   setSelectedRegion,
   isProVersion,
+  suggestionsEndpoint,
   selectedBlocks,
   setSelectedBlocks,
   standardLegalOnly,
@@ -137,6 +139,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 placeholder={t("common.searchPlaceholder")}
                 isInputClear={isInputClear}
                 setIsInputClear={setIsInputClear}
+                suggestionsEndpoint={suggestionsEndpoint}
               />
             </div>
 

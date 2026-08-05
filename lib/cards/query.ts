@@ -216,6 +216,12 @@ const hasStructuredSearchSignals = (parsed: ReturnType<typeof parseSearchTokens>
   parsed.codeSuffixTokens.length > 0 ||
   parsed.illustratorTokens.length > 0;
 
+const hasSpecificStructuredSearch = (filters: CardsFilters) => {
+  if (!filters.search) return false;
+  const parsed = parseSearchTokens(filters.search);
+  return parsed.textTokens.length > 0 && hasStructuredSearchSignals(parsed);
+};
+
 const buildTokenSearchCondition = (
   search: string,
   scope: SearchScope = "broad"
@@ -1058,13 +1064,18 @@ export const fetchCardsPageFromDb = async (
   const isPriceSorting =
     enrichedFilters.sortBy === "price_high" || enrichedFilters.sortBy === "price_low";
   const hasResolvedSearchSet = Boolean(enrichedFilters.searchSetIds?.length);
+  const shouldUngroupSearchResults = hasSpecificStructuredSearch(enrichedFilters);
 
   // Para ordenamiento por precio, necesitamos traer base + alternativas juntas
   if (isPriceSorting) {
     return fetchCardsPageByPrice({ ...options, filters: enrichedFilters });
   }
 
-  if (hasResolvedSearchSet || hasAltArtSearch(enrichedFilters)) {
+  if (
+    hasResolvedSearchSet ||
+    hasAltArtSearch(enrichedFilters) ||
+    shouldUngroupSearchResults
+  ) {
     return fetchCardsPageWithAlternates({ ...options, filters: enrichedFilters });
   }
 
@@ -1507,7 +1518,8 @@ export const countCardsByFilters = async (
   const shouldCountDirect =
     !shouldCountBaseOnly &&
     (Boolean(enrichedFilters.searchSetIds?.length) ||
-      hasAltArtSearch(enrichedFilters));
+      hasAltArtSearch(enrichedFilters) ||
+      hasSpecificStructuredSearch(enrichedFilters));
 
   const where = shouldCountBaseOnly
     ? buildWhere(enrichedFilters, false)

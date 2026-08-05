@@ -1237,7 +1237,7 @@ const CardListClient = ({
     cardsToProcess.forEach((card, index) => {
       const filteredAlts = showOnlyBaseCards
         ? []
-        : getFilteredAlternates(card, selectedSets, selectedAltArts);
+        : card.alternates ?? [];
 
       const isBaseMatch = baseCardMatches(card, selectedSets, selectedAltArts);
 

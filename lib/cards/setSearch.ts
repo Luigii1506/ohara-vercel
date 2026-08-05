@@ -79,6 +79,20 @@ export const normalizeSetSearchText = (value: string) =>
 export const tokenizeSetSearchText = (value: string) =>
   normalizeSetSearchText(value).split(/\s+/).filter(Boolean);
 
+export const shouldForceEmptyForUnresolvedSetSearch = (search?: string) => {
+  const queryTokens = tokenizeSetSearchText(search ?? "");
+  if (queryTokens.length < 3) return false;
+
+  const hasSetIntent = queryTokens.some((token) => SET_SEARCH_MARKERS.has(token));
+  if (!hasSetIntent) return false;
+
+  return queryTokens.some(
+    (token, index) =>
+      (token === "vol" || token === "volume") &&
+      /^\d+$/.test(queryTokens[index + 1] ?? "")
+  );
+};
+
 export const isOneEditAway = (a: string, b: string) => {
   if (a === b) return true;
   if (Math.abs(a.length - b.length) > 1) return false;

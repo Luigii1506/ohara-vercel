@@ -9,7 +9,10 @@ import type {
 import type { CardWithCollectionData } from "@/types";
 import { DEFAULT_REGION } from "@/lib/regions";
 import { parseSearchTokens } from "./searchTokens";
-import { resolveSearchSetMatch } from "./setSearch";
+import {
+  resolveSearchSetMatch,
+  shouldForceEmptyForUnresolvedSetSearch,
+} from "./setSearch";
 
 type AlternateRelation = {
   id: number;
@@ -299,6 +302,28 @@ const hasAltArtSearch = (filters: CardsFilters) => {
   if (!filters.search) return false;
   const parsed = parseSearchTokens(filters.search);
   return parsed.altArts.length > 0 || parsed.illustratorTokens.length > 0;
+};
+
+const enrichFiltersWithResolvedSearchSet = async (filters: CardsFilters) => {
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const forceEmpty =
+    !resolvedSearchSet &&
+    shouldForceEmptyForUnresolvedSetSearch(filters.search);
+
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
+    : filters;
+
+  return {
+    resolvedSearchSet,
+    enrichedFilters,
+    forceEmpty,
+  };
 };
 
 const buildWhere = (
@@ -850,15 +875,17 @@ const fetchCardsPageByPrice = async (
     includeRelations = false,
     includeAlternates = true,
   } = options;
-  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
-  const enrichedFilters = resolvedSearchSet?.ids?.length
-    ? {
-        ...filters,
-        searchSetIds: resolvedSearchSet.ids,
-        searchSetOnly: resolvedSearchSet.exclusive,
-        searchSetAnyRegion: resolvedSearchSet.exclusive,
-      }
-    : filters;
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+
+  if (forceEmpty) {
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      totalCount: 0,
+    };
+  }
 
   // Para ordenamiento por precio, usamos buildDirectWhere que NO usa withAlternates
   // Esto asegura que solo traemos cartas que coinciden directamente con los filtros
@@ -986,15 +1013,17 @@ const fetchCardsPageWithAlternates = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
   const { filters, limit, cursor = null, includeRelations = false } = options;
-  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
-  const enrichedFilters = resolvedSearchSet?.ids?.length
-    ? {
-        ...filters,
-        searchSetIds: resolvedSearchSet.ids,
-        searchSetOnly: resolvedSearchSet.exclusive,
-        searchSetAnyRegion: resolvedSearchSet.exclusive,
-      }
-    : filters;
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+
+  if (forceEmpty) {
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      totalCount: 0,
+    };
+  }
 
   const where = buildDirectWhere(enrichedFilters);
   const take = Math.min(Math.max(limit, 1), 200);
@@ -1111,15 +1140,17 @@ export const fetchCardsPageFromDb = async (
     includeAlternates = true,
     includeCounts = false,
   } = options;
-  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
-  const enrichedFilters = resolvedSearchSet?.ids?.length
-    ? {
-        ...filters,
-        searchSetIds: resolvedSearchSet.ids,
-        searchSetOnly: resolvedSearchSet.exclusive,
-        searchSetAnyRegion: resolvedSearchSet.exclusive,
-      }
-    : filters;
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+
+  if (forceEmpty) {
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      totalCount: 0,
+    };
+  }
 
   const isPriceSorting =
     enrichedFilters.sortBy === "price_high" || enrichedFilters.sortBy === "price_low";
@@ -1220,15 +1251,12 @@ export const fetchAllCardsFromDb = async (
     includeCounts = false,
     limit = null,
   } = options;
-  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
-  const enrichedFilters = resolvedSearchSet?.ids?.length
-    ? {
-        ...filters,
-        searchSetIds: resolvedSearchSet.ids,
-        searchSetOnly: resolvedSearchSet.exclusive,
-        searchSetAnyRegion: resolvedSearchSet.exclusive,
-      }
-    : filters;
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+
+  if (forceEmpty) {
+    return [];
+  }
 
   const where = buildWhere(enrichedFilters);
   const include = buildInclude(
@@ -1508,15 +1536,9 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
 export const countCardsByFilters = async (
   filters: CardsFilters
 ): Promise<number> => {
-  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
-  const enrichedFilters = resolvedSearchSet?.ids?.length
-    ? {
-        ...filters,
-        searchSetIds: resolvedSearchSet.ids,
-        searchSetOnly: resolvedSearchSet.exclusive,
-        searchSetAnyRegion: resolvedSearchSet.exclusive,
-      }
-    : filters;
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+  if (forceEmpty) return 0;
   const shouldCountBaseOnly = Boolean(enrichedFilters.baseOnly);
   const shouldCountDirect =
     !shouldCountBaseOnly &&
@@ -1538,10 +1560,15 @@ export const countCardsByFilters = async (
 export const sumCardsValueByFilters = async (
   filters: CardsFilters
 ): Promise<{ value: number; withPrice: number }> => {
+  const { enrichedFilters, forceEmpty } =
+    await enrichFiltersWithResolvedSearchSet(filters);
+  if (forceEmpty) {
+    return { value: 0, withPrice: 0 };
+  }
   const shouldCountBaseOnly = Boolean(filters.baseOnly);
   const where = shouldCountBaseOnly
-    ? buildWhere(filters, false)
-    : buildDirectWhere(filters);
+    ? buildWhere(enrichedFilters, false)
+    : buildDirectWhere(enrichedFilters);
 
   const agg = await prisma.card.aggregate({
     where,

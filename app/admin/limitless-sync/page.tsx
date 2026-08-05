@@ -307,6 +307,22 @@ function transformStoredReviewToReport(review: ReviewDetailResponse["review"]): 
   };
 }
 
+function storedReviewNeedsImageRefresh(review: ReviewDetailResponse["review"]) {
+  return review.items.some((item) => {
+    if (item.kind === "MATCH_PRODUCT" || item.kind === "MATCH_CODE") {
+      const meta = item.metadataJson;
+      return !meta?.imageUrl || !meta?.card?.src;
+    }
+
+    if (item.kind === "EXTRA") {
+      const meta = item.metadataJson;
+      return !meta?.src;
+    }
+
+    return false;
+  });
+}
+
 export default function LimitlessSyncPage() {
   const router = useRouter();
   const { role, loading: roleLoading } = useUser();
@@ -621,6 +637,21 @@ export default function LimitlessSyncPage() {
       if (!response.ok) {
         throw new Error((data as any)?.error ?? "No se pudo abrir el review");
       }
+
+      if (storedReviewNeedsImageRefresh(data.review)) {
+        setSetUrlOrSlug(review.sourceUrl);
+        setSelectedSetId(review.dbSetId ?? null);
+        setRegion(review.region ?? "US");
+        await runReconcile(false, {
+          setUrlOrSlug: review.sourceUrl,
+          dbSetId: review.dbSetId ?? null,
+          region: review.region ?? "US",
+          openModal: true,
+        });
+        await Promise.all([loadReviews(reviewStatusFilter), loadCatalog()]);
+        return;
+      }
+
       setSetUrlOrSlug(review.sourceUrl);
       setSelectedSetId(review.dbSetId ?? null);
       setRegion(review.region ?? "US");

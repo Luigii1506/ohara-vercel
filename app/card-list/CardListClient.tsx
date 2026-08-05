@@ -1368,8 +1368,10 @@ const CardListClient = ({
       <div className="bg-white w-full">
         {/* Filtros desktop - Colapsables */}
         <div
-          className={`justify-center border-b border-[#f5f5f5] px-5 hidden md:flex gap-5 overflow-hidden transition-all duration-300 ease-in-out ${
-            isFiltersCollapsed ? "max-h-0 py-0" : "max-h-[500px] py-3"
+          className={`justify-center border-b border-[#f5f5f5] px-5 hidden md:flex gap-5 transition-all duration-300 ease-in-out ${
+            isFiltersCollapsed
+              ? "max-h-0 py-0 overflow-hidden"
+              : "max-h-[500px] py-3 overflow-visible"
           }`}
         >
           <SearchFilters

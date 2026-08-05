@@ -9,7 +9,6 @@ type SearchSuggestion = {
   id: number | string;
   value: string;
   label?: string;
-  code?: string | null;
 };
 
 interface DropdownSearchProps {
@@ -221,9 +220,9 @@ export default function DropdownSearch({
           )}
 
           {suggestionsEndpoint && isSuggestionsOpen && suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[120] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
               <div className="border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Set Suggestions
+                Set Names
               </div>
               <div className="max-h-72 overflow-y-auto py-1">
                 {suggestions.map((suggestion, index) => {
@@ -243,11 +242,6 @@ export default function DropdownSearch({
                       <span className="min-w-0 truncate text-sm font-medium">
                         {suggestion.label ?? suggestion.value}
                       </span>
-                      {suggestion.code ? (
-                        <span className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          {suggestion.code}
-                        </span>
-                      ) : null}
                     </button>
                   );
                 })}
@@ -259,8 +253,8 @@ export default function DropdownSearch({
             isLoadingSuggestions &&
             inputValue.trim().length >= 2 &&
             suggestions.length === 0 && (
-              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-lg">
-                Searching sets...
+              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[120] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-lg">
+                Searching set names...
               </div>
             )}
         </div>

@@ -26,10 +26,17 @@ type AlternateRelation = {
 type AlternateWithRelations = {
   id: number;
   src: string | null;
+  name: string;
   code: string;
   alias: string | null;
   order: string | null;
   alternateArt: string | null;
+  rarity: string | null;
+  illustrator: string | null;
+  attribute: string | null;
+  cost: string | null;
+  power: string | null;
+  triggerCard: string | null;
   isFirstEdition: boolean;
   tcgUrl: string | null;
   tcgplayerProductId?: string | null;
@@ -732,11 +739,18 @@ const buildWhere = (
 const buildAlternateSelect = (includeRelations: boolean) => ({
   id: true,
   src: true,
+  name: true,
   code: true,
   alias: true,
   order: true,
   alternateArt: true,
   disclaimer: true,
+  rarity: true,
+  illustrator: true,
+  attribute: true,
+  cost: true,
+  power: true,
+  triggerCard: true,
   isFirstEdition: true,
   tcgUrl: true,
   tcgplayerProductId: true,

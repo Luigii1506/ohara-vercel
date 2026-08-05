@@ -160,7 +160,7 @@ export default function DropdownSearch({
           : [];
 
         setSuggestions(nextSuggestions);
-        setHighlightedIndex(nextSuggestions.length ? 0 : -1);
+        setHighlightedIndex(-1);
         setIsSuggestionsOpen(nextSuggestions.length > 0);
       } catch (error) {
         if (requestIdRef.current !== currentRequestId) return;

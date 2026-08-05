@@ -231,15 +231,21 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     if (!token) return;
     const previousToken = normalizeSearchToken(rawTokens[index - 1] ?? "");
     const nextToken = normalizeSearchToken(rawTokens[index + 1] ?? "");
+    const isSetPhraseToken =
+      setContextMarkers.has(token) &&
+      (setContextMarkers.has(previousToken) ||
+        setContextMarkers.has(nextToken) ||
+        /^\d+$/.test(previousToken) ||
+        /^\d+$/.test(nextToken));
 
     const mappedRarity = SEARCH_RARITY_MAP[token];
-    if (mappedRarity) {
+    if (mappedRarity && !isSetPhraseToken) {
       rarities.add(mappedRarity);
       return;
     }
 
     const mappedCategory = SEARCH_CATEGORY_MAP[token];
-    if (mappedCategory) {
+    if (mappedCategory && !isSetPhraseToken) {
       categories.add(mappedCategory);
       return;
     }

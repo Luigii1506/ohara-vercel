@@ -124,10 +124,8 @@ export default function DropdownSearch({
   }, [isInputClear]);
 
   React.useEffect(() => {
-    if (search !== inputValue) {
-      setInputValue(search);
-    }
-  }, [inputValue, search]);
+    setInputValue(search);
+  }, [search]);
 
   React.useEffect(() => {
     if (!suggestionsEndpoint) return;

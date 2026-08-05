@@ -22,6 +22,7 @@ const SEARCH_COLOR_MAP: Record<string, string> = {
   verde: "green",
   yellow: "yellow",
   amarillo: "yellow",
+  amarilla: "yellow",
   amrilla: "yellow",
   black: "black",
   negro: "black",
@@ -37,24 +38,42 @@ const SEARCH_RARITY_MAP: Record<string, string> = {
   leader: "Leader",
   lider: "Leader",
   r: "Rare",
+  rr: "Rare",
   rare: "Rare",
   raro: "Rare",
   rara: "Rare",
   uc: "Uncommon",
+  us: "Uncommon",
+  unco: "Uncommon",
   uncommon: "Uncommon",
   pococomun: "Uncommon",
   c: "Common",
+  com: "Common",
   common: "Common",
   comun: "Common",
   sr: "Super Rare",
+  superr: "Super Rare",
   superrare: "Super Rare",
   superrara: "Super Rare",
   sec: "Secret Rare",
+  secr: "Secret Rare",
   secret: "Secret Rare",
+  secretrare: "Secret Rare",
   secreta: "Secret Rare",
   secreto: "Secret Rare",
   p: "Promo",
+  pr: "Promo",
   promo: "Promo",
+  promocional: "Promo",
+  promotional: "Promo",
+};
+
+const SEARCH_RARITY_PHRASE_MAP: Record<string, string> = {
+  "super rare": "Super Rare",
+  "super rara": "Super Rare",
+  "secret rare": "Secret Rare",
+  "rara secreta": "Secret Rare",
+  "rare secreta": "Secret Rare",
 };
 
 const SEARCH_CATEGORY_MAP: Record<string, string> = {
@@ -82,6 +101,7 @@ const SEARCH_ALT_ART_MAP: Record<string, string> = {
   artecompleto: "Full Art",
   completo: "Full Art",
   treasurecup: "Treasure Cup",
+  tr: "Treasure Rare",
   treasurerare: "Treasure Rare",
   treasure: "Treasure Cup",
   sp: "Special Card",
@@ -226,11 +246,15 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     triggers.add("No trigger");
   }
 
-  rawTokens.forEach((raw, index) => {
+  for (let index = 0; index < rawTokens.length; index += 1) {
+    const raw = rawTokens[index];
     const token = normalizeSearchToken(raw);
-    if (!token) return;
+    if (!token) continue;
     const previousToken = normalizeSearchToken(rawTokens[index - 1] ?? "");
     const nextToken = normalizeSearchToken(rawTokens[index + 1] ?? "");
+    const rarityPhrase = SEARCH_RARITY_PHRASE_MAP[
+      `${token} ${nextToken}`.trim()
+    ];
     const isSetPhraseToken =
       setContextMarkers.has(token) &&
       (setContextMarkers.has(previousToken) ||
@@ -238,38 +262,44 @@ export const parseSearchTokens = (search: string): SearchTokens => {
         /^\d+$/.test(previousToken) ||
         /^\d+$/.test(nextToken));
 
+    if (rarityPhrase) {
+      rarities.add(rarityPhrase);
+      index += 1;
+      continue;
+    }
+
     const mappedRarity = SEARCH_RARITY_MAP[token];
     if (mappedRarity && !isSetPhraseToken) {
       rarities.add(mappedRarity);
-      return;
+      continue;
     }
 
     const mappedCategory = SEARCH_CATEGORY_MAP[token];
     if (mappedCategory && !isSetPhraseToken) {
       categories.add(mappedCategory);
-      return;
+      continue;
     }
 
     const mappedAltArt = SEARCH_ALT_ART_MAP[token];
     if (mappedAltArt) {
       altArts.add(mappedAltArt);
-      return;
+      continue;
     }
 
     const mappedTrigger = SEARCH_TRIGGER_MAP[token];
     if (mappedTrigger) {
       triggers.add(mappedTrigger);
-      return;
+      continue;
     }
 
     const mappedColor = SEARCH_COLOR_MAP[token];
     if (mappedColor) {
       colors.add(mappedColor);
-      return;
+      continue;
     }
 
     if (illustratorMode && illustratorMarkers.has(token)) {
-      return;
+      continue;
     }
 
     if (/^\d+$/.test(token)) {
@@ -277,19 +307,19 @@ export const parseSearchTokens = (search: string): SearchTokens => {
         setContextMarkers.has(previousToken) || setContextMarkers.has(nextToken);
       if (isSetContextNumber) {
         textTokens.push(token);
-        return;
+        continue;
       }
       if (token.length <= 2) {
         costs.add(String(parseInt(token, 10)));
-        return;
+        continue;
       }
       if (token.length === 3) {
         codeSuffixTokens.add(token);
-        return;
+        continue;
       }
       if (token.length >= 4 && token.length <= 5) {
         powers.add(String(parseInt(token, 10)));
-        return;
+        continue;
       }
     }
 
@@ -301,21 +331,21 @@ export const parseSearchTokens = (search: string): SearchTokens => {
       const [, prefix, setNum, cardNum] = fullCodeMatch;
       const formattedCode = `${prefix.toUpperCase()}${setNum}-${cardNum}`;
       codeTokens.add(formattedCode);
-      return;
+      continue;
     }
 
     if (/^(op|st|eb|prb|p)\d{1,3}$/i.test(normalizedCodeToken)) {
       codeTokens.add(token.toUpperCase());
-      return;
+      continue;
     }
 
     if (illustratorMode) {
       illustratorTokens.add(token);
-      return;
+      continue;
     }
 
     textTokens.push(token);
-  });
+  }
 
   return {
     textTokens,

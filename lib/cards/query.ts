@@ -202,6 +202,72 @@ const buildContainsAllCondition = (
   };
 };
 
+type SearchScope = "broad" | "name-first";
+
+const hasStructuredSearchSignals = (parsed: ReturnType<typeof parseSearchTokens>) =>
+  parsed.colors.length > 0 ||
+  parsed.rarities.length > 0 ||
+  parsed.categories.length > 0 ||
+  parsed.altArts.length > 0 ||
+  parsed.triggers.length > 0 ||
+  parsed.costs.length > 0 ||
+  parsed.powers.length > 0 ||
+  parsed.codeTokens.length > 0 ||
+  parsed.codeSuffixTokens.length > 0 ||
+  parsed.illustratorTokens.length > 0;
+
+const buildTokenSearchCondition = (
+  search: string,
+  scope: SearchScope = "broad"
+): Prisma.CardWhereInput => {
+  const baseConditions: Prisma.CardWhereInput[] =
+    scope === "name-first"
+      ? [
+          { name: { contains: search, mode: "insensitive" } },
+          { code: { contains: search, mode: "insensitive" } },
+          {
+            sets: {
+              some: {
+                set: {
+                  OR: [
+                    { title: { contains: search, mode: "insensitive" } },
+                    { code: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          },
+        ]
+      : [
+          { name: { contains: search, mode: "insensitive" } },
+          { illustrator: { contains: search, mode: "insensitive" } },
+          { code: { contains: search, mode: "insensitive" } },
+          { rarity: { contains: search, mode: "insensitive" } },
+          {
+            sets: {
+              some: {
+                set: {
+                  OR: [
+                    { title: { contains: search, mode: "insensitive" } },
+                    { code: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          },
+        ];
+
+  if (scope === "broad") {
+    baseConditions.push({
+      effects: {
+        some: { effect: { contains: search, mode: "insensitive" } },
+      },
+    });
+  }
+
+  return { OR: baseConditions };
+};
+
 const hasAltArtSearch = (filters: CardsFilters) => {
   if (filters.altArts?.length) return true;
   if (!filters.search) return false;
@@ -243,46 +309,21 @@ const buildWhere = (
     ],
   });
 
-  const buildSearchCondition = (search: string): Prisma.CardWhereInput => {
-    return {
-      OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { illustrator: { contains: search, mode: "insensitive" } },
-        { code: { contains: search, mode: "insensitive" } },
-        { rarity: { contains: search, mode: "insensitive" } },
-        {
-          sets: {
-            some: {
-              set: {
-                OR: [
-                  { title: { contains: search, mode: "insensitive" } },
-                  { code: { contains: search, mode: "insensitive" } },
-                ],
-              },
-            },
-          },
-        },
-        {
-          effects: {
-            some: { effect: { contains: search, mode: "insensitive" } },
-          },
-        },
-      ],
-    };
-  };
-
   if (filters.search) {
     const search = filters.search.trim();
     if (search.length) {
       const parsed = parseSearchTokens(search);
+      const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
+        ? "name-first"
+        : "broad";
 
       parsed.textTokens.forEach((token) => {
         andConditions.push({
           OR: [
-            buildSearchCondition(token),
+            buildTokenSearchCondition(token, tokenSearchScope),
             {
               alternateCards: {
-                some: buildSearchCondition(token),
+                some: buildTokenSearchCondition(token, tokenSearchScope),
               },
             },
           ],
@@ -1233,41 +1274,16 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
 
   andConditions.push(regionCondition);
 
-  const buildSearchCondition = (search: string): Prisma.CardWhereInput => {
-    return {
-      OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { illustrator: { contains: search, mode: "insensitive" } },
-        { code: { contains: search, mode: "insensitive" } },
-        { rarity: { contains: search, mode: "insensitive" } },
-        {
-          sets: {
-            some: {
-              set: {
-                OR: [
-                  { title: { contains: search, mode: "insensitive" } },
-                  { code: { contains: search, mode: "insensitive" } },
-                ],
-              },
-            },
-          },
-        },
-        {
-          effects: {
-            some: { effect: { contains: search, mode: "insensitive" } },
-          },
-        },
-      ],
-    };
-  };
-
   if (filters.search) {
     const search = filters.search.trim();
     if (search.length) {
       const parsed = parseSearchTokens(search);
+      const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
+        ? "name-first"
+        : "broad";
 
       parsed.textTokens.forEach((token) => {
-        andConditions.push(buildSearchCondition(token));
+        andConditions.push(buildTokenSearchCondition(token, tokenSearchScope));
       });
 
       if (parsed.categories.length > 0) {
@@ -1483,11 +1499,21 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
 export const countCardsByFilters = async (
   filters: CardsFilters
 ): Promise<number> => {
-  const shouldCountBaseOnly = Boolean(filters.baseOnly);
+  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
+  const enrichedFilters = resolvedSearchSetIds?.length
+    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+    : filters;
+  const shouldCountBaseOnly = Boolean(enrichedFilters.baseOnly);
+  const shouldCountDirect =
+    !shouldCountBaseOnly &&
+    (Boolean(enrichedFilters.searchSetIds?.length) ||
+      hasAltArtSearch(enrichedFilters));
 
   const where = shouldCountBaseOnly
-    ? buildWhere(filters, false)
-    : buildDirectWhere(filters);
+    ? buildWhere(enrichedFilters, false)
+    : shouldCountDirect
+    ? buildDirectWhere(enrichedFilters)
+    : buildWhere(enrichedFilters, false);
 
   return prisma.card.count({ where });
 };

@@ -1,6 +1,30 @@
 import { CardWithCollectionData } from "@/types";
 import { parseSearchTokens } from "@/lib/cards/searchTokens";
 
+const normalizeSearchWords = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const matchesWordToken = (value: string, token: string) => {
+  const normalizedToken = token.toLowerCase().trim();
+  if (!normalizedToken) return false;
+
+  return normalizeSearchWords(value).some(
+    (word) => word === normalizedToken || word.startsWith(normalizedToken)
+  );
+};
+
+const matchesPhraseToken = (value: string, phrase: string) => {
+  const normalizedPhrase = phrase.toLowerCase().trim();
+  if (!normalizedPhrase) return false;
+
+  const normalizedValue = value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return normalizedValue.includes(normalizedPhrase);
+};
+
 export const matchesCardCode = (code: string, search: string): boolean => {
   const query = search.toLowerCase().trim();
   const fullCode = code.toLowerCase();
@@ -152,14 +176,21 @@ export const cardMatchesActiveFilters = (
     .map((value) => String(value).toLowerCase());
 
   const includesToken = (token: string) =>
-    searchableValues.some((value) => value.includes(token.toLowerCase()));
+    searchableValues.some((value) => matchesWordToken(value, token));
+
+  if (parsed.exactPhrases.length > 0) {
+    const matchesExactPhrases = parsed.exactPhrases.every((phrase) =>
+      searchableValues.some((value) => matchesPhraseToken(value, phrase))
+    );
+    if (!matchesExactPhrases) return false;
+  }
 
   if (parsed.textTokens.length > 0) {
     const matchesTextTokens = parsed.textTokens.every((token) => includesToken(token));
     if (!matchesTextTokens) return false;
   } else {
     const compact = normalizedSearch.replace(/[^a-z0-9]+/g, " ").trim();
-    if (compact && !includesToken(compact)) {
+    if (compact && !searchableValues.some((value) => matchesPhraseToken(value, compact))) {
       const words = compact.split(/\s+/).filter(Boolean);
       if (words.length && !words.every((word) => includesToken(word))) {
         return false;

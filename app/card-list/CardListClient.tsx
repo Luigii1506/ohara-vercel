@@ -994,6 +994,15 @@ const CardListClient = ({
         nextCard = { ...nextCard, alternates: [] };
       }
       return nextCard;
+    }).filter((card) => {
+      const baseMatches = cardMatchesActiveFilters(card, {
+        search,
+        selectedSets,
+        selectedCodes,
+        selectedAltArts,
+      });
+
+      return baseMatches || (card.alternates?.length ?? 0) > 0;
     });
 
     // Para ordenamiento por precio, el backend ya devuelve las cartas ordenadas

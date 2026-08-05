@@ -175,6 +175,43 @@ type ReviewsResponse = {
   }>;
 };
 
+type ReviewDetailResponse = {
+  ok: boolean;
+  review: {
+    id: number;
+    slug: string;
+    sourceUrl: string;
+    sourceTitle: string;
+    region: string | null;
+    dbSetId: number | null;
+    status: "PENDING" | "REVIEWED" | "APPLIED";
+    declaredCount: number;
+    dbSetCardCount: number;
+    matchedCount: number;
+    wrongSetCount: number;
+    missingCount: number;
+    extraCount: number;
+    snapshotJson: any;
+    dbSet: {
+      id: number;
+      title: string;
+      code: string | null;
+    } | null;
+    items: Array<{
+      id: number;
+      kind: "MATCH_PRODUCT" | "MATCH_CODE" | "MISSING" | "WRONG_SET" | "EXTRA";
+      code: string;
+      name: string | null;
+      printTitle: string | null;
+      cardUrl: string | null;
+      productId: number | null;
+      matchedCardId: number | null;
+      candidateCardIds: number[];
+      metadataJson: any;
+    }>;
+  };
+};
+
 const selectStyles = {
   control: (provided: any, state: any) => ({
     ...provided,
@@ -188,6 +225,64 @@ const selectStyles = {
     zIndex: 40,
   }),
 };
+
+function reviewStatusPriority(status: "PENDING" | "REVIEWED" | "APPLIED" | null | undefined) {
+  if (status === "PENDING") return 0;
+  if (status === "REVIEWED") return 1;
+  if (status === "APPLIED") return 2;
+  return 3;
+}
+
+function transformStoredReviewToReport(review: ReviewDetailResponse["review"]): ReconcileResponse {
+  const snapshot = review.snapshotJson ?? {
+    slug: review.slug,
+    sourceUrl: review.sourceUrl,
+    title: review.sourceTitle,
+    declaredCardCount: review.declaredCount,
+  };
+
+  return {
+    ok: true,
+    sourceWriteSummary: null,
+    report: {
+      snapshot: {
+        slug: snapshot.slug ?? review.slug,
+        sourceUrl: snapshot.sourceUrl ?? review.sourceUrl,
+        title: snapshot.title ?? review.sourceTitle,
+        declaredCardCount: snapshot.declaredCardCount ?? review.declaredCount,
+      },
+      dbSet: review.dbSet
+        ? {
+            setId: review.dbSet.id,
+            title: review.dbSet.title,
+            code: review.dbSet.code,
+            matchedBy: "stored-review",
+          }
+        : null,
+      dbSetCardCount: review.dbSetCardCount,
+      matchedByProductId: review.items
+        .filter((item) => item.kind === "MATCH_PRODUCT")
+        .map((item) => item.metadataJson)
+        .filter(Boolean),
+      matchedByCodeOnly: review.items
+        .filter((item) => item.kind === "MATCH_CODE")
+        .map((item) => item.metadataJson)
+        .filter(Boolean),
+      missing: review.items
+        .filter((item) => item.kind === "MISSING")
+        .map((item) => item.metadataJson ?? item)
+        .filter(Boolean),
+      wrongSet: review.items
+        .filter((item) => item.kind === "WRONG_SET")
+        .map((item) => item.metadataJson ?? item)
+        .filter(Boolean),
+      extraInDbSet: review.items
+        .filter((item) => item.kind === "EXTRA")
+        .map((item) => item.metadataJson ?? item)
+        .filter(Boolean),
+    },
+  };
+}
 
 export default function LimitlessSyncPage() {
   const router = useRouter();
@@ -216,6 +311,7 @@ export default function LimitlessSyncPage() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [writingSources, setWritingSources] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [report, setReport] = useState<ReconcileResponse | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -344,14 +440,10 @@ export default function LimitlessSyncPage() {
     });
   }, [catalog, catalogFilter, catalogKindFilter, catalogStateFilter]);
 
-  const visibleCatalog = useMemo(
-    () => filteredCatalog.slice(0, catalogVisibleCount),
-    [filteredCatalog, catalogVisibleCount]
-  );
-
   const filteredReviews = useMemo(() => {
     const needle = reviewSearch.trim().toLowerCase();
-    return reviews.filter((review) => {
+    return reviews
+      .filter((review) => {
       if (!needle) return true;
       return [
         review.sourceTitle,
@@ -359,12 +451,39 @@ export default function LimitlessSyncPage() {
         review.dbSet?.title ?? "",
         review.dbSet?.code ?? "",
       ].some((value) => value.toLowerCase().includes(needle));
-    });
+      })
+      .sort((a, b) => {
+        const statusDiff = reviewStatusPriority(a.status) - reviewStatusPriority(b.status);
+        if (statusDiff !== 0) return statusDiff;
+        const issueDiff =
+          b.wrongSetCount + b.missingCount + b.extraCount -
+          (a.wrongSetCount + a.missingCount + a.extraCount);
+        if (issueDiff !== 0) return issueDiff;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
   }, [reviews, reviewSearch]);
+
+  const prioritizedCatalog = useMemo(
+    () =>
+      [...filteredCatalog].sort((a, b) => {
+        const statusDiff =
+          reviewStatusPriority(a.reviewStatus) - reviewStatusPriority(b.reviewStatus);
+        if (statusDiff !== 0) return statusDiff;
+        if (Number(b.isNew) !== Number(a.isNew)) return Number(b.isNew) - Number(a.isNew);
+        if (b.issueCount !== a.issueCount) return b.issueCount - a.issueCount;
+        return a.title.localeCompare(b.title);
+      }),
+    [filteredCatalog]
+  );
 
   const visibleReviews = useMemo(
     () => filteredReviews.slice(0, reviewsVisibleCount),
     [filteredReviews, reviewsVisibleCount]
+  );
+
+  const visibleCatalogEntries = useMemo(
+    () => prioritizedCatalog.slice(0, catalogVisibleCount),
+    [prioritizedCatalog, catalogVisibleCount]
   );
 
   const loadCatalog = async () => {
@@ -454,15 +573,57 @@ export default function LimitlessSyncPage() {
   };
 
   const openReviewReport = async (review: ReviewsResponse["reviews"][number]) => {
-    await runReconcile(false, {
-      setUrlOrSlug: review.sourceUrl,
-      dbSetId: review.dbSetId ?? null,
-      region: review.region ?? "US",
-      openModal: true,
-    });
+    setReport(null);
+    setReportModalOpen(true);
+    setReportLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/limitless/reviews/${review.id}`);
+      const data: ReviewDetailResponse = await response.json();
+      if (!response.ok) {
+        throw new Error((data as any)?.error ?? "No se pudo abrir el review");
+      }
+      setSetUrlOrSlug(review.sourceUrl);
+      setSelectedSetId(review.dbSetId ?? null);
+      setRegion(review.region ?? "US");
+      setReport(transformStoredReviewToReport(data.review));
+    } catch (err: any) {
+      setReportModalOpen(false);
+      setError(err?.message ?? "Error inesperado");
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const openCatalogReport = async (entry: CatalogResponse["entries"][number]) => {
+    if (entry.reviewId) {
+      await openReviewReport({
+        id: entry.reviewId,
+        slug: entry.slug,
+        sourceUrl: entry.url,
+        sourceTitle: entry.title,
+        sourceCategory: entry.category,
+        region,
+        dbSetId: entry.dbSetId,
+        status: (entry.reviewStatus ?? "PENDING") as "PENDING" | "REVIEWED" | "APPLIED",
+        declaredCount: 0,
+        dbSetCardCount: 0,
+        matchedCount: 0,
+        wrongSetCount: entry.wrongSetCount,
+        missingCount: entry.missingCount,
+        extraCount: entry.extraCount,
+        updatedAt: entry.lastSyncedAt ?? new Date().toISOString(),
+        dbSet: entry.dbSetId
+          ? {
+              id: entry.dbSetId,
+              title: entry.dbSetTitle ?? "DB Set",
+              code: null,
+            }
+          : null,
+        _count: { items: 0 },
+      });
+      return;
+    }
     await runReconcile(false, {
       setUrlOrSlug: entry.url,
       dbSetId: entry.dbSetId ?? null,
@@ -1070,11 +1231,11 @@ export default function LimitlessSyncPage() {
           </div>
 
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Mostrando {visibleCatalog.length} de {filteredCatalog.length} listas
+            Mostrando {visibleCatalogEntries.length} de {prioritizedCatalog.length} listas
           </div>
 
           <div className="mt-4 grid max-h-[900px] gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3">
-            {visibleCatalog.map((entry) => (
+            {visibleCatalogEntries.map((entry) => (
               <div
                 key={entry.slug}
                 className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-800 dark:bg-slate-950/50"
@@ -1162,7 +1323,7 @@ export default function LimitlessSyncPage() {
               </div>
             ))}
           </div>
-          {visibleCatalog.length < filteredCatalog.length && (
+          {visibleCatalogEntries.length < prioritizedCatalog.length && (
             <div className="mt-4 flex justify-center">
               <button
                 onClick={() => setCatalogVisibleCount((current) => current + 18)}
@@ -1175,32 +1336,55 @@ export default function LimitlessSyncPage() {
           )}
         </div>
 
-        {report && reportModalOpen && (
+        {reportModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
             <div className="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950 sm:p-6">
               <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:-mx-6 sm:-mt-6 sm:px-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      {report.report.snapshot.title}
+                      {report?.report.snapshot.title ?? "Cargando reporte"}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      DB target:{" "}
-                      {report.report.dbSet?.setId
-                        ? `${report.report.dbSet.title} (#${report.report.dbSet.setId})`
-                        : "No resuelto"}
+                      {report
+                        ? `DB target: ${
+                            report.report.dbSet?.setId
+                              ? `${report.report.dbSet.title} (#${report.report.dbSet.setId})`
+                              : "No resuelto"
+                          }`
+                        : "Abriendo review guardado..."}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <a
-                      href={report.report.snapshot.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
-                    >
-                      Abrir Limitless
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
+                    {report && (
+                      <>
+                        <button
+                          onClick={() =>
+                            void runReconcile(false, {
+                              openModal: true,
+                            })
+                          }
+                          disabled={running}
+                          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+                        >
+                          {running ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Re-analizar
+                        </button>
+                        <a
+                          href={report.report.snapshot.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+                        >
+                          Abrir Limitless
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </>
+                    )}
                     <button
                       onClick={() => setReportModalOpen(false)}
                       className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
@@ -1211,30 +1395,43 @@ export default function LimitlessSyncPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                <StatCard
-                  label="Limitless"
-                  value={report.report.snapshot.declaredCardCount}
-                  tone="blue"
-                />
-                <StatCard label="DB Set" value={report.report.dbSetCardCount} tone="slate" />
-                <StatCard
-                  label="Matched pid"
-                  value={report.report.matchedByProductId.length}
-                  tone="emerald"
-                />
-                <StatCard
-                  label="Wrong set"
-                  value={report.report.wrongSet.length}
-                  tone="amber"
-                />
-                <StatCard
-                  label="Extras"
-                  value={report.report.extraInDbSet.length}
-                  tone="rose"
-                />
-              </div>
+              {report && (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                  <StatCard
+                    label="Limitless"
+                    value={report.report.snapshot.declaredCardCount}
+                    tone="blue"
+                  />
+                  <StatCard label="DB Set" value={report.report.dbSetCardCount} tone="slate" />
+                  <StatCard
+                    label="Matched pid"
+                    value={report.report.matchedByProductId.length}
+                    tone="emerald"
+                  />
+                  <StatCard
+                    label="Wrong set"
+                    value={report.report.wrongSet.length}
+                    tone="amber"
+                  />
+                  <StatCard
+                    label="Extras"
+                    value={report.report.extraInDbSet.length}
+                    tone="rose"
+                  />
+                </div>
+              )}
 
+              {reportLoading && (
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-800 dark:bg-slate-900">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />
+                  <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                    Cargando reporte guardado...
+                  </p>
+                </div>
+              )}
+
+            {!reportLoading && report && (
+              <>
             <SectionTable
               title="Wrong Set"
               description="Prints detectadas por Limitless que sí existen en DB, pero no están ligadas al set correcto."
@@ -1373,6 +1570,8 @@ export default function LimitlessSyncPage() {
                 </tr>
               ))}
             />
+              </>
+            )}
             </div>
           </div>
         )}

@@ -120,6 +120,24 @@ const formatCurrencyStatic = (value: number, currency?: string | null) =>
     minimumFractionDigits: 2,
   }).format(value);
 
+const cardMatchesRegionSelection = (
+  card: CardWithCollectionData | undefined,
+  region: string
+) => {
+  if (!card) return false;
+
+  if (region === "US") {
+    return (
+      card.region === "US" ||
+      card.region === null ||
+      card.region === undefined ||
+      card.region === ""
+    );
+  }
+
+  return card.region === region;
+};
+
 // Componente PriceTag memoizado - fuera del componente principal
 const PriceTag = React.memo(
   ({
@@ -997,6 +1015,10 @@ const CardListClient = ({
   const handleOpenCard = useCallback(
     (card: CardWithCollectionData, base: CardWithCollectionData) => {
       const requestId = ++modalFamilyRequestRef.current;
+      const filterModalAlternates = (alternates: CardWithCollectionData[]) =>
+        alternates.filter((item) =>
+          cardMatchesRegionSelection(item, selectedRegion || "US")
+        );
 
       const hydrateModalFamily = async () => {
         try {
@@ -1020,9 +1042,9 @@ const CardListClient = ({
           }
 
           const fetchedBase = data.card;
-          const fetchedAlternates = Array.isArray(data.alternates)
-            ? data.alternates
-            : [];
+          const fetchedAlternates = filterModalAlternates(
+            Array.isArray(data.alternates) ? data.alternates : []
+          );
           const matchedSelected =
             [fetchedBase, ...fetchedAlternates].find(
               (item) => String(item.id) === String(card.id)
@@ -1040,10 +1062,11 @@ const CardListClient = ({
         const cardIndex = filteredCards.findIndex(
           (c) => (c._id || c.id) === (base._id || base.id)
         );
+        const visibleAlternates = filterModalAlternates(base.alternates || []);
         setCurrentCardIndex(cardIndex);
         setSelectedCard(card);
         setBaseCard(base);
-        setAlternatesCards(base.alternates || []);
+        setAlternatesCards(visibleAlternates);
         setIsOpen(true);
         void hydrateModalFamily();
         return;
@@ -1294,9 +1317,12 @@ const CardListClient = ({
   const handleNavigatePrevious = () => {
     if (currentCardIndex > 0) {
       const previousCard = filteredCards[currentCardIndex - 1];
+      const previousAlternates = (previousCard.alternates || []).filter((alt) =>
+        cardMatchesRegionSelection(alt, selectedRegion || "US")
+      );
       setBaseCard(previousCard);
       setSelectedCard(previousCard);
-      setAlternatesCards(previousCard.alternates || []);
+      setAlternatesCards(previousAlternates);
       setCurrentCardIndex(currentCardIndex - 1);
     }
   };
@@ -1304,9 +1330,12 @@ const CardListClient = ({
   const handleNavigateNext = () => {
     if (currentCardIndex < filteredCards.length - 1) {
       const nextCard = filteredCards[currentCardIndex + 1];
+      const nextAlternates = (nextCard.alternates || []).filter((alt) =>
+        cardMatchesRegionSelection(alt, selectedRegion || "US")
+      );
       setBaseCard(nextCard);
       setSelectedCard(nextCard);
-      setAlternatesCards(nextCard.alternates || []);
+      setAlternatesCards(nextAlternates);
       setCurrentCardIndex(currentCardIndex + 1);
     }
   };

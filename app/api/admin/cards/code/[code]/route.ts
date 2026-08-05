@@ -23,6 +23,7 @@ export async function GET(
   { params }: { params: { code: string } }
 ) {
   const { code } = params;
+  const region = req.nextUrl.searchParams.get("region")?.trim() || null;
 
   try {
     // Leer el parámetro "includeAlternates" de la query (si existe)
@@ -32,6 +33,13 @@ export async function GET(
     const cardsByCode = await prisma.card.findMany({
       where: {
         code,
+        ...(region
+          ? region === "US"
+            ? {
+                OR: [{ region: "US" }, { region: null }, { region: "" }],
+              }
+            : { region }
+          : {}),
       },
       include: cardFamilyInclude,
       orderBy: [

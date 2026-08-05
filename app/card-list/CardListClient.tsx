@@ -1099,7 +1099,9 @@ const CardListClient = ({
       const hydrateModalFamily = async () => {
         try {
           const response = await fetch(
-            `/api/admin/cards/code/${encodeURIComponent(base.code)}?includeAlternates=true`,
+            `/api/admin/cards/code/${encodeURIComponent(base.code)}?includeAlternates=true&region=${encodeURIComponent(
+              selectedRegion || "US"
+            )}`,
             { cache: "no-store" }
           );
           if (!response.ok) {
@@ -1149,6 +1151,7 @@ const CardListClient = ({
     [
       isDesktop,
       filteredCards,
+      selectedRegion,
       openCardPreview,
       setCurrentCardIndex,
       setSelectedCard,

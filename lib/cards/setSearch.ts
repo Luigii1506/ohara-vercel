@@ -267,6 +267,12 @@ export async function rankSetSearchSuggestions(
 export async function resolveSearchSetMatch(
   search?: string
 ): Promise<SetSearchResolution | null> {
+  const rawSearch = (search ?? "").trim();
+  const normalizedCardCodeSearch = rawSearch.replace(/[^a-z0-9]/gi, "");
+  if (/^(op|st|eb|prb|p)\d{2,3}\d{3}[a-z]?$/i.test(normalizedCardCodeSearch)) {
+    return null;
+  }
+
   const suggestions = await rankSetSearchSuggestions(search, 5);
   if (!suggestions.length) return null;
 

@@ -594,6 +594,20 @@ export default function LimitlessSyncPage() {
   };
 
   const openReviewReport = async (review: ReviewsResponse["reviews"][number]) => {
+    if (!review.dbSetId) {
+      setSetUrlOrSlug(review.sourceUrl);
+      setSelectedSetId(null);
+      setRegion(review.region ?? "US");
+      await runReconcile(false, {
+        setUrlOrSlug: review.sourceUrl,
+        dbSetId: null,
+        region: review.region ?? "US",
+        openModal: true,
+      });
+      await Promise.all([loadReviews(reviewStatusFilter), loadCatalog()]);
+      return;
+    }
+
     setReport(null);
     setReportModalOpen(true);
     setReportLoading(true);
@@ -617,7 +631,7 @@ export default function LimitlessSyncPage() {
   };
 
   const openCatalogReport = async (entry: CatalogResponse["entries"][number]) => {
-    if (entry.reviewId) {
+    if (entry.reviewId && entry.dbSetId) {
       await openReviewReport({
         id: entry.reviewId,
         slug: entry.slug,

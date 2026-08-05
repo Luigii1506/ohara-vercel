@@ -313,6 +313,7 @@ export async function getLimitlessCatalogFeed(options?: {
     const lastSyncedAt = review?.lastSyncedAt?.toISOString() ?? null;
     const needsSync =
       !review ||
+      !review.dbSetId ||
       !review.lastSyncedAt ||
       review.lastSyncedAt.getTime() < staleThreshold;
 

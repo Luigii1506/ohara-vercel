@@ -1258,6 +1258,77 @@ export const fetchAllCardsFromDb = async (
     return [];
   }
 
+  const hasResolvedSearchSet = Boolean(enrichedFilters.searchSetIds?.length);
+  const shouldUngroupSearchResults = hasSpecificStructuredSearch(enrichedFilters);
+
+  if (
+    hasResolvedSearchSet ||
+    hasAltArtSearch(enrichedFilters) ||
+    shouldUngroupSearchResults
+  ) {
+    const where = buildDirectWhere(enrichedFilters);
+    const args: Prisma.CardFindManyArgs = {
+      where,
+      orderBy: [{ collectionOrder: "asc" }, { code: "asc" }, { id: "asc" }],
+      include: {
+        ...(includeRelations && {
+          types: { select: { id: true, type: true } },
+          colors: { select: { id: true, color: true } },
+          effects: { select: { id: true, effect: true } },
+          conditions: { select: { id: true, condition: true } },
+          texts: { select: { id: true, text: true } },
+          sets: {
+            select: {
+              set: {
+                select: {
+                  id: true,
+                  title: true,
+                  code: true,
+                },
+              },
+            },
+          },
+          rulings: {
+            select: {
+              id: true,
+              question: true,
+              answer: true,
+            },
+          },
+        }),
+        baseCard: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            src: true,
+            category: true,
+            rarity: true,
+            marketPrice: true,
+            lowPrice: true,
+            highPrice: true,
+            priceCurrency: true,
+            tcgUrl: true,
+            tcgplayerProductId: true,
+            tcgplayerLinkStatus: true,
+          },
+        },
+      },
+    };
+
+    if (limit && Number.isFinite(limit)) {
+      args.take = Math.min(Math.max(limit, 1), 5000);
+    }
+
+    const cards = await prisma.card.findMany(args);
+
+    return cards.map((card) => ({
+      ...card,
+      alternates: [],
+      numOfVariations: 0,
+    })) as unknown as CardWithCollectionData[];
+  }
+
   const where = buildWhere(enrichedFilters);
   const include = buildInclude(
     includeRelations,

@@ -4,6 +4,7 @@ export type SearchableSet = {
   id: number;
   title: string;
   code: string | null;
+  cardsCount: number;
 };
 
 export type SetSearchSuggestion = {
@@ -128,11 +129,32 @@ export async function getSearchableSets(): Promise<SearchableSet[]> {
   }
 
   const data = await prisma.set.findMany({
-    select: { id: true, title: true, code: true },
+    where: {
+      cards: {
+        some: {},
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      code: true,
+      _count: {
+        select: {
+          cards: true,
+        },
+      },
+    },
   });
 
-  searchableSetsCache = { at: Date.now(), data };
-  return data;
+  const normalizedData = data.map((set) => ({
+    id: set.id,
+    title: set.title,
+    code: set.code,
+    cardsCount: set._count.cards,
+  }));
+
+  searchableSetsCache = { at: Date.now(), data: normalizedData };
+  return normalizedData;
 }
 
 export async function rankSetSearchSuggestions(
@@ -198,6 +220,7 @@ export async function rankSetSearchSuggestions(
       if (matchesCode) score += 50;
       score += matchedWordCount * 12;
       score += matchedNumericCount * 20;
+      score += Math.min(set.cardsCount, 25);
 
       if (hasSetIntent) score += 10;
       if (titleTokens.length === significantTokens.length) score += 5;

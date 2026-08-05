@@ -9,7 +9,7 @@ import type {
 import type { CardWithCollectionData } from "@/types";
 import { DEFAULT_REGION } from "@/lib/regions";
 import { parseSearchTokens } from "./searchTokens";
-import { resolveSearchSetIds } from "./setSearch";
+import { resolveSearchSetMatch } from "./setSearch";
 
 type AlternateRelation = {
   id: number;
@@ -222,6 +222,16 @@ const hasSpecificStructuredSearch = (filters: CardsFilters) => {
   return parsed.textTokens.length > 0 && hasStructuredSearchSignals(parsed);
 };
 
+const shouldSkipSearchTokenConditions = (filters: CardsFilters) =>
+  Boolean(filters.searchSetIds?.length && filters.searchSetOnly);
+
+const shouldIgnoreRegionForSearch = (filters: CardsFilters) =>
+  Boolean(
+    filters.searchSetIds?.length &&
+      filters.searchSetOnly &&
+      filters.searchSetAnyRegion
+  );
+
 const buildTokenSearchCondition = (
   search: string,
   scope: SearchScope = "broad"
@@ -274,6 +284,24 @@ const buildTokenSearchCondition = (
   return { OR: baseConditions };
 };
 
+const buildExactPhraseSearchCondition = (
+  phrase: string
+): Prisma.CardWhereInput => ({
+  OR: [
+    { name: { contains: phrase, mode: "insensitive" } },
+    {
+      effects: {
+        some: { effect: { contains: phrase, mode: "insensitive" } },
+      },
+    },
+    {
+      texts: {
+        some: { text: { contains: phrase, mode: "insensitive" } },
+      },
+    },
+  ],
+});
+
 const hasAltArtSearch = (filters: CardsFilters) => {
   if (filters.altArts?.length) return true;
   if (!filters.search) return false;
@@ -285,8 +313,11 @@ const buildWhere = (
   filters: CardsFilters,
   includeAlternates: boolean = false
 ): Prisma.CardWhereInput => {
+  const ignoreRegion = shouldIgnoreRegionForSearch(filters);
   const selectedRegion = normalizeRegion(filters.region);
-  const alternateRegionCondition = buildRegionScopeCondition(selectedRegion);
+  const alternateRegionCondition = ignoreRegion
+    ? {}
+    : buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     // Solo filtrar por baseCardId: null si NO incluimos alternativas
     // o si el caller solicita solo cartas base.
@@ -297,7 +328,9 @@ const buildWhere = (
 
   const andConditions = where.AND as Prisma.CardWhereInput[];
 
-  andConditions.push(buildBaseRegionCondition(selectedRegion));
+  if (!ignoreRegion) {
+    andConditions.push(buildBaseRegionCondition(selectedRegion));
+  }
 
   const withAlternates = (
     baseCondition: Prisma.CardWhereInput,
@@ -319,136 +352,151 @@ const buildWhere = (
     const search = filters.search.trim();
     if (search.length) {
       const parsed = parseSearchTokens(search);
-      const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
-        ? "name-first"
-        : "broad";
+      if (!shouldSkipSearchTokenConditions(filters)) {
+        const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
+          ? "name-first"
+          : "broad";
 
-      parsed.textTokens.forEach((token) => {
-        andConditions.push({
-          OR: [
-            buildTokenSearchCondition(token, tokenSearchScope),
-            {
-              alternateCards: {
-                some: buildTokenSearchCondition(token, tokenSearchScope),
+        parsed.textTokens.forEach((token) => {
+          andConditions.push({
+            OR: [
+              buildTokenSearchCondition(token, tokenSearchScope),
+              {
+                alternateCards: {
+                  some: buildTokenSearchCondition(token, tokenSearchScope),
+                },
               },
-            },
-          ],
+            ],
+          });
         });
-      });
 
-      if (parsed.categories.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.categories, (value) => ({
-              category: { equals: value, mode: "insensitive" },
-            }))
-          )
-        );
-      }
-
-      if (parsed.rarities.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.rarities, (value) => ({
-              rarity: { equals: value, mode: "insensitive" },
-            }))
-          )
-        );
-      }
-
-      if (parsed.colors.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.colors, (value) => ({
-              colors: {
-                some: { color: { equals: value, mode: "insensitive" } },
+        parsed.exactPhrases.forEach((phrase) => {
+          andConditions.push({
+            OR: [
+              buildExactPhraseSearchCondition(phrase),
+              {
+                alternateCards: {
+                  some: buildExactPhraseSearchCondition(phrase),
+                },
               },
-            }))
-          )
-        );
-      }
-
-      if (parsed.costs.length > 0) {
-        const costVariants = parsed.costs.flatMap((value) => [
-          `${value} Cost`,
-          value,
-        ]);
-        andConditions.push(
-          withAlternates({
-            OR: costVariants.map((value) => ({ cost: value })),
-          })
-        );
-      }
-
-      if (parsed.powers.length > 0) {
-        const powerVariants = parsed.powers.flatMap((value) => [
-          `${value} Power`,
-          value,
-        ]);
-        andConditions.push(
-          withAlternates({
-            OR: powerVariants.map((value) => ({ power: value })),
-          })
-        );
-      }
-
-      if (parsed.altArts.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.altArts, (value) => ({
-              alternateArt: { equals: value, mode: "insensitive" },
-            }))
-          )
-        );
-      }
-
-      if (parsed.triggers.length > 0) {
-        const normalizedTriggers = Array.from(new Set(parsed.triggers));
-        normalizedTriggers.forEach((trigger) => {
-          if (trigger === "No trigger") {
-            andConditions.push(
-              withAlternates({
-                triggerCard: null,
-              })
-            );
-          } else {
-            andConditions.push(
-              withAlternates({
-                triggerCard: { contains: trigger },
-              })
-            );
-          }
+            ],
+          });
         });
-      }
 
-      if (parsed.codeTokens.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
-              code: { contains: value, mode: "insensitive" },
-            }))
-          )
-        );
-      }
+        if (parsed.categories.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.categories, (value) => ({
+                category: { equals: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
 
-      if (parsed.codeSuffixTokens.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
-              code: { endsWith: value, mode: "insensitive" },
-            }))
-          )
-        );
-      }
+        if (parsed.rarities.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.rarities, (value) => ({
+                rarity: { equals: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
 
-      if (parsed.illustratorTokens.length > 0) {
-        andConditions.push(
-          withAlternates(
-            buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
-              illustrator: { contains: value, mode: "insensitive" },
-            }))
-          )
-        );
+        if (parsed.colors.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.colors, (value) => ({
+                colors: {
+                  some: { color: { equals: value, mode: "insensitive" } },
+                },
+              }))
+            )
+          );
+        }
+
+        if (parsed.costs.length > 0) {
+          const costVariants = parsed.costs.flatMap((value) => [
+            `${value} Cost`,
+            value,
+          ]);
+          andConditions.push(
+            withAlternates({
+              OR: costVariants.map((value) => ({ cost: value })),
+            })
+          );
+        }
+
+        if (parsed.powers.length > 0) {
+          const powerVariants = parsed.powers.flatMap((value) => [
+            `${value} Power`,
+            value,
+          ]);
+          andConditions.push(
+            withAlternates({
+              OR: powerVariants.map((value) => ({ power: value })),
+            })
+          );
+        }
+
+        if (parsed.altArts.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.altArts, (value) => ({
+                alternateArt: { equals: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
+
+        if (parsed.triggers.length > 0) {
+          const normalizedTriggers = Array.from(new Set(parsed.triggers));
+          normalizedTriggers.forEach((trigger) => {
+            if (trigger === "No trigger") {
+              andConditions.push(
+                withAlternates({
+                  triggerCard: null,
+                })
+              );
+            } else {
+              andConditions.push(
+                withAlternates({
+                  triggerCard: { contains: trigger },
+                })
+              );
+            }
+          });
+        }
+
+        if (parsed.codeTokens.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
+                code: { contains: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
+
+        if (parsed.codeSuffixTokens.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
+                code: { endsWith: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
+
+        if (parsed.illustratorTokens.length > 0) {
+          andConditions.push(
+            withAlternates(
+              buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
+                illustrator: { contains: value, mode: "insensitive" },
+              }))
+            )
+          );
+        }
       }
     }
   }
@@ -707,11 +755,14 @@ const buildAlternateSelect = (includeRelations: boolean) => ({
 const buildInclude = (
   includeRelations: boolean,
   includeAlternates: boolean,
-  region?: string
+  region?: string,
+  ignoreRegion: boolean = false
 ): Prisma.CardInclude | undefined => {
   const include: Prisma.CardInclude = {};
   const selectedRegion = normalizeRegion(region);
-  const alternateRegionCondition = buildRegionScopeCondition(selectedRegion);
+  const alternateRegionCondition = ignoreRegion
+    ? {}
+    : buildRegionScopeCondition(selectedRegion);
 
   if (includeRelations) {
     include.types = { select: { id: true, type: true } };
@@ -805,9 +856,14 @@ const fetchCardsPageByPrice = async (
     includeRelations = false,
     includeAlternates = true,
   } = options;
-  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
-  const enrichedFilters = resolvedSearchSetIds?.length
-    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
     : filters;
 
   // Para ordenamiento por precio, usamos buildDirectWhere que NO usa withAlternates
@@ -936,9 +992,14 @@ const fetchCardsPageWithAlternates = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
   const { filters, limit, cursor = null, includeRelations = false } = options;
-  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
-  const enrichedFilters = resolvedSearchSetIds?.length
-    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
     : filters;
 
   const where = buildDirectWhere(enrichedFilters);
@@ -1056,9 +1117,14 @@ export const fetchCardsPageFromDb = async (
     includeAlternates = true,
     includeCounts = false,
   } = options;
-  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
-  const enrichedFilters = resolvedSearchSetIds?.length
-    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
     : filters;
 
   const isPriceSorting =
@@ -1084,7 +1150,8 @@ export const fetchCardsPageFromDb = async (
   const include = buildInclude(
     includeRelations,
     includeAlternates,
-    enrichedFilters.region
+    enrichedFilters.region,
+    shouldIgnoreRegionForSearch(enrichedFilters)
   );
 
   const take = Math.min(Math.max(limit, 1), 200);
@@ -1139,7 +1206,12 @@ export const fetchCardsPageFromDb = async (
   );
 
   const selectedRegion = normalizeRegion(enrichedFilters.region);
-  if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
+  if (
+    includeAlternates &&
+    !shouldIgnoreRegionForSearch(enrichedFilters) &&
+    selectedRegion === DEFAULT_REGION &&
+    mapped.length
+  ) {
     const codes = trimmed.map((card) => card.code);
     const exclusiveAlternatesRaw = await prisma.card.findMany({
       where: {
@@ -1200,16 +1272,22 @@ export const fetchAllCardsFromDb = async (
     includeCounts = false,
     limit = null,
   } = options;
-  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
-  const enrichedFilters = resolvedSearchSetIds?.length
-    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
     : filters;
 
   const where = buildWhere(enrichedFilters);
   const include = buildInclude(
     includeRelations,
     includeAlternates,
-    enrichedFilters.region
+    enrichedFilters.region,
+    shouldIgnoreRegionForSearch(enrichedFilters)
   );
 
   const args: Prisma.CardFindManyArgs = {
@@ -1229,7 +1307,12 @@ export const fetchAllCardsFromDb = async (
   );
 
   const selectedRegion = normalizeRegion(enrichedFilters.region);
-  if (includeAlternates && selectedRegion === DEFAULT_REGION && mapped.length) {
+  if (
+    includeAlternates &&
+    !shouldIgnoreRegionForSearch(enrichedFilters) &&
+    selectedRegion === DEFAULT_REGION &&
+    mapped.length
+  ) {
     const codes = cards.map((card) => card.code);
     const exclusiveAlternatesRaw = await prisma.card.findMany({
       where: {
@@ -1275,115 +1358,126 @@ export const fetchAllCardsFromDb = async (
 // Build WHERE conditions for direct matching (without the "withAlternates" OR logic)
 // Used for counting individual cards that match filters
 const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+  const ignoreRegion = shouldIgnoreRegionForSearch(filters);
   const selectedRegion = normalizeRegion(filters.region);
-  const regionCondition = buildRegionScopeCondition(selectedRegion);
+  const regionCondition = ignoreRegion
+    ? {}
+    : buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     AND: [],
   };
 
   const andConditions = where.AND as Prisma.CardWhereInput[];
 
-  andConditions.push(regionCondition);
+  if (!ignoreRegion) {
+    andConditions.push(regionCondition);
+  }
 
   if (filters.search) {
     const search = filters.search.trim();
     if (search.length) {
       const parsed = parseSearchTokens(search);
-      const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
-        ? "name-first"
-        : "broad";
+      if (!shouldSkipSearchTokenConditions(filters)) {
+        const tokenSearchScope: SearchScope = hasStructuredSearchSignals(parsed)
+          ? "name-first"
+          : "broad";
 
-      parsed.textTokens.forEach((token) => {
-        andConditions.push(buildTokenSearchCondition(token, tokenSearchScope));
-      });
-
-      if (parsed.categories.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.categories, (value) => ({
-            category: { equals: value, mode: "insensitive" as const },
-          }))
-        );
-      }
-
-      if (parsed.rarities.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.rarities, (value) => ({
-            rarity: { equals: value, mode: "insensitive" as const },
-          }))
-        );
-      }
-
-      if (parsed.colors.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.colors, (value) => ({
-            colors: {
-              some: { color: { equals: value, mode: "insensitive" as const } },
-            },
-          }))
-        );
-      }
-
-      if (parsed.costs.length > 0) {
-        const costVariants = parsed.costs.flatMap((value) => [
-          `${value} Cost`,
-          value,
-        ]);
-        andConditions.push({
-          OR: costVariants.map((value) => ({ cost: value })),
+        parsed.textTokens.forEach((token) => {
+          andConditions.push(buildTokenSearchCondition(token, tokenSearchScope));
         });
-      }
 
-      if (parsed.powers.length > 0) {
-        const powerVariants = parsed.powers.flatMap((value) => [
-          `${value} Power`,
-          value,
-        ]);
-        andConditions.push({
-          OR: powerVariants.map((value) => ({ power: value })),
+        parsed.exactPhrases.forEach((phrase) => {
+          andConditions.push(buildExactPhraseSearchCondition(phrase));
         });
-      }
 
-      if (parsed.altArts.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.altArts, (value) => ({
-            alternateArt: { equals: value, mode: "insensitive" as const },
-          }))
-        );
-      }
+        if (parsed.categories.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.categories, (value) => ({
+              category: { equals: value, mode: "insensitive" as const },
+            }))
+          );
+        }
 
-      if (parsed.triggers.length > 0) {
-        const normalizedTriggers = Array.from(new Set(parsed.triggers));
-        normalizedTriggers.forEach((trigger) => {
-          if (trigger === "No trigger") {
-            andConditions.push({ triggerCard: null });
-          } else {
-            andConditions.push({ triggerCard: { contains: trigger } });
-          }
-        });
-      }
+        if (parsed.rarities.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.rarities, (value) => ({
+              rarity: { equals: value, mode: "insensitive" as const },
+            }))
+          );
+        }
 
-      if (parsed.codeTokens.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
-            code: { contains: value, mode: "insensitive" as const },
-          }))
-        );
-      }
+        if (parsed.colors.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.colors, (value) => ({
+              colors: {
+                some: { color: { equals: value, mode: "insensitive" as const } },
+              },
+            }))
+          );
+        }
 
-      if (parsed.codeSuffixTokens.length > 0) {
-        andConditions.push(
-          buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
-            code: { endsWith: value, mode: "insensitive" as const },
-          }))
-        );
-      }
+        if (parsed.costs.length > 0) {
+          const costVariants = parsed.costs.flatMap((value) => [
+            `${value} Cost`,
+            value,
+          ]);
+          andConditions.push({
+            OR: costVariants.map((value) => ({ cost: value })),
+          });
+        }
 
-      if (parsed.illustratorTokens.length > 0) {
-        andConditions.push(
-          buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
-            illustrator: { contains: value, mode: "insensitive" as const },
-          }))
-        );
+        if (parsed.powers.length > 0) {
+          const powerVariants = parsed.powers.flatMap((value) => [
+            `${value} Power`,
+            value,
+          ]);
+          andConditions.push({
+            OR: powerVariants.map((value) => ({ power: value })),
+          });
+        }
+
+        if (parsed.altArts.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.altArts, (value) => ({
+              alternateArt: { equals: value, mode: "insensitive" as const },
+            }))
+          );
+        }
+
+        if (parsed.triggers.length > 0) {
+          const normalizedTriggers = Array.from(new Set(parsed.triggers));
+          normalizedTriggers.forEach((trigger) => {
+            if (trigger === "No trigger") {
+              andConditions.push({ triggerCard: null });
+            } else {
+              andConditions.push({ triggerCard: { contains: trigger } });
+            }
+          });
+        }
+
+        if (parsed.codeTokens.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
+              code: { contains: value, mode: "insensitive" as const },
+            }))
+          );
+        }
+
+        if (parsed.codeSuffixTokens.length > 0) {
+          andConditions.push(
+            buildInsensitiveListCondition(parsed.codeSuffixTokens, (value) => ({
+              code: { endsWith: value, mode: "insensitive" as const },
+            }))
+          );
+        }
+
+        if (parsed.illustratorTokens.length > 0) {
+          andConditions.push(
+            buildContainsAllCondition(parsed.illustratorTokens, (value) => ({
+              illustrator: { contains: value, mode: "insensitive" as const },
+            }))
+          );
+        }
       }
     }
   }
@@ -1510,9 +1604,14 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
 export const countCardsByFilters = async (
   filters: CardsFilters
 ): Promise<number> => {
-  const resolvedSearchSetIds = await resolveSearchSetIds(filters.search);
-  const enrichedFilters = resolvedSearchSetIds?.length
-    ? { ...filters, searchSetIds: resolvedSearchSetIds }
+  const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
+  const enrichedFilters = resolvedSearchSet?.ids?.length
+    ? {
+        ...filters,
+        searchSetIds: resolvedSearchSet.ids,
+        searchSetOnly: resolvedSearchSet.exclusive,
+        searchSetAnyRegion: resolvedSearchSet.exclusive,
+      }
     : filters;
   const shouldCountBaseOnly = Boolean(enrichedFilters.baseOnly);
   const shouldCountDirect =

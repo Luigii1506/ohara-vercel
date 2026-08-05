@@ -520,6 +520,7 @@ const CardListClient = ({
     CardWithCollectionData[]
   >([]);
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
+  const modalFamilyRequestRef = useRef(0);
 
   const { data: session, status } = useSession();
 
@@ -1091,6 +1092,44 @@ const CardListClient = ({
 
   const handleOpenCard = useCallback(
     (card: CardWithCollectionData, base: CardWithCollectionData) => {
+      const requestId = ++modalFamilyRequestRef.current;
+
+      const hydrateModalFamily = async () => {
+        try {
+          const response = await fetch(
+            `/api/admin/cards/code/${encodeURIComponent(base.code)}?includeAlternates=true`,
+            { cache: "no-store" }
+          );
+          if (!response.ok) {
+            throw new Error("Failed to fetch card family");
+          }
+
+          const data = (await response.json()) as {
+            card?: CardWithCollectionData;
+            alternates?: CardWithCollectionData[];
+          };
+
+          if (modalFamilyRequestRef.current !== requestId || !data?.card) {
+            return;
+          }
+
+          const fetchedBase = data.card;
+          const fetchedAlternates = Array.isArray(data.alternates)
+            ? data.alternates
+            : [];
+          const matchedSelected =
+            [fetchedBase, ...fetchedAlternates].find(
+              (item) => String(item.id) === String(card.id)
+            ) ?? card;
+
+          setBaseCard(fetchedBase);
+          setAlternatesCards(fetchedAlternates);
+          setSelectedCard(matchedSelected);
+        } catch (error) {
+          console.error("Error hydrating card family for modal:", error);
+        }
+      };
+
       if (isDesktop) {
         const cardIndex = filteredCards.findIndex(
           (c) => (c._id || c.id) === (base._id || base.id)
@@ -1098,8 +1137,9 @@ const CardListClient = ({
         setCurrentCardIndex(cardIndex);
         setSelectedCard(card);
         setBaseCard(base);
-        setAlternatesCards(base.alternates);
+        setAlternatesCards(base.alternates || []);
         setIsOpen(true);
+        void hydrateModalFamily();
         return;
       }
       openCardPreview(card, base);

@@ -1,5 +1,6 @@
 export type SearchTokens = {
   textTokens: string[];
+  exactPhrases: string[];
   colors: string[];
   rarities: string[];
   categories: string[];
@@ -125,7 +126,9 @@ const SEARCH_ALT_ART_MAP: Record<string, string> = {
   "3rdanniversary": "3rd Anniversary",
   "1st": "1st Anniversary",
   "2n": "2nd Anniversary",
+  "2nd": "2nd Anniversary",
   "3r": "3rd Anniversary",
+  "3rd": "3rd Anniversary",
   serial: "Serial",
   seriada: "Serial",
   reimpresion: "Reprint",
@@ -152,6 +155,12 @@ const SEARCH_ALT_ART_MAP: Record<string, string> = {
   demoversion: "Demo Version",
   notforsale: "Not for sale",
   nfs: "Not for sale",
+};
+
+const SEARCH_ALT_ART_PHRASE_MAP: Record<string, string> = {
+  "1st anniversary": "1st Anniversary",
+  "2nd anniversary": "2nd Anniversary",
+  "3rd anniversary": "3rd Anniversary",
 };
 
 const SEARCH_TRIGGER_MAP: Record<string, string> = {
@@ -199,7 +208,20 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     "store",
     "campaign",
   ]);
-  const normalizedSearch = search.toLowerCase().replace(/[^a-z0-9\s-]/g, " ");
+  const exactPhrases: string[] = [];
+  const searchWithoutQuotedPhrases = search.replace(
+    /["“”]([^"“”]+)["“”]/g,
+    (_match, phrase: string) => {
+      const normalizedPhrase = phrase.trim().replace(/\s+/g, " ");
+      if (normalizedPhrase.length > 0) {
+        exactPhrases.push(normalizedPhrase);
+      }
+      return " ";
+    }
+  );
+  const normalizedSearch = searchWithoutQuotedPhrases
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ");
   const compactSearch = normalizedSearch.replace(/\s+/g, "");
   const rawTokens = normalizedSearch.match(/[a-z0-9-]+/gi) ?? [];
   const colors = new Set<string>();
@@ -255,6 +277,9 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     const rarityPhrase = SEARCH_RARITY_PHRASE_MAP[
       `${token} ${nextToken}`.trim()
     ];
+    const altArtPhrase = SEARCH_ALT_ART_PHRASE_MAP[
+      `${token} ${nextToken}`.trim()
+    ];
     const isSetPhraseToken =
       setContextMarkers.has(token) &&
       (setContextMarkers.has(previousToken) ||
@@ -264,6 +289,12 @@ export const parseSearchTokens = (search: string): SearchTokens => {
 
     if (rarityPhrase) {
       rarities.add(rarityPhrase);
+      index += 1;
+      continue;
+    }
+
+    if (altArtPhrase) {
+      altArts.add(altArtPhrase);
       index += 1;
       continue;
     }
@@ -349,6 +380,7 @@ export const parseSearchTokens = (search: string): SearchTokens => {
 
   return {
     textTokens,
+    exactPhrases,
     colors: Array.from(colors),
     rarities: Array.from(rarities),
     categories: Array.from(categories),

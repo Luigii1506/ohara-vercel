@@ -12,6 +12,8 @@ export type CardsSortBy =
 export type CardsFilters = {
   search?: string;
   searchSetIds?: number[]; // internal: resolved set/product matches from smart search
+  searchSetOnly?: boolean; // internal: the raw search resolves to a specific set title/code
+  searchSetAnyRegion?: boolean; // internal: exact set searches can bypass the active region
   sets?: string[];
   setCodes?: string[];
   colors?: string[];

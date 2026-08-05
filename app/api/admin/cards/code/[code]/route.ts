@@ -3,6 +3,20 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const cardFamilyInclude = {
+  types: true,
+  colors: true,
+  effects: true,
+  conditions: true,
+  texts: true,
+  rulings: true,
+  sets: {
+    include: {
+      set: true,
+    },
+  },
+} as const;
+
 // GET: Obtener una carta por ID con soporte para "includeAlternates"
 export async function GET(
   req: NextRequest,
@@ -15,63 +29,30 @@ export async function GET(
     const includeAlternates = req.nextUrl.searchParams.get("includeAlternates");
     const includeAlternatesBool = includeAlternates === "true";
 
-    // Obtener la carta por ID
-    const card = await prisma.card.findFirst({
+    const cardsByCode = await prisma.card.findMany({
       where: {
-        code: code, // Matching `code` con la carta base
-        isFirstEdition: true, // Solo cartas que no son de primera edición
+        code,
       },
-      include: {
-        types: true,
-        colors: true,
-        effects: true,
-        conditions: true,
-        //priceLogs: true,
-        texts: true,
-        rulings: true,
-        sets: {
-          include: {
-            set: true,
-          },
-        },
-      },
+      include: cardFamilyInclude,
+      orderBy: [
+        { isFirstEdition: "desc" },
+        { baseCardId: "asc" },
+        { id: "asc" },
+      ],
     });
 
-    if (!card) {
+    if (!cardsByCode.length) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
     }
 
-    let alternates: Array<
-      | (typeof card & {
-          types: { id: number; cardId: number; type: string }[];
-          colors: { id: number; cardId: number; color: string }[];
-          effects: { id: number; cardId: number; effect: string }[];
-          conditions: { id: number; cardId: number; condition: string }[];
-          texts: { id: number; cardId: number; text: string }[];
-        })
-      | null
-    > = []; // Inicializar un array con tipado para las cartas alternas
-    // Si includeAlternates es true, buscamos las cartas alternas con el mismo `code` pero `isFirstEdition: false`
+    const card =
+      cardsByCode.find((item) => item.isFirstEdition) ??
+      cardsByCode.find((item) => item.baseCardId === null) ??
+      cardsByCode[0];
+
+    let alternates: typeof cardsByCode = [];
     if (includeAlternatesBool) {
-      alternates = await prisma.card.findMany({
-        where: {
-          code: card.code, // Matching `code` con la carta base
-          isFirstEdition: false, // Solo cartas que no son de primera edición
-        },
-        include: {
-          types: true,
-          colors: true,
-          effects: true,
-          conditions: true,
-          texts: true,
-          rulings: true,
-          sets: {
-            include: {
-              set: true,
-            },
-          },
-        },
-      });
+      alternates = cardsByCode.filter((item) => item.id !== card.id);
     }
 
     // Retornar la carta base y sus alternas si corresponde

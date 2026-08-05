@@ -15,6 +15,11 @@ export type SetSearchSuggestion = {
   normalizedTitle: string;
 };
 
+export type SetSearchResolution = {
+  ids: number[];
+  exclusive: boolean;
+};
+
 export const SET_SEARCH_MARKERS = new Set([
   "pack",
   "welcome",
@@ -66,8 +71,8 @@ export const normalizeSetSearchText = (value: string) =>
   value
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/\bvol(?:ume)?\.?\s*/g, " vol ")
-    .replace(/\bver(?:sion)?\.?\s*/g, " version ")
+    .replace(/\bvol(?:ume)?\.?(?=\s|$)/g, " vol ")
+    .replace(/\bver(?:sion)?\.?(?=\s|$)/g, " version ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
@@ -131,16 +136,25 @@ export async function getSearchableSets(): Promise<SearchableSet[]> {
   const data = await prisma.set.findMany({
     where: {
       cards: {
-        some: {},
+        some: {
+          card: {
+            region: "US",
+          },
+        },
       },
     },
     select: {
       id: true,
       title: true,
       code: true,
-      _count: {
+      cards: {
+        where: {
+          card: {
+            region: "US",
+          },
+        },
         select: {
-          cards: true,
+          cardId: true,
         },
       },
     },
@@ -150,7 +164,7 @@ export async function getSearchableSets(): Promise<SearchableSet[]> {
     id: set.id,
     title: set.title,
     code: set.code,
-    cardsCount: set._count.cards,
+    cardsCount: set.cards.length,
   }));
 
   searchableSetsCache = { at: Date.now(), data: normalizedData };
@@ -250,7 +264,9 @@ export async function rankSetSearchSuggestions(
   return ranked;
 }
 
-export async function resolveSearchSetIds(search?: string): Promise<number[] | null> {
+export async function resolveSearchSetMatch(
+  search?: string
+): Promise<SetSearchResolution | null> {
   const suggestions = await rankSetSearchSuggestions(search, 5);
   if (!suggestions.length) return null;
 
@@ -259,11 +275,31 @@ export async function resolveSearchSetIds(search?: string): Promise<number[] | n
   if (queryTokens.length < 2) return null;
 
   const hasSetIntent = queryTokens.some((token) => SET_SEARCH_MARKERS.has(token));
-  if (!hasSetIntent) return null;
-
   const topScore = suggestions[0].score;
   const top = suggestions.filter((candidate) => candidate.score === topScore);
   if (top.length !== 1) return null;
 
-  return [top[0].id];
+  const topCandidate = top[0];
+  const topNormalizedTitle = topCandidate.normalizedTitle;
+  const hasCodeLikeToken = queryTokens.some((token) =>
+    /^(op|st|eb|prb|p)\d{1,3}$/i.test(token)
+  );
+  const hasStrongSetMatch =
+    topNormalizedTitle === normalizedQuery ||
+    topNormalizedTitle.includes(normalizedQuery) ||
+    normalizedQuery.includes(topNormalizedTitle);
+
+  if (!hasSetIntent && !hasCodeLikeToken && !hasStrongSetMatch) {
+    return null;
+  }
+
+  return {
+    ids: [topCandidate.id],
+    exclusive: hasStrongSetMatch || hasCodeLikeToken,
+  };
+}
+
+export async function resolveSearchSetIds(search?: string): Promise<number[] | null> {
+  const resolution = await resolveSearchSetMatch(search);
+  return resolution?.ids ?? null;
 }

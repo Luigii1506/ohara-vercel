@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
+import {
+  HoverImagePreviewOverlay,
+  useHoverImagePreview,
+} from "@/components/HoverImagePreview";
 import Select from "react-select";
 import {
   AlertTriangle,
@@ -326,6 +330,7 @@ function storedReviewNeedsImageRefresh(review: ReviewDetailResponse["review"]) {
 export default function LimitlessSyncPage() {
   const router = useRouter();
   const { role, loading: roleLoading } = useUser();
+  const { preview: hoverPreview, showPreview, hidePreview } = useHoverImagePreview();
   const [sets, setSets] = useState<SetOption[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
   const [setUrlOrSlug, setSetUrlOrSlug] = useState("");
@@ -1751,8 +1756,10 @@ export default function LimitlessSyncPage() {
                           <img
                             src={card.src}
                             alt={`${card.code} ${card.name}`}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full cursor-zoom-in object-cover"
                             loading="lazy"
+                            onMouseEnter={() => showPreview(card.src, `${card.code} ${card.name}`)}
+                            onMouseLeave={hidePreview}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1843,8 +1850,15 @@ export default function LimitlessSyncPage() {
                               <img
                                 src={item.imageUrl}
                                 alt={`${item.code} ${item.printTitle ?? item.card.name}`}
-                                className="h-full w-full object-cover"
+                                className="h-full w-full cursor-zoom-in object-cover"
                                 loading="lazy"
+                                onMouseEnter={() =>
+                                  showPreview(
+                                    item.imageUrl,
+                                    `${item.code} ${item.printTitle ?? item.card.name}`
+                                  )
+                                }
+                                onMouseLeave={hidePreview}
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1883,8 +1897,15 @@ export default function LimitlessSyncPage() {
                               <img
                                 src={item.card.src}
                                 alt={`${item.card.code} ${item.card.name}`}
-                                className="h-full w-full object-cover"
+                                className="h-full w-full cursor-zoom-in object-cover"
                                 loading="lazy"
+                                onMouseEnter={() =>
+                                  showPreview(
+                                    item.card.src,
+                                    `${item.card.code} ${item.card.name}`
+                                  )
+                                }
+                                onMouseLeave={hidePreview}
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1960,6 +1981,7 @@ export default function LimitlessSyncPage() {
             </div>
           </div>
         )}
+        <HoverImagePreviewOverlay preview={hoverPreview} />
         </div>
       </div>
     </div>

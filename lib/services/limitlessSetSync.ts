@@ -398,8 +398,11 @@ async function scrapeCardPrintDetails(
   });
 
   const versionPrint =
-    version && Number.isFinite(version) && version > 0 && version <= prints.length
-      ? prints[version - 1]
+    version !== null &&
+    Number.isFinite(version) &&
+    version >= 0 &&
+    version < prints.length
+      ? prints[version]
       : null;
 
   const currentPrint =
@@ -408,7 +411,9 @@ async function scrapeCardPrintDetails(
       ? prints.find(
           (print) => normalizeTitle(print.title) === normalizeTitle(currentPrintTitle)
         )
-      : null) ?? null;
+      : null) ??
+    prints[0] ??
+    null;
 
   return {
     imageUrl,
@@ -638,15 +643,24 @@ export async function reconcileLimitlessSetMembership(
   const missing: LimitlessMissingMembership[] = [];
   const wrongSet: LimitlessMissingMembership[] = [];
   const matchedSetCardIds = new Set<number>();
+  const consumedCandidateCardIds = new Set<number>();
 
   for (const card of snapshot.cards) {
     const productKey = card.currentPrintProductId
       ? String(card.currentPrintProductId)
       : null;
-    const inSetByProductId = productKey ? setByProductId.get(productKey) ?? [] : [];
-    const globalByProduct = productKey ? globalByProductId.get(productKey) ?? [] : [];
-    const inSetByCode = setByCode.get(card.code) ?? [];
-    const globalByCodeMatches = globalByCode.get(card.code) ?? [];
+    const inSetByProductId = (productKey ? setByProductId.get(productKey) ?? [] : []).filter(
+      (entry) => !consumedCandidateCardIds.has(entry.id)
+    );
+    const globalByProduct = (productKey ? globalByProductId.get(productKey) ?? [] : []).filter(
+      (entry) => !consumedCandidateCardIds.has(entry.id)
+    );
+    const inSetByCode = (setByCode.get(card.code) ?? []).filter(
+      (entry) => !consumedCandidateCardIds.has(entry.id)
+    );
+    const globalByCodeMatches = (globalByCode.get(card.code) ?? []).filter(
+      (entry) => !consumedCandidateCardIds.has(entry.id)
+    );
 
     if (inSetByProductId.length === 1) {
       matchedByProductId.push({
@@ -658,6 +672,7 @@ export async function reconcileLimitlessSetMembership(
         card: inSetByProductId[0],
       });
       matchedSetCardIds.add(inSetByProductId[0].id);
+      consumedCandidateCardIds.add(inSetByProductId[0].id);
       continue;
     }
 
@@ -684,6 +699,7 @@ export async function reconcileLimitlessSetMembership(
         card: inSetByCode[0],
       });
       matchedSetCardIds.add(inSetByCode[0].id);
+      consumedCandidateCardIds.add(inSetByCode[0].id);
       continue;
     }
 

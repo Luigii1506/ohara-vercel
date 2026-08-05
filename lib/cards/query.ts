@@ -213,6 +213,7 @@ const hasStructuredSearchSignals = (parsed: ReturnType<typeof parseSearchTokens>
   parsed.costs.length > 0 ||
   parsed.powers.length > 0 ||
   parsed.codeTokens.length > 0 ||
+  parsed.exactCodeTokens.length > 0 ||
   parsed.codeSuffixTokens.length > 0 ||
   parsed.illustratorTokens.length > 0;
 
@@ -472,7 +473,9 @@ const buildWhere = (
           andConditions.push(
             withAlternates(
               buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
-                code: { contains: value, mode: "insensitive" },
+                code: parsed.exactCodeTokens.includes(value)
+                  ? { equals: value, mode: "insensitive" }
+                  : { contains: value, mode: "insensitive" },
               }))
             )
           );
@@ -1458,7 +1461,9 @@ const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
         if (parsed.codeTokens.length > 0) {
           andConditions.push(
             buildInsensitiveListCondition(parsed.codeTokens, (value) => ({
-              code: { contains: value, mode: "insensitive" as const },
+              code: parsed.exactCodeTokens.includes(value)
+                ? { equals: value, mode: "insensitive" as const }
+                : { contains: value, mode: "insensitive" as const },
             }))
           );
         }

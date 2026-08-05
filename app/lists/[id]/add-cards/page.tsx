@@ -1506,6 +1506,9 @@ const AddCardsPage = () => {
           parsed.codeTokens.some((token) => {
             const normalized = token.toUpperCase();
             const code = target.code.toUpperCase();
+            if (parsed.exactCodeTokens.includes(token)) {
+              return code === normalized;
+            }
             if (normalized.includes("-")) {
               return code.includes(normalized);
             }

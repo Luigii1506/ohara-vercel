@@ -201,7 +201,9 @@ const alternateMatchesActiveFilters = (
 
   if (parsed.codeTokens.length > 0) {
     const matchesParsedCode = parsed.codeTokens.some((token) =>
-      (alternate.code ?? "").toLowerCase().includes(token.toLowerCase())
+      parsed.exactCodeTokens.includes(token)
+        ? (alternate.code ?? "").toLowerCase() === token.toLowerCase()
+        : (alternate.code ?? "").toLowerCase().includes(token.toLowerCase())
     );
     if (!matchesParsedCode) return false;
   }

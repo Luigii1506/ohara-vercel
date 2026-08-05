@@ -9,6 +9,7 @@ export type SearchTokens = {
   costs: string[];
   powers: string[];
   codeTokens: string[];
+  exactCodeTokens: string[];
   codeSuffixTokens: string[];
   illustratorTokens: string[];
 };
@@ -232,6 +233,7 @@ export const parseSearchTokens = (search: string): SearchTokens => {
   const costs = new Set<string>();
   const powers = new Set<string>();
   const codeTokens = new Set<string>();
+  const exactCodeTokens = new Set<string>();
   const codeSuffixTokens = new Set<string>();
   const illustratorTokens = new Set<string>();
   const textTokens: string[] = [];
@@ -362,6 +364,7 @@ export const parseSearchTokens = (search: string): SearchTokens => {
       const [, prefix, setNum, cardNum] = fullCodeMatch;
       const formattedCode = `${prefix.toUpperCase()}${setNum}-${cardNum}`;
       codeTokens.add(formattedCode);
+      exactCodeTokens.add(formattedCode);
       continue;
     }
 
@@ -389,6 +392,7 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     costs: Array.from(costs),
     powers: Array.from(powers),
     codeTokens: Array.from(codeTokens),
+    exactCodeTokens: Array.from(exactCodeTokens),
     codeSuffixTokens: Array.from(codeSuffixTokens),
     illustratorTokens: Array.from(illustratorTokens),
   };

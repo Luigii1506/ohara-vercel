@@ -8,6 +8,7 @@ type Options = {
   category: "main" | "promo" | "all";
   region: string;
   limit: number | null;
+  slugs: string[];
 };
 
 function parseArgs(): Options {
@@ -23,13 +24,20 @@ function parseArgs(): Options {
   const region = (getArg("--region") ?? "US").trim().toUpperCase();
   const limitRaw = Number.parseInt(getArg("--limit") ?? "", 10);
   const limit = Number.isFinite(limitRaw) ? limitRaw : null;
+  const slugs = args
+    .filter((arg) => arg.startsWith("--slug="))
+    .map((arg) => arg.slice("--slug=".length).trim())
+    .filter(Boolean);
 
-  return { category, region, limit };
+  return { category, region, limit, slugs };
 }
 
 async function main() {
   const options = parseArgs();
-  const result = await syncLimitlessCatalogReviews(options);
+  const result = await syncLimitlessCatalogReviews({
+    ...options,
+    slugs: options.slugs.length ? options.slugs : undefined,
+  });
 
   console.log("");
   console.log(

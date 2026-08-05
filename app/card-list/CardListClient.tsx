@@ -28,6 +28,7 @@ import ViewSwitch from "@/components/ViewSwitch";
 import SortSelect, { SortOption } from "@/components/SortSelect";
 import MultiSelect from "@/components/MultiSelect";
 import DropdownSearch from "@/components/DropdownSearch";
+import type { DropdownSearchHandle } from "@/components/DropdownSearch";
 import { rarityFormatter } from "@/helpers/formatters";
 import AlternatesWhite from "@/public/assets/images/variantsICON_VERTICAL_white.svg";
 import { Card, CardContent } from "@/components/ui/card";
@@ -136,6 +137,22 @@ const cardMatchesRegionSelection = (
   }
 
   return card.region === region;
+};
+
+const isEditableElement = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tagName = target.tagName.toLowerCase();
+  if (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    target.isContentEditable
+  ) {
+    return true;
+  }
+
+  return Boolean(target.closest("[contenteditable='true']"));
 };
 
 // Componente PriceTag memoizado - fuera del componente principal
@@ -287,6 +304,8 @@ const CardListClient = ({
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const desktopSearchRef = useRef<DropdownSearchHandle | null>(null);
+  const mobileSearchRef = useRef<DropdownSearchHandle | null>(null);
 
   const [previewCard, setPreviewCard] = useState<CardWithCollectionData | null>(
     null
@@ -314,6 +333,12 @@ const CardListClient = ({
       setPreviewCard(null);
       setPreviewBaseCard(null);
     }, 300);
+  }, []);
+
+  const getActiveSearchInput = useCallback(() => {
+    if (mobileSearchRef.current?.isVisible()) return mobileSearchRef.current;
+    if (desktopSearchRef.current?.isVisible()) return desktopSearchRef.current;
+    return desktopSearchRef.current ?? mobileSearchRef.current;
   }, []);
 
   const getSkeletonLayout = useCallback(() => {
@@ -1295,6 +1320,63 @@ const CardListClient = ({
     return () => window.removeEventListener("resize", update);
   }, [showInitialOverlay, getSkeletonLayout]);
 
+  useEffect(() => {
+    const handleGlobalSearchShortcuts = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+
+      const isAnyModalOpen =
+        isOpen ||
+        isPreviewOpen ||
+        showSearchModal ||
+        showSearchHelp ||
+        isModalOpen ||
+        showLargeImage;
+
+      if (isAnyModalOpen) return;
+
+      const searchInput = getActiveSearchInput();
+      if (!searchInput) return;
+
+      const target = event.target;
+      const searchIsFocused = searchInput.isFocused();
+      const isEditableTarget = isEditableElement(target);
+
+      if (event.key === "Escape") {
+        if (searchIsFocused) {
+          if (searchInput.hasText()) {
+            event.preventDefault();
+            searchInput.clear();
+          }
+          return;
+        }
+
+        if (isEditableTarget) return;
+
+        event.preventDefault();
+        searchInput.focus();
+        return;
+      }
+
+      if (event.key === "Enter") {
+        if (searchIsFocused || isEditableTarget) return;
+        event.preventDefault();
+        searchInput.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalSearchShortcuts);
+    return () =>
+      window.removeEventListener("keydown", handleGlobalSearchShortcuts);
+  }, [
+    getActiveSearchInput,
+    isModalOpen,
+    isOpen,
+    isPreviewOpen,
+    showLargeImage,
+    showSearchHelp,
+    showSearchModal,
+  ]);
+
   // Mostrar error si falla la carga
   if (cardsError) {
     return (
@@ -1391,6 +1473,7 @@ const CardListClient = ({
             setSelectedBlocks={setSelectedBlocks}
             standardLegalOnly={standardLegalOnly}
             setStandardLegalOnly={setStandardLegalOnly}
+            searchInputRef={desktopSearchRef}
           />
         </div>
 
@@ -1398,6 +1481,7 @@ const CardListClient = ({
           <div className="flex items-center gap-2">
             <div className="flex-1">
               <DropdownSearch
+                ref={mobileSearchRef}
                 search={search}
                 setSearch={setSearch}
                 placeholder={`${t(

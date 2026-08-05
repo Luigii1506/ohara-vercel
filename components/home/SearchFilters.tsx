@@ -2,7 +2,7 @@
 
 import React from "react";
 import MultiSelect, { Option } from "../MultiSelect";
-import DropdownSearch from "../DropdownSearch";
+import DropdownSearch, { type DropdownSearchHandle } from "../DropdownSearch";
 import SingleSelect from "../SingleSelect";
 import {
   rarityOptions,
@@ -66,6 +66,7 @@ interface SearchFiltersProps {
   setSelectedBlocks?: (blocks: string[]) => void;
   standardLegalOnly?: boolean;
   setStandardLegalOnly?: (value: boolean) => void;
+  searchInputRef?: React.Ref<DropdownSearchHandle>;
 }
 
 const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -108,6 +109,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
   setSelectedBlocks,
   standardLegalOnly,
   setStandardLegalOnly,
+  searchInputRef,
 }) => {
   const { t } = useI18n();
   // Detectar si es desktop (1024px+) para habilitar búsqueda
@@ -134,6 +136,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
 
             <div className={"hidden md:flex justify-center min-w-[350px]"}>
               <DropdownSearch
+                ref={searchInputRef}
                 search={search}
                 setSearch={setSearch}
                 placeholder={t("common.searchPlaceholder")}

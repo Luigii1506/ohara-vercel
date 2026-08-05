@@ -20,14 +20,26 @@ interface DropdownSearchProps {
   suggestionsEndpoint?: string;
 }
 
-export default function DropdownSearch({
-  search,
-  setSearch,
-  placeholder = "Search from card list",
-  isInputClear,
-  setIsInputClear,
-  suggestionsEndpoint,
-}: DropdownSearchProps) {
+export type DropdownSearchHandle = {
+  focus: () => void;
+  clear: () => void;
+  hasText: () => boolean;
+  isFocused: () => boolean;
+  isVisible: () => boolean;
+};
+
+const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProps>(
+  function DropdownSearch(
+    {
+      search,
+      setSearch,
+      placeholder = "Search from card list",
+      isInputClear,
+      setIsInputClear,
+      suggestionsEndpoint,
+    }: DropdownSearchProps,
+    ref
+  ) {
   const [inputValue, setInputValue] = React.useState(search);
   const [suggestions, setSuggestions] = React.useState<SearchSuggestion[]>([]);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = React.useState(false);
@@ -69,6 +81,26 @@ export default function DropdownSearch({
     setHighlightedIndex(-1);
     setIsSuggestionsOpen(false);
   }, [setSearch]);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        inputRef.current?.focus();
+      },
+      clear: () => {
+        handleClear();
+      },
+      hasText: () => inputValue.trim().length > 0,
+      isFocused: () => document.activeElement === inputRef.current,
+      isVisible: () => {
+        const element = inputRef.current;
+        if (!element) return false;
+        return element.offsetParent !== null;
+      },
+    }),
+    [handleClear, inputValue]
+  );
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -271,3 +303,6 @@ export default function DropdownSearch({
     </div>
   );
 }
+);
+
+export default DropdownSearch;

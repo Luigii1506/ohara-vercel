@@ -681,6 +681,7 @@ model Set {
   cards           CardSet[]
   events          EventSet[]
   products        Product[]
+  limitlessReviews LimitlessSetReview[]
 
   @@index([region])
 }
@@ -910,6 +911,56 @@ model AltArtReview {
   @@index([status])
 }
 
+model LimitlessSetReview {
+  id              Int                        @id @default(autoincrement())
+  slug            String
+  sourceUrl       String
+  sourceTitle     String
+  sourceCategory  String?
+  region          String?                    @default("US")
+  dbSetId         Int?
+  dbSet           Set?                       @relation(fields: [dbSetId], references: [id], onDelete: SetNull)
+  status          LimitlessReviewStatus      @default(PENDING)
+  declaredCount   Int                        @default(0)
+  dbSetCardCount  Int                        @default(0)
+  matchedCount    Int                        @default(0)
+  wrongSetCount   Int                        @default(0)
+  missingCount    Int                        @default(0)
+  extraCount      Int                        @default(0)
+  snapshotJson    Json?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  lastSyncedAt    DateTime                   @default(now())
+  items           LimitlessSetReviewItem[]
+
+  @@unique([slug, region])
+  @@index([status])
+  @@index([dbSetId])
+}
+
+model LimitlessSetReviewItem {
+  id               Int                         @id @default(autoincrement())
+  reviewId         Int
+  review           LimitlessSetReview          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  kind             LimitlessReviewItemKind
+  decisionStatus   LimitlessDecisionStatus     @default(PENDING)
+  code             String
+  name             String?
+  printTitle       String?
+  cardUrl          String?
+  productId        Int?
+  matchedCardId    Int?
+  candidateCardIds Int[]
+  metadataJson     Json?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  @@index([reviewId])
+  @@index([kind])
+  @@index([decisionStatus])
+  @@index([code])
+}
+
 model CardSet {
   cardId Int
   setId  Int
@@ -1114,6 +1165,26 @@ enum CardRegionReviewStatus {
   UNKNOWN
   NOT_EXISTS
   EXCLUSIVE
+}
+
+enum LimitlessReviewStatus {
+  PENDING
+  REVIEWED
+  APPLIED
+}
+
+enum LimitlessReviewItemKind {
+  MATCH_PRODUCT
+  MATCH_CODE
+  MISSING
+  WRONG_SET
+  EXTRA
+}
+
+enum LimitlessDecisionStatus {
+  PENDING
+  APPLIED
+  IGNORED
 }
 
 enum Role {

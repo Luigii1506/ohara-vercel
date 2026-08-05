@@ -161,6 +161,12 @@ export default function AdminDashboard() {
           icon: Layers,
           description: "Visualize cards grouped by selected sets",
         },
+        {
+          href: "/admin/limitless-sync",
+          label: "Limitless Sync",
+          icon: LinkIcon,
+          description: "Reconcile Limitless set membership against your DB",
+        },
       ],
     },
     {

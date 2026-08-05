@@ -35,6 +35,8 @@
     "reset:events": "ts-node scripts/reset-events.ts",
     "sync:tcg-catalog": "ts-node --project tsconfig.scripts.json scripts/sync-tcg-catalog.ts",
     "sync:tcgplayer-prices": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/sync-tcgplayer-prices.ts",
+    "sync:limitless-set-membership": "tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-set-membership.ts",
+    "sync:limitless-review-queue": "tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-review-queue.ts",
     "tournaments:sync:limitless": "ts-node --project tsconfig.scripts.json scripts/scrape-limitless-tournaments.ts",
     "tournaments:test:onepiecegg": "ts-node --project tsconfig.scripts.json scripts/scrape-onepiece-gg-tournaments.ts",
     "cards:update-order": "ts-node --project tsconfig.scripts.json scripts/update-collection-order.ts",

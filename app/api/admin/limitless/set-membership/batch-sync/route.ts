@@ -17,12 +17,19 @@ export async function POST(request: NextRequest) {
     const slugs = Array.isArray(body?.slugs)
       ? body.slugs.map((value: unknown) => String(value).trim()).filter(Boolean)
       : null;
+    const newOnly = body?.newOnly === true;
+    const forceAll = body?.forceAll === true;
+    const staleHoursRaw = Number.parseInt(String(body?.staleHours ?? ""), 10);
+    const staleHours = Number.isFinite(staleHoursRaw) ? staleHoursRaw : null;
 
     const result = await syncLimitlessCatalogReviews({
       category,
       region,
       limit,
       slugs,
+      newOnly,
+      staleHours,
+      forceAll,
     });
 
     return NextResponse.json({ ok: true, ...result }, { status: 200 });

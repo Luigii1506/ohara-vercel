@@ -53,6 +53,21 @@ export type LimitlessCatalogEntry = {
   category: "main" | "promo";
 };
 
+export type LimitlessCatalogFeedEntry = LimitlessCatalogEntry & {
+  reviewId: number | null;
+  reviewStatus: LimitlessReviewStatus | null;
+  dbSetId: number | null;
+  dbSetTitle: string | null;
+  lastSyncedAt: string | null;
+  issueCount: number;
+  missingCount: number;
+  wrongSetCount: number;
+  extraCount: number;
+  isTracked: boolean;
+  isNew: boolean;
+  needsSync: boolean;
+};
+
 export type DbSetCardRecord = {
   id: number;
   code: string;
@@ -108,6 +123,9 @@ export type SyncLimitlessCatalogOptions = {
   region?: string | null;
   limit?: number | null;
   slugs?: string[] | null;
+  newOnly?: boolean;
+  staleHours?: number | null;
+  forceAll?: boolean;
 };
 
 function normalizeWhitespace(value: string) {
@@ -233,6 +251,102 @@ export async function scrapeLimitlessSetCatalog(): Promise<LimitlessCatalogEntry
     }
   }
   return Array.from(deduped.values());
+}
+
+export async function getLimitlessCatalogFeed(options?: {
+  region?: string | null;
+  staleHours?: number | null;
+}): Promise<{
+  entries: LimitlessCatalogFeedEntry[];
+  stats: {
+    total: number;
+    tracked: number;
+    untracked: number;
+    pending: number;
+    reviewed: number;
+    applied: number;
+    needsSync: number;
+    main: number;
+    promo: number;
+  };
+}> {
+  const region = (options?.region ?? "US").trim().toUpperCase();
+  const staleHours =
+    options?.staleHours != null && Number.isFinite(options.staleHours)
+      ? Math.max(1, options.staleHours)
+      : 24;
+
+  const catalog = await scrapeLimitlessSetCatalog();
+  const reviews = await prisma.limitlessSetReview.findMany({
+    where: {
+      region,
+      slug: {
+        in: catalog.map((entry) => entry.slug),
+      },
+    },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      dbSetId: true,
+      lastSyncedAt: true,
+      wrongSetCount: true,
+      missingCount: true,
+      extraCount: true,
+      dbSet: {
+        select: {
+          title: true,
+        },
+      },
+    },
+  });
+
+  const reviewsBySlug = new Map(reviews.map((review) => [review.slug, review]));
+  const staleThreshold = Date.now() - staleHours * 60 * 60 * 1000;
+
+  const entries = catalog.map((entry) => {
+    const review = reviewsBySlug.get(entry.slug);
+    const issueCount =
+      (review?.wrongSetCount ?? 0) +
+      (review?.missingCount ?? 0) +
+      (review?.extraCount ?? 0);
+    const lastSyncedAt = review?.lastSyncedAt?.toISOString() ?? null;
+    const needsSync =
+      !review ||
+      !review.lastSyncedAt ||
+      review.lastSyncedAt.getTime() < staleThreshold;
+
+    return {
+      ...entry,
+      reviewId: review?.id ?? null,
+      reviewStatus: review?.status ?? null,
+      dbSetId: review?.dbSetId ?? null,
+      dbSetTitle: review?.dbSet?.title ?? null,
+      lastSyncedAt,
+      issueCount,
+      missingCount: review?.missingCount ?? 0,
+      wrongSetCount: review?.wrongSetCount ?? 0,
+      extraCount: review?.extraCount ?? 0,
+      isTracked: Boolean(review),
+      isNew: !review,
+      needsSync,
+    };
+  });
+
+  return {
+    entries,
+    stats: {
+      total: entries.length,
+      tracked: entries.filter((entry) => entry.isTracked).length,
+      untracked: entries.filter((entry) => !entry.isTracked).length,
+      pending: entries.filter((entry) => entry.reviewStatus === LimitlessReviewStatus.PENDING).length,
+      reviewed: entries.filter((entry) => entry.reviewStatus === LimitlessReviewStatus.REVIEWED).length,
+      applied: entries.filter((entry) => entry.reviewStatus === LimitlessReviewStatus.APPLIED).length,
+      needsSync: entries.filter((entry) => entry.needsSync).length,
+      main: entries.filter((entry) => entry.category === "main").length,
+      promo: entries.filter((entry) => entry.category === "promo").length,
+    },
+  };
 }
 
 async function scrapeCardPrintDetails(cardUrl: string): Promise<{
@@ -825,12 +939,24 @@ export async function persistLimitlessSetReview(
 export async function syncLimitlessCatalogReviews(
   options: SyncLimitlessCatalogOptions = {}
 ) {
-  const catalog = await scrapeLimitlessSetCatalog();
-  const filtered = catalog.filter((entry) => {
+  const feed = await getLimitlessCatalogFeed({
+    region: options.region ?? "US",
+    staleHours: options.staleHours ?? 24,
+  });
+  const filtered = feed.entries.filter((entry) => {
     if (options.category && options.category !== "all" && entry.category !== options.category) {
       return false;
     }
     if (options.slugs?.length && !options.slugs.includes(entry.slug)) {
+      return false;
+    }
+    if (options.forceAll) {
+      return true;
+    }
+    if (options.newOnly && !entry.isNew) {
+      return false;
+    }
+    if (!options.newOnly && options.staleHours != null && !entry.needsSync) {
       return false;
     }
     return true;
@@ -876,6 +1002,8 @@ export async function syncLimitlessCatalogReviews(
   }
 
   return {
+    discovered: feed.stats.total,
+    eligible: filtered.length,
     total: limited.length,
     synced: results.filter((item) => item.ok).length,
     failed: results.filter((item) => !item.ok).length,

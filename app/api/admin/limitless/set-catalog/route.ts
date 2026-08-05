@@ -1,12 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { scrapeLimitlessSetCatalog } from "@/lib/services/limitlessSetSync";
+import { getLimitlessCatalogFeed } from "@/lib/services/limitlessSetSync";
 
 export async function GET() {
   try {
-    const entries = await scrapeLimitlessSetCatalog();
-    return NextResponse.json({ ok: true, entries }, { status: 200 });
+    const { entries, stats } = await getLimitlessCatalogFeed({
+      region: "US",
+      staleHours: 24,
+    });
+    return NextResponse.json({ ok: true, entries, stats }, { status: 200 });
   } catch (error: any) {
     console.error("[limitless/set-catalog] failed:", error);
     return NextResponse.json(

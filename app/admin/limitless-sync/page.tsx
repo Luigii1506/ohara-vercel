@@ -336,6 +336,7 @@ export default function LimitlessSyncPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [bulkAction, setBulkAction] = useState<"remove-extras" | "add-wrong-set" | "create-missing" | null>(null);
   const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
   const [addingIds, setAddingIds] = useState<Set<number>>(new Set());
   const [creatingIds, setCreatingIds] = useState<Set<string>>(new Set());
@@ -653,9 +654,21 @@ export default function LimitlessSyncPage() {
     });
   };
 
+  const refreshCurrentReport = async () => {
+    if (!report?.report.snapshot.sourceUrl) return;
+
+    await runReconcile(false, {
+      setUrlOrSlug: report.report.snapshot.sourceUrl,
+      dbSetId: report.report.dbSet?.setId ?? null,
+      region,
+      openModal: false,
+    });
+    await Promise.all([loadReviews(reviewStatusFilter), loadCatalog()]);
+  };
+
   const handleRemoveExtra = async (cardId: number) => {
     const setId = report?.report.dbSet?.setId;
-    if (!setId) return;
+    if (!setId) return false;
 
     setRemovingIds((prev) => new Set(prev).add(cardId));
     setActionMessage(null);
@@ -689,8 +702,10 @@ export default function LimitlessSyncPage() {
           : current
       );
       setActionMessage(`Carta ${cardId} removida del set.`);
+      return true;
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado");
+      return false;
     } finally {
       setRemovingIds((prev) => {
         const next = new Set(prev);
@@ -700,9 +715,32 @@ export default function LimitlessSyncPage() {
     }
   };
 
+  const handleRemoveAllExtras = async () => {
+    const extras = report?.report.extraInDbSet ?? [];
+    if (!extras.length) return;
+
+    setBulkAction("remove-extras");
+    setError(null);
+    setActionMessage(null);
+    let removed = 0;
+
+    for (const extra of extras) {
+      const success = await handleRemoveExtra(extra.id);
+      if (success) {
+        removed += 1;
+      }
+    }
+
+    setBulkAction(null);
+    if (removed > 0) {
+      setActionMessage(`Se procesaron ${removed} extras del set.`);
+      await refreshCurrentReport();
+    }
+  };
+
   const handleAddWrongSetCandidate = async (cardId: number) => {
     const setId = report?.report.dbSet?.setId;
-    if (!setId) return;
+    if (!setId) return false;
 
     setAddingIds((prev) => new Set(prev).add(cardId));
     setError(null);
@@ -733,14 +771,41 @@ export default function LimitlessSyncPage() {
           : current
       );
       setActionMessage(`Carta ${cardId} agregada al set correcto.`);
+      return true;
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado");
+      return false;
     } finally {
       setAddingIds((prev) => {
         const next = new Set(prev);
         next.delete(cardId);
         return next;
       });
+    }
+  };
+
+  const handleAddAllWrongSetCandidates = async () => {
+    const wrongSetCandidates = (report?.report.wrongSet ?? [])
+      .filter((item) => item.candidateCardIds.length === 1)
+      .map((item) => item.candidateCardIds[0]);
+    if (!wrongSetCandidates.length) return;
+
+    setBulkAction("add-wrong-set");
+    setError(null);
+    setActionMessage(null);
+    let added = 0;
+
+    for (const cardId of wrongSetCandidates) {
+      const success = await handleAddWrongSetCandidate(cardId);
+      if (success) {
+        added += 1;
+      }
+    }
+
+    setBulkAction(null);
+    if (added > 0) {
+      setActionMessage(`Se procesaron ${added} cartas para moverlas al set correcto.`);
+      await refreshCurrentReport();
     }
   };
 
@@ -837,7 +902,7 @@ export default function LimitlessSyncPage() {
     productId: number | null;
   }) => {
     const setId = report?.report.dbSet?.setId;
-    if (!setId || !item.productId) return;
+    if (!setId || !item.productId) return false;
     const key = `${item.code}-${item.productId}`;
 
     setCreatingIds((prev) => new Set(prev).add(key));
@@ -878,14 +943,41 @@ export default function LimitlessSyncPage() {
       setActionMessage(
         `${item.code} creada en el set con cardId ${data.cardId}.`
       );
+      return true;
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado");
+      return false;
     } finally {
       setCreatingIds((prev) => {
         const next = new Set(prev);
         next.delete(key);
         return next;
       });
+    }
+  };
+
+  const handleCreateAllMissing = async () => {
+    const missingItems = (report?.report.missing ?? []).filter(
+      (item) => item.productId && report?.report.dbSet?.setId
+    );
+    if (!missingItems.length) return;
+
+    setBulkAction("create-missing");
+    setError(null);
+    setActionMessage(null);
+    let created = 0;
+
+    for (const item of missingItems) {
+      const success = await handleCreateMissing(item);
+      if (success) {
+        created += 1;
+      }
+    }
+
+    setBulkAction(null);
+    if (created > 0) {
+      setActionMessage(`Se procesaron ${created} faltantes para crearlos en DB.`);
+      await refreshCurrentReport();
     }
   };
 
@@ -1448,6 +1540,57 @@ export default function LimitlessSyncPage() {
                     value={report.report.extraInDbSet.length}
                     tone="rose"
                   />
+                </div>
+              )}
+
+              {report && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleAddAllWrongSetCandidates()}
+                    disabled={
+                      bulkAction !== null ||
+                      report.report.wrongSet.filter((item) => item.candidateCardIds.length === 1)
+                        .length === 0
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+                  >
+                    {bulkAction === "add-wrong-set" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Agregar wrong set seguros
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateAllMissing()}
+                    disabled={
+                      bulkAction !== null ||
+                      report.report.missing.filter((item) => item.productId).length === 0
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+                  >
+                    {bulkAction === "create-missing" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Database className="h-4 w-4" />
+                    )}
+                    Crear faltantes con PID
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveAllExtras()}
+                    disabled={bulkAction !== null || report.report.extraInDbSet.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+                  >
+                    {bulkAction === "remove-extras" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Quitar todos los extras
+                  </button>
                 </div>
               )}
 

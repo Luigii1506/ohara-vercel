@@ -28,6 +28,7 @@ export type LimitlessSetCard = {
   name: string;
   cardUrl: string;
   version: number | null;
+  imageUrl: string | null;
   currentPrintTitle: string | null;
   currentPrintProductId: number | null;
   currentPrintTcgUrl: string | null;
@@ -83,6 +84,7 @@ export type DbSetCardRecord = {
 export type LimitlessMembershipMatch = {
   code: string;
   cardUrl: string;
+  imageUrl: string | null;
   printTitle: string | null;
   productId: number | null;
   card: DbSetCardRecord;
@@ -355,6 +357,7 @@ async function scrapeCardPrintDetails(
   cardUrl: string,
   version: number | null
 ): Promise<{
+  imageUrl: string | null;
   currentPrintTitle: string | null;
   currentPrintProductId: number | null;
   currentPrintTcgUrl: string | null;
@@ -364,6 +367,7 @@ async function scrapeCardPrintDetails(
   const html = await fetchHtml(cardUrl);
   const $ = cheerio.load(html);
   const pageTitle = normalizeWhitespace($("title").first().text()) || null;
+  const imageUrl = toAbsoluteUrl($('meta[property="og:image"]').attr("content") ?? null);
   const currentPrintTitle = extractCurrentPrintTitle(pageTitle);
   const prints: LimitlessPrintRow[] = [];
   const seen = new Set<string>();
@@ -407,6 +411,7 @@ async function scrapeCardPrintDetails(
       : null) ?? null;
 
   return {
+    imageUrl,
     currentPrintTitle,
     currentPrintProductId: currentPrint?.productId ?? null,
     currentPrintTcgUrl: currentPrint?.tcgUrl ?? null,
@@ -647,6 +652,7 @@ export async function reconcileLimitlessSetMembership(
       matchedByProductId.push({
         code: card.code,
         cardUrl: card.cardUrl,
+        imageUrl: card.imageUrl,
         printTitle: card.currentPrintTitle,
         productId: card.currentPrintProductId,
         card: inSetByProductId[0],
@@ -672,6 +678,7 @@ export async function reconcileLimitlessSetMembership(
       matchedByCodeOnly.push({
         code: card.code,
         cardUrl: card.cardUrl,
+        imageUrl: card.imageUrl,
         printTitle: card.currentPrintTitle,
         productId: card.currentPrintProductId,
         card: inSetByCode[0],

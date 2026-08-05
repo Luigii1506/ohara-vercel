@@ -64,12 +64,14 @@ type ReconcileResponse = {
     matchedByProductId: Array<{
       code: string;
       cardUrl: string;
+      imageUrl: string | null;
       printTitle: string | null;
       productId: number | null;
       card: {
         id: number;
         code: string;
         name: string;
+        src: string | null;
         region: string | null;
         tcgplayerProductId: string | null;
         isFirstEdition: boolean;
@@ -1793,20 +1795,131 @@ export default function LimitlessSyncPage() {
               empty="No hubo matches seguros."
               rows={report.report.matchedByProductId.map((item) => (
                 <tr key={`${item.card.id}-${item.productId}`} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{item.code}</td>
-                  <td className="px-4 py-3 text-sm text-slate-800">{item.printTitle ?? item.card.name}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{item.productId ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{item.card.id}</td>
-                  <td className="px-4 py-3">
-                    <a
-                      href={item.cardUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      Limitless
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+                  <td className="px-4 py-3 align-top">
+                    <div className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                      {item.code}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Limitless
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="h-20 w-14 overflow-hidden rounded-md border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={`${item.code} ${item.printTitle ?? item.card.name}`}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                No img
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {item.printTitle ?? item.card.name}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              PID {item.productId ?? "—"}
+                            </div>
+                            <div className="mt-2">
+                              <a
+                                href={item.cardUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                              >
+                                Abrir en Limitless
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                          Ohara DB
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="h-20 w-14 overflow-hidden rounded-md border border-emerald-200 bg-white dark:border-emerald-900/60 dark:bg-slate-900">
+                            {item.card.src ? (
+                              <img
+                                src={item.card.src}
+                                alt={`${item.card.code} ${item.card.name}`}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                No img
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {item.card.name}
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                                Card ID #{item.card.id}
+                              </span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                                {item.card.region ?? "No region"}
+                              </span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                                {item.card.baseCardId ? "Alterna" : "Base"}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              PID {item.card.tcgplayerProductId ?? "—"}
+                            </div>
+                            <div className="mt-2">
+                              <a
+                                href={`/card-list/${item.card.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                Abrir en Ohara
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-top text-xs text-slate-500">{item.productId ?? "—"}</td>
+                  <td className="px-4 py-3 align-top text-xs text-slate-500">
+                    Match seguro por PID
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.cardUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Limitless
+                      </a>
+                      <a
+                        href={`/card-list/${item.card.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Ohara
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}

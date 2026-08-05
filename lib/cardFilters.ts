@@ -160,7 +160,6 @@ export const cardMatchesActiveFilters = (
     card.name,
     card.code,
     card.rarity,
-    card.illustrator,
     card.alternateArt,
     card.attribute,
     card.cost,
@@ -212,6 +211,14 @@ export const cardMatchesActiveFilters = (
       (card.code ?? "").toLowerCase().endsWith(token.toLowerCase())
     );
     if (!matchesSuffix) return false;
+  }
+
+  if (parsed.illustratorTokens.length > 0) {
+    const illustratorValue = (card.illustrator ?? "").toLowerCase();
+    const matchesIllustrator = parsed.illustratorTokens.every((token) =>
+      illustratorValue.includes(token.toLowerCase())
+    );
+    if (!matchesIllustrator) return false;
   }
 
   return true;

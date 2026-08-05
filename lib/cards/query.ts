@@ -258,7 +258,6 @@ const buildTokenSearchCondition = (
         ]
       : [
           { name: { contains: search, mode: "insensitive" } },
-          { illustrator: { contains: search, mode: "insensitive" } },
           { code: { contains: search, mode: "insensitive" } },
           { rarity: { contains: search, mode: "insensitive" } },
           {

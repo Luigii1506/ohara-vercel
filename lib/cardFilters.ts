@@ -1,4 +1,5 @@
 import { CardWithCollectionData } from "@/types";
+import { parseSearchTokens } from "@/lib/cards/searchTokens";
 
 export const matchesCardCode = (code: string, search: string): boolean => {
   const query = search.toLowerCase().trim();
@@ -80,4 +81,107 @@ export const getFilteredAlternates = (
 
     return true;
   });
+};
+
+export const cardMatchesActiveFilters = (
+  card: CardWithCollectionData | undefined,
+  options: {
+    search?: string;
+    selectedSets?: string[];
+    selectedCodes?: string[];
+    selectedAltArts?: string[];
+  } = {}
+): boolean => {
+  if (!card) return false;
+
+  const {
+    search = "",
+    selectedSets = [],
+    selectedCodes = [],
+    selectedAltArts = [],
+  } = options;
+
+  if (selectedSets.length > 0) {
+    const normalizedSets = selectedSets.map((value) => value.toLowerCase());
+    const cardSetCodes = (card.sets ?? [])
+      .map((entry) => entry.set.code?.trim().toLowerCase())
+      .filter((code): code is string => Boolean(code));
+    const cardSetTitles = (card.sets ?? [])
+      .map((entry) => entry.set.title?.trim().toLowerCase())
+      .filter((title): title is string => Boolean(title));
+    const matchesSet =
+      cardSetCodes.some((code) => normalizedSets.includes(code)) ||
+      cardSetTitles.some((title) => normalizedSets.includes(title));
+    if (!matchesSet) return false;
+  }
+
+  if (selectedCodes.length > 0) {
+    const normalizedCodes = selectedCodes.map((value) => value.toLowerCase());
+    const cardCode = card.code?.toLowerCase() ?? "";
+    const matchesCode = normalizedCodes.some((value) => cardCode.includes(value));
+    if (!matchesCode) return false;
+  }
+
+  if (selectedAltArts.length > 0) {
+    const matchesAltArt = selectedAltArts.includes(card.alternateArt ?? "");
+    if (!matchesAltArt) return false;
+  }
+
+  const rawSearch = search.trim();
+  if (!rawSearch) return true;
+
+  const normalizedSearch = rawSearch.toLowerCase();
+  const parsed = parseSearchTokens(rawSearch);
+  const searchableValues = [
+    card.name,
+    card.code,
+    card.rarity,
+    card.illustrator,
+    card.alternateArt,
+    card.attribute,
+    card.cost,
+    card.power,
+    card.triggerCard,
+    ...(card.effects ?? []).map((effect) => effect.effect),
+    ...(card.texts ?? []).map((text) => text.text),
+    ...(card.types ?? []).map((type) => type.type),
+    ...(card.colors ?? []).map((color) => color.color),
+    ...(card.sets ?? []).flatMap((entry) => [entry.set.title, entry.set.code ?? ""]),
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  const includesToken = (token: string) =>
+    searchableValues.some((value) => value.includes(token.toLowerCase()));
+
+  if (parsed.textTokens.length > 0) {
+    const matchesTextTokens = parsed.textTokens.every((token) => includesToken(token));
+    if (!matchesTextTokens) return false;
+  } else {
+    const compact = normalizedSearch.replace(/[^a-z0-9]+/g, " ").trim();
+    if (compact && !includesToken(compact)) {
+      const words = compact.split(/\s+/).filter(Boolean);
+      if (words.length && !words.every((word) => includesToken(word))) {
+        return false;
+      }
+    }
+  }
+
+  if (parsed.codeTokens.length > 0) {
+    const matchesParsedCode = parsed.codeTokens.some((token) =>
+      parsed.exactCodeTokens.includes(token)
+        ? (card.code ?? "").toLowerCase() === token.toLowerCase()
+        : (card.code ?? "").toLowerCase().includes(token.toLowerCase())
+    );
+    if (!matchesParsedCode) return false;
+  }
+
+  if (parsed.codeSuffixTokens.length > 0) {
+    const matchesSuffix = parsed.codeSuffixTokens.some((token) =>
+      (card.code ?? "").toLowerCase().endsWith(token.toLowerCase())
+    );
+    if (!matchesSuffix) return false;
+  }
+
+  return true;
 };

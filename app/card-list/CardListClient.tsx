@@ -38,7 +38,6 @@ import { Oswald } from "next/font/google";
 import BaseCardsToggle from "@/components/BaseCardsToggle";
 import FAB from "@/components/Fab";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
-import { parseSearchTokens } from "@/lib/cards/searchTokens";
 import {
   Tooltip,
   TooltipContent,
@@ -67,8 +66,7 @@ import { useSession } from "next-auth/react";
 import { getOptimizedImageUrl, smartPrefetch } from "@/lib/imageOptimization";
 import {
   matchesCardCode,
-  baseCardMatches,
-  getFilteredAlternates,
+  cardMatchesActiveFilters,
 } from "@/lib/cardFilters";
 import LazyImage from "@/components/LazyImage";
 import CardPreviewDialog from "@/components/deckbuilder/CardPreviewDialog";
@@ -121,102 +119,6 @@ const formatCurrencyStatic = (value: number, currency?: string | null) =>
     currency: currency || "USD",
     minimumFractionDigits: 2,
   }).format(value);
-
-const alternateMatchesActiveFilters = (
-  alternate: CardWithCollectionData,
-  options: {
-    search: string;
-    selectedSets: string[];
-    selectedCodes: string[];
-    selectedAltArts: string[];
-  }
-) => {
-  const { search, selectedSets, selectedCodes, selectedAltArts } = options;
-
-  if (selectedSets.length > 0) {
-    const normalizedSets = selectedSets.map((value) => value.toLowerCase());
-    const altSetCodes = (alternate.sets ?? [])
-      .map((entry) => entry.set.code?.trim().toLowerCase())
-      .filter((code): code is string => Boolean(code));
-    const altSetTitles = (alternate.sets ?? [])
-      .map((entry) => entry.set.title?.trim().toLowerCase())
-      .filter((title): title is string => Boolean(title));
-    const matchesSet =
-      altSetCodes.some((code) => normalizedSets.includes(code)) ||
-      altSetTitles.some((title) => normalizedSets.includes(title));
-    if (!matchesSet) return false;
-  }
-
-  if (selectedCodes.length > 0) {
-    const normalizedCodes = selectedCodes.map((value) => value.toLowerCase());
-    const altCode = alternate.code?.toLowerCase() ?? "";
-    const matchesCode = normalizedCodes.some((value) => altCode.includes(value));
-    if (!matchesCode) return false;
-  }
-
-  if (selectedAltArts.length > 0) {
-    const matchesAltArt = selectedAltArts.includes(alternate.alternateArt ?? "");
-    if (!matchesAltArt) return false;
-  }
-
-  const rawSearch = search.trim();
-  if (!rawSearch) return true;
-
-  const normalizedSearch = rawSearch.toLowerCase();
-  const parsed = parseSearchTokens(rawSearch);
-  const searchableValues = [
-    alternate.name,
-    alternate.code,
-    alternate.rarity,
-    alternate.illustrator,
-    alternate.alternateArt,
-    alternate.attribute,
-    alternate.cost,
-    alternate.power,
-    alternate.triggerCard,
-    ...(alternate.effects ?? []).map((effect) => effect.effect),
-    ...(alternate.texts ?? []).map((text) => text.text),
-    ...(alternate.types ?? []).map((type) => type.type),
-    ...(alternate.colors ?? []).map((color) => color.color),
-    ...(alternate.sets ?? []).flatMap((entry) => [entry.set.title, entry.set.code ?? ""]),
-  ]
-    .filter(Boolean)
-    .map((value) => String(value).toLowerCase());
-
-  const includesToken = (token: string) =>
-    searchableValues.some((value) => value.includes(token.toLowerCase()));
-
-  if (parsed.textTokens.length > 0) {
-    const matchesTextTokens = parsed.textTokens.every((token) => includesToken(token));
-    if (!matchesTextTokens) return false;
-  } else {
-    const compact = normalizedSearch.replace(/[^a-z0-9]+/g, " ").trim();
-    if (compact && !includesToken(compact)) {
-      const words = compact.split(/\s+/).filter(Boolean);
-      if (words.length && !words.every((word) => includesToken(word))) {
-        return false;
-      }
-    }
-  }
-
-  if (parsed.codeTokens.length > 0) {
-    const matchesParsedCode = parsed.codeTokens.some((token) =>
-      parsed.exactCodeTokens.includes(token)
-        ? (alternate.code ?? "").toLowerCase() === token.toLowerCase()
-        : (alternate.code ?? "").toLowerCase().includes(token.toLowerCase())
-    );
-    if (!matchesParsedCode) return false;
-  }
-
-  if (parsed.codeSuffixTokens.length > 0) {
-    const matchesSuffix = parsed.codeSuffixTokens.some((token) =>
-      (alternate.code ?? "").toLowerCase().endsWith(token.toLowerCase())
-    );
-    if (!matchesSuffix) return false;
-  }
-
-  return true;
-};
 
 // Componente PriceTag memoizado - fuera del componente principal
 const PriceTag = React.memo(
@@ -1024,7 +926,7 @@ const CardListClient = ({
 
       if (card.alternates?.length) {
         const filteredByActiveSearch = card.alternates.filter((alt) =>
-          alternateMatchesActiveFilters(alt, {
+          cardMatchesActiveFilters(alt, {
             search,
             selectedSets,
             selectedCodes,
@@ -1239,7 +1141,12 @@ const CardListClient = ({
         ? []
         : card.alternates ?? [];
 
-      const isBaseMatch = baseCardMatches(card, selectedSets, selectedAltArts);
+      const isBaseMatch = cardMatchesActiveFilters(card, {
+        search,
+        selectedSets,
+        selectedCodes,
+        selectedAltArts,
+      });
 
       if (!isBaseMatch && filteredAlts.length === 0) return;
 

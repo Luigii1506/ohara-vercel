@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
-  type LiveOverlayMessage,
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
 
@@ -23,103 +22,31 @@ const EMPTY_STATE: LiveOverlayState = {
   updatedAt: new Date(0).toISOString(),
 };
 
-const buildWebSocketUrl = (token: string) => {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}/api/live-overlay/socket?token=${encodeURIComponent(
-    token
-  )}`;
-};
-
 export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps) {
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
   const [isConnected, setIsConnected] = useState(false);
-  const reconnectTimeoutRef = useRef<number | null>(null);
 
+  // Polling del estado (Vercel serverless no soporta WebSockets; el estado vive
+  // en Postgres). El indicador refleja si el último poll tuvo éxito.
   const loadState = useCallback(async () => {
-    const response = await fetch(
-      `/api/live-overlay/state?token=${encodeURIComponent(token)}`,
-      { cache: "no-store" }
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to load overlay state");
-    }
-
-    const data = await response.json();
-    setState(data.state ?? EMPTY_STATE);
-  }, [token]);
-
-  useEffect(() => {
-    loadState().catch((error) => {
+    try {
+      const response = await fetch(
+        `/api/live-overlay/state?token=${encodeURIComponent(token)}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) throw new Error("Failed to load overlay state");
+      const data = await response.json();
+      setState(data.state ?? EMPTY_STATE);
+      setIsConnected(true);
+    } catch (error) {
+      setIsConnected(false);
       console.error("[overlay] failed to load state:", error);
-    });
-  }, [loadState]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let socket: WebSocket | null = null;
-
-    const connect = async () => {
-      try {
-        await fetch("/api/live-overlay/socket", { cache: "no-store" });
-      } catch (error) {
-        console.error("[overlay] failed to initialize socket route:", error);
-      }
-
-      if (cancelled) return;
-
-      socket = new WebSocket(buildWebSocketUrl(token));
-
-      socket.addEventListener("open", () => {
-        setIsConnected(true);
-      });
-
-      socket.addEventListener("message", (event) => {
-        try {
-          const payload = JSON.parse(String(event.data)) as LiveOverlayMessage;
-          if (payload.type === "connected" || payload.type === "state") {
-            setState(payload.state);
-          }
-        } catch (error) {
-          console.error("[overlay] invalid websocket payload:", error);
-        }
-      });
-
-      socket.addEventListener("close", () => {
-        setIsConnected(false);
-        if (cancelled) return;
-        reconnectTimeoutRef.current = window.setTimeout(() => {
-          connect().catch((error) => {
-            console.error("[overlay] reconnect failed:", error);
-          });
-        }, 1200);
-      });
-
-      socket.addEventListener("error", (error) => {
-        console.error("[overlay] websocket error:", error);
-      });
-    };
-
-    connect().catch((error) => {
-      console.error("[overlay] websocket setup failed:", error);
-    });
-
-    return () => {
-      cancelled = true;
-      if (reconnectTimeoutRef.current) {
-        window.clearTimeout(reconnectTimeoutRef.current);
-      }
-      socket?.close();
-    };
+    }
   }, [token]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      loadState().catch(() => {
-        // Fallback silencioso para recuperar estado si el socket se pierde.
-      });
-    }, 4000);
-
+    loadState();
+    const interval = window.setInterval(loadState, 2000);
     return () => window.clearInterval(interval);
   }, [loadState]);
 

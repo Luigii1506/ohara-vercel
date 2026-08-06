@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       ok: true,
-      state: getLiveOverlayState(token!),
+      state: await getLiveOverlayState(token!),
     },
     { status: 200 }
   );

@@ -1020,6 +1020,17 @@ model CardPriceStat {
   @@index([athPct])
 }
 
+/**
+ * Estado del overlay de stream (Live Desk), persistido por token para que
+ * funcione entre instancias serverless (el panel escribe, el overlay lee).
+ */
+model LiveOverlayState {
+  token          String   @id
+  currentCard    Json?
+  rarityCounters Json
+  updatedAt      DateTime @updatedAt
+}
+
 model CardPriceAlert {
   id                 Int                     @id @default(autoincrement())
   cardId             Int

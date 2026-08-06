@@ -36,13 +36,3 @@ export type LiveOverlayState = {
   rarityCounters: LiveOverlayRarityCounters;
   updatedAt: string;
 };
-
-export type LiveOverlayMessage =
-  | {
-      type: "state";
-      state: LiveOverlayState;
-    }
-  | {
-      type: "connected";
-      state: LiveOverlayState;
-    };

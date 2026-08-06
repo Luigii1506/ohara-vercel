@@ -3,11 +3,9 @@ import { getToken } from "next-auth/jwt";
 import {
   clearLiveOverlayCard,
   getLiveOverlayState,
-  incrementLiveOverlayCounter,
   incrementLiveOverlayRarityCounter,
   resetLiveOverlayRarityCounters,
   setLiveOverlayCard,
-  setLiveOverlayCounter,
   setLiveOverlayRarityCounter,
 } from "@/lib/live-overlay/store";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
@@ -28,16 +26,6 @@ type OverlayAction =
   | {
       action: "clear_card";
       token: string;
-    }
-  | {
-      action: "set_counter";
-      token: string;
-      value: number;
-    }
-  | {
-      action: "increment_counter" | "decrement_counter";
-      token: string;
-      amount?: number;
     }
   | {
       action: "set_rarity_counter";
@@ -106,7 +94,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid overlay token" }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, state: getLiveOverlayState(token!) });
+  return NextResponse.json({ ok: true, state: await getLiveOverlayState(token!) });
 }
 
 export async function POST(request: NextRequest) {
@@ -136,29 +124,11 @@ export async function POST(request: NextRequest) {
       if (!sanitizedCard.id || !sanitizedCard.name || !sanitizedCard.code) {
         return NextResponse.json({ error: "Invalid card payload" }, { status: 400 });
       }
-      nextState = setLiveOverlayCard(overlayToken, sanitizedCard);
+      nextState = await setLiveOverlayCard(overlayToken, sanitizedCard);
       break;
     }
     case "clear_card": {
-      nextState = clearLiveOverlayCard(overlayToken);
-      break;
-    }
-    case "set_counter": {
-      nextState = setLiveOverlayCounter(overlayToken, sanitizeNumber(body.value, 0));
-      break;
-    }
-    case "increment_counter": {
-      nextState = incrementLiveOverlayCounter(
-        overlayToken,
-        Math.abs(sanitizeNumber(body.amount, 1))
-      );
-      break;
-    }
-    case "decrement_counter": {
-      nextState = incrementLiveOverlayCounter(
-        overlayToken,
-        -Math.abs(sanitizeNumber(body.amount, 1))
-      );
+      nextState = await clearLiveOverlayCard(overlayToken);
       break;
     }
     case "set_rarity_counter": {
@@ -166,7 +136,7 @@ export async function POST(request: NextRequest) {
       if (!rarity) {
         return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
       }
-      nextState = setLiveOverlayRarityCounter(
+      nextState = await setLiveOverlayRarityCounter(
         overlayToken,
         rarity,
         sanitizeNumber(body.value, 0)
@@ -178,7 +148,7 @@ export async function POST(request: NextRequest) {
       if (!rarity) {
         return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
       }
-      nextState = incrementLiveOverlayRarityCounter(
+      nextState = await incrementLiveOverlayRarityCounter(
         overlayToken,
         rarity,
         Math.abs(sanitizeNumber(body.amount, 1))
@@ -190,7 +160,7 @@ export async function POST(request: NextRequest) {
       if (!rarity) {
         return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
       }
-      nextState = incrementLiveOverlayRarityCounter(
+      nextState = await incrementLiveOverlayRarityCounter(
         overlayToken,
         rarity,
         -Math.abs(sanitizeNumber(body.amount, 1))
@@ -198,7 +168,7 @@ export async function POST(request: NextRequest) {
       break;
     }
     case "reset_rarity_counters": {
-      nextState = resetLiveOverlayRarityCounters(overlayToken);
+      nextState = await resetLiveOverlayRarityCounters(overlayToken);
       break;
     }
     default:

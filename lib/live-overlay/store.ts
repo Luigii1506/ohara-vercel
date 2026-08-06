@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import type {
   LiveOverlayCard,
   LiveOverlayRarityCounterKey,
@@ -6,12 +8,12 @@ import type {
 } from "@/lib/live-overlay/types";
 import { LIVE_OVERLAY_RARITY_COUNTER_KEYS } from "@/lib/live-overlay/types";
 
-type OverlayListener = (state: LiveOverlayState) => void;
-
-type OverlayStore = {
-  stateByToken: Map<string, LiveOverlayState>;
-  listenersByToken: Map<string, Set<OverlayListener>>;
-};
+/**
+ * Estado del overlay persistido en Postgres (tabla LiveOverlayState). Antes era
+ * un Map en memoria, que en Vercel serverless NO se comparte entre instancias:
+ * el panel (POST) y el overlay (GET) podían caer en lambdas distintas y no ver
+ * el mismo estado. En DB funciona confiable entre instancias.
+ */
 
 const createDefaultRarityCounters = (): LiveOverlayRarityCounters =>
   LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce((accumulator, key) => {
@@ -22,114 +24,76 @@ const createDefaultRarityCounters = (): LiveOverlayRarityCounters =>
 const createDefaultState = (): LiveOverlayState => ({
   currentCard: null,
   rarityCounters: createDefaultRarityCounters(),
-  updatedAt: new Date().toISOString(),
+  updatedAt: new Date(0).toISOString(),
 });
 
-const getGlobalStore = () => {
-  const globalKey = "__ohara_live_overlay_store__";
-  const globalObject = globalThis as typeof globalThis & {
-    [globalKey]?: OverlayStore;
-  };
-
-  if (!globalObject[globalKey]) {
-    globalObject[globalKey] = {
-      stateByToken: new Map<string, LiveOverlayState>(),
-      listenersByToken: new Map<string, Set<OverlayListener>>(),
-    };
+/** Normaliza los contadores: rellena las rarezas faltantes con 0. */
+const normalizeCounters = (raw: unknown): LiveOverlayRarityCounters => {
+  const base = createDefaultRarityCounters();
+  if (raw && typeof raw === "object") {
+    for (const key of LIVE_OVERLAY_RARITY_COUNTER_KEYS) {
+      const v = (raw as Record<string, unknown>)[key];
+      if (typeof v === "number" && Number.isFinite(v)) base[key] = Math.max(0, Math.trunc(v));
+    }
   }
-
-  return globalObject[globalKey]!;
+  return base;
 };
 
-export const getLiveOverlayState = (token: string): LiveOverlayState => {
-  const store = getGlobalStore();
-  const existing = store.stateByToken.get(token);
-  if (existing) return existing;
-
-  const nextState = createDefaultState();
-  store.stateByToken.set(token, nextState);
-  return nextState;
+export const getLiveOverlayState = async (
+  token: string
+): Promise<LiveOverlayState> => {
+  const row = await prisma.liveOverlayState.findUnique({ where: { token } });
+  if (!row) return createDefaultState();
+  return {
+    currentCard: (row.currentCard as LiveOverlayCard | null) ?? null,
+    rarityCounters: normalizeCounters(row.rarityCounters),
+    updatedAt: row.updatedAt.toISOString(),
+  };
 };
 
-const emitState = (token: string, state: LiveOverlayState) => {
-  const store = getGlobalStore();
-  const listeners = store.listenersByToken.get(token);
-  if (!listeners?.size) return;
+const persist = async (
+  token: string,
+  next: { currentCard: LiveOverlayCard | null; rarityCounters: LiveOverlayRarityCounters }
+): Promise<LiveOverlayState> => {
+  const currentCardJson =
+    next.currentCard === null
+      ? Prisma.JsonNull
+      : (next.currentCard as unknown as Prisma.InputJsonValue);
+  const rarityJson = next.rarityCounters as unknown as Prisma.InputJsonValue;
 
-  listeners.forEach((listener) => {
-    try {
-      listener(state);
-    } catch (error) {
-      console.error("[live-overlay] listener failed:", error);
-    }
+  const saved = await prisma.liveOverlayState.upsert({
+    where: { token },
+    create: { token, currentCard: currentCardJson, rarityCounters: rarityJson },
+    update: { currentCard: currentCardJson, rarityCounters: rarityJson },
   });
+  return {
+    currentCard: (saved.currentCard as LiveOverlayCard | null) ?? null,
+    rarityCounters: normalizeCounters(saved.rarityCounters),
+    updatedAt: saved.updatedAt.toISOString(),
+  };
 };
 
-const updateState = (
+const updateState = async (
   token: string,
-  updater: (state: LiveOverlayState) => LiveOverlayState
-) => {
-  const store = getGlobalStore();
-  const currentState = getLiveOverlayState(token);
-  const nextState = {
-    ...updater(currentState),
-    updatedAt: new Date().toISOString(),
-  };
-
-  store.stateByToken.set(token, nextState);
-  emitState(token, nextState);
-
-  return nextState;
-};
-
-export const subscribeToLiveOverlay = (
-  token: string,
-  listener: OverlayListener
-) => {
-  const store = getGlobalStore();
-  const listeners = store.listenersByToken.get(token) ?? new Set<OverlayListener>();
-  listeners.add(listener);
-  store.listenersByToken.set(token, listeners);
-
-  return () => {
-    const current = store.listenersByToken.get(token);
-    if (!current) return;
-
-    current.delete(listener);
-    if (current.size === 0) {
-      store.listenersByToken.delete(token);
-    }
-  };
+  updater: (state: LiveOverlayState) => {
+    currentCard: LiveOverlayCard | null;
+    rarityCounters: LiveOverlayRarityCounters;
+  }
+): Promise<LiveOverlayState> => {
+  const current = await getLiveOverlayState(token);
+  return persist(token, updater(current));
 };
 
 export const setLiveOverlayCard = (token: string, card: LiveOverlayCard) =>
   updateState(token, (state) => ({
-    ...state,
     currentCard: card,
+    rarityCounters: state.rarityCounters,
   }));
 
 export const clearLiveOverlayCard = (token: string) =>
   updateState(token, (state) => ({
-    ...state,
     currentCard: null,
-  }));
-
-export const setLiveOverlayCounter = (token: string, value: number) =>
-  updateState(token, (state) => ({
-    ...state,
-    rarityCounters: {
-      ...state.rarityCounters,
-      C: Math.max(0, Math.trunc(value)),
-    },
-  }));
-
-export const incrementLiveOverlayCounter = (token: string, amount: number) =>
-  updateState(token, (state) => ({
-    ...state,
-    rarityCounters: {
-      ...state.rarityCounters,
-      C: Math.max(0, state.rarityCounters.C + Math.trunc(amount)),
-    },
+    rarityCounters: state.rarityCounters,
   }));
 
 export const setLiveOverlayRarityCounter = (
@@ -138,7 +102,7 @@ export const setLiveOverlayRarityCounter = (
   value: number
 ) =>
   updateState(token, (state) => ({
-    ...state,
+    currentCard: state.currentCard,
     rarityCounters: {
       ...state.rarityCounters,
       [rarity]: Math.max(0, Math.trunc(value)),
@@ -151,7 +115,7 @@ export const incrementLiveOverlayRarityCounter = (
   amount: number
 ) =>
   updateState(token, (state) => ({
-    ...state,
+    currentCard: state.currentCard,
     rarityCounters: {
       ...state.rarityCounters,
       [rarity]: Math.max(0, state.rarityCounters[rarity] + Math.trunc(amount)),
@@ -160,6 +124,6 @@ export const incrementLiveOverlayRarityCounter = (
 
 export const resetLiveOverlayRarityCounters = (token: string) =>
   updateState(token, (state) => ({
-    ...state,
+    currentCard: state.currentCard,
     rarityCounters: createDefaultRarityCounters(),
   }));

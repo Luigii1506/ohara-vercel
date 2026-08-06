@@ -1025,29 +1025,27 @@ const AddCardsPage = () => {
     // Región para el título TikTok (US → ENG).
     const regionTag = (r?: string | null) =>
       !r || r === "US" ? "ENG" : r.toUpperCase();
-    // Rareza abreviada (acepta nombre completo o ya abreviado).
-    const RARITY_ABBR: Record<string, string> = {
-      common: "C",
-      uncommon: "UC",
-      rare: "R",
-      "super rare": "SR",
-      "secret rare": "SEC",
-      leader: "L",
-      promo: "PR",
-      "special card": "SP",
-      "treasure rare": "TR",
-      "alternate art": "AA",
+    // Tag de tipo para el título TikTok: solo las especiales que importan.
+    // SEC/TR/SP salen de la rareza; Manga y AA del arte alterno (AA no es una
+    // rareza, es "arte alterno"). Rarezas normales (C/UC/R/SR/L/PR) → sin tag.
+    const typeTag = (c: any) => {
+      const r = (c.rarity ?? "").toLowerCase().trim();
+      const alt = (c.alternateArt ?? "").toLowerCase().trim();
+      if (/secret|^sec$/.test(r)) return "SEC";
+      if (/treasure|^tr$/.test(r)) return "TR";
+      if (/special|^sp$|^spc$/.test(r)) return "SP";
+      if (/manga/.test(alt)) return "Manga";
+      if (alt) return "AA";
+      return "";
     };
-    const rarityTag = (r?: string | null) => {
-      const key = (r ?? "").toLowerCase().trim();
-      if (!key) return "";
-      if (RARITY_ABBR[key]) return RARITY_ABBR[key];
-      if (key.length <= 3) return key.toUpperCase();
-      return (r ?? "").toUpperCase();
+    // Título para copiar/pegar en TikTok: "(ENG) (SEC) OP01-120" o, sin tag
+    // especial, "(ENG) OP01-120".
+    const tiktokName = (c: any) => {
+      const tag = typeTag(c);
+      return `(${regionTag(c.region)})${tag ? ` (${tag})` : ""} ${
+        c.code ?? ""
+      }`.trim();
     };
-    // Título para copiar/pegar en TikTok: "(ENG) (SEC) OP01-120".
-    const tiktokName = (c: any) =>
-      `(${regionTag(c.region)}) (${rarityTag(c.rarity)}) ${c.code ?? ""}`.trim();
 
     const esc = (val: any) => {
       const s = val === null || val === undefined ? "" : String(val);

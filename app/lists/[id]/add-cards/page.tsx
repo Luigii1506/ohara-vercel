@@ -99,8 +99,8 @@ import {
   matchesCardCode,
   baseCardMatches,
   getFilteredAlternates,
+  cardMatchesActiveFilters,
 } from "@/lib/cardFilters";
-import { parseSearchTokens } from "@/lib/cards/searchTokens";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -1411,154 +1411,6 @@ const AddCardsPage = () => {
     folderTotalValue.currency
   );
 
-  const matchesSearchTokens = useCallback(
-    (card: CardWithCollectionData, query: string) => {
-      const trimmed = query.trim();
-      if (!trimmed) return true;
-      const parsed = parseSearchTokens(trimmed);
-
-        const matchesTextToken = (
-          token: string,
-          target: CardWithCollectionData
-        ) => {
-          const tokenLower = token.toLowerCase();
-          return (
-          (target.name ?? "").toLowerCase().includes(tokenLower) ||
-          (target.illustrator ?? "").toLowerCase().includes(tokenLower) ||
-          (target.code ?? "").toLowerCase().includes(tokenLower) ||
-          (target.rarity ?? "").toLowerCase().includes(tokenLower) ||
-          (target.effects ?? []).some((item) =>
-            item.effect.toLowerCase().includes(tokenLower)
-          ) ||
-          (target.texts ?? []).some((item) =>
-            item.text.toLowerCase().includes(tokenLower)
-          ) ||
-          (target.types ?? []).some((item) =>
-            item.type.toLowerCase().includes(tokenLower)
-          ) ||
-          (target.sets ?? []).some((item) =>
-            item.set.title.toLowerCase().includes(tokenLower)
-          )
-        );
-      };
-
-      const matchesInCardOrAlt = (predicate: (target: CardWithCollectionData) => boolean) =>
-        predicate(card) ||
-        (card.alternates ?? []).some((alt) => predicate(alt));
-
-      const matchesText =
-        parsed.textTokens.length === 0 ||
-        parsed.textTokens.every((token) =>
-          matchesInCardOrAlt((target) => matchesTextToken(token, target))
-        );
-
-      const matchesColors =
-        parsed.colors.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          target.colors.some((col) =>
-            parsed.colors.includes(col.color.toLowerCase())
-          )
-        );
-
-      const matchesRarities =
-        parsed.rarities.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.rarities.includes(target.rarity ?? "")
-        );
-
-      const matchesCategories =
-        parsed.categories.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.categories.includes(target.category ?? "")
-        );
-
-      const matchesAltArts =
-        parsed.altArts.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.altArts.includes(target.alternateArt ?? "")
-        );
-
-      const matchesTriggers =
-        parsed.triggers.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.triggers.some((trigger) =>
-            trigger === NO_TRIGGER_LABEL
-              ? !target.triggerCard
-              : (target.triggerCard ?? "") === trigger
-          )
-        );
-
-      const matchesCosts =
-        parsed.costs.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.costs.includes(target.cost ?? "")
-        );
-
-      const matchesPowers =
-        parsed.powers.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.powers.includes(target.power ?? "")
-        );
-
-      const matchesCodeTokens =
-        parsed.codeTokens.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.codeTokens.some((token) => {
-            const normalized = token.toUpperCase();
-            const code = target.code.toUpperCase();
-            if (parsed.exactCodeTokens.includes(token)) {
-              return code === normalized;
-            }
-            if (normalized.includes("-")) {
-              return code.includes(normalized);
-            }
-            if (/^(OP|ST|EB|PRB|P)\d{1,3}$/.test(normalized)) {
-              const setCode = target.setCode?.toUpperCase() ?? "";
-              const setMatches =
-                setCode === normalized ||
-                (target.sets ?? []).some(
-                  (entry) => entry.set.code?.toUpperCase() === normalized
-                );
-              return setMatches || code.startsWith(normalized);
-            }
-            return code.includes(normalized);
-          })
-        );
-
-      const matchesCodeSuffix =
-        parsed.codeSuffixTokens.length === 0 ||
-        matchesInCardOrAlt((target) => {
-          const suffix = target.code.split("-")[1] ?? "";
-          return parsed.codeSuffixTokens.some((token) => suffix === token);
-        });
-
-      const matchesIllustrator =
-        parsed.illustratorTokens.length === 0 ||
-        matchesInCardOrAlt((target) =>
-          parsed.illustratorTokens.some((token) =>
-            (target.illustrator ?? "")
-              .toLowerCase()
-              .includes(token.toLowerCase())
-          )
-        );
-
-      return (
-        matchesText &&
-        matchesColors &&
-        matchesRarities &&
-        matchesCategories &&
-        matchesAltArts &&
-        matchesTriggers &&
-        matchesCosts &&
-        matchesPowers &&
-        matchesCodeTokens &&
-        matchesCodeSuffix &&
-        matchesIllustrator
-      );
-    },
-    []
-  );
-
   // Card-list style filtered cards (for sidebar display)
   const allFilteredCards = useMemo(() => {
     if (!cards || cards.length === 0) return [];
@@ -1572,8 +1424,22 @@ const AddCardsPage = () => {
           (card.alternates ?? []).some((alt) => predicate(alt));
 
         const matchesSearch =
-          matchesSearchTokens(card, search) ||
-          matchesCardCode(card.code, search);
+          cardMatchesActiveFilters(card, {
+            search,
+            selectedSets,
+            selectedCodes,
+            selectedAltArts,
+          }) ||
+          (card.alternates ?? []).some((alt) =>
+            cardMatchesActiveFilters(alt, {
+              search,
+              selectedSets,
+              selectedCodes,
+              selectedAltArts,
+            })
+          ) ||
+          matchesCardCode(card.code, search) ||
+          (card.alternates ?? []).some((alt) => matchesCardCode(alt.code, search));
 
         const matchesColors =
           selectedColors?.length === 0 ||
@@ -2597,6 +2463,7 @@ const AddCardsPage = () => {
                 setSelectedCodes={setSelectedCodes}
                 setSelectedAltArts={setSelectedAltArts}
                 selectedAltArts={selectedAltArts}
+                suggestionsEndpoint="/api/cards/search-suggestions"
               />
             </div>
 
@@ -2605,6 +2472,7 @@ const AddCardsPage = () => {
                 search={search}
                 setSearch={setSearch}
                 placeholder="Search..."
+                suggestionsEndpoint="/api/cards/search-suggestions"
               />
 
               <div className="flex justify-between items-center gap-2">
@@ -3862,6 +3730,7 @@ const AddCardsPage = () => {
                 search={search}
                 setSearch={setSearch}
                 placeholder="Search..."
+                suggestionsEndpoint="/api/cards/search-suggestions"
               />
 
               <div className="flex justify-between items-center gap-2">

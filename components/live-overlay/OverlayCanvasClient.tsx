@@ -73,7 +73,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
         {/* Carta en vivo: compacta, a la DERECHA (no choca con los contadores),
             centrada-arriba. */}
         {state.currentCard ? (
-          <div className="absolute right-5 top-[40%] flex w-[400px] max-w-[58%] -translate-y-1/2 flex-col items-center gap-3">
+          <div className="absolute right-5 top-[calc(40%+30px)] flex w-[400px] max-w-[58%] -translate-y-1/2 flex-col items-center gap-3">
             {state.currentCard.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

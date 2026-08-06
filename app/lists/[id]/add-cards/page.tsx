@@ -35,6 +35,7 @@ import {
   Filter,
   SortAsc,
   Share2,
+  Download,
   Cog,
   MoreVertical,
   AlertTriangle,
@@ -997,6 +998,85 @@ const AddCardsPage = () => {
     } catch (error) {
       console.error("Error fetching existing cards:", error);
     }
+  };
+
+  // 📤 Exporta las cartas de la lista a CSV (Excel). Columnas: nombre, code,
+  // region (US → "EN"), rareza, alterna, market/mid/diferencia (USD) y precio de
+  // subasta sugerido en MXN (80% del market a 18 MXN/USD).
+  const exportListToCsv = () => {
+    const MXN_RATE = 18;
+    const cards = (
+      list?.isOrdered
+        ? Object.values(existingCards).map((lc: any) => lc?.card)
+        : simpleListCards.map((s) => s.card)
+    ).filter(Boolean) as CardWithCollectionData[];
+
+    if (!cards.length) {
+      toast.info("No hay cartas para exportar");
+      return;
+    }
+
+    const num = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    const regionOf = (r?: string | null) => (!r || r === "US" ? "EN" : r);
+    const esc = (val: any) => {
+      const s = val === null || val === undefined ? "" : String(val);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const headers = [
+      "Nombre",
+      "Code",
+      "Region",
+      "Rareza",
+      "Alterna",
+      "Market Price (USD)",
+      "Mid Price (USD)",
+      "Diferencia (USD)",
+      "Listado Median (MXN)",
+      "Subasta sugerida (MXN)",
+    ];
+
+    const rows = cards.map((c) => {
+      const market = num(c.marketPrice);
+      const mid = num((c as any).midPrice);
+      const diff =
+        market != null && mid != null
+          ? Math.round((market - mid) * 100) / 100
+          : "";
+      const listedMedianMxn =
+        mid != null ? Math.round(mid * MXN_RATE * 100) / 100 : "";
+      const suggestedMxn =
+        market != null ? Math.round(market * 0.8 * MXN_RATE * 100) / 100 : "";
+      return [
+        c.name ?? "",
+        c.code ?? "",
+        regionOf(c.region),
+        c.rarity ?? "",
+        c.alternateArt ?? "",
+        market ?? "",
+        mid ?? "",
+        diff,
+        listedMedianMxn,
+        suggestedMxn,
+      ]
+        .map(esc)
+        .join(",");
+    });
+
+    const csv = "﻿" + [headers.map(esc).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `lista-${listId}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`${cards.length} cartas exportadas`);
   };
 
   // 🎴 Función para cargar backcards desde la base de datos
@@ -3147,6 +3227,15 @@ const AddCardsPage = () => {
                       >
                         <Share2 className="h-4 w-4" />
                         Compartir
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportListToCsv}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Exportar CSV
                       </Button>
                       <Button
                         variant="outline"

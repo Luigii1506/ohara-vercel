@@ -173,8 +173,8 @@ const PRODUCT_TYPE_OPTIONS = [
 
 export default function ApproveMissingSetPage() {
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
 
   const [missingSet, setMissingSet] = useState<MissingSet | null>(null);
   const [loading, setLoading] = useState(true);

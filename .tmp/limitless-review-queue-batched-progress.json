@@ -1,0 +1,29 @@
+{
+  "category": "main",
+  "region": "US",
+  "batchSize": 5,
+  "categories": {
+    "main": {
+      "completedSlugs": [
+        "op16-the-time-of-battle",
+        "op15-adventure-on-kamis-island",
+        "eb03-one-piece-heroines-edition",
+        "op14-the-azure-seas-seven",
+        "op13-carrying-on-his-will"
+      ],
+      "synced": 5,
+      "failed": 0,
+      "batchesCompleted": 1,
+      "totalAtStart": 57,
+      "lastUpdatedAt": "2026-08-05T19:02:12.041Z"
+    },
+    "promo": {
+      "completedSlugs": [],
+      "synced": 0,
+      "failed": 0,
+      "batchesCompleted": 0,
+      "totalAtStart": 0,
+      "lastUpdatedAt": null
+    }
+  }
+}

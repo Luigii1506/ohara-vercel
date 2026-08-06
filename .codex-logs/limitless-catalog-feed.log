@@ -1,0 +1,274 @@
+
+> oharatcg@0.1.0 sync:limitless-catalog-feed
+> tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-catalog-feed.ts --force-all
+
+
+[limitless-catalog-feed] discovered=133 eligible=133 queued=133 category=all region=US mode=force-all
+[1/133] syncing op16-the-time-of-battle · OP16
+  ✓ review 2 · wrong=0 missing=155 extra=0
+[2/133] syncing op15-adventure-on-kamis-island · OP15
+  ✓ review 3 · wrong=0 missing=196 extra=0
+[3/133] syncing eb03-one-piece-heroines-edition · EB03
+  ✓ review 4 · wrong=0 missing=90 extra=0
+[4/133] syncing op14-the-azure-seas-seven · OP14
+  ✓ review 5 · wrong=0 missing=199 extra=0
+[5/133] syncing op13-carrying-on-his-will · OP13
+  ✓ review 6 · wrong=0 missing=175 extra=0
+[6/133] syncing prb02-one-piece-card-the-best-vol2 · PRB02
+  ✓ review 7 · wrong=0 missing=316 extra=0
+[7/133] syncing op12-legacy-of-the-master · OP12
+  ✓ review 8 · wrong=0 missing=155 extra=0
+[8/133] syncing op11-a-fist-of-divine-speed · OP11
+  ✓ review 9 · wrong=0 missing=156 extra=0
+[9/133] syncing eb02-anime-25th-collection · EB02
+  ✓ review 25 · wrong=0 missing=105 extra=0
+[10/133] syncing op10-royal-blood · OP10
+  ✓ review 26 · wrong=0 missing=151 extra=0
+[11/133] syncing op09-emperors-in-the-new-world · OP09
+  ✓ review 27 · wrong=0 missing=159 extra=0
+[12/133] syncing prb01-premium-booster-one-piece-the-best · PRB01
+  ✓ review 28 · wrong=0 missing=319 extra=0
+[13/133] syncing op08-two-legends · OP08
+  ✓ review 29 · wrong=0 missing=151 extra=0
+[14/133] syncing op07-500-years-in-the-future · OP07
+  ✓ review 30 · wrong=0 missing=151 extra=0
+[15/133] syncing eb01-memorial-collection · EB01
+  ✓ review 31 · wrong=0 missing=80 extra=0
+[16/133] syncing op06-wings-of-the-captain · OP06
+  ✓ review 32 · wrong=0 missing=151 extra=0
+[17/133] syncing op05-awakening-of-the-new-era · OP05
+  ✓ review 33 · wrong=0 missing=154 extra=0
+[18/133] syncing op04-kingdoms-of-intrigue · OP04
+  ✓ review 34 · wrong=0 missing=149 extra=0
+[19/133] syncing op03-pillars-of-strength · OP03
+  ✓ review 35 · wrong=0 missing=154 extra=0
+[20/133] syncing op02-paramount-war · OP02
+  ✓ review 36 · wrong=0 missing=154 extra=0
+[21/133] syncing op01-romance-dawn · OP01
+  ✓ review 37 · wrong=0 missing=154 extra=0
+[22/133] syncing st36-yellow-eustass-captain-kid · ST36
+  ✓ review 38 · wrong=0 missing=6 extra=0
+[23/133] syncing st35-red-black-sabo · ST35
+  ✓ review 39 · wrong=0 missing=6 extra=0
+[24/133] syncing st34-purple-charlotte-katakuri · ST34
+  ✓ review 40 · wrong=0 missing=6 extra=0
+[25/133] syncing st33-blue-kuzan · ST33
+  ✓ review 41 · wrong=0 missing=6 extra=0
+[26/133] syncing st32-green-roronoa-zoro · ST32
+  ✓ review 42 · wrong=0 missing=6 extra=0
+[27/133] syncing st31-red-monkey-d-luffy · ST31
+  ✓ review 43 · wrong=0 missing=6 extra=0
+[28/133] syncing st30-ex-luffy-ace · ST30
+  ✓ review 44 · wrong=0 missing=34 extra=0
+[29/133] syncing st29-egghead · ST29
+  ✓ review 45 · wrong=0 missing=31 extra=0
+[30/133] syncing st22-ace-newgate · ST22
+  ✓ review 46 · wrong=0 missing=31 extra=0
+[31/133] syncing st28-green-yellow-yamato · ST28
+  ✓ review 47 · wrong=0 missing=15 extra=0
+[32/133] syncing st27-black-marshall-d-teach · ST27
+  ✓ review 48 · wrong=0 missing=15 extra=0
+[33/133] syncing st26-purple-black-monkey-d-luffy · ST26
+  ✓ review 49 · wrong=0 missing=15 extra=0
+[34/133] syncing st25-blue-buggy · ST25
+  ✓ review 50 · wrong=0 missing=15 extra=0
+[35/133] syncing st24-green-jewelry-bonney · ST24
+  ✓ review 51 · wrong=0 missing=15 extra=0
+[36/133] syncing st23-red-shanks · ST23
+  ✓ review 52 · wrong=0 missing=15 extra=0
+[37/133] syncing st21-ex-gear-5 · ST21
+  ✓ review 53 · wrong=0 missing=32 extra=0
+[38/133] syncing st20-yellow-charlotte-katakuri · ST20
+  ✓ review 54 · wrong=0 missing=15 extra=0
+[39/133] syncing st19-black-smoker · ST19
+  ✓ review 55 · wrong=0 missing=15 extra=0
+[40/133] syncing st18-purple-monkey-d-luffy · ST18
+  ✓ review 56 · wrong=0 missing=15 extra=0
+[41/133] syncing st17-blue-donquixote-doflamingo · ST17
+  ✓ review 57 · wrong=0 missing=15 extra=0
+[42/133] syncing st16-green-uta · ST16
+  ✓ review 58 · wrong=0 missing=15 extra=0
+[43/133] syncing st15-red-edward-newgate · ST15
+  ✓ review 59 · wrong=0 missing=15 extra=0
+[44/133] syncing st14-3D2Y · ST14
+  ✓ review 60 · wrong=0 missing=17 extra=0
+[45/133] syncing st13-the-three-brothers · ST13
+  ✓ review 61 · wrong=0 missing=35 extra=0
+[46/133] syncing st12-zoro-sanji · ST12
+  ✓ review 62 · wrong=0 missing=17 extra=0
+[47/133] syncing st11-uta · ST11
+  ✓ review 63 · wrong=0 missing=15 extra=0
+[48/133] syncing st10-the-three-captains · ST10
+  ✓ review 64 · wrong=0 missing=19 extra=0
+[49/133] syncing st09-yamato · ST09
+  ✓ review 65 · wrong=0 missing=15 extra=0
+[50/133] syncing st08-monkey-d-luffy · ST08
+  ✓ review 66 · wrong=0 missing=15 extra=0
+[51/133] syncing st07-big-mom-pirates · ST07
+  ✓ review 67 · wrong=0 missing=17 extra=0
+[52/133] syncing st06-absolute-justice · ST06
+  ✓ review 68 · wrong=0 missing=17 extra=0
+[53/133] syncing st05-one-piece-film-edition · ST05
+  ✓ review 69 · wrong=0 missing=17 extra=0
+[54/133] syncing st04-animal-kingdom-pirates · ST04
+  ✓ review 70 · wrong=0 missing=17 extra=0
+[55/133] syncing st03-the-seven-warlords-of-the-sea · ST03
+  ✓ review 71 · wrong=0 missing=17 extra=0
+[56/133] syncing st02-worst-generation · ST02
+  ✓ review 72 · wrong=0 missing=17 extra=0
+[57/133] syncing st01-straw-hat-crew · ST01
+  ✓ review 73 · wrong=0 missing=17 extra=0
+[58/133] syncing welcome-pack-2026-1 · Welcome Pack 2026 Vol.1
+  ✓ review 1 · wrong=0 missing=0 extra=1
+[59/133] syncing tournament-pack-14 · Tournament Pack 2026 Vol.2
+  ✓ review 75 · wrong=12 missing=0 extra=12
+[60/133] syncing event-pack-09 · Event Pack Vol.8
+  ✓ review 76 · wrong=0 missing=0 extra=0
+[61/133] syncing regional-participation-pack-2026-1 · Regional Participation Pack 2026 Vol.1
+  ✓ review 77 · wrong=0 missing=0 extra=2
+[62/133] syncing japanese-3rd-anniversary-set · Japanese 3rd Anniversary Set
+  ✓ review 78 · wrong=8 missing=0 extra=8
+[63/133] syncing dash-pack-eb03 · One Piece Heroines Campaign Dash Pack
+  ✓ review 79 · wrong=0 missing=0 extra=2
+[64/133] syncing premium-card-collection-best-selection-05 · Premium Card Collection -Best Selection Vol.5-
+  ✓ review 80 · wrong=0 missing=0 extra=0
+[65/133] syncing dash-pack-op14 · The Azure Sea's Seven Dash Pack
+  ✓ review 81 · wrong=0 missing=0 extra=0
+[66/133] syncing tournament-pack-13 · Tournament Pack 2026 Vol.1
+  ✓ review 82 · wrong=0 missing=8 extra=0
+[67/133] syncing promotion-card-set-2025 · Promotion Card Set 2025
+  ✓ review 83 · wrong=0 missing=7 extra=0
+[68/133] syncing championship-25-26-top-player-pack-2 · CS 25–26 Top Player Pack Vol.2
+  ✓ review 84 · wrong=0 missing=0 extra=0
+[69/133] syncing 3rd-anniversary-treasure-campaign-pack · 3rd Anniversary! Treasure Campaign Pack
+  ✓ review 85 · wrong=0 missing=8 extra=0
+[70/133] syncing tournament-pack-12 · Tournament Pack 2025 Vol.4
+  ✓ review 86 · wrong=0 missing=0 extra=0
+[71/133] syncing seven-warlords-of-the-sea-binder-set · Seven Warlords of the Sea Binder Set
+  ✓ review 87 · wrong=0 missing=0 extra=1
+[72/133] syncing premium-card-collection-best-selection-04 · Premium Card Collection -Best Selection Vol.4-
+  ✓ review 88 · wrong=0 missing=0 extra=0
+[73/133] syncing premium-card-collection-6-assort-01 · Premium Card Collection -6 assort vol.1-
+  ✓ review 89 · wrong=0 missing=0 extra=0
+[74/133] syncing championship-25-26-top-player-pack · CS 25–26 Top Player Pack
+  ✓ review 90 · wrong=0 missing=0 extra=0
+[75/133] syncing championship-25-26-event-pack · CS 25–26 Event Pack
+  ✓ review 91 · wrong=0 missing=0 extra=0
+[76/133] syncing championship-25-26-celebration-pack · CS 25–26 Celebration Pack
+  ✓ review 92 · wrong=0 missing=0 extra=0
+[77/133] syncing welcome-pack-02 · Welcome Pack Vol.2
+  ✓ review 93 · wrong=0 missing=0 extra=0
+[78/133] syncing regional-participation-pack-2025-2 · Regional Participation Pack 2025 Vol.2
+  ✓ review 94 · wrong=0 missing=4 extra=0
+[79/133] syncing event-pack-07 · Event Pack Vol.7
+  ✓ review 95 · wrong=0 missing=0 extra=0
+[80/133] syncing tournament-pack-11 · Tournament Pack 2025 Vol.3
+  ✓ review 96 · wrong=0 missing=0 extra=0
+[81/133] syncing english-version-2nd-anniversary-set · English Version 2nd Anniversary Set
+  ✓ review 97 · wrong=0 missing=0 extra=1
+[82/133] syncing premium-card-collection-best-selection-03 · Premium Card Collection -Best Selection Vol.3-
+  ✓ review 98 · wrong=0 missing=12 extra=0
+[83/133] syncing tournament-pack-10 · Tournament Pack 2025 Vol.2
+  ✓ review 99 · wrong=8 missing=0 extra=0
+[84/133] syncing regional-participation-pack-2025-1 · Regional Participation Pack 2025 Vol.1
+  ✓ review 100 · wrong=0 missing=4 extra=0
+[85/133] syncing event-pack-06 · Event Pack Vol.6
+  ✓ review 101 · wrong=0 missing=0 extra=0
+[86/133] syncing japanese-2nd-anniversary-set · Japanese 2nd Anniversary Set
+  ✓ review 102 · wrong=1 missing=0 extra=1
+[87/133] syncing tournament-pack-09 · Tournament Pack 2025 Vol.1
+  ✓ review 103 · wrong=0 missing=0 extra=0
+[88/133] syncing championship-2024-top-players-pack-2 · Championship 2024 Top Players Pack Vol.2
+  ✓ review 104 · wrong=0 missing=6 extra=0
+[89/133] syncing premium-card-collection-leader-collection · Premium Card Collection -Leader Collection-
+  ✓ review 105 · wrong=0 missing=0 extra=0
+[90/133] syncing regional-participation-pack-2024-3 · Regional Participation Pack 2024 Vol.3
+  ✓ review 106 · wrong=0 missing=4 extra=0
+[91/133] syncing event-pack-05 · Event Pack Vol.5
+  ✓ review 107 · wrong=0 missing=0 extra=0
+[92/133] syncing tournament-pack-08 · Tournament Pack 2024 Oct.-Dec.
+  ✓ review 108 · wrong=0 missing=0 extra=0
+[93/133] syncing premium-card-collection-best-selection-02 · Premium Card Collection -Best Selection Vol.2-
+  ✓ review 109 · wrong=0 missing=0 extra=0
+[94/133] syncing championship-2024-top-players-pack · Championship 2024 Top Players Pack
+  ✓ review 110 · wrong=0 missing=6 extra=0
+[95/133] syncing championship-2024-event-pack · Championship 2024 Event Pack
+  ✓ review 111 · wrong=0 missing=0 extra=0
+[96/133] syncing championship-2024-celebration-pack · Championship 2024 Celebration Pack
+  ✓ review 112 · wrong=0 missing=0 extra=0
+[97/133] syncing premium-card-collection-bandai-card-games-fest-23-24 · Premium Card Collection -Bandai Card Games Fest. 23-24 Edition-
+  ✓ review 113 · wrong=0 missing=0 extra=0
+[98/133] syncing premium-card-collection-uta · Premium Card Collection -Uta-
+  ✓ review 114 · wrong=0 missing=6 extra=0
+[99/133] syncing tournament-pack-07 · Tournament Pack Vol.7
+  ✓ review 115 · wrong=0 missing=0 extra=0
+[100/133] syncing regional-participation-pack-2024-2 · Regional Participation Pack 2024 Vol.2
+  ✓ review 116 · wrong=0 missing=4 extra=0
+[101/133] syncing event-pack-04 · Event Pack Vol.4
+  ✓ review 117 · wrong=0 missing=0 extra=0
+[102/133] syncing english-version-1st-anniversary-set · English Version 1st Anniversary Set
+  ✓ review 118 · wrong=0 missing=0 extra=1
+[103/133] syncing premium-card-collection-live-action · Premium Card Collection -Live Action Edition-
+  ✓ review 119 · wrong=0 missing=9 extra=0
+[104/133] syncing premium-card-collection-best-selection-01 · Premium Card Collection -Best Selection Vol.1-
+  ✓ review 120 · wrong=0 missing=12 extra=0
+[105/133] syncing regional-participation-pack-2024-1 · Regional Participation Pack 2024 Vol.1
+  ✓ review 121 · wrong=0 missing=4 extra=0
+[106/133] syncing event-pack-03 · Event Pack Vol.3
+  ✓ review 122 · wrong=0 missing=0 extra=0
+[107/133] syncing tournament-pack-06 · Tournament Pack Vol.6
+  ✓ review 123 · wrong=0 missing=0 extra=0
+[108/133] syncing japanese-1st-anniversary-set · Japanese 1st Anniversary Set
+  ✓ review 124 · wrong=0 missing=0 extra=0
+[109/133] syncing uta-deck-battle-participation-pack · Uta Deck Battle Participation Pack
+  ✓ review 125 · wrong=0 missing=8 extra=0
+[110/133] syncing championship-2023-top-players-pack · Championship 2023 Top Players Pack
+  ✓ review 126 · wrong=0 missing=0 extra=0
+[111/133] syncing championship-2023-event-pack · Championship 2023 Event Pack
+  ✓ review 127 · wrong=0 missing=0 extra=0
+[112/133] syncing championship-2023-celebration-pack · Championship 2023 Celebration Pack
+  ✓ review 128 · wrong=0 missing=0 extra=1
+[113/133] syncing tournament-pack-05 · Tournament Pack Vol.5
+  ✓ review 129 · wrong=0 missing=0 extra=0
+[114/133] syncing sealed-battle-kit-01 · Sealed Battle Kit Vol.1
+  ✓ review 130 · wrong=0 missing=0 extra=0
+[115/133] syncing premium-card-collection-film-red · Premium Card Collection -FILM RED Edition-
+  ✓ review 131 · wrong=0 missing=12 extra=0
+[116/133] syncing gift-collection-01 · Gift Collection 2023
+  ✓ review 132 · wrong=0 missing=0 extra=0
+[117/133] syncing regional-participation-pack-02 · Regional Participation Pack Vol.2
+  ✓ review 133 · wrong=0 missing=6 extra=0
+[118/133] syncing store-championship-participation-pack-02 · Store Championship Participation Pack Vol.2
+  ✓ review 134 · wrong=0 missing=0 extra=0
+[119/133] syncing dash-pack-01 · Kingdoms of Intrigue Dash Pack
+  ✓ review 135 · wrong=0 missing=0 extra=0
+[120/133] syncing tournament-pack-04 · Tournament Pack Vol.4
+  ✓ review 136 · wrong=0 missing=0 extra=0
+[121/133] syncing premium-card-collection-25th-edition · Premium Card Collection -25th Edition-
+  ✓ review 137 · wrong=0 missing=10 extra=0
+[122/133] syncing store-championship-participation-pack-01 · Store Championship Participation Pack Vol.1
+  ✓ review 138 · wrong=0 missing=6 extra=0
+[123/133] syncing event-pack-02 · Event Pack Vol.2
+  ✓ review 139 · wrong=0 missing=0 extra=1
+[124/133] syncing tournament-pack-03 · Tournament Pack Vol.3
+  ✓ review 140 · wrong=0 missing=0 extra=0
+[125/133] syncing promotion-pack-02 · Promotion Pack 2023
+  ✓ review 141 · wrong=0 missing=5 extra=0
+[126/133] syncing tournament-pack-02 · Tournament Pack Vol.2
+  ✓ review 142 · wrong=0 missing=0 extra=1
+[127/133] syncing regional-participation-pack-01 · Regional Participation Pack Vol.1
+  ✓ review 143 · wrong=6 missing=0 extra=0
+[128/133] syncing event-pack-01 · Event Pack Vol.1
+  ✓ review 144 · wrong=0 missing=0 extra=0
+[129/133] syncing tournament-pack-01 · Tournament Pack Vol.1
+  ✓ review 145 · wrong=0 missing=0 extra=0
+[130/133] syncing film-red-promotion-card-set · FILM RED Promotion Card Set
+  ✓ review 146 · wrong=0 missing=13 extra=0
+[131/133] syncing promotion-pack-01 · Promotion Pack 2022
+  ✓ review 147 · wrong=0 missing=0 extra=1
+[132/133] syncing prize-cards · Prize Cards
+  ✓ review 148 · wrong=97 missing=0 extra=1
+[133/133] syncing misc-promos · Misc. Promos
+  ✓ review 149 · wrong=0 missing=85 extra=0
+
+[limitless-catalog-feed] done discovered=133 eligible=133 queued=133 synced=133 failed=0

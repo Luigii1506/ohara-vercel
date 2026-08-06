@@ -62,8 +62,8 @@ const PRODUCT_TYPE_OPTIONS = [
 
 const ApproveMissingProductPage = () => {
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
 
   const [missingProduct, setMissingProduct] = useState<MissingProduct | null>(
     null

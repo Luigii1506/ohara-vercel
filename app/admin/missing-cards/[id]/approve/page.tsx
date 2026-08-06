@@ -110,8 +110,8 @@ const getPreferredRegion = (events: MissingCardEventLink[] = []) => {
 
 export default function ApproveMissingCardPage() {
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
 
   const [missingCard, setMissingCard] = useState<MissingCard | null>(null);
   const [loading, setLoading] = useState(true);

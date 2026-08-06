@@ -74,9 +74,9 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
         ))}
       </div>
 
-      {/* Carta en vivo (opcional): franja inferior */}
+      {/* Carta en vivo (opcional): franja superior */}
       {state.currentCard ? (
-        <div className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-4 px-8">
+        <div className="absolute inset-x-0 top-10 flex flex-col items-center gap-4 px-8">
           {state.currentCard.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

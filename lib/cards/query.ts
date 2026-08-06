@@ -241,20 +241,11 @@ const buildTokenSearchCondition = (
   const baseConditions: Prisma.CardWhereInput[] =
     scope === "name-first"
       ? [
+          // Búsqueda compuesta (nombre + poder/color/…): el texto matchea SOLO
+          // nombre y código, NO el título del set (si no, cartas en un set con
+          // el término — ej. "EX Luffy & Ace" — colaban por "ace").
           { name: { contains: search, mode: "insensitive" } },
           { code: { contains: search, mode: "insensitive" } },
-          {
-            sets: {
-              some: {
-                set: {
-                  OR: [
-                    { title: { contains: search, mode: "insensitive" } },
-                    { code: { contains: search, mode: "insensitive" } },
-                  ],
-                },
-              },
-            },
-          },
         ]
       : [
           { name: { contains: search, mode: "insensitive" } },

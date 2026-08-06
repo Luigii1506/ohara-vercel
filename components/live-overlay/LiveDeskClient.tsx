@@ -30,6 +30,7 @@ const EMPTY_STATE: LiveOverlayState = {
     },
     {} as LiveOverlayState["rarityCounters"]
   ),
+  scenes: [],
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -73,8 +74,12 @@ export default function LiveDeskClient({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   // Mobile: pestaña del controlador ("counters" = mando de rarezas, "cards" =
-  // buscar/seleccionar carta en vivo).
-  const [mobileTab, setMobileTab] = useState<"counters" | "cards">("counters");
+  // buscar/seleccionar carta en vivo, "effects" = escenas/efectos).
+  const [mobileTab, setMobileTab] = useState<"counters" | "cards" | "effects">(
+    "counters"
+  );
+  const [bannerText, setBannerText] = useState("");
+  const [bannerSubtitle, setBannerSubtitle] = useState("");
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -229,6 +234,92 @@ export default function LiveDeskClient({
       }
     },
     [liveCardId, runAction]
+  );
+
+  // ---- Escenas / efectos ----
+  const bannerActive = state.scenes.some(
+    (s) => s.type === "banner" && s.visible
+  );
+
+  const triggerConfetti = useCallback(
+    () => runAction({ action: "trigger_scene", type: "confetti" }, "confetti"),
+    [runAction]
+  );
+
+  const showBanner = useCallback(() => {
+    const text = bannerText.trim();
+    if (!text) return;
+    runAction(
+      {
+        action: "set_banner",
+        text,
+        subtitle: bannerSubtitle.trim(),
+        visible: true,
+      },
+      "banner"
+    );
+  }, [bannerText, bannerSubtitle, runAction]);
+
+  const hideBanner = useCallback(
+    () => runAction({ action: "hide_scene", id: "banner" }, "banner-hide"),
+    [runAction]
+  );
+
+  // Panel de escenas/efectos reutilizable (desktop sidebar + tab móvil).
+  const scenesPanel = (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={triggerConfetti}
+        disabled={actionLoading === "confetti"}
+        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-lg font-black text-white shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+      >
+        🎊 Confeti
+      </button>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Banner
+          </span>
+          {bannerActive ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> En vivo
+            </span>
+          ) : null}
+        </div>
+        <input
+          value={bannerText}
+          onChange={(e) => setBannerText(e.target.value)}
+          placeholder="Texto principal…"
+          className="mb-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+        />
+        <input
+          value={bannerSubtitle}
+          onChange={(e) => setBannerSubtitle(e.target.value)}
+          placeholder="Subtítulo (opcional)"
+          className="mb-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={showBanner}
+            disabled={!bannerText.trim() || actionLoading === "banner"}
+            className="h-11 flex-1 rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+          >
+            Mostrar
+          </button>
+          <button
+            type="button"
+            onClick={hideBanner}
+            disabled={!bannerActive || actionLoading === "banner-hide"}
+            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 active:bg-slate-50 disabled:opacity-40"
+          >
+            Ocultar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   const resultsGrid = (
@@ -478,6 +569,26 @@ export default function LiveDeskClient({
                 ))}
               </div>
             </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Escenas y efectos
+                </span>
+                {state.scenes.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      runAction({ action: "clear_scenes" }, "clear-scenes")
+                    }
+                    className="text-xs font-semibold text-slate-500 hover:underline"
+                  >
+                    Limpiar
+                  </button>
+                ) : null}
+              </div>
+              {scenesPanel}
+            </div>
           </div>
         </aside>
       </div>
@@ -510,6 +621,17 @@ export default function LiveDeskClient({
             }`}
           >
             Cartas
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("effects")}
+            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
+              mobileTab === "effects"
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            Efectos
           </button>
         </div>
 
@@ -608,6 +730,21 @@ export default function LiveDeskClient({
             >
               Reiniciar contadores
             </button>
+          </div>
+        ) : mobileTab === "effects" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            {scenesPanel}
+            {state.scenes.length > 0 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  runAction({ action: "clear_scenes" }, "clear-scenes")
+                }
+                className="h-11 shrink-0 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-500 active:bg-slate-50"
+              >
+                Limpiar escenas
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">

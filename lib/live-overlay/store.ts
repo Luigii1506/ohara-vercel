@@ -4,9 +4,14 @@ import type {
   LiveOverlayCard,
   LiveOverlayRarityCounterKey,
   LiveOverlayRarityCounters,
+  LiveOverlayScene,
+  LiveOverlaySceneType,
   LiveOverlayState,
 } from "@/lib/live-overlay/types";
-import { LIVE_OVERLAY_RARITY_COUNTER_KEYS } from "@/lib/live-overlay/types";
+import {
+  LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  LIVE_OVERLAY_SCENE_TYPES,
+} from "@/lib/live-overlay/types";
 
 /**
  * Estado del overlay persistido en Postgres (tabla LiveOverlayState). Antes era
@@ -24,6 +29,7 @@ const createDefaultRarityCounters = (): LiveOverlayRarityCounters =>
 const createDefaultState = (): LiveOverlayState => ({
   currentCard: null,
   rarityCounters: createDefaultRarityCounters(),
+  scenes: [],
   updatedAt: new Date(0).toISOString(),
 });
 
@@ -39,6 +45,33 @@ const normalizeCounters = (raw: unknown): LiveOverlayRarityCounters => {
   return base;
 };
 
+/** Normaliza el stack de escenas: descarta lo inválido y ordena por z. */
+const normalizeScenes = (raw: unknown): LiveOverlayScene[] => {
+  if (!Array.isArray(raw)) return [];
+  const scenes: LiveOverlayScene[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const type = record.type as LiveOverlaySceneType;
+    if (!LIVE_OVERLAY_SCENE_TYPES.includes(type)) continue;
+    const id = String(record.id ?? type);
+    scenes.push({
+      id,
+      type,
+      z: typeof record.z === "number" ? record.z : 0,
+      visible: record.visible !== false,
+      props:
+        record.props && typeof record.props === "object"
+          ? (record.props as Record<string, unknown>)
+          : {},
+      triggeredAt:
+        typeof record.triggeredAt === "string" ? record.triggeredAt : null,
+      ttlMs: typeof record.ttlMs === "number" ? record.ttlMs : null,
+    });
+  }
+  return scenes.sort((a, b) => a.z - b.z);
+};
+
 export const getLiveOverlayState = async (
   token: string
 ): Promise<LiveOverlayState> => {
@@ -47,54 +80,79 @@ export const getLiveOverlayState = async (
   return {
     currentCard: (row.currentCard as LiveOverlayCard | null) ?? null,
     rarityCounters: normalizeCounters(row.rarityCounters),
+    scenes: normalizeScenes((row as { scenes?: unknown }).scenes),
     updatedAt: row.updatedAt.toISOString(),
   };
 };
 
+type PersistPayload = {
+  currentCard: LiveOverlayCard | null;
+  rarityCounters: LiveOverlayRarityCounters;
+  scenes: LiveOverlayScene[];
+};
+
 const persist = async (
   token: string,
-  next: { currentCard: LiveOverlayCard | null; rarityCounters: LiveOverlayRarityCounters }
+  next: PersistPayload
 ): Promise<LiveOverlayState> => {
   const currentCardJson =
     next.currentCard === null
       ? Prisma.JsonNull
       : (next.currentCard as unknown as Prisma.InputJsonValue);
   const rarityJson = next.rarityCounters as unknown as Prisma.InputJsonValue;
+  const scenesJson = next.scenes as unknown as Prisma.InputJsonValue;
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
-    create: { token, currentCard: currentCardJson, rarityCounters: rarityJson },
-    update: { currentCard: currentCardJson, rarityCounters: rarityJson },
+    create: {
+      token,
+      currentCard: currentCardJson,
+      rarityCounters: rarityJson,
+      scenes: scenesJson,
+    },
+    update: {
+      currentCard: currentCardJson,
+      rarityCounters: rarityJson,
+      scenes: scenesJson,
+    },
   });
   return {
     currentCard: (saved.currentCard as LiveOverlayCard | null) ?? null,
     rarityCounters: normalizeCounters(saved.rarityCounters),
+    scenes: normalizeScenes((saved as { scenes?: unknown }).scenes),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
 
 const updateState = async (
   token: string,
-  updater: (state: LiveOverlayState) => {
-    currentCard: LiveOverlayCard | null;
-    rarityCounters: LiveOverlayRarityCounters;
-  }
+  updater: (state: LiveOverlayState) => PersistPayload
 ): Promise<LiveOverlayState> => {
   const current = await getLiveOverlayState(token);
   return persist(token, updater(current));
 };
 
+// ---------------------------------------------------------------------------
+// Carta en vivo
+// ---------------------------------------------------------------------------
+
 export const setLiveOverlayCard = (token: string, card: LiveOverlayCard) =>
   updateState(token, (state) => ({
     currentCard: card,
     rarityCounters: state.rarityCounters,
+    scenes: state.scenes,
   }));
 
 export const clearLiveOverlayCard = (token: string) =>
   updateState(token, (state) => ({
     currentCard: null,
     rarityCounters: state.rarityCounters,
+    scenes: state.scenes,
   }));
+
+// ---------------------------------------------------------------------------
+// Contadores por rareza
+// ---------------------------------------------------------------------------
 
 export const setLiveOverlayRarityCounter = (
   token: string,
@@ -107,6 +165,7 @@ export const setLiveOverlayRarityCounter = (
       ...state.rarityCounters,
       [rarity]: Math.max(0, Math.trunc(value)),
     },
+    scenes: state.scenes,
   }));
 
 export const incrementLiveOverlayRarityCounter = (
@@ -120,10 +179,104 @@ export const incrementLiveOverlayRarityCounter = (
       ...state.rarityCounters,
       [rarity]: Math.max(0, state.rarityCounters[rarity] + Math.trunc(amount)),
     },
+    scenes: state.scenes,
   }));
 
 export const resetLiveOverlayRarityCounters = (token: string) =>
   updateState(token, (state) => ({
     currentCard: state.currentCard,
     rarityCounters: createDefaultRarityCounters(),
+    scenes: state.scenes,
+  }));
+
+// ---------------------------------------------------------------------------
+// Escenas (stack de capas)
+// ---------------------------------------------------------------------------
+
+/** Upsert de una escena en el stack por id (los singletons usan id = type). */
+const upsertScene = (
+  scenes: LiveOverlayScene[],
+  scene: LiveOverlayScene
+): LiveOverlayScene[] => {
+  const rest = scenes.filter((s) => s.id !== scene.id);
+  return [...rest, scene].sort((a, b) => a.z - b.z);
+};
+
+/**
+ * Dispara una escena one-shot (confetti / sound): marca triggeredAt = ahora, así
+ * el overlay la reproduce una sola vez por cada disparo. El id es el type
+ * (singleton), de modo que dispararla de nuevo solo actualiza triggeredAt.
+ */
+export const triggerLiveOverlayScene = (
+  token: string,
+  type: LiveOverlaySceneType,
+  props: Record<string, unknown> = {},
+  options: { z?: number; ttlMs?: number | null } = {}
+) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: upsertScene(state.scenes, {
+      id: type,
+      type,
+      z: options.z ?? 50,
+      visible: true,
+      props,
+      triggeredAt: new Date().toISOString(),
+      ttlMs: options.ttlMs ?? null,
+    }),
+  }));
+
+/** Crea/actualiza una escena persistente (banner). */
+export const setLiveOverlayScene = (
+  token: string,
+  scene: {
+    id: string;
+    type: LiveOverlaySceneType;
+    z?: number;
+    visible?: boolean;
+    props?: Record<string, unknown>;
+  }
+) =>
+  updateState(token, (state) => {
+    const existing = state.scenes.find((s) => s.id === scene.id);
+    return {
+      currentCard: state.currentCard,
+      rarityCounters: state.rarityCounters,
+      scenes: upsertScene(state.scenes, {
+        id: scene.id,
+        type: scene.type,
+        z: scene.z ?? existing?.z ?? 10,
+        visible: scene.visible ?? true,
+        props: scene.props ?? existing?.props ?? {},
+        triggeredAt: existing?.triggeredAt ?? null,
+        ttlMs: existing?.ttlMs ?? null,
+      }),
+    };
+  });
+
+/** Oculta una escena persistente sin quitarla del stack. */
+export const hideLiveOverlayScene = (token: string, id: string) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: state.scenes.map((s) =>
+      s.id === id ? { ...s, visible: false } : s
+    ),
+  }));
+
+/** Quita una escena del stack. */
+export const removeLiveOverlayScene = (token: string, id: string) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: state.scenes.filter((s) => s.id !== id),
+  }));
+
+/** Limpia todo el stack de escenas. */
+export const clearLiveOverlayScenes = (token: string) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: [],
   }));

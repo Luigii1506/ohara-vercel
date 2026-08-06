@@ -2,17 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import {
   clearLiveOverlayCard,
+  clearLiveOverlayScenes,
   getLiveOverlayState,
+  hideLiveOverlayScene,
   incrementLiveOverlayRarityCounter,
+  removeLiveOverlayScene,
   resetLiveOverlayRarityCounters,
   setLiveOverlayCard,
   setLiveOverlayRarityCounter,
+  setLiveOverlayScene,
+  triggerLiveOverlayScene,
 } from "@/lib/live-overlay/store";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  LIVE_OVERLAY_SCENE_TYPES,
   type LiveOverlayCard,
   type LiveOverlayRarityCounterKey,
+  type LiveOverlaySceneType,
 } from "@/lib/live-overlay/types";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +49,35 @@ type OverlayAction =
   | {
       action: "reset_rarity_counters";
       token: string;
+    }
+  | {
+      action: "trigger_scene";
+      token: string;
+      type: LiveOverlaySceneType;
+      props?: Record<string, unknown>;
+    }
+  | {
+      action: "set_banner";
+      token: string;
+      text: string;
+      subtitle?: string;
+      accent?: string;
+      visible?: boolean;
+    }
+  | {
+      action: "hide_scene" | "remove_scene";
+      token: string;
+      id: string;
+    }
+  | {
+      action: "clear_scenes";
+      token: string;
     };
+
+const sanitizeSceneType = (value: unknown): LiveOverlaySceneType | null => {
+  const normalized = String(value ?? "").trim() as LiveOverlaySceneType;
+  return LIVE_OVERLAY_SCENE_TYPES.includes(normalized) ? normalized : null;
+};
 
 const sanitizeNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -169,6 +204,62 @@ export async function POST(request: NextRequest) {
     }
     case "reset_rarity_counters": {
       nextState = await resetLiveOverlayRarityCounters(overlayToken);
+      break;
+    }
+    case "trigger_scene": {
+      const type = sanitizeSceneType(body.type);
+      if (!type) {
+        return NextResponse.json({ error: "Invalid scene type" }, { status: 400 });
+      }
+      const props =
+        body.props && typeof body.props === "object" ? body.props : {};
+      // Confeti dura ~4.5s; el resto sin ttl por ahora.
+      const ttlMs = type === "confetti" ? 4500 : null;
+      nextState = await triggerLiveOverlayScene(overlayToken, type, props, {
+        ttlMs,
+      });
+      break;
+    }
+    case "set_banner": {
+      const text = String(body.text ?? "").trim();
+      const visible = body.visible !== false;
+      if (visible && !text) {
+        return NextResponse.json(
+          { error: "Banner text is required" },
+          { status: 400 }
+        );
+      }
+      nextState = await setLiveOverlayScene(overlayToken, {
+        id: "banner",
+        type: "banner",
+        z: 20,
+        visible,
+        props: {
+          text,
+          subtitle: body.subtitle ? String(body.subtitle).trim() : "",
+          accent: body.accent ? String(body.accent) : "",
+        },
+      });
+      break;
+    }
+    case "hide_scene": {
+      const id = String(body.id ?? "").trim();
+      if (!id) {
+        return NextResponse.json({ error: "Scene id required" }, { status: 400 });
+      }
+      nextState = await hideLiveOverlayScene(overlayToken, id);
+      break;
+    }
+    case "remove_scene": {
+      const id = String(body.id ?? "").trim();
+      if (!id) {
+        return NextResponse.json({ error: "Scene id required" }, { status: 400 });
+      }
+      nextState = await removeLiveOverlayScene(overlayToken, id);
+      break;
+    }
+    case "clear_scenes": {
+      nextState = await clearLiveOverlayScenes(overlayToken);
       break;
     }
     default:

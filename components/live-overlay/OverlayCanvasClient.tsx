@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  type LiveOverlayScene,
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
+import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -19,23 +21,36 @@ const EMPTY_STATE: LiveOverlayState = {
     },
     {} as LiveOverlayState["rarityCounters"]
   ),
+  scenes: [],
   updatedAt: new Date(0).toISOString(),
 };
 
 export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps) {
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
+  // Dispara el confeti solo cuando cambia triggeredAt (no en cada poll ni al
+  // refrescar OBS con un disparo viejo).
+  const [confettiKey, setConfettiKey] = useState<string | null>(null);
+  const lastConfettiTrigger = useRef<string | null | undefined>(undefined);
 
-  // Polling del estado cada 2s (Vercel serverless no soporta WebSockets; el
-  // estado vive en Postgres).
+  // Polling del estado cada 1s (Vercel serverless no soporta WebSockets; el
+  // estado vive en Postgres). Condicional: mandamos el último updatedAt y el
+  // endpoint responde vacío si no cambió nada.
+  const lastUpdatedAt = useRef<string | null>(null);
   const loadState = useCallback(async () => {
     try {
+      const since = lastUpdatedAt.current
+        ? `&since=${encodeURIComponent(lastUpdatedAt.current)}`
+        : "";
       const response = await fetch(
-        `/api/live-overlay/state?token=${encodeURIComponent(token)}`,
+        `/api/live-overlay/state?token=${encodeURIComponent(token)}${since}`,
         { cache: "no-store" }
       );
       if (!response.ok) throw new Error("Failed to load overlay state");
       const data = await response.json();
-      setState(data.state ?? EMPTY_STATE);
+      if (data.changed === false) return; // sin cambios, conservamos el estado
+      const next = data.state ?? EMPTY_STATE;
+      lastUpdatedAt.current = next.updatedAt ?? null;
+      setState(next);
     } catch (error) {
       console.error("[overlay] failed to load state:", error);
     }
@@ -43,9 +58,31 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
 
   useEffect(() => {
     loadState();
-    const interval = window.setInterval(loadState, 2000);
+    const interval = window.setInterval(loadState, 1000);
     return () => window.clearInterval(interval);
   }, [loadState]);
+
+  // Escenas activas del stack.
+  const confetti = state.scenes.find(
+    (s: LiveOverlayScene) => s.type === "confetti"
+  );
+  const banner = state.scenes.find(
+    (s: LiveOverlayScene) => s.type === "banner" && s.visible
+  );
+
+  // Dispara el confeti cuando triggeredAt cambia (dedupe, sin repetir en polling
+  // ni reproducir un disparo viejo al montar/refrescar).
+  useEffect(() => {
+    const trigger = confetti?.triggeredAt ?? null;
+    if (lastConfettiTrigger.current === undefined) {
+      lastConfettiTrigger.current = trigger; // primer estado: no dispares lo viejo
+      return;
+    }
+    if (trigger && trigger !== lastConfettiTrigger.current) {
+      setConfettiKey(trigger);
+    }
+    lastConfettiTrigger.current = trigger;
+  }, [confetti?.triggeredAt]);
 
   return (
     // Contenedor a pantalla completa (gutter oscuro para preview en navegador).
@@ -107,6 +144,39 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
               ) : null}
             </div>
           </div>
+        ) : null}
+
+        {/* ===================== ESCENAS (stack de capas) ===================== */}
+
+        {/* Banner persistente (lower-third) */}
+        {banner ? (
+          <div className="absolute inset-x-0 bottom-16 z-20 flex justify-center px-6">
+            <div
+              className="max-w-[620px] rounded-2xl border-[3px] px-8 py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur"
+              style={{
+                background: "rgba(0,0,0,0.82)",
+                borderColor:
+                  (banner.props.accent as string) || "#f5b301",
+              }}
+            >
+              <div className="text-4xl font-black leading-tight text-white">
+                {String(banner.props.text ?? "")}
+              </div>
+              {banner.props.subtitle ? (
+                <div className="mt-1 text-xl font-bold uppercase tracking-wide text-amber-300">
+                  {String(banner.props.subtitle)}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Confeti one-shot (encima de todo) */}
+        {confettiKey ? (
+          <ConfettiLayer
+            key={confettiKey}
+            durationMs={confetti?.ttlMs ?? 4500}
+          />
         ) : null}
       </div>
     </div>

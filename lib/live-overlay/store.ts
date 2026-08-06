@@ -1,4 +1,10 @@
-import type { LiveOverlayCard, LiveOverlayState } from "@/lib/live-overlay/types";
+import type {
+  LiveOverlayCard,
+  LiveOverlayRarityCounterKey,
+  LiveOverlayRarityCounters,
+  LiveOverlayState,
+} from "@/lib/live-overlay/types";
+import { LIVE_OVERLAY_RARITY_COUNTER_KEYS } from "@/lib/live-overlay/types";
 
 type OverlayListener = (state: LiveOverlayState) => void;
 
@@ -7,9 +13,15 @@ type OverlayStore = {
   listenersByToken: Map<string, Set<OverlayListener>>;
 };
 
+const createDefaultRarityCounters = (): LiveOverlayRarityCounters =>
+  LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce((accumulator, key) => {
+    accumulator[key] = 0;
+    return accumulator;
+  }, {} as LiveOverlayRarityCounters);
+
 const createDefaultState = (): LiveOverlayState => ({
   currentCard: null,
-  counter: 0,
+  rarityCounters: createDefaultRarityCounters(),
   updatedAt: new Date().toISOString(),
 });
 
@@ -105,12 +117,49 @@ export const clearLiveOverlayCard = (token: string) =>
 export const setLiveOverlayCounter = (token: string, value: number) =>
   updateState(token, (state) => ({
     ...state,
-    counter: Math.max(0, Math.trunc(value)),
+    rarityCounters: {
+      ...state.rarityCounters,
+      C: Math.max(0, Math.trunc(value)),
+    },
   }));
 
 export const incrementLiveOverlayCounter = (token: string, amount: number) =>
   updateState(token, (state) => ({
     ...state,
-    counter: Math.max(0, state.counter + Math.trunc(amount)),
+    rarityCounters: {
+      ...state.rarityCounters,
+      C: Math.max(0, state.rarityCounters.C + Math.trunc(amount)),
+    },
   }));
 
+export const setLiveOverlayRarityCounter = (
+  token: string,
+  rarity: LiveOverlayRarityCounterKey,
+  value: number
+) =>
+  updateState(token, (state) => ({
+    ...state,
+    rarityCounters: {
+      ...state.rarityCounters,
+      [rarity]: Math.max(0, Math.trunc(value)),
+    },
+  }));
+
+export const incrementLiveOverlayRarityCounter = (
+  token: string,
+  rarity: LiveOverlayRarityCounterKey,
+  amount: number
+) =>
+  updateState(token, (state) => ({
+    ...state,
+    rarityCounters: {
+      ...state.rarityCounters,
+      [rarity]: Math.max(0, state.rarityCounters[rarity] + Math.trunc(amount)),
+    },
+  }));
+
+export const resetLiveOverlayRarityCounters = (token: string) =>
+  updateState(token, (state) => ({
+    ...state,
+    rarityCounters: createDefaultRarityCounters(),
+  }));

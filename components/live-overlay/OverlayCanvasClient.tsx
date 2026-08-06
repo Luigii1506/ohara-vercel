@@ -1,7 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { LiveOverlayMessage, LiveOverlayState } from "@/lib/live-overlay/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  type LiveOverlayMessage,
+  type LiveOverlayState,
+} from "@/lib/live-overlay/types";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -9,7 +13,13 @@ type OverlayCanvasClientProps = {
 
 const EMPTY_STATE: LiveOverlayState = {
   currentCard: null,
-  counter: 0,
+  rarityCounters: LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
+    (accumulator, key) => {
+      accumulator[key] = 0;
+      return accumulator;
+    },
+    {} as LiveOverlayState["rarityCounters"]
+  ),
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -113,22 +123,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     return () => window.clearInterval(interval);
   }, [loadState]);
 
-  const formattedPrice = useMemo(() => {
-    if (!state.currentCard?.price) return null;
-
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: state.currentCard.priceCurrency || "USD",
-      minimumFractionDigits: 2,
-    }).format(state.currentCard.price);
-  }, [state.currentCard?.price, state.currentCard?.priceCurrency]);
-
   return (
-    <div className="min-h-screen w-full bg-transparent">
-      <div className="relative flex min-h-screen items-end justify-start overflow-hidden p-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(245,158,11,0.18)_0%,_rgba(15,23,42,0)_45%)]" />
-
-        <div className="relative flex w-full max-w-4xl items-end gap-6">
+    <div className="min-h-screen w-full bg-[#28ce2b]">
+      <div className="relative flex min-h-screen items-end justify-between overflow-hidden p-8">
+        <div className="relative flex max-w-4xl items-end gap-6">
           {state.currentCard ? (
             <>
               <div className="w-[240px] shrink-0 overflow-hidden rounded-[28px] border border-white/15 bg-black/45 shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
@@ -165,11 +163,6 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                       {state.currentCard.setTitle}
                     </span>
                   ) : null}
-                  {formattedPrice ? (
-                    <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 font-semibold text-emerald-100">
-                      {formattedPrice}
-                    </span>
-                  ) : null}
                 </div>
               </div>
             </>
@@ -184,20 +177,36 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             </div>
           )}
 
-          <div className="ml-auto rounded-[30px] border border-white/12 bg-black/55 px-6 py-5 text-right text-white shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
+        </div>
+
+        <div className="ml-8 w-[520px] rounded-[30px] border border-white/12 bg-black/55 px-6 py-5 text-white shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
+          <div className="flex items-center justify-between">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">
-              Counter
-            </div>
-            <div className="mt-2 text-6xl font-black leading-none text-amber-300">
-              {state.counter}
+              Rarity Counters
             </div>
             <div
-              className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] ${
+              className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${
                 isConnected ? "text-emerald-300/80" : "text-rose-300/80"
               }`}
             >
               {isConnected ? "Live connected" : "Reconnecting"}
             </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
+              <div
+                key={rarity}
+                className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-center"
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">
+                  {rarity}
+                </div>
+                <div className="mt-2 text-5xl font-black leading-none text-amber-300">
+                  {state.rarityCounters[rarity]}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

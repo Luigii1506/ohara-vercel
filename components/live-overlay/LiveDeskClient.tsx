@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CardWithCollectionData } from "@/types";
-import type { LiveOverlayCard, LiveOverlayState } from "@/lib/live-overlay/types";
+import {
+  LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  type LiveOverlayCard,
+  type LiveOverlayRarityCounterKey,
+  type LiveOverlayState,
+} from "@/lib/live-overlay/types";
 import { useRegion } from "@/components/region/RegionProvider";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
@@ -17,7 +22,13 @@ type FlattenedCardResult = LiveOverlayCard & {
 
 const EMPTY_STATE: LiveOverlayState = {
   currentCard: null,
-  counter: 0,
+  rarityCounters: LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
+    (accumulator, key) => {
+      accumulator[key] = 0;
+      return accumulator;
+    },
+    {} as LiveOverlayState["rarityCounters"]
+  ),
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -212,7 +223,7 @@ export default function LiveDeskClient({
                 Overlay control para TikTok y streaming
               </h1>
               <p className="mt-2 text-sm text-slate-600">
-                Busca una carta, empújala al overlay y controla un contador manual en tiempo real.
+                Busca una carta, empújala al overlay y controla contadores por rareza en tiempo real.
               </p>
             </div>
 
@@ -417,10 +428,22 @@ export default function LiveDeskClient({
                 <div className="mt-5 flex items-end justify-between gap-4 rounded-[22px] border border-white/10 bg-white/5 px-4 py-3">
                   <div>
                     <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-                      Counter
+                      Rarity Counters
                     </div>
-                    <div className="text-4xl font-black text-amber-300">
-                      {state.counter}
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                      {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((key) => (
+                        <div
+                          key={key}
+                          className="rounded-2xl border border-white/10 bg-slate-950/25 px-3 py-2 text-center"
+                        >
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+                            {key}
+                          </div>
+                          <div className="mt-1 text-2xl font-black text-amber-300">
+                            {state.rarityCounters[key]}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -438,39 +461,90 @@ export default function LiveDeskClient({
 
             <section className="rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.28)]">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Counter Controls
+                Rarity Controls
               </p>
-              <h2 className="mt-1 text-xl font-bold text-slate-950">Ajustes rápidos</h2>
+              <h2 className="mt-1 text-xl font-bold text-slate-950">
+                Suma y resta por rareza
+              </h2>
+
+              <div className="mt-4 grid gap-3">
+                {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
+                  <div
+                    key={rarity}
+                    className="grid grid-cols-[70px_minmax(0,1fr)_48px_68px_48px] items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3"
+                  >
+                    <div className="text-sm font-black tracking-[0.08em] text-slate-950">
+                      {rarity}
+                    </div>
+                    <div className="text-2xl font-black text-amber-700">
+                      {state.rarityCounters[rarity]}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          {
+                            action: "decrement_rarity_counter",
+                            rarity,
+                            amount: 1,
+                          },
+                          `rarity-minus-${rarity}`
+                        )
+                      }
+                      disabled={!overlayToken}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          {
+                            action: "set_rarity_counter",
+                            rarity,
+                            value: 0,
+                          },
+                          `rarity-reset-${rarity}`
+                        )
+                      }
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          {
+                            action: "increment_rarity_counter",
+                            rarity,
+                            amount: 1,
+                          },
+                          `rarity-plus-${rarity}`
+                        )
+                      }
+                      disabled={!overlayToken}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() =>
-                    runAction({ action: "decrement_counter", amount: 1 }, "counter-minus")
+                    runAction(
+                      { action: "reset_rarity_counters" },
+                      "rarity-reset-all"
+                    )
                   }
-                  disabled={!overlayToken}
-                  className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 text-lg font-bold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Minus className="h-5 w-5" />
-                  -1
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    runAction({ action: "increment_counter", amount: 1 }, "counter-plus")
-                  }
-                  disabled={!overlayToken}
-                  className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-amber-400 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <Plus className="h-5 w-5" />
-                  +1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAction({ action: "set_counter", value: 0 }, "counter-reset")}
                   className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Reset
+                  Reset all
                 </button>
                 <button
                   type="button"

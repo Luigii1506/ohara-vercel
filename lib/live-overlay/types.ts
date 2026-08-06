@@ -11,9 +11,29 @@ export type LiveOverlayCard = {
   region?: string | null;
 };
 
+export const LIVE_OVERLAY_RARITY_COUNTER_KEYS = [
+  "C",
+  "UC",
+  "R",
+  "SR",
+  "SEC",
+  "SP",
+  "L",
+  "P",
+  "TR",
+] as const;
+
+export type LiveOverlayRarityCounterKey =
+  (typeof LIVE_OVERLAY_RARITY_COUNTER_KEYS)[number];
+
+export type LiveOverlayRarityCounters = Record<
+  LiveOverlayRarityCounterKey,
+  number
+>;
+
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;
-  counter: number;
+  rarityCounters: LiveOverlayRarityCounters;
   updatedAt: string;
 };
 

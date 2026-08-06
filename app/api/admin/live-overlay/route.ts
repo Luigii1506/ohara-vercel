@@ -4,11 +4,18 @@ import {
   clearLiveOverlayCard,
   getLiveOverlayState,
   incrementLiveOverlayCounter,
+  incrementLiveOverlayRarityCounter,
+  resetLiveOverlayRarityCounters,
   setLiveOverlayCard,
   setLiveOverlayCounter,
+  setLiveOverlayRarityCounter,
 } from "@/lib/live-overlay/store";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
-import type { LiveOverlayCard } from "@/lib/live-overlay/types";
+import {
+  LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  type LiveOverlayCard,
+  type LiveOverlayRarityCounterKey,
+} from "@/lib/live-overlay/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +38,22 @@ type OverlayAction =
       action: "increment_counter" | "decrement_counter";
       token: string;
       amount?: number;
+    }
+  | {
+      action: "set_rarity_counter";
+      token: string;
+      rarity: LiveOverlayRarityCounterKey;
+      value: number;
+    }
+  | {
+      action: "increment_rarity_counter" | "decrement_rarity_counter";
+      token: string;
+      rarity: LiveOverlayRarityCounterKey;
+      amount?: number;
+    }
+  | {
+      action: "reset_rarity_counters";
+      token: string;
     };
 
 const sanitizeNumber = (value: unknown, fallback: number) => {
@@ -54,6 +77,18 @@ const sanitizeCard = (card: LiveOverlayCard): LiveOverlayCard => ({
   priceCurrency: card.priceCurrency ? String(card.priceCurrency) : null,
   region: card.region ? String(card.region) : null,
 });
+
+const sanitizeRarityKey = (
+  rarity: unknown
+): LiveOverlayRarityCounterKey | null => {
+  const normalized = String(rarity ?? "")
+    .trim()
+    .toUpperCase() as LiveOverlayRarityCounterKey;
+
+  return LIVE_OVERLAY_RARITY_COUNTER_KEYS.includes(normalized)
+    ? normalized
+    : null;
+};
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -124,6 +159,46 @@ export async function POST(request: NextRequest) {
         overlayToken,
         -Math.abs(sanitizeNumber(body.amount, 1))
       );
+      break;
+    }
+    case "set_rarity_counter": {
+      const rarity = sanitizeRarityKey(body.rarity);
+      if (!rarity) {
+        return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
+      }
+      nextState = setLiveOverlayRarityCounter(
+        overlayToken,
+        rarity,
+        sanitizeNumber(body.value, 0)
+      );
+      break;
+    }
+    case "increment_rarity_counter": {
+      const rarity = sanitizeRarityKey(body.rarity);
+      if (!rarity) {
+        return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
+      }
+      nextState = incrementLiveOverlayRarityCounter(
+        overlayToken,
+        rarity,
+        Math.abs(sanitizeNumber(body.amount, 1))
+      );
+      break;
+    }
+    case "decrement_rarity_counter": {
+      const rarity = sanitizeRarityKey(body.rarity);
+      if (!rarity) {
+        return NextResponse.json({ error: "Invalid rarity key" }, { status: 400 });
+      }
+      nextState = incrementLiveOverlayRarityCounter(
+        overlayToken,
+        rarity,
+        -Math.abs(sanitizeNumber(body.amount, 1))
+      );
+      break;
+    }
+    case "reset_rarity_counters": {
+      nextState = resetLiveOverlayRarityCounters(overlayToken);
       break;
     }
     default:

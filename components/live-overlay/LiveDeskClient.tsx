@@ -68,6 +68,9 @@ export default function LiveDeskClient({
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
+  // Mobile: pestaña del controlador ("counters" = mando de rarezas, "cards" =
+  // buscar/seleccionar carta en vivo).
+  const [mobileTab, setMobileTab] = useState<"counters" | "cards">("counters");
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -224,6 +227,95 @@ export default function LiveDeskClient({
     [liveCardId, runAction]
   );
 
+  const resultsGrid = (
+    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
+      {results.map((card) => {
+        const isLive = liveCardId === card.id;
+        const busy =
+          actionLoading === `show-${card.id}` ||
+          actionLoading === `clear-${card.id}`;
+        return (
+          <button
+            key={`${card.baseId}-${card.id}`}
+            type="button"
+            onClick={() => toggleCard(card)}
+            className={`group relative overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${
+              isLive
+                ? "border-rose-500 ring-2 ring-rose-500"
+                : "border-slate-200 hover:-translate-y-0.5 hover:shadow-md"
+            }`}
+          >
+            <div className="relative aspect-[2.5/3.5] bg-slate-100">
+              {card.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={card.imageUrl}
+                  alt={card.name}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wide text-slate-400">
+                  Sin imagen
+                </div>
+              )}
+              {isLive ? (
+                <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  En vivo
+                </span>
+              ) : null}
+              {busy ? (
+                <div className="absolute inset-0 grid place-items-center bg-black/30">
+                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                </div>
+              ) : null}
+            </div>
+            <div className="p-1.5">
+              <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                {card.code}
+              </div>
+              <div className="truncate text-[11px] font-medium text-slate-800">
+                {card.name}
+              </div>
+              {card.alternateArt ? (
+                <div className="truncate text-[10px] text-slate-400">
+                  {card.alternateArt}
+                </div>
+              ) : null}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const searchInput = (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Busca por nombre o código…"
+        className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+      />
+    </div>
+  );
+
+  const emptyOrLoading = searchLoading ? (
+    <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
+      <Loader2 className="h-4 w-4 animate-spin" /> Buscando…
+    </div>
+  ) : (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-12 text-center text-sm text-slate-500">
+      {search.trim().length < 2
+        ? "Escribe al menos 2 caracteres para buscar una carta."
+        : "No encontramos cartas para esa búsqueda."}
+    </div>
+  );
+
+  const liveCard = state.currentCard;
+
   return (
     <div className="min-h-screen w-full bg-slate-50">
       {/* Header compacto */}
@@ -244,7 +336,9 @@ export default function LiveDeskClient({
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  {copyStatus === "copied" ? "Copiada" : "Overlay URL"}
+                  <span className="hidden sm:inline">
+                    {copyStatus === "copied" ? "Copiada" : "Overlay URL"}
+                  </span>
                 </button>
                 <a
                   href={overlayUrl}
@@ -268,102 +362,21 @@ export default function LiveDeskClient({
         </div>
       ) : null}
 
-      <div className="mx-auto flex max-w-7xl gap-4 px-3 py-4 pb-44 lg:px-6 lg:pb-6">
-        {/* MAIN: buscador + grid tipo card-list */}
+      {/* ===================== DESKTOP ===================== */}
+      <div className="mx-auto hidden max-w-7xl gap-4 px-3 py-4 lg:flex lg:px-6">
         <main className="min-w-0 flex-1">
-          <div className="relative mb-4">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Busca por nombre o código…"
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
-            />
-          </div>
-
-          {searchLoading ? (
-            <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Buscando…
-            </div>
-          ) : results.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-12 text-center text-sm text-slate-500">
-              {search.trim().length < 2
-                ? "Escribe al menos 2 caracteres para buscar una carta."
-                : "No encontramos cartas para esa búsqueda."}
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
-              {results.map((card) => {
-                const isLive = liveCardId === card.id;
-                const busy =
-                  actionLoading === `show-${card.id}` ||
-                  actionLoading === `clear-${card.id}`;
-                return (
-                  <button
-                    key={`${card.baseId}-${card.id}`}
-                    type="button"
-                    onClick={() => toggleCard(card)}
-                    className={`group relative overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${
-                      isLive
-                        ? "border-rose-500 ring-2 ring-rose-500"
-                        : "border-slate-200 hover:-translate-y-0.5 hover:shadow-md"
-                    }`}
-                  >
-                    <div className="relative aspect-[2.5/3.5] bg-slate-100">
-                      {card.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={card.imageUrl}
-                          alt={card.name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wide text-slate-400">
-                          Sin imagen
-                        </div>
-                      )}
-                      {isLive ? (
-                        <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                          En vivo
-                        </span>
-                      ) : null}
-                      {busy ? (
-                        <div className="absolute inset-0 grid place-items-center bg-black/30">
-                          <Loader2 className="h-5 w-5 animate-spin text-white" />
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="p-1.5">
-                      <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                        {card.code}
-                      </div>
-                      <div className="truncate text-[11px] font-medium text-slate-800">
-                        {card.name}
-                      </div>
-                      {card.alternateArt ? (
-                        <div className="truncate text-[10px] text-slate-400">
-                          {card.alternateArt}
-                        </div>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="mb-4">{searchInput}</div>
+          {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
         </main>
 
-        {/* ASIDE desktop: carta en vivo + contadores (sticky) */}
-        <aside className="hidden w-[320px] shrink-0 lg:block">
+        <aside className="w-[320px] shrink-0">
           <div className="sticky top-16 space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   En vivo
                 </span>
-                {state.currentCard ? (
+                {liveCard ? (
                   <button
                     type="button"
                     onClick={() => runAction({ action: "clear_card" }, "clear")}
@@ -373,36 +386,35 @@ export default function LiveDeskClient({
                   </button>
                 ) : null}
               </div>
-              {state.currentCard ? (
+              {liveCard ? (
                 <div className="mt-3 flex gap-3">
                   <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                    {state.currentCard.imageUrl ? (
+                    {liveCard.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={state.currentCard.imageUrl}
-                        alt={state.currentCard.name}
+                        src={liveCard.imageUrl}
+                        alt={liveCard.name}
                         className="h-full w-full object-cover"
                       />
                     ) : null}
                   </div>
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold text-amber-700">
-                      {state.currentCard.code}
+                      {liveCard.code}
                     </div>
                     <div className="text-sm font-bold leading-tight text-slate-900">
-                      {state.currentCard.name}
+                      {liveCard.name}
                     </div>
-                    {state.currentCard.setTitle ? (
+                    {liveCard.setTitle ? (
                       <div className="mt-1 text-xs text-slate-500">
-                        {state.currentCard.setTitle}
+                        {liveCard.setTitle}
                       </div>
                     ) : null}
                   </div>
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-slate-400">
-                  Toca una carta para mostrarla en el overlay. Tócala de nuevo
-                  para quitarla.
+                  Toca una carta para mostrarla. Tócala de nuevo para quitarla.
                 </p>
               )}
             </div>
@@ -466,62 +478,119 @@ export default function LiveDeskClient({
         </aside>
       </div>
 
-      {/* MOBILE: barra inferior fija con sumadores prominentes */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
-        {state.currentCard ? (
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-1.5">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
-            <span className="truncate text-xs font-semibold text-slate-700">
-              {state.currentCard.code} · {state.currentCard.name}
+      {/* ===================== MOBILE (stream controller) ===================== */}
+      <div className="flex flex-col lg:hidden">
+        {/* Pestañas */}
+        <div className="sticky top-[49px] z-20 flex gap-1 border-b border-slate-200 bg-white px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setMobileTab("counters")}
+            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
+              mobileTab === "counters"
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            Contadores
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("cards")}
+            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
+              mobileTab === "cards"
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            Cartas
+          </button>
+        </div>
+
+        {/* Carta en vivo (siempre visible) */}
+        <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white">
+          {liveCard ? (
+            <>
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-rose-500" />
+              <span className="truncate text-xs font-semibold">
+                {liveCard.code} · {liveCard.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => runAction({ action: "clear_card" }, "clear")}
+                className="ml-auto rounded-lg bg-rose-600/90 px-2.5 py-1 text-xs font-bold"
+              >
+                Quitar
+              </button>
+            </>
+          ) : (
+            <span className="text-xs font-medium text-white/50">
+              Sin carta en vivo — abre "Cartas" para elegir una
             </span>
+          )}
+        </div>
+
+        {mobileTab === "counters" ? (
+          <div className="flex flex-col gap-2 p-2">
+            {/* Mando de rarezas: 3×3 tiles grandes que llenan la pantalla */}
+            <div className="grid h-[calc(100dvh-210px)] min-h-[440px] grid-cols-3 grid-rows-3 gap-2">
+              {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
+                <div
+                  key={rarity}
+                  className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="pt-1.5 text-center text-xs font-black uppercase tracking-wide text-slate-500">
+                    {rarity}
+                  </div>
+                  <div className="flex flex-1 items-center justify-center text-4xl font-black leading-none text-amber-600">
+                    {state.rarityCounters[rarity]}
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-slate-200">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          { action: "decrement_rarity_counter", rarity, amount: 1 },
+                          `mminus-${rarity}`
+                        )
+                      }
+                      className="flex h-12 items-center justify-center bg-white text-slate-700 active:bg-slate-100"
+                    >
+                      <Minus className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          { action: "increment_rarity_counter", rarity, amount: 1 },
+                          `mplus-${rarity}`
+                        )
+                      }
+                      className="flex h-12 items-center justify-center bg-amber-400 text-slate-900 active:bg-amber-300"
+                    >
+                      <Plus className="h-6 w-6" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
             <button
               type="button"
-              onClick={() => runAction({ action: "clear_card" }, "clear")}
-              className="ml-auto text-xs font-semibold text-rose-600"
+              onClick={() =>
+                runAction({ action: "reset_rarity_counters" }, "reset-all")
+              }
+              className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 active:bg-slate-50"
             >
-              Quitar
+              Reset all
             </button>
           </div>
-        ) : null}
-        <div className="flex gap-2 overflow-x-auto px-3 py-2">
-          {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
-            <div
-              key={rarity}
-              className="flex shrink-0 flex-col items-center rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5"
-            >
-              <span className="text-[10px] font-bold text-slate-500">{rarity}</span>
-              <span className="text-lg font-black leading-none text-amber-700">
-                {state.rarityCounters[rarity]}
-              </span>
-              <div className="mt-1 flex gap-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    runAction(
-                      { action: "decrement_rarity_counter", rarity, amount: 1 },
-                      `mminus-${rarity}`
-                    )
-                  }
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-900 active:bg-slate-100"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    runAction(
-                      { action: "increment_rarity_counter", rarity, amount: 1 },
-                      `mplus-${rarity}`
-                    )
-                  }
-                  className="grid h-8 w-8 place-items-center rounded-lg bg-amber-400 text-slate-900 active:bg-amber-300"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
+        ) : (
+          <div className="flex flex-col gap-3 p-3">
+            {searchInput}
+            <div className="min-h-[60vh]">
+              {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

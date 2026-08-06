@@ -12,13 +12,7 @@ export type LiveOverlayCard = {
 };
 
 // Contadores del overlay de stream (los únicos que se suman en el sistema).
-export const LIVE_OVERLAY_RARITY_COUNTER_KEYS = [
-  "SR",
-  "SEC",
-  "TR",
-  "AA",
-  "KK",
-] as const;
+export const LIVE_OVERLAY_RARITY_COUNTER_KEYS = ["AA", "SR", "💩"] as const;
 
 export type LiveOverlayRarityCounterKey =
   (typeof LIVE_OVERLAY_RARITY_COUNTER_KEYS)[number];

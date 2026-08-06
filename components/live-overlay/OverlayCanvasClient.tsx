@@ -70,16 +70,16 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           ))}
         </div>
 
-        {/* Carta en vivo: compacta, a la DERECHA (no choca con los contadores),
-            centrada-arriba. */}
+        {/* Carta en vivo: anclada por ARRIBA (top fijo) para que al agrandar la
+            imagen crezca solo hacia abajo, donde hay espacio. */}
         {state.currentCard ? (
-          <div className="absolute inset-x-0 top-[calc(40%+30px)] flex -translate-y-1/2 flex-col items-center gap-3">
+          <div className="absolute inset-x-0 top-[273px] flex flex-col items-center gap-3">
             {state.currentCard.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={state.currentCard.imageUrl}
                 alt={state.currentCard.code}
-                className="w-[270px] rounded-2xl shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
+                className="w-[350px] rounded-2xl shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
               />
             ) : null}
             <div className="w-[290px] rounded-2xl bg-black/80 px-4 py-3.5 text-center text-white backdrop-blur">

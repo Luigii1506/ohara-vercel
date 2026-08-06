@@ -74,30 +74,48 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
         ))}
       </div>
 
-      {/* Carta en vivo (opcional): franja superior */}
+      {/* Carta en vivo (opcional): centrada, un poco hacia arriba. */}
       {state.currentCard ? (
-        <div className="absolute inset-x-0 top-10 flex flex-col items-center gap-4 px-8">
+        <div className="absolute inset-x-0 top-[42%] flex -translate-y-1/2 flex-col items-center gap-4 px-8">
           {state.currentCard.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={state.currentCard.imageUrl}
-              alt={state.currentCard.name}
-              className="w-[320px] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+              alt={state.currentCard.code}
+              className="w-[340px] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
             />
           ) : null}
-          <div className="w-full max-w-[600px] rounded-2xl bg-black/80 px-6 py-4 text-center text-white backdrop-blur">
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-amber-300">
-              <span>{state.currentCard.code}</span>
-              {state.currentCard.rarity ? (
-                <span>· {state.currentCard.rarity}</span>
-              ) : null}
-              {state.currentCard.alternateArt ? (
-                <span>· {state.currentCard.alternateArt}</span>
-              ) : null}
+          <div className="w-full max-w-[600px] rounded-2xl bg-black/80 px-6 py-5 text-center text-white backdrop-blur">
+            {/* Código en grande */}
+            <div className="text-5xl font-black leading-none tracking-tight">
+              {state.currentCard.code}
             </div>
-            <div className="mt-1 text-3xl font-black leading-tight">
-              {state.currentCard.name}
-            </div>
+            {/* Rareza y arte */}
+            {state.currentCard.rarity || state.currentCard.alternateArt ? (
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-lg font-bold uppercase tracking-wide text-amber-300">
+                {state.currentCard.rarity ? (
+                  <span>{state.currentCard.rarity}</span>
+                ) : null}
+                {state.currentCard.alternateArt ? (
+                  <span>· {state.currentCard.alternateArt}</span>
+                ) : null}
+              </div>
+            ) : null}
+            {/* Precio (Listed Median) */}
+            {state.currentCard.price != null ? (
+              <div className="mt-3">
+                <span className="text-5xl font-black text-emerald-400">
+                  $
+                  {Number(state.currentCard.price).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                <span className="ml-2 text-sm font-semibold uppercase tracking-wide text-white/60">
+                  Listed Median
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

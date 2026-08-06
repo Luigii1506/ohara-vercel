@@ -51,7 +51,8 @@ const toOverlayCard = (card: CardWithCollectionData): LiveOverlayCard => ({
   rarity: card.rarity ?? null,
   setTitle: getSetTitleForCard(card),
   alternateArt: card.alternateArt ?? null,
-  price: normalizePrice(card.marketPrice),
+  // El overlay muestra el Listed Median (mid price), no el market.
+  price: normalizePrice((card as any).midPrice ?? card.marketPrice),
   priceCurrency: card.priceCurrency ?? null,
   region: card.region ?? null,
 });

@@ -70,19 +70,21 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     (s: LiveOverlayScene) => s.type === "banner" && s.visible
   );
 
-  // Dispara el confeti cuando triggeredAt cambia (dedupe, sin repetir en polling
-  // ni reproducir un disparo viejo al montar/refrescar).
+  // Dispara el confeti cuando triggeredAt cambia (dedupe: no se repite en cada
+  // poll). Además, por FRESCURA: solo se reproduce si el disparo es reciente,
+  // así se ve aunque el overlay acabe de cargar, pero un disparo viejo NO se
+  // repite al refrescar OBS.
   useEffect(() => {
     const trigger = confetti?.triggeredAt ?? null;
-    if (lastConfettiTrigger.current === undefined) {
-      lastConfettiTrigger.current = trigger; // primer estado: no dispares lo viejo
-      return;
-    }
-    if (trigger && trigger !== lastConfettiTrigger.current) {
+    const isNew = trigger && trigger !== lastConfettiTrigger.current;
+    lastConfettiTrigger.current = trigger;
+    if (!isNew) return;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    // Ventana generosa (ttl + margen para el polling y desfase de reloj).
+    if (ageMs <= (confetti?.ttlMs ?? 4500) + 6000) {
       setConfettiKey(trigger);
     }
-    lastConfettiTrigger.current = trigger;
-  }, [confetti?.triggeredAt]);
+  }, [confetti?.triggeredAt, confetti?.ttlMs]);
 
   return (
     // Contenedor a pantalla completa (gutter oscuro para preview en navegador).

@@ -111,7 +111,7 @@ export default function ConfettiLayer({ durationMs = 4500 }: ConfettiLayerProps)
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 h-full w-full"
+      className="pointer-events-none absolute inset-0 z-[60] h-full w-full"
     />
   );
 }

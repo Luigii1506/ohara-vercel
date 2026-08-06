@@ -11,6 +11,7 @@ import {
 import { useRegion } from "@/components/region/RegionProvider";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
+import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -62,6 +63,16 @@ const toOverlayCard = (card: CardWithCollectionData): LiveOverlayCard => ({
   region: card.region ?? null,
 });
 
+// Modalidades prearmadas (letreros del overlay). Acentos chroma-safe (sin verdes).
+const MODE_PRESETS: { label: string; emoji: string; accent: string }[] = [
+  { label: "Subasta", emoji: "🔨", accent: "#f5b301" },
+  { label: "Batallas", emoji: "⚔️", accent: "#ff2d6f" },
+  { label: "Packs", emoji: "🎴", accent: "#3b82f6" },
+  { label: "Breaks", emoji: "📦", accent: "#a855f7" },
+  { label: "Giveaway", emoji: "🎁", accent: "#ff7a1a" },
+  { label: "Ranking", emoji: "🏆", accent: "#f59e0b" },
+];
+
 export default function LiveDeskClient({
   overlayToken,
   tokenEnvKey,
@@ -81,10 +92,13 @@ export default function LiveDeskClient({
   );
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
-  // Tablet (Stream Deck): drawer inferior para buscar carta o editar banner.
-  const [tabletDrawer, setTabletDrawer] = useState<null | "search" | "banner">(
-    null
-  );
+  const [goalLabel, setGoalLabel] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
+  const [goalUnit, setGoalUnit] = useState("");
+  // Tablet (Stream Deck): drawer inferior para buscar carta, banner o escenas.
+  const [tabletDrawer, setTabletDrawer] = useState<
+    null | "search" | "banner" | "scenes"
+  >(null);
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -253,9 +267,21 @@ export default function LiveDeskClient({
   const bannerActive = state.scenes.some(
     (s) => s.type === "banner" && s.visible
   );
+  const modeScene = state.scenes.find((s) => s.type === "mode" && s.visible);
+  const goalScene = state.scenes.find((s) => s.type === "goal" && s.visible);
+  const goalActive = Boolean(goalScene);
 
   const triggerConfetti = useCallback(
     () => runAction({ action: "trigger_scene", type: "confetti" }, "confetti"),
+    [runAction]
+  );
+
+  const triggerSound = useCallback(
+    (sfx: string) =>
+      runAction(
+        { action: "trigger_scene", type: "sound", props: { sfx } },
+        `sfx-${sfx}`
+      ),
     [runAction]
   );
 
@@ -278,9 +304,46 @@ export default function LiveDeskClient({
     [runAction]
   );
 
-  // Panel de escenas/efectos reutilizable (desktop sidebar + tab móvil).
+  const setMode = useCallback(
+    (label: string, emoji: string, accent: string) =>
+      runAction({ action: "set_mode", label, emoji, accent }, "mode"),
+    [runAction]
+  );
+  const hideMode = useCallback(
+    () => runAction({ action: "hide_scene", id: "mode" }, "mode-hide"),
+    [runAction]
+  );
+
+  const setGoal = useCallback(() => {
+    const target = Number(goalTarget);
+    if (!Number.isFinite(target) || target < 1) return;
+    runAction(
+      {
+        action: "set_goal",
+        label: goalLabel.trim() || "Meta",
+        target: Math.trunc(target),
+        current: 0,
+        unit: goalUnit.trim(),
+      },
+      "goal"
+    );
+  }, [goalLabel, goalTarget, goalUnit, runAction]);
+
+  const adjustGoal = useCallback(
+    (amount: number) =>
+      runAction({ action: "adjust_goal", amount }, "goal-adj"),
+    [runAction]
+  );
+  const hideGoal = useCallback(
+    () => runAction({ action: "hide_scene", id: "goal" }, "goal-hide"),
+    [runAction]
+  );
+
+  // Panel de escenas/efectos reutilizable (desktop sidebar + tab móvil + drawer
+  // de la tablet).
   const scenesPanel = (
     <div className="space-y-3">
+      {/* Efectos rápidos */}
       <button
         type="button"
         onClick={triggerConfetti}
@@ -290,6 +353,136 @@ export default function LiveDeskClient({
         🎊 Confeti
       </button>
 
+      {/* Sonidos SFX */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Sonidos
+        </span>
+        <div className="grid grid-cols-3 gap-2">
+          {LIVE_OVERLAY_SFX.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => triggerSound(s.id)}
+              className="flex flex-col items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-slate-700 active:scale-95 active:bg-slate-100"
+            >
+              <span className="text-xl leading-none">{s.emoji}</span>
+              <span className="text-[11px] font-bold">{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Modalidad */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Modalidad
+          </span>
+          {modeScene ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+              {String(modeScene.props.emoji || "")}{" "}
+              {String(modeScene.props.label)}
+            </span>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {MODE_PRESETS.map((m) => (
+            <button
+              key={m.label}
+              type="button"
+              onClick={() => setMode(m.label, m.emoji, m.accent)}
+              disabled={actionLoading === "mode"}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-bold text-slate-800 active:scale-95 active:bg-slate-100 disabled:opacity-50"
+            >
+              <span>{m.emoji}</span> {m.label}
+            </button>
+          ))}
+        </div>
+        {modeScene ? (
+          <button
+            type="button"
+            onClick={hideMode}
+            className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500 active:bg-slate-50"
+          >
+            Quitar modalidad
+          </button>
+        ) : null}
+      </div>
+
+      {/* Meta */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Meta
+          </span>
+          {goalScene ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+              {Number(goalScene.props.current ?? 0)} /{" "}
+              {Number(goalScene.props.target ?? 0)}
+            </span>
+          ) : null}
+        </div>
+        {goalActive ? (
+          <div className="grid grid-cols-4 gap-2">
+            {[-1, 1, 5, 10].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => adjustGoal(n)}
+                className={`h-10 rounded-xl text-sm font-black active:scale-95 ${
+                  n < 0
+                    ? "bg-slate-100 text-slate-700"
+                    : "bg-amber-400 text-slate-900"
+                }`}
+              >
+                {n > 0 ? `+${n}` : n}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={hideGoal}
+              className="col-span-4 mt-1 h-10 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500 active:bg-slate-50"
+            >
+              Quitar meta
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              value={goalLabel}
+              onChange={(e) => setGoalLabel(e.target.value)}
+              placeholder="Etiqueta (ej. Likes, Ventas)"
+              className="mb-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            />
+            <div className="flex gap-2">
+              <input
+                value={goalTarget}
+                onChange={(e) => setGoalTarget(e.target.value)}
+                inputMode="numeric"
+                placeholder="Meta (nº)"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+              />
+              <input
+                value={goalUnit}
+                onChange={(e) => setGoalUnit(e.target.value)}
+                placeholder="Unidad"
+                className="h-11 w-24 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={setGoal}
+              disabled={!goalTarget.trim() || actionLoading === "goal"}
+              className="mt-2 h-11 w-full rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+            >
+              Poner meta
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Banner */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -710,13 +903,12 @@ export default function LiveDeskClient({
                 tone: "fuchsia" as const,
               },
               {
-                key: "banner",
-                emoji: "🏷️",
-                label: bannerActive ? "Ocultar banner" : "Banner",
-                onClick: () =>
-                  bannerActive ? hideBanner() : setTabletDrawer("banner"),
+                key: "scenes",
+                emoji: "🎬",
+                label: "Escenas",
+                onClick: () => setTabletDrawer("scenes"),
                 disabled: false,
-                tone: bannerActive ? ("emerald" as const) : ("slate" as const),
+                tone: "slate" as const,
               },
               {
                 key: "card",
@@ -761,8 +953,6 @@ export default function LiveDeskClient({
                 className={`flex flex-col items-center justify-center gap-2 rounded-3xl border text-center shadow-sm transition active:scale-[0.98] disabled:opacity-40 ${
                   a.tone === "fuchsia"
                     ? "border-transparent bg-gradient-to-br from-fuchsia-500 to-amber-400 text-white"
-                    : a.tone === "emerald"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                     : "border-slate-200 bg-white text-slate-800"
                 }`}
               >
@@ -800,6 +990,24 @@ export default function LiveDeskClient({
                     {results.length > 0 && !searchLoading
                       ? resultsGrid
                       : emptyOrLoading}
+                  </div>
+                </div>
+              ) : tabletDrawer === "scenes" ? (
+                <div className="flex max-h-[75vh] flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">
+                      Escenas y efectos
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTabletDrawer(null)}
+                      className="text-sm font-bold text-slate-500"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {scenesPanel}
                   </div>
                 </div>
               ) : (

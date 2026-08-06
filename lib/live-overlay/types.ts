@@ -38,6 +38,8 @@ export const LIVE_OVERLAY_SCENE_TYPES = [
   "confetti",
   "banner",
   "sound",
+  "mode",
+  "goal",
 ] as const;
 
 export type LiveOverlaySceneType = (typeof LIVE_OVERLAY_SCENE_TYPES)[number];

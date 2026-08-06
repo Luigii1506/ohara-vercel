@@ -280,3 +280,18 @@ export const clearLiveOverlayScenes = (token: string) =>
     rarityCounters: state.rarityCounters,
     scenes: [],
   }));
+
+/** Suma/resta al valor actual de la barra de meta (clamp ≥ 0). */
+export const adjustLiveOverlayGoal = (token: string, amount: number) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: state.scenes.map((s) => {
+      if (s.id !== "goal") return s;
+      const current = Math.max(
+        0,
+        Math.trunc(Number(s.props.current ?? 0) + amount)
+      );
+      return { ...s, props: { ...s.props, current } };
+    }),
+  }));

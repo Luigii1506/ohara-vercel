@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import {
+  adjustLiveOverlayGoal,
   clearLiveOverlayCard,
   clearLiveOverlayScenes,
   getLiveOverlayState,
@@ -73,6 +74,29 @@ type OverlayAction =
   | {
       action: "clear_scenes";
       token: string;
+    }
+  | {
+      action: "set_mode";
+      token: string;
+      label: string;
+      emoji?: string;
+      accent?: string;
+      visible?: boolean;
+    }
+  | {
+      action: "set_goal";
+      token: string;
+      label: string;
+      target: number;
+      current?: number;
+      unit?: string;
+      accent?: string;
+      visible?: boolean;
+    }
+  | {
+      action: "adjust_goal";
+      token: string;
+      amount: number;
     };
 
 const sanitizeSceneType = (value: unknown): LiveOverlaySceneType | null => {
@@ -261,6 +285,55 @@ export async function POST(request: NextRequest) {
     }
     case "clear_scenes": {
       nextState = await clearLiveOverlayScenes(overlayToken);
+      break;
+    }
+    case "set_mode": {
+      const label = String(body.label ?? "").trim();
+      const visible = body.visible !== false;
+      if (visible && !label) {
+        return NextResponse.json(
+          { error: "Mode label is required" },
+          { status: 400 }
+        );
+      }
+      nextState = await setLiveOverlayScene(overlayToken, {
+        id: "mode",
+        type: "mode",
+        z: 15,
+        visible,
+        props: {
+          label,
+          emoji: body.emoji ? String(body.emoji) : "",
+          accent: body.accent ? String(body.accent) : "",
+        },
+      });
+      break;
+    }
+    case "set_goal": {
+      const label = String(body.label ?? "").trim();
+      const target = Math.max(1, sanitizeNumber(body.target, 100));
+      const current = Math.max(0, sanitizeNumber(body.current, 0));
+      const visible = body.visible !== false;
+      nextState = await setLiveOverlayScene(overlayToken, {
+        id: "goal",
+        type: "goal",
+        z: 18,
+        visible,
+        props: {
+          label,
+          target,
+          current,
+          unit: body.unit ? String(body.unit) : "",
+          accent: body.accent ? String(body.accent) : "",
+        },
+      });
+      break;
+    }
+    case "adjust_goal": {
+      nextState = await adjustLiveOverlayGoal(
+        overlayToken,
+        sanitizeNumber(body.amount, 0)
+      );
       break;
     }
     default:

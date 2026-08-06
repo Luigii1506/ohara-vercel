@@ -96,8 +96,10 @@ export function resolveEventCardSetId(
   const generic = eventSets.find((s) => /event pack/i.test(s.title));
   if (generic) return generic.id;
 
-  // 3) El primer set linkeado del evento.
-  return eventSets[0].id;
+  // 3) Sin match plausible → null. NO caemos ciegamente al primer set linkeado
+  // (podía ser un set irrelevante mal detectado, ej. "Demo Deck"); el caller
+  // usará un set derivado del nombre del evento.
+  return null;
 }
 
 /** Limpia el título de un evento para usarlo como nombre de set. */
@@ -105,6 +107,7 @@ export function cleanEventTitleForSet(title: string | null): string {
   return (title ?? "Event")
     .replace(/\|.*/, "") // quita "| ONE PIECE CARD GAME - ..."
     .replace(/\[(ended|finished|completed)\]/gi, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // zero-width chars del scraper
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);

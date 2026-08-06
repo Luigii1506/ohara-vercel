@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
               select: {
                 id: true,
                 title: true,
+                startDate: true,
                 sets: { select: { set: { select: { id: true, title: true } } } },
               },
             },
@@ -86,17 +87,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ¿Ya existe una alterna con esta misma imagen/variante? (idempotencia suave)
-    const event = mc.events[0]?.event ?? null;
-    const eventTitle = event?.title ?? "";
-    const eventSets =
-      event?.sets.map((es) => ({ id: es.set.id, title: es.set.title })) ?? [];
+    // La carta puede estar en varios eventos (ej. Japan Expo 2025 y 2026).
+    // Preferimos el MÁS RECIENTE (por startDate; a falta de fecha, mayor id) para
+    // el nombre del set, y buscamos un pack real en CUALQUIER evento.
+    const events = mc.events
+      .map((e) => e.event)
+      .filter((e): e is NonNullable<typeof e> => Boolean(e))
+      .sort((a, b) => {
+        const ta = a.startDate ? a.startDate.getTime() : 0;
+        const tb = b.startDate ? b.startDate.getTime() : 0;
+        return tb - ta || b.id - a.id;
+      });
+    const primaryEvent = events[0] ?? null;
+    const eventTitle = primaryEvent?.title ?? "";
 
     // 1) Variante (tipo de alterna).
     const variant = classifyEventAlternate(mc.title, eventTitle, mc.imageUrl);
 
-    // 2) Set: matchea la variante con los packs del evento; si no, crea uno.
-    let setId = resolveEventCardSetId(variant, eventSets);
+    // 2) Set: busca un pack real que matchee la variante en cualquier evento;
+    //    si no hay, usa un set derivado del nombre del evento más reciente.
+    let setId: number | null = null;
+    for (const ev of events) {
+      const evSets = ev.sets.map((es) => ({ id: es.set.id, title: es.set.title }));
+      setId = resolveEventCardSetId(variant, evSets);
+      if (setId) break;
+    }
     if (!setId) setId = await findOrCreateEventSet(eventTitle);
 
     // 3) Imagen del evento → R2 (nombre único para bustear el caché immutable).
@@ -169,7 +184,9 @@ export async function POST(req: NextRequest) {
       alternateArt: variant,
       setId,
       setTitle: set?.title ?? null,
-      matchedEventSet: eventSets.some((s) => s.id === setId),
+      matchedEventSet: events.some((ev) =>
+        ev.sets.some((es) => es.set.id === setId)
+      ),
     });
   } catch (error: any) {
     console.error("[create-from-event] failed:", error);

@@ -9,6 +9,7 @@ import {
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
 import { useRegion } from "@/components/region/RegionProvider";
+import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -47,7 +48,9 @@ const toOverlayCard = (card: CardWithCollectionData): LiveOverlayCard => ({
   id: String(card.id),
   name: card.name,
   code: card.code,
-  imageUrl: card.src ?? null,
+  // El overlay muestra UNA carta a la vez → usa la variante de mayor
+  // resolución en R2 (-large 800×1120) para que se vea nítida en el stream.
+  imageUrl: card.src ? getOptimizedImageUrl(card.src, "large") : null,
   rarity: card.rarity ?? null,
   setTitle: getSetTitleForCard(card),
   alternateArt: card.alternateArt ?? null,

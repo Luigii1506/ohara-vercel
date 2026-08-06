@@ -97,7 +97,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                 </div>
               ) : null}
               {state.currentCard.price != null ? (
-                <div className="mt-2 text-4xl font-black text-emerald-400">
+                <div className="mt-2 text-4xl font-black text-[#ff2d6f]">
                   $
                   {Number(state.currentCard.price).toLocaleString("en-US", {
                     minimumFractionDigits: 2,

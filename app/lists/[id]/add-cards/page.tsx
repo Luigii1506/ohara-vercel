@@ -377,6 +377,7 @@ const AddCardsPage = () => {
   const currentPageRef = useRef(0);
 
   const [simpleListCards, setSimpleListCards] = useState<SimpleListCard[]>([]);
+  const [zipLoading, setZipLoading] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<OrderedListChange[]>([]);
   const [existingCards, setExistingCards] = useState<any>({});
   const existingCardsRef = useRef(existingCards);
@@ -1021,6 +1022,33 @@ const AddCardsPage = () => {
       return Number.isFinite(n) ? n : null;
     };
     const regionOf = (r?: string | null) => (!r || r === "US" ? "EN" : r);
+    // Región para el título TikTok (US → ENG).
+    const regionTag = (r?: string | null) =>
+      !r || r === "US" ? "ENG" : r.toUpperCase();
+    // Rareza abreviada (acepta nombre completo o ya abreviado).
+    const RARITY_ABBR: Record<string, string> = {
+      common: "C",
+      uncommon: "UC",
+      rare: "R",
+      "super rare": "SR",
+      "secret rare": "SEC",
+      leader: "L",
+      promo: "PR",
+      "special card": "SP",
+      "treasure rare": "TR",
+      "alternate art": "AA",
+    };
+    const rarityTag = (r?: string | null) => {
+      const key = (r ?? "").toLowerCase().trim();
+      if (!key) return "";
+      if (RARITY_ABBR[key]) return RARITY_ABBR[key];
+      if (key.length <= 3) return key.toUpperCase();
+      return (r ?? "").toUpperCase();
+    };
+    // Título para copiar/pegar en TikTok: "(ENG) (SEC) OP01-120".
+    const tiktokName = (c: any) =>
+      `(${regionTag(c.region)}) (${rarityTag(c.rarity)}) ${c.code ?? ""}`.trim();
+
     const esc = (val: any) => {
       const s = val === null || val === undefined ? "" : String(val);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -1048,10 +1076,11 @@ const AddCardsPage = () => {
           : "";
       const listedMedianMxn =
         mid != null ? Math.round(mid * MXN_RATE * 100) / 100 : "";
+      // Subasta sugerida = 80% del MID price convertido a pesos.
       const suggestedMxn =
-        market != null ? Math.round(market * 0.8 * MXN_RATE * 100) / 100 : "";
+        mid != null ? Math.round(mid * MXN_RATE * 0.8 * 100) / 100 : "";
       return [
-        c.name ?? "",
+        tiktokName(c),
         c.code ?? "",
         regionOf(c.region),
         c.rarity ?? "",
@@ -1077,6 +1106,41 @@ const AddCardsPage = () => {
     anchor.remove();
     URL.revokeObjectURL(url);
     toast.success(`${cards.length} cartas exportadas`);
+  };
+
+  // 🖼️ Descarga un ZIP con todas las imágenes de las cartas de la lista.
+  const downloadImagesZip = async () => {
+    if (zipLoading) return;
+    setZipLoading(true);
+    const toastId = toast.loading("Generando ZIP de imágenes…");
+    try {
+      const res = await fetch(`/api/lists/${listId}/images-zip`);
+      if (!res.ok) throw new Error("zip failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `lista-${listId}-imagenes.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.update(toastId, {
+        render: "ZIP de imágenes listo",
+        type: "success",
+        isLoading: false,
+        autoClose: 2000,
+      });
+    } catch {
+      toast.update(toastId, {
+        render: "No se pudo generar el ZIP",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000,
+      });
+    } finally {
+      setZipLoading(false);
+    }
   };
 
   // 🎴 Función para cargar backcards desde la base de datos
@@ -3236,6 +3300,20 @@ const AddCardsPage = () => {
                       >
                         <Download className="h-4 w-4" />
                         Exportar CSV
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadImagesZip}
+                        disabled={zipLoading}
+                        className="flex items-center gap-2"
+                      >
+                        {zipLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        Imágenes ZIP
                       </Button>
                       <Button
                         variant="outline"

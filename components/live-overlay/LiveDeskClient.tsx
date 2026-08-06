@@ -80,6 +80,10 @@ export default function LiveDeskClient({
   );
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
+  // Tablet (Stream Deck): drawer inferior para buscar carta o editar banner.
+  const [tabletDrawer, setTabletDrawer] = useState<null | "search" | "banner">(
+    null
+  );
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -457,8 +461,8 @@ export default function LiveDeskClient({
         </div>
       ) : null}
 
-      {/* ===================== DESKTOP ===================== */}
-      <div className="mx-auto hidden max-w-7xl gap-4 px-3 py-4 lg:flex lg:px-6">
+      {/* ===================== DESKTOP (≥ xl) ===================== */}
+      <div className="mx-auto hidden max-w-7xl gap-4 px-3 py-4 xl:flex xl:px-6">
         <main className="min-w-0 flex-1">
           <div className="mb-4">{searchInput}</div>
           {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
@@ -593,11 +597,234 @@ export default function LiveDeskClient({
         </aside>
       </div>
 
-      {/* ===================== MOBILE (stream controller) ===================== */}
+      {/* ===================== TABLET / iPad (md → xl) — Stream Deck ========= */}
+      <div className="relative hidden h-[calc(100dvh-49px)] flex-col overflow-hidden md:flex xl:hidden">
+        {/* Carta en vivo */}
+        <div className="flex shrink-0 items-center gap-2 bg-slate-900 px-4 py-2.5 text-white">
+          {liveCard ? (
+            <>
+              <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-500" />
+              <span className="truncate text-sm font-semibold">
+                {liveCard.code} · {liveCard.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => runAction({ action: "clear_card" }, "clear")}
+                className="ml-auto rounded-lg bg-rose-600/90 px-3 py-1 text-sm font-bold"
+              >
+                Quitar
+              </button>
+            </>
+          ) : (
+            <span className="text-sm font-medium text-white/50">
+              Sin carta en vivo — usa "Buscar carta"
+            </span>
+          )}
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {/* Contadores: 3 steppers grandes */}
+          <div className="grid flex-[0.42] grid-cols-3 gap-4">
+            {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => {
+              const value = state.rarityCounters[rarity] ?? 0;
+              return (
+                <div
+                  key={rarity}
+                  className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="flex flex-1 flex-col items-center justify-center">
+                    <span className="text-xl font-black uppercase tracking-wide text-slate-400">
+                      {rarity}
+                    </span>
+                    <span className="text-7xl font-black leading-none tabular-nums text-slate-900">
+                      {value}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-slate-200">
+                    <button
+                      type="button"
+                      disabled={value <= 0}
+                      onClick={() =>
+                        runAction(
+                          { action: "decrement_rarity_counter", rarity, amount: 1 },
+                          `tminus-${rarity}`
+                        )
+                      }
+                      className="flex h-16 items-center justify-center bg-white text-slate-700 active:bg-slate-100 disabled:opacity-25"
+                    >
+                      <Minus className="h-7 w-7" strokeWidth={2.5} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(
+                          { action: "increment_rarity_counter", rarity, amount: 1 },
+                          `tplus-${rarity}`
+                        )
+                      }
+                      className="flex h-16 items-center justify-center bg-amber-400 text-slate-900 active:bg-amber-300"
+                    >
+                      <Plus className="h-8 w-8" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Deck de acciones: rejilla de botones grandes (Stream Deck) */}
+          <div className="grid flex-[0.58] auto-rows-fr grid-cols-3 gap-4">
+            {[
+              {
+                key: "confetti",
+                emoji: "🎊",
+                label: "Confeti",
+                onClick: triggerConfetti,
+                disabled: actionLoading === "confetti",
+                tone: "fuchsia" as const,
+              },
+              {
+                key: "banner",
+                emoji: "🏷️",
+                label: bannerActive ? "Ocultar banner" : "Banner",
+                onClick: () =>
+                  bannerActive ? hideBanner() : setTabletDrawer("banner"),
+                disabled: false,
+                tone: bannerActive ? ("emerald" as const) : ("slate" as const),
+              },
+              {
+                key: "card",
+                emoji: "🃏",
+                label: "Buscar carta",
+                onClick: () => setTabletDrawer("search"),
+                disabled: false,
+                tone: "slate" as const,
+              },
+              {
+                key: "clearcard",
+                emoji: "❌",
+                label: "Quitar carta",
+                onClick: () => runAction({ action: "clear_card" }, "clear"),
+                disabled: !liveCard,
+                tone: "slate" as const,
+              },
+              {
+                key: "clearscenes",
+                emoji: "🧹",
+                label: "Limpiar escenas",
+                onClick: () =>
+                  runAction({ action: "clear_scenes" }, "clear-scenes"),
+                disabled: state.scenes.length === 0,
+                tone: "slate" as const,
+              },
+              {
+                key: "reset",
+                emoji: "🔄",
+                label: "Reset contadores",
+                onClick: () =>
+                  runAction({ action: "reset_rarity_counters" }, "reset-all"),
+                disabled: false,
+                tone: "slate" as const,
+              },
+            ].map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                onClick={a.onClick}
+                disabled={a.disabled}
+                className={`flex flex-col items-center justify-center gap-2 rounded-3xl border text-center shadow-sm transition active:scale-[0.98] disabled:opacity-40 ${
+                  a.tone === "fuchsia"
+                    ? "border-transparent bg-gradient-to-br from-fuchsia-500 to-amber-400 text-white"
+                    : a.tone === "emerald"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-800"
+                }`}
+              >
+                <span className="text-5xl leading-none">{a.emoji}</span>
+                <span className="text-base font-bold">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Drawer inferior: buscar carta o editar banner */}
+        {tabletDrawer ? (
+          <div
+            className="absolute inset-0 z-30 flex flex-col justify-end bg-black/40"
+            onClick={() => setTabletDrawer(null)}
+          >
+            <div
+              className="max-h-[85%] rounded-t-3xl bg-slate-50 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-300" />
+              {tabletDrawer === "search" ? (
+                <div className="flex max-h-[70vh] flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">{searchInput}</div>
+                    <button
+                      type="button"
+                      onClick={() => setTabletDrawer(null)}
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {results.length > 0 && !searchLoading
+                      ? resultsGrid
+                      : emptyOrLoading}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">
+                      Banner
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTabletDrawer(null)}
+                      className="text-sm font-bold text-slate-500"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <input
+                    value={bannerText}
+                    onChange={(e) => setBannerText(e.target.value)}
+                    placeholder="Texto principal…"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-base outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  />
+                  <input
+                    value={bannerSubtitle}
+                    onChange={(e) => setBannerSubtitle(e.target.value)}
+                    placeholder="Subtítulo (opcional)"
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-base outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  />
+                  <button
+                    type="button"
+                    disabled={!bannerText.trim() || actionLoading === "banner"}
+                    onClick={() => {
+                      showBanner();
+                      setTabletDrawer(null);
+                    }}
+                    className="h-12 rounded-2xl bg-slate-900 text-base font-bold text-white active:bg-slate-800 disabled:opacity-40"
+                  >
+                    Mostrar banner
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ===================== MOBILE (< md, teléfono) ===================== */}
       {/* Ocupa EXACTAMENTE el viewport visible (viewport dinámico menos el
           header) para que la barra del navegador no corte los botones de
           abajo. Nada de alturas calculadas a mano ni scroll fantasma. */}
-      <div className="flex h-[calc(100dvh-49px)] flex-col overflow-hidden lg:hidden">
+      <div className="flex h-[calc(100dvh-49px)] flex-col overflow-hidden md:hidden">
         {/* Pestañas */}
         <div className="flex shrink-0 gap-1 border-b border-slate-200 bg-white px-3 py-2">
           <button

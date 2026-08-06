@@ -19,8 +19,18 @@ type Particle = {
   shape: "rect" | "circle";
 };
 
-// Paleta temática (One Piece / Ohara): rojo, dorado, teal, blanco, rosa.
-const COLORS = ["#ff2d6f", "#f5b301", "#12b5a5", "#ffffff", "#ff7a1a", "#3b82f6"];
+// Paleta temática (One Piece / Ohara). IMPORTANTE: el overlay va sobre fondo
+// verde chroma (#28ce2b) que TikTok/OBS vuelve transparente, así que NADA de
+// verdes/teales o el chroma key se comería esas partículas. Rojo, dorado,
+// blanco, naranja, azul, morado, rosa — todos lejos del verde.
+const COLORS = [
+  "#ff2d6f",
+  "#f5b301",
+  "#ffffff",
+  "#ff7a1a",
+  "#3b82f6",
+  "#a855f7",
+];
 
 /**
  * Ráfaga de confeti one-shot. Se monta con `key={triggeredAt}` desde el overlay,

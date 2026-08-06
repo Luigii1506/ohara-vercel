@@ -12,6 +12,7 @@ export type LiveOverlayCard = {
 };
 
 export const LIVE_OVERLAY_RARITY_COUNTER_KEYS = [
+  "AA",
   "C",
   "UC",
   "R",

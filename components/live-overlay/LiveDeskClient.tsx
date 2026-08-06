@@ -532,7 +532,7 @@ export default function LiveDeskClient({
         {mobileTab === "counters" ? (
           <div className="flex flex-col gap-2 p-2">
             {/* Mando de rarezas: 3×3 tiles grandes que llenan la pantalla */}
-            <div className="grid h-[calc(100dvh-210px)] min-h-[440px] grid-cols-3 grid-rows-3 gap-2">
+            <div className="grid h-[calc(100dvh-210px)] min-h-[560px] auto-rows-fr grid-cols-3 gap-2">
               {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
                 <div
                   key={rarity}

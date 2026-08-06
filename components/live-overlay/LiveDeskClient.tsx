@@ -483,9 +483,12 @@ export default function LiveDeskClient({
       </div>
 
       {/* ===================== MOBILE (stream controller) ===================== */}
-      <div className="flex flex-col lg:hidden">
+      {/* Ocupa EXACTAMENTE el viewport visible (viewport dinámico menos el
+          header) para que la barra del navegador no corte los botones de
+          abajo. Nada de alturas calculadas a mano ni scroll fantasma. */}
+      <div className="flex h-[calc(100dvh-49px)] flex-col overflow-hidden lg:hidden">
         {/* Pestañas */}
-        <div className="sticky top-[49px] z-20 flex gap-1 border-b border-slate-200 bg-white px-3 py-2">
+        <div className="flex shrink-0 gap-1 border-b border-slate-200 bg-white px-3 py-2">
           <button
             type="button"
             onClick={() => setMobileTab("counters")}
@@ -511,7 +514,7 @@ export default function LiveDeskClient({
         </div>
 
         {/* Carta en vivo (siempre visible) */}
-        <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white">
+        <div className="flex shrink-0 items-center gap-2 bg-slate-900 px-3 py-2 text-white">
           {liveCard ? (
             <>
               <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-rose-500" />
@@ -534,21 +537,21 @@ export default function LiveDeskClient({
         </div>
 
         {mobileTab === "counters" ? (
-          <div className="flex flex-col gap-2 p-2">
-            {/* Mando de rarezas: 3×3 tiles grandes que llenan la pantalla */}
-            <div className="grid h-[calc(100dvh-210px)] min-h-[560px] auto-rows-fr grid-cols-3 gap-2">
-              {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
-                <div
-                  key={rarity}
-                  className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                >
-                  <div className="pt-1.5 text-center text-xs font-black uppercase tracking-wide text-slate-500">
-                    {rarity}
-                  </div>
-                  <div className="flex flex-1 items-center justify-center text-4xl font-black leading-none text-amber-600">
-                    {state.rarityCounters[rarity]}
-                  </div>
-                  <div className="grid grid-cols-2 gap-px bg-slate-200">
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            {/* Mando de rarezas: steppers horizontales grandes (pulgar-friendly),
+                repartidos parejo. − restar · número · + sumar (acción primaria). */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+              {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => {
+                const value = state.rarityCounters[rarity] ?? 0;
+                const busy =
+                  actionLoading === `mplus-${rarity}` ||
+                  actionLoading === `mminus-${rarity}`;
+                return (
+                  <div
+                    key={rarity}
+                    className="flex flex-1 items-center gap-3 rounded-3xl border border-slate-200 bg-white px-3 shadow-sm"
+                  >
+                    {/* − restar */}
                     <button
                       type="button"
                       onClick={() =>
@@ -557,10 +560,24 @@ export default function LiveDeskClient({
                           `mminus-${rarity}`
                         )
                       }
-                      className="flex h-12 items-center justify-center bg-white text-slate-700 active:bg-slate-100"
+                      disabled={value <= 0 || busy}
+                      aria-label={`Restar ${rarity}`}
+                      className="grid h-[68px] w-[68px] shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 transition active:scale-95 active:bg-slate-200 disabled:opacity-25"
                     >
-                      <Minus className="h-5 w-5" />
+                      <Minus className="h-8 w-8" strokeWidth={2.5} />
                     </button>
+
+                    {/* etiqueta + número */}
+                    <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
+                      <span className="text-lg font-black uppercase leading-none tracking-wide text-slate-400">
+                        {rarity}
+                      </span>
+                      <span className="mt-1 text-6xl font-black leading-none tabular-nums text-slate-900">
+                        {value}
+                      </span>
+                    </div>
+
+                    {/* + sumar (acción primaria, dominante) */}
                     <button
                       type="button"
                       onClick={() =>
@@ -569,30 +586,32 @@ export default function LiveDeskClient({
                           `mplus-${rarity}`
                         )
                       }
-                      className="flex h-12 items-center justify-center bg-amber-400 text-slate-900 active:bg-amber-300"
+                      disabled={busy}
+                      aria-label={`Sumar ${rarity}`}
+                      className="grid h-[76px] w-[88px] shrink-0 place-items-center rounded-2xl bg-amber-400 text-slate-900 shadow-sm transition active:scale-95 active:bg-amber-300 disabled:opacity-50"
                     >
-                      <Plus className="h-6 w-6" />
+                      <Plus className="h-10 w-10" strokeWidth={2.5} />
                     </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button
               type="button"
               onClick={() =>
                 runAction({ action: "reset_rarity_counters" }, "reset-all")
               }
-              className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 active:bg-slate-50"
+              className="h-12 shrink-0 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-500 active:bg-slate-50"
             >
-              Reset all
+              Reiniciar contadores
             </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 p-3">
-            {searchInput}
-            <div className="min-h-[60vh]">
-              {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <div className="sticky top-0 z-10 -mx-3 -mt-3 bg-slate-50 px-3 pb-2 pt-3">
+              {searchInput}
             </div>
+            {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
           </div>
         )}
       </div>

@@ -24,10 +24,9 @@ const EMPTY_STATE: LiveOverlayState = {
 
 export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps) {
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
-  const [isConnected, setIsConnected] = useState(false);
 
-  // Polling del estado (Vercel serverless no soporta WebSockets; el estado vive
-  // en Postgres). El indicador refleja si el último poll tuvo éxito.
+  // Polling del estado cada 2s (Vercel serverless no soporta WebSockets; el
+  // estado vive en Postgres).
   const loadState = useCallback(async () => {
     try {
       const response = await fetch(
@@ -37,9 +36,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       if (!response.ok) throw new Error("Failed to load overlay state");
       const data = await response.json();
       setState(data.state ?? EMPTY_STATE);
-      setIsConnected(true);
     } catch (error) {
-      setIsConnected(false);
       console.error("[overlay] failed to load state:", error);
     }
   }, [token]);
@@ -50,93 +47,57 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     return () => window.clearInterval(interval);
   }, [loadState]);
 
+  const activeCounters = LIVE_OVERLAY_RARITY_COUNTER_KEYS.filter(
+    (rarity) => state.rarityCounters[rarity] > 0
+  );
+
   return (
-    <div className="min-h-screen w-full bg-[#28ce2b]">
-      <div className="relative flex min-h-screen items-end justify-between overflow-hidden p-8">
-        <div className="relative flex max-w-4xl items-end gap-6">
-          {state.currentCard ? (
-            <>
-              <div className="w-[240px] shrink-0 overflow-hidden rounded-[28px] border border-white/15 bg-black/45 shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
-                {state.currentCard.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={state.currentCard.imageUrl}
-                    alt={state.currentCard.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex aspect-[2.5/3.5] items-center justify-center text-xs uppercase tracking-[0.24em] text-white/40">
-                    No image
-                  </div>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1 rounded-[34px] border border-white/12 bg-[linear-gradient(135deg,_rgba(15,23,42,0.92)_0%,_rgba(30,41,59,0.88)_42%,_rgba(146,64,14,0.88)_100%)] px-7 py-6 text-white shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-                <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/90">
-                  <span>{state.currentCard.code}</span>
-                  {state.currentCard.rarity ? <span>{state.currentCard.rarity}</span> : null}
-                  {state.currentCard.alternateArt ? (
-                    <span>{state.currentCard.alternateArt}</span>
-                  ) : null}
-                </div>
-
-                <h1 className="mt-3 text-4xl font-black leading-tight drop-shadow-sm md:text-5xl">
-                  {state.currentCard.name}
-                </h1>
-
-                <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-white/75">
-                  {state.currentCard.setTitle ? (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                      {state.currentCard.setTitle}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-[30px] border border-white/10 bg-black/45 px-6 py-5 text-white/70 shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
-              <div className="text-xs font-semibold uppercase tracking-[0.26em] text-amber-200/80">
-                Ohara Live Overlay
-              </div>
-              <div className="mt-2 text-2xl font-black text-white">
-                Esperando una carta...
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        <div className="ml-8 w-[520px] rounded-[30px] border border-white/12 bg-black/55 px-6 py-5 text-white shadow-[0_24px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">
-              Rarity Counters
-            </div>
-            <div
-              className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${
-                isConnected ? "text-emerald-300/80" : "text-rose-300/80"
-              }`}
-            >
-              {isConnected ? "Live connected" : "Reconnecting"}
-            </div>
+    // Lienzo 710×1265 (vertical) para OBS. Fondo verde chroma-key.
+    <div className="relative h-screen w-full overflow-hidden bg-[#28ce2b]">
+      {/* Contadores de rareza: píldoras pegadas al borde izquierdo */}
+      <div className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-4">
+        {activeCounters.map((rarity) => (
+          <div
+            key={rarity}
+            className="-ml-10 flex items-center gap-4 rounded-full border-[4px] border-cyan-400 bg-black py-2.5 pl-14 pr-7 shadow-[0_8px_28px_rgba(0,0,0,0.45)]"
+          >
+            <span className="text-4xl font-black uppercase leading-none tracking-tight text-white">
+              {rarity}
+            </span>
+            <span className="text-5xl font-black leading-none text-[#ff2d6f]">
+              {state.rarityCounters[rarity]}
+            </span>
           </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
-              <div
-                key={rarity}
-                className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-center"
-              >
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">
-                  {rarity}
-                </div>
-                <div className="mt-2 text-5xl font-black leading-none text-amber-300">
-                  {state.rarityCounters[rarity]}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
+
+      {/* Carta en vivo (opcional): franja inferior */}
+      {state.currentCard ? (
+        <div className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-4 px-8">
+          {state.currentCard.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={state.currentCard.imageUrl}
+              alt={state.currentCard.name}
+              className="w-[320px] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+            />
+          ) : null}
+          <div className="w-full max-w-[600px] rounded-2xl bg-black/80 px-6 py-4 text-center text-white backdrop-blur">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-amber-300">
+              <span>{state.currentCard.code}</span>
+              {state.currentCard.rarity ? (
+                <span>· {state.currentCard.rarity}</span>
+              ) : null}
+              {state.currentCard.alternateArt ? (
+                <span>· {state.currentCard.alternateArt}</span>
+              ) : null}
+            </div>
+            <div className="mt-1 text-3xl font-black leading-tight">
+              {state.currentCard.name}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -19,8 +19,9 @@ export default function ClientLayout({
   const isLoginPage = pathname === "/login";
   const isSellerPage = pathname.startsWith("/seller");
   const isUserStorePage = pathname.startsWith("/user-store");
+  const isOverlayPage = pathname.startsWith("/overlay");
 
-  if (isLoginPage || isSellerPage || isUserStorePage) {
+  if (isLoginPage || isSellerPage || isUserStorePage || isOverlayPage) {
     return (
       <RegionProvider>
         <I18nProvider>{children}</I18nProvider>

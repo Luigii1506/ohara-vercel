@@ -167,6 +167,12 @@ export default function AdminDashboard() {
           icon: LinkIcon,
           description: "Reconcile Limitless set membership against your DB",
         },
+        {
+          href: "/admin/live-desk",
+          label: "Live Desk",
+          icon: Activity,
+          description: "Controla overlays y cartas para streaming en vivo",
+        },
       ],
     },
     {

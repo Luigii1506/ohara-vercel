@@ -170,6 +170,7 @@ const NavBar = () => {
         { href: "/admin/missing-products", label: "Missing Products", icon: AlertTriangle, description: "Aprueba productos detectados" },
         { href: "/admin/event-scraper", label: "Scraper Lab", icon: RefreshCw, description: "Dry-run tools para scraping" },
         { href: "/admin/tcg-sync", label: "TCG Sync", icon: RefreshCw, description: "Sincroniza catálogos con TCGplayer" },
+        { href: "/admin/live-desk", label: "Live Desk", icon: Globe, description: "Overlay control para streaming y TikTok" },
       ],
     },
     {

@@ -52,8 +52,11 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   );
 
   return (
-    // Lienzo 710×1265 (vertical) para OBS. Fondo verde chroma-key.
-    <div className="relative h-screen w-full overflow-hidden bg-[#28ce2b]">
+    // Contenedor a pantalla completa (gutter oscuro para preview en navegador).
+    // En OBS pon la Browser Source EXACTAMENTE a 710×1265 y el lienzo la llena.
+    <div className="flex min-h-screen w-full items-center justify-center overflow-hidden bg-neutral-900">
+      {/* Lienzo FIJO 710×1265 (vertical) — fondo verde chroma-key. */}
+      <div className="relative h-[1265px] w-[710px] shrink-0 overflow-hidden bg-[#28ce2b]">
       {/* Contadores de rareza: píldoras pegadas al borde izquierdo */}
       <div className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-4">
         {activeCounters.map((rarity) => (
@@ -98,6 +101,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

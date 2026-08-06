@@ -362,6 +362,7 @@ export default function LimitlessSyncPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [bulkAction, setBulkAction] = useState<"remove-extras" | "add-wrong-set" | "create-missing" | null>(null);
   const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
+  const [ignoringIds, setIgnoringIds] = useState<Set<number>>(new Set());
   const [addingIds, setAddingIds] = useState<Set<number>>(new Set());
   const [creatingIds, setCreatingIds] = useState<Set<string>>(new Set());
 
@@ -717,6 +718,52 @@ export default function LimitlessSyncPage() {
       openModal: false,
     });
     await Promise.all([loadReviews(reviewStatusFilter), loadCatalog()]);
+  };
+
+  // Acepta/ignora una carta extra: la marca como resuelta para ese set (no la
+  // quita del set, solo deja de reportarla — ej. un DON que sí es tuyo).
+  const handleIgnoreExtra = async (cardId: number) => {
+    const slug = report?.report.snapshot.slug;
+    if (!slug) return false;
+
+    setIgnoringIds((prev) => new Set(prev).add(cardId));
+    setActionMessage(null);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/limitless/reviews/ignore-extra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, cardId, region }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error ?? "No se pudo aceptar la carta");
+      }
+      setReport((current) =>
+        current
+          ? {
+              ...current,
+              report: {
+                ...current.report,
+                extraInDbSet: current.report.extraInDbSet.filter(
+                  (card) => card.id !== cardId
+                ),
+              },
+            }
+          : current
+      );
+      setActionMessage(`Carta ${cardId} aceptada (ya no se reportará).`);
+      return true;
+    } catch (err: any) {
+      setError(err?.message ?? "Error inesperado");
+      return false;
+    } finally {
+      setIgnoringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
+    }
   };
 
   const handleRemoveExtra = async (cardId: number) => {
@@ -1808,6 +1855,19 @@ export default function LimitlessSyncPage() {
                         <Eye className="h-3.5 w-3.5" />
                         Abrir carta
                       </a>
+                      <button
+                        onClick={() => handleIgnoreExtra(card.id)}
+                        disabled={ignoringIds.has(card.id)}
+                        title="Está bien que esté en tu set; deja de reportarla"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                      >
+                        {ignoringIds.has(card.id) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        Aceptar
+                      </button>
                       <button
                         onClick={() => handleRemoveExtra(card.id)}
                         disabled={removingIds.has(card.id)}

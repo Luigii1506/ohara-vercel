@@ -766,7 +766,31 @@ export async function reconcileLimitlessSetMembership(
     });
   }
 
-  const extraInDbSet = dbSetCards.filter((card) => !matchedSetCardIds.has(card.id));
+  // Extras que el usuario YA aceptó/ignoró para este set no se vuelven a listar.
+  const ignoredExtraCardIds = new Set<number>();
+  try {
+    const existingReview = await prisma.limitlessSetReview.findUnique({
+      where: { slug_region: { slug: snapshot.slug, region: "US" } },
+      select: {
+        items: {
+          where: {
+            kind: LimitlessReviewItemKind.EXTRA,
+            decisionStatus: LimitlessDecisionStatus.IGNORED,
+          },
+          select: { matchedCardId: true },
+        },
+      },
+    });
+    for (const item of existingReview?.items ?? []) {
+      if (item.matchedCardId != null) ignoredExtraCardIds.add(item.matchedCardId);
+    }
+  } catch {
+    // sin review previo: nada que ignorar
+  }
+
+  const extraInDbSet = dbSetCards.filter(
+    (card) => !matchedSetCardIds.has(card.id) && !ignoredExtraCardIds.has(card.id)
+  );
 
   return {
     snapshot,
@@ -890,9 +914,15 @@ export async function persistLimitlessSetReview(
     },
   });
 
+  // Conserva los EXTRA que el usuario aceptó/ignoró (para que no reaparezcan);
+  // el reconcile ya los excluye del reporte, así que no se duplican.
   await prisma.limitlessSetReviewItem.deleteMany({
     where: {
       reviewId: review.id,
+      NOT: {
+        kind: LimitlessReviewItemKind.EXTRA,
+        decisionStatus: LimitlessDecisionStatus.IGNORED,
+      },
     },
   });
 

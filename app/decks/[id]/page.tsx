@@ -7,7 +7,7 @@ import { Deck } from "@/types";
 import DeckDetailView from "@/components/decks/DeckDetailView";
 
 const MyDeck = () => {
-  const { id } = useParams();
+  const { id } = (useParams() ?? {}) as Record<string, string>;
   const { data: session } = useSession();
 
   const [deckData, setDeckData] = useState<Deck | null>(null);

@@ -10,7 +10,7 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 const EditDeckBuilder = () => {
   const { t } = useI18n();
   const router = useRouter();
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
 
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 

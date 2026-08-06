@@ -32,7 +32,7 @@ const makeDismissKey = (id: number, version: number) =>
 const makeSessionKey = (id: number) => `${SESSION_KEY_PREFIX}${id}`;
 
 const AnnouncementGate = () => {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const { data: session } = useSession();
   const { lang } = useI18n();

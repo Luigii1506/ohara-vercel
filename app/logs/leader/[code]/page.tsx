@@ -98,7 +98,7 @@ interface LeaderDetailStats {
 
 export default function LeaderDetailPage() {
   const { data: session } = useSession();
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
   const leaderCode = params.code as string;
 

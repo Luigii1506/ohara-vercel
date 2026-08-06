@@ -65,7 +65,7 @@ interface CollectionResponse {
 
 const CollectionBinderView = ({ shareToken }: { shareToken?: string }) => {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams() ?? new URLSearchParams();
   const { status } = useSession();
   const { t, lang } = useI18n();
 

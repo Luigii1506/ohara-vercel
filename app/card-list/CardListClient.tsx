@@ -198,7 +198,8 @@ const CardListClient = ({
   initialData,
   initialFilters,
 }: CardListClientProps) => {
-  const searchParams = useSearchParams();
+  // useSearchParams() es nullable en Next; fallback a uno vacío para no romper.
+  const searchParams = useSearchParams() ?? new URLSearchParams();
   const { t } = useI18n();
   const { region, setRegion } = useRegion();
   const { showCollectionToast, showToast } = useToast();

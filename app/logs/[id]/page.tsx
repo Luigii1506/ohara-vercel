@@ -57,7 +57,7 @@ import { GameLog } from "@/types";
 import Link from "next/link";
 
 const GameLogDetail = () => {
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
   const { data: session } = useSession();
   const [gameLog, setGameLog] = useState<any>(null);

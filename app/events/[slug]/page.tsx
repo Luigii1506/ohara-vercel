@@ -250,7 +250,7 @@ const OriginalSourceBanner = ({
 };
 
 const EventDetailPage = () => {
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
   const slug = params.slug as string;
 

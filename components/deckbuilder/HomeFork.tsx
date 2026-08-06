@@ -12,7 +12,7 @@ const ForkDeckBuilder = () => {
   const { t } = useI18n();
   const { data: cards = [], isLoading } = useCards();
   const router = useRouter();
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
   const uniqueUrl = Array.isArray(params.uniqueUrl)
     ? params.uniqueUrl[0]
     : params.uniqueUrl;

@@ -14,7 +14,7 @@ export default function ClientLayout({
   children: React.ReactNode;
 }>) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   // Verificar si la ruta actual es `/login`, cualquier ruta del seller o user-store
   const isLoginPage = pathname === "/login";
   const isSellerPage = pathname.startsWith("/seller");

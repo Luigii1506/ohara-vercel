@@ -53,7 +53,7 @@ interface UserList {
 }
 
 const EditListPage = () => {
-  const params = useParams();
+  const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
   const listId = params.id as string;
 

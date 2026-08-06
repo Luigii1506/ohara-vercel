@@ -48,7 +48,7 @@ const oswald = Oswald({
 
 const DeckBuilderUniqueUrl = () => {
   const { t } = useI18n();
-  const { uniqueUrl } = useParams(); // URL único del deck original
+  const { uniqueUrl } = (useParams() ?? {}) as Record<string, string>; // URL único del deck original
   const router = useRouter();
   const { userId, loading: userLoading } = useUser();
 

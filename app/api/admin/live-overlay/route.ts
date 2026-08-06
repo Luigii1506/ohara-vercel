@@ -14,6 +14,7 @@ import {
   triggerLiveOverlayScene,
 } from "@/lib/live-overlay/store";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
+import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   LIVE_OVERLAY_SCENE_TYPES,
@@ -265,6 +266,10 @@ export async function POST(request: NextRequest) {
     default:
       return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
   }
+
+  // Empuja el estado nuevo por WebSocket (si el worker está configurado).
+  // Fire-and-forget: no bloquea ni falla el comando si el broadcast falla.
+  await broadcastLiveOverlayState(overlayToken, nextState);
 
   return NextResponse.json({ ok: true, state: nextState }, { status: 200 });
 }

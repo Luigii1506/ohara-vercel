@@ -1,0 +1,21 @@
+name = "ohara-live-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# workers.dev → https://ohara-live-worker.<tu-subdominio>.workers.dev
+workers_dev = true
+
+# Durable Object que maneja las salas WebSocket (una por token de overlay).
+[[durable_objects.bindings]]
+name = "OVERLAY_ROOM"
+class_name = "OverlayRoom"
+
+# Backend SQLite (default moderno; requerido en el free tier, funciona en Paid).
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OverlayRoom"]
+
+# El secreto LIVE_BROADCAST_SECRET se pone con:
+#   wrangler secret put LIVE_BROADCAST_SECRET
+# (NO lo pongas aquí en texto plano).

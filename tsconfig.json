@@ -28,5 +28,5 @@
     ".next/types/**/*.ts",
     "lib/hooks/orientation.js"
   ],
-  "exclude": ["node_modules", "cloudflare", "scripts"]
+  "exclude": ["node_modules", "cloudflare", "cloudflare-live", "scripts"]
 }

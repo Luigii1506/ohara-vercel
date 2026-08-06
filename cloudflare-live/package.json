@@ -1,0 +1,17 @@
+{
+  "name": "ohara-live-worker",
+  "version": "1.0.0",
+  "description": "Realtime overlay del stream (Durable Object + WebSocket)",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "secret": "wrangler secret put LIVE_BROADCAST_SECRET"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.80.0"
+  }
+}

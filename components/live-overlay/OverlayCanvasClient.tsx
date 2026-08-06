@@ -7,6 +7,7 @@ import {
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
 import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
+import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -32,10 +33,22 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const [confettiKey, setConfettiKey] = useState<string | null>(null);
   const lastConfettiTrigger = useRef<string | null | undefined>(undefined);
 
-  // Polling del estado cada 1s (Vercel serverless no soporta WebSockets; el
-  // estado vive en Postgres). Condicional: mandamos el último updatedAt y el
-  // endpoint responde vacío si no cambió nada.
   const lastUpdatedAt = useRef<string | null>(null);
+
+  // Aplica un estado (venga del socket o del polling) manteniendo sincronizado
+  // el updatedAt para el polling condicional.
+  const applyState = useCallback((next: LiveOverlayState) => {
+    lastUpdatedAt.current = next?.updatedAt ?? lastUpdatedAt.current;
+    setState(next ?? EMPTY_STATE);
+  }, []);
+
+  // Empujón instantáneo por WebSocket (ohara-live-worker). Si no está
+  // configurado, `connected` queda en false y caemos a polling rápido.
+  const { connected } = useOverlaySocket({ token, onState: applyState });
+
+  // Polling condicional: mandamos el último updatedAt y el endpoint responde
+  // vacío si no cambió. Rápido (1s) cuando NO hay socket; lento (15s, red de
+  // seguridad) cuando el socket está conectado.
   const loadState = useCallback(async () => {
     try {
       const since = lastUpdatedAt.current
@@ -48,19 +61,17 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       if (!response.ok) throw new Error("Failed to load overlay state");
       const data = await response.json();
       if (data.changed === false) return; // sin cambios, conservamos el estado
-      const next = data.state ?? EMPTY_STATE;
-      lastUpdatedAt.current = next.updatedAt ?? null;
-      setState(next);
+      applyState(data.state ?? EMPTY_STATE);
     } catch (error) {
       console.error("[overlay] failed to load state:", error);
     }
-  }, [token]);
+  }, [token, applyState]);
 
   useEffect(() => {
     loadState();
-    const interval = window.setInterval(loadState, 1000);
+    const interval = window.setInterval(loadState, connected ? 15000 : 1000);
     return () => window.clearInterval(interval);
-  }, [loadState]);
+  }, [loadState, connected]);
 
   // Escenas activas del stack.
   const confetti = state.scenes.find(

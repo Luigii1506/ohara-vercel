@@ -10,6 +10,7 @@ import {
 } from "@/lib/live-overlay/types";
 import { useRegion } from "@/components/region/RegionProvider";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
+import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -116,6 +117,14 @@ export default function LiveDeskClient({
       console.error("[live-desk] failed to load state:", error);
     });
   }, [loadState, overlayToken]);
+
+  // Sincroniza en vivo entre dispositivos (teléfono + iPad + desktop) por
+  // WebSocket. Si no hay worker configurado, cada panel usa su propio estado
+  // optimista tras cada comando (como antes).
+  const { connected: socketConnected } = useOverlaySocket({
+    token: overlayToken,
+    onState: setState,
+  });
 
   useEffect(() => {
     if (!overlayToken) return;
@@ -424,6 +433,23 @@ export default function LiveDeskClient({
             <span>Live Desk</span>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
               {region || "US"}
+            </span>
+            <span
+              title={socketConnected ? "En vivo por socket" : "Modo polling"}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                socketConnected
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  socketConnected
+                    ? "animate-pulse bg-emerald-500"
+                    : "bg-slate-300"
+                }`}
+              />
+              {socketConnected ? "Socket" : "Polling"}
             </span>
           </div>
           <div className="ml-auto flex items-center gap-2">

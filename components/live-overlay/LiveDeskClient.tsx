@@ -539,8 +539,9 @@ export default function LiveDeskClient({
         {mobileTab === "counters" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {/* Mando de rarezas: steppers horizontales grandes (pulgar-friendly),
-                repartidos parejo. − restar · número · + sumar (acción primaria). */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+                repartidos parejo. − restar · número · + sumar (acción primaria).
+                Ocupa ~95% del alto disponible (el spacer deja un respiro abajo). */}
+            <div className="flex min-h-0 flex-[0.95] flex-col gap-2.5">
               {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => {
                 const value = state.rarityCounters[rarity] ?? 0;
                 const busy =
@@ -596,6 +597,8 @@ export default function LiveDeskClient({
                 );
               })}
             </div>
+            {/* Respiro del ~5% para que el mando no llegue de borde a borde. */}
+            <div className="flex-[0.05]" aria-hidden />
             <button
               type="button"
               onClick={() =>

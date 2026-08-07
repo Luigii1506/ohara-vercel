@@ -42,6 +42,16 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   } | null>(null);
   const lastStampTrigger = useRef<string | null | undefined>(undefined);
   const stampTimer = useRef<number | undefined>(undefined);
+  // Combo: UNA unidad (confeti + sonido + sello) que dura 3s y se auto-elimina.
+  // Un combo nuevo reemplaza al anterior por completo (nunca se apilan).
+  const [comboView, setComboView] = useState<{
+    key: string;
+    confetti: boolean;
+    stampText: string;
+    stampSubtitle: string;
+  } | null>(null);
+  const lastComboTrigger = useRef<string | null | undefined>(undefined);
+  const comboTimer = useRef<number | undefined>(undefined);
 
   const lastUpdatedAt = useRef<string | null>(null);
 
@@ -98,6 +108,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     (s: LiveOverlayScene) => s.type === "goal" && s.visible
   );
   const stamp = state.scenes.find((s: LiveOverlayScene) => s.type === "stamp");
+  const combo = state.scenes.find((s: LiveOverlayScene) => s.type === "combo");
 
   // Dispara el confeti cuando triggeredAt cambia (dedupe: no se repite en cada
   // poll). Además, por FRESCURA: solo se reproduce si el disparo es reciente,
@@ -151,6 +162,39 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   }, [stamp, stamp?.triggeredAt, stamp?.ttlMs, stamp?.props?.text, stamp?.props?.subtitle]);
 
   useEffect(() => () => window.clearTimeout(stampTimer.current), []);
+
+  // Combo: una unidad atómica. Al llegar un combo nuevo (triggeredAt), reemplaza
+  // al anterior (confeti + sonido + sello) y se auto-elimina a los 3s.
+  useEffect(() => {
+    if (!combo) {
+      lastComboTrigger.current = null;
+      window.clearTimeout(comboTimer.current);
+      setComboView(null);
+      return;
+    }
+    const trigger = combo.triggeredAt ?? null;
+    const isNew = trigger && trigger !== lastComboTrigger.current;
+    lastComboTrigger.current = trigger;
+    if (!isNew) return;
+    const ttl = combo.ttlMs ?? 3000;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    if (ageMs > ttl + 4000) return; // disparo viejo (refresh): no reproducir
+    const props = combo.props || {};
+    if (props.sfx) playOverlaySfx(String(props.sfx));
+    setComboView({
+      key: trigger,
+      confetti: !!props.confetti,
+      stampText: String(props.stampText ?? ""),
+      stampSubtitle: String(props.stampSubtitle ?? ""),
+    });
+    window.clearTimeout(comboTimer.current);
+    comboTimer.current = window.setTimeout(
+      () => setComboView(null),
+      Math.max(400, ttl - Math.max(0, ageMs))
+    );
+  }, [combo, combo?.triggeredAt]);
+
+  useEffect(() => () => window.clearTimeout(comboTimer.current), []);
 
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
   useEffect(() => {
@@ -365,7 +409,28 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         ) : null}
 
-        {/* Confeti one-shot (encima de todo) */}
+        {/* Combo (confeti + sello) como unidad de 3s, se reemplaza y auto-elimina */}
+        {comboView ? (
+          <div key={`combo-${comboView.key}`}>
+            {comboView.confetti ? <ConfettiLayer durationMs={3000} /> : null}
+            {comboView.stampText ? (
+              <div className="pointer-events-none absolute inset-0 z-[55] flex flex-col items-center justify-center [animation:overlay-stamp-in_0.4s_cubic-bezier(0.34,1.56,0.64,1)]">
+                <div className="-rotate-6 rounded-3xl border-[6px] border-white bg-[#ff2d6f] px-10 py-5 shadow-[0_16px_60px_rgba(0,0,0,0.6)]">
+                  <span className="text-7xl font-black uppercase italic tracking-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.35)]">
+                    {comboView.stampText}
+                  </span>
+                </div>
+                {comboView.stampSubtitle ? (
+                  <span className="mt-3 -rotate-6 text-3xl font-black uppercase text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
+                    {comboView.stampSubtitle}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Confeti one-shot suelto (botón 🎊, independiente de los combos) */}
         {confettiKey ? (
           <ConfettiLayer
             key={confettiKey}

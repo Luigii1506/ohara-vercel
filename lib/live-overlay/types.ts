@@ -41,6 +41,7 @@ export const LIVE_OVERLAY_SCENE_TYPES = [
   "mode",
   "goal",
   "stamp",
+  "combo",
 ] as const;
 
 export type LiveOverlaySceneType = (typeof LIVE_OVERLAY_SCENE_TYPES)[number];

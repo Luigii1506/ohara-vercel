@@ -307,6 +307,13 @@ export const triggerLiveOverlayStamp = (
  * Aplica un combo (confeti + sonido + sello) de forma ATÓMICA: un solo
  * updateState → un solo broadcast, así llega todo junto y sincronizado.
  */
+export const LIVE_OVERLAY_COMBO_TTL_MS = 3000;
+
+/**
+ * Aplica un combo como UNA sola escena `combo` (confeti + sonido + sello en un
+ * solo bloque, vida de 3s). "1 combo a la vez": reemplaza cualquier combo previo
+ * y limpia one-shots sueltos, así NUNCA se apilan.
+ */
 export const applyLiveOverlayCombo = (token: string, comboId: string) =>
   updateState(token, (state) => {
     const combo = findLiveOverlayCombo(comboId);
@@ -318,44 +325,30 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
       };
     }
     const now = new Date().toISOString();
-    // "1 combo a la vez": quitamos los one-shots previos (confeti/sonido/sello)
-    // y dejamos SOLO los de este combo, así no se apilan.
-    let scenes = state.scenes.filter(
-      (s) => s.id !== "confetti" && s.id !== "sound" && s.id !== "stamp"
-    );
-    if (combo.confetti) {
-      scenes = upsertScene(scenes, {
-        id: "confetti",
-        type: "confetti",
-        z: 50,
-        visible: true,
-        props: {},
-        triggeredAt: now,
-        ttlMs: 4500,
-      });
-    }
-    if (combo.sfx) {
-      scenes = upsertScene(scenes, {
-        id: "sound",
-        type: "sound",
-        z: 5,
-        visible: true,
-        props: { sfx: combo.sfx },
-        triggeredAt: now,
-        ttlMs: null,
-      });
-    }
-    if (combo.stamp) {
-      scenes = upsertScene(scenes, {
-        id: "stamp",
-        type: "stamp",
+    const scenes = upsertScene(
+      state.scenes.filter(
+        (s) =>
+          s.id !== "combo" &&
+          s.id !== "confetti" &&
+          s.id !== "sound" &&
+          s.id !== "stamp"
+      ),
+      {
+        id: "combo",
+        type: "combo",
         z: 55,
         visible: true,
-        props: { text: combo.stamp.text, subtitle: combo.stamp.subtitle ?? "" },
+        props: {
+          comboId: combo.id,
+          confetti: !!combo.confetti,
+          sfx: combo.sfx ?? "",
+          stampText: combo.stamp?.text ?? "",
+          stampSubtitle: combo.stamp?.subtitle ?? "",
+        },
         triggeredAt: now,
-        ttlMs: 2800,
-      });
-    }
+        ttlMs: LIVE_OVERLAY_COMBO_TTL_MS,
+      }
+    );
     return {
       currentCard: state.currentCard,
       rarityCounters: state.rarityCounters,

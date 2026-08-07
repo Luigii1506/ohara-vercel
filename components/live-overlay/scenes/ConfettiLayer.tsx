@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 type ConfettiLayerProps = {
   /** Duración de la ráfaga en ms (después se detiene y limpia). */
   durationMs?: number;
+  /** Se llama una vez cuando la ráfaga termina su transición. */
+  onDone?: () => void;
 };
 
 type Particle = {
@@ -37,8 +39,13 @@ const COLORS = [
  * así corre una sola vez por disparo. Canvas puro (sin librerías externas) para
  * cumplir el CSP del overlay.
  */
-export default function ConfettiLayer({ durationMs = 4500 }: ConfettiLayerProps) {
+export default function ConfettiLayer({
+  durationMs = 4500,
+  onDone,
+}: ConfettiLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,6 +118,7 @@ export default function ConfettiLayer({ durationMs = 4500 }: ConfettiLayerProps)
         raf = requestAnimationFrame(tick);
       } else {
         ctx.clearRect(0, 0, width, height);
+        onDoneRef.current?.();
       }
     };
 

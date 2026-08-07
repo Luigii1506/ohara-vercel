@@ -31,10 +31,11 @@ const EMPTY_STATE: LiveOverlayState = {
 
 export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps) {
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
-  // Dispara el confeti solo cuando cambia triggeredAt (no en cada poll ni al
-  // refrescar OBS con un disparo viejo).
-  const [confettiKey, setConfettiKey] = useState<string | null>(null);
+  // Ráfagas de confeti (botón 🎊). Cada disparo AGREGA una ráfaga; las anteriores
+  // terminan su transición sin reiniciarse. Cada una se auto-quita al terminar.
+  const [confettiBursts, setConfettiBursts] = useState<string[]>([]);
   const lastConfettiTrigger = useRef<string | null | undefined>(undefined);
+  const burstSeq = useRef(0);
   const lastSoundTrigger = useRef<string | null | undefined>(undefined);
   // Sello one-shot (¡VENDIDO! etc): se muestra un momento y se auto-oculta.
   const [stampView, setStampView] = useState<{
@@ -117,10 +118,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // así se ve aunque el overlay acabe de cargar, pero un disparo viejo NO se
   // repite al refrescar OBS.
   useEffect(() => {
-    // Escena de confeti removida (ej. combo nuevo sin confeti / limpiar) → corta.
+    // Escena de confeti removida (limpiar/combo): NO cancelamos las ráfagas en
+    // curso, las dejamos terminar su transición. Solo reseteamos el dedupe.
     if (!confetti) {
       lastConfettiTrigger.current = null;
-      setConfettiKey(null);
       return;
     }
     const trigger = confetti.triggeredAt ?? null;
@@ -130,7 +131,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     const ageMs = Date.now() - new Date(trigger).getTime();
     // Ventana generosa (ttl + margen para el polling y desfase de reloj).
     if (ageMs <= (confetti.ttlMs ?? 4500) + 6000) {
-      setConfettiKey(trigger);
+      const id = `${trigger}#${burstSeq.current++}`;
+      setConfettiBursts((b) => [...b, id]);
     }
   }, [confetti, confetti?.triggeredAt, confetti?.ttlMs]);
 
@@ -437,13 +439,17 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         ) : null}
 
-        {/* Confeti one-shot suelto (botón 🎊, independiente de los combos) */}
-        {confettiKey ? (
+        {/* Ráfagas de confeti suelto (botón 🎊). Se apilan y cada una termina
+            su transición sin reiniciar a las demás. */}
+        {confettiBursts.map((id) => (
           <ConfettiLayer
-            key={confettiKey}
+            key={id}
             durationMs={confetti?.ttlMs ?? 4500}
+            onDone={() =>
+              setConfettiBursts((b) => b.filter((x) => x !== id))
+            }
           />
-        ) : null}
+        ))}
 
         {/* Escena BRACKET a pantalla completa (opaca → sobrevive al chroma).
             Cubre todo cuando está activa. */}

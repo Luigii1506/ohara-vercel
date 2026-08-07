@@ -59,25 +59,28 @@ export default function ConfettiLayer({
     canvas.width = width;
     canvas.height = height;
 
-    const particleCount = 220;
+    const particleCount = 240;
     const particles: Particle[] = [];
     for (let i = 0; i < particleCount; i += 1) {
-      // Dos "cañones" desde arriba a los lados + lluvia general.
+      // Dos CAÑONES en las esquinas inferiores, disparando en diagonal hacia
+      // arriba y al centro (arrancan FUERA de la pantalla → parece expulsión).
       const fromLeft = i % 2 === 0;
+      const speed = 14 + Math.random() * 11; // 14–25
+      const angle = (42 + Math.random() * 43) * (Math.PI / 180); // 42°–85° sobre la horizontal
       particles.push({
-        x: fromLeft ? width * 0.15 : width * 0.85,
-        y: height * 0.12 + Math.random() * height * 0.1,
-        vx: (fromLeft ? 1 : -1) * (2 + Math.random() * 4),
-        vy: -4 - Math.random() * 6,
-        size: 6 + Math.random() * 8,
+        x: fromLeft ? -16 : width + 16,
+        y: height + 16,
+        vx: Math.cos(angle) * speed * (fromLeft ? 1 : -1),
+        vy: -Math.sin(angle) * speed,
+        size: 7 + Math.random() * 9,
         rot: Math.random() * Math.PI,
-        vrot: (Math.random() - 0.5) * 0.3,
+        vrot: (Math.random() - 0.5) * 0.35,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         shape: Math.random() > 0.5 ? "rect" : "circle",
       });
     }
 
-    const gravity = 0.16;
+    const gravity = 0.3;
     const drag = 0.995;
     let raf = 0;
     const start = performance.now();

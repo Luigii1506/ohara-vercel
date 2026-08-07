@@ -56,9 +56,30 @@ export type LiveOverlayScene = {
   ttlMs?: number | null;
 };
 
+// ===========================================================================
+// Bracket de torneo (vista full-screen aparte del overlay chroma)
+// 4 jugadores: Ronda 1 (4 slots) → Ronda 2 (2 slots) → Campeón (1).
+// ===========================================================================
+export type LiveOverlayBracket = {
+  title: string; // "BRACKET"
+  subtitle: string; // "RUMBO A LA GLORIA"
+  round1: [string, string, string, string];
+  round2: [string, string];
+  champion: string;
+};
+
+export const createEmptyBracket = (): LiveOverlayBracket => ({
+  title: "BRACKET",
+  subtitle: "RUMBO A LA GLORIA",
+  round1: ["", "", "", ""],
+  round2: ["", ""],
+  champion: "",
+});
+
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;
   rarityCounters: LiveOverlayRarityCounters;
   scenes: LiveOverlayScene[];
+  bracket: LiveOverlayBracket | null;
   updatedAt: string;
 };

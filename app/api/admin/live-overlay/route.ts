@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import {
   adjustLiveOverlayGoal,
   applyLiveOverlayCombo,
+  clearLiveOverlayBracket,
   clearLiveOverlayCard,
   clearLiveOverlayScenes,
   getLiveOverlayState,
@@ -10,6 +11,7 @@ import {
   incrementLiveOverlayRarityCounter,
   removeLiveOverlayScene,
   resetLiveOverlayRarityCounters,
+  setLiveOverlayBracket,
   setLiveOverlayCard,
   setLiveOverlayRarityCounter,
   setLiveOverlayScene,
@@ -17,6 +19,7 @@ import {
   triggerLiveOverlayStamp,
 } from "@/lib/live-overlay/store";
 import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
+import { createEmptyBracket } from "@/lib/live-overlay/types";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
 import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 import {
@@ -111,6 +114,21 @@ type OverlayAction =
       token: string;
       text: string;
       subtitle?: string;
+    }
+  | {
+      action: "set_bracket";
+      token: string;
+      bracket: {
+        title?: string;
+        subtitle?: string;
+        round1?: string[];
+        round2?: string[];
+        champion?: string;
+      };
+    }
+  | {
+      action: "clear_bracket";
+      token: string;
     };
 
 const sanitizeSceneType = (value: unknown): LiveOverlaySceneType | null => {
@@ -371,6 +389,27 @@ export async function POST(request: NextRequest) {
         text,
         body.subtitle ? String(body.subtitle).trim() : ""
       );
+      break;
+    }
+    case "set_bracket": {
+      const b = body.bracket ?? {};
+      const base = createEmptyBracket();
+      const slots = (arr: unknown, n: number) =>
+        Array.from({ length: n }, (_, i) =>
+          Array.isArray(arr) ? String(arr[i] ?? "").trim() : ""
+        );
+      nextState = await setLiveOverlayBracket(overlayToken, {
+        title: (b.title ? String(b.title) : base.title).trim() || base.title,
+        subtitle:
+          b.subtitle !== undefined ? String(b.subtitle).trim() : base.subtitle,
+        round1: slots(b.round1, 4) as [string, string, string, string],
+        round2: slots(b.round2, 2) as [string, string],
+        champion: b.champion ? String(b.champion).trim() : "",
+      });
+      break;
+    }
+    case "clear_bracket": {
+      nextState = await clearLiveOverlayBracket(overlayToken);
       break;
     }
     default:

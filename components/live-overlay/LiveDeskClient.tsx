@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CardWithCollectionData } from "@/types";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  createEmptyBracket,
+  type LiveOverlayBracket,
   type LiveOverlayCard,
   type LiveOverlayRarityCounterKey,
   type LiveOverlayState,
@@ -34,6 +36,7 @@ const EMPTY_STATE: LiveOverlayState = {
     {} as LiveOverlayState["rarityCounters"]
   ),
   scenes: [],
+  bracket: null,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -88,22 +91,33 @@ export default function LiveDeskClient({
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   // Mobile: pestaña del controlador ("counters" = mando de rarezas, "cards" =
   // buscar/seleccionar carta en vivo, "effects" = escenas/efectos).
-  const [mobileTab, setMobileTab] = useState<"counters" | "cards" | "effects">(
-    "counters"
-  );
+  const [mobileTab, setMobileTab] = useState<
+    "counters" | "cards" | "effects" | "bracket"
+  >("counters");
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
   const [goalLabel, setGoalLabel] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalUnit, setGoalUnit] = useState("");
-  // Tablet (Stream Deck): drawer inferior para buscar carta, banner o escenas.
+  // Tablet (Stream Deck): drawer inferior para buscar carta, banner, escenas o
+  // bracket.
   const [tabletDrawer, setTabletDrawer] = useState<
-    null | "search" | "banner" | "scenes"
+    null | "search" | "banner" | "scenes" | "bracket"
   >(null);
+  // Formulario del bracket de torneo.
+  const [bracketForm, setBracketForm] = useState<LiveOverlayBracket>(
+    createEmptyBracket()
+  );
+  const bracketInit = useRef(false);
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
     return `${origin}/overlay/${overlayToken}`;
+  }, [origin, overlayToken]);
+
+  const bracketUrl = useMemo(() => {
+    if (!overlayToken || !origin) return null;
+    return `${origin}/overlay/${overlayToken}/bracket`;
   }, [origin, overlayToken]);
 
   useEffect(() => {
@@ -140,6 +154,15 @@ export default function LiveDeskClient({
     token: overlayToken,
     onState: setState,
   });
+
+  // Pre-llena el formulario del bracket UNA vez con lo que ya haya en el overlay
+  // (después el formulario es del operador, no lo pisamos con cada update).
+  useEffect(() => {
+    if (!bracketInit.current && state.bracket) {
+      setBracketForm(state.bracket);
+      bracketInit.current = true;
+    }
+  }, [state.bracket]);
 
   useEffect(() => {
     if (!overlayToken) return;
@@ -557,6 +580,140 @@ export default function LiveDeskClient({
     </div>
   );
 
+  // ---- Bracket de torneo ----
+  const setR1 = (i: number, v: string) =>
+    setBracketForm((f) => ({
+      ...f,
+      round1: f.round1.map((x, idx) => (idx === i ? v : x)) as [
+        string,
+        string,
+        string,
+        string
+      ],
+    }));
+  const setR2 = (i: number, v: string) =>
+    setBracketForm((f) => ({
+      ...f,
+      round2: f.round2.map((x, idx) => (idx === i ? v : x)) as [string, string],
+    }));
+
+  const updateBracket = useCallback(
+    () => runAction({ action: "set_bracket", bracket: bracketForm }, "bracket"),
+    [bracketForm, runAction]
+  );
+  const clearBracket = useCallback(() => {
+    setBracketForm(createEmptyBracket());
+    runAction({ action: "clear_bracket" }, "bracket-clear");
+  }, [runAction]);
+
+  const bracketInput =
+    "h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200";
+
+  const bracketPanel = (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          value={bracketForm.title}
+          onChange={(e) =>
+            setBracketForm((f) => ({ ...f, title: e.target.value }))
+          }
+          placeholder="Título (BRACKET)"
+          className={bracketInput}
+        />
+        <input
+          value={bracketForm.subtitle}
+          onChange={(e) =>
+            setBracketForm((f) => ({ ...f, subtitle: e.target.value }))
+          }
+          placeholder="Subtítulo"
+          className={bracketInput}
+        />
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Ronda 1
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-black text-white">
+                {i + 1}
+              </span>
+              <input
+                value={bracketForm.round1[i]}
+                onChange={(e) => setR1(i, e.target.value)}
+                placeholder={`Jugador ${i + 1}`}
+                className={bracketInput}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Final
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {[0, 1].map((i) => (
+            <input
+              key={i}
+              value={bracketForm.round2[i]}
+              onChange={(e) => setR2(i, e.target.value)}
+              placeholder={`Finalista ${i + 1}`}
+              className={bracketInput}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Campeón
+        </span>
+        <input
+          value={bracketForm.champion}
+          onChange={(e) =>
+            setBracketForm((f) => ({ ...f, champion: e.target.value }))
+          }
+          placeholder="Campeón 👑"
+          className={bracketInput}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={updateBracket}
+          disabled={actionLoading === "bracket"}
+          className="h-11 flex-1 rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+        >
+          Actualizar bracket
+        </button>
+        <button
+          type="button"
+          onClick={clearBracket}
+          className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 active:bg-slate-50"
+        >
+          Limpiar
+        </button>
+      </div>
+
+      {bracketUrl ? (
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard?.writeText(bracketUrl).catch(() => {});
+          }}
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-600 active:bg-slate-100"
+        >
+          <Copy className="h-3.5 w-3.5" /> Copiar URL del bracket (Browser Source)
+        </button>
+      ) : null}
+    </div>
+  );
+
   const resultsGrid = (
     <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
       {results.map((card) => {
@@ -841,6 +998,15 @@ export default function LiveDeskClient({
               </div>
               {scenesPanel}
             </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  🏆 Torneo (Bracket)
+                </span>
+              </div>
+              {bracketPanel}
+            </div>
           </div>
         </aside>
       </div>
@@ -948,6 +1114,14 @@ export default function LiveDeskClient({
                 tone: "slate" as const,
               },
               {
+                key: "bracket",
+                emoji: "🏆",
+                label: "Torneo",
+                onClick: () => setTabletDrawer("bracket"),
+                disabled: false,
+                tone: "slate" as const,
+              },
+              {
                 key: "card",
                 emoji: "🃏",
                 label: "Buscar carta",
@@ -1047,6 +1221,24 @@ export default function LiveDeskClient({
                     {scenesPanel}
                   </div>
                 </div>
+              ) : tabletDrawer === "bracket" ? (
+                <div className="flex max-h-[80vh] flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">
+                      🏆 Torneo (Bracket)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTabletDrawer(null)}
+                      className="text-sm font-bold text-slate-500"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {bracketPanel}
+                  </div>
+                </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
@@ -1097,40 +1289,28 @@ export default function LiveDeskClient({
           abajo. Nada de alturas calculadas a mano ni scroll fantasma. */}
       <div className="flex h-[calc(100dvh-49px)] flex-col overflow-hidden md:hidden">
         {/* Pestañas */}
-        <div className="flex shrink-0 gap-1 border-b border-slate-200 bg-white px-3 py-2">
-          <button
-            type="button"
-            onClick={() => setMobileTab("counters")}
-            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
-              mobileTab === "counters"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            Contadores
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab("cards")}
-            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
-              mobileTab === "cards"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            Cartas
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab("effects")}
-            className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${
-              mobileTab === "effects"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            Efectos
-          </button>
+        <div className="flex shrink-0 gap-1 border-b border-slate-200 bg-white px-2 py-2">
+          {(
+            [
+              ["counters", "Contadores"],
+              ["cards", "Cartas"],
+              ["effects", "Efectos"],
+              ["bracket", "Torneo"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMobileTab(key)}
+              className={`flex-1 rounded-xl py-2 text-xs font-bold transition ${
+                mobileTab === key
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Carta en vivo (siempre visible) */}
@@ -1243,6 +1423,10 @@ export default function LiveDeskClient({
                 Limpiar escenas
               </button>
             ) : null}
+          </div>
+        ) : mobileTab === "bracket" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            {bracketPanel}
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">

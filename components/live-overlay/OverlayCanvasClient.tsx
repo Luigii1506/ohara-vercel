@@ -24,6 +24,7 @@ const EMPTY_STATE: LiveOverlayState = {
     {} as LiveOverlayState["rarityCounters"]
   ),
   scenes: [],
+  bracket: null,
   updatedAt: new Date(0).toISOString(),
 };
 

@@ -1029,6 +1029,7 @@ model LiveOverlayState {
   currentCard    Json?
   rarityCounters Json
   scenes         Json?
+  bracket        Json?
   updatedAt      DateTime @updatedAt
 }
 

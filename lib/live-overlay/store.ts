@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
+  LiveOverlayBracket,
   LiveOverlayCard,
   LiveOverlayRarityCounterKey,
   LiveOverlayRarityCounters,
@@ -31,8 +32,27 @@ const createDefaultState = (): LiveOverlayState => ({
   currentCard: null,
   rarityCounters: createDefaultRarityCounters(),
   scenes: [],
+  bracket: null,
   updatedAt: new Date(0).toISOString(),
 });
+
+/** Normaliza el bracket persistido (o null). */
+const normalizeBracket = (raw: unknown): LiveOverlayBracket | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const arr = (v: unknown, n: number) =>
+    Array.isArray(v)
+      ? Array.from({ length: n }, (_, i) => str(v[i]))
+      : Array.from({ length: n }, () => "");
+  return {
+    title: str(r.title) || "BRACKET",
+    subtitle: str(r.subtitle),
+    round1: arr(r.round1, 4) as [string, string, string, string],
+    round2: arr(r.round2, 2) as [string, string],
+    champion: str(r.champion),
+  };
+};
 
 /** Normaliza los contadores: rellena las rarezas faltantes con 0. */
 const normalizeCounters = (raw: unknown): LiveOverlayRarityCounters => {
@@ -82,6 +102,7 @@ export const getLiveOverlayState = async (
     currentCard: (row.currentCard as LiveOverlayCard | null) ?? null,
     rarityCounters: normalizeCounters(row.rarityCounters),
     scenes: normalizeScenes((row as { scenes?: unknown }).scenes),
+    bracket: normalizeBracket((row as { bracket?: unknown }).bracket),
     updatedAt: row.updatedAt.toISOString(),
   };
 };
@@ -90,6 +111,7 @@ type PersistPayload = {
   currentCard: LiveOverlayCard | null;
   rarityCounters: LiveOverlayRarityCounters;
   scenes: LiveOverlayScene[];
+  bracket: LiveOverlayBracket | null;
 };
 
 const persist = async (
@@ -102,6 +124,10 @@ const persist = async (
       : (next.currentCard as unknown as Prisma.InputJsonValue);
   const rarityJson = next.rarityCounters as unknown as Prisma.InputJsonValue;
   const scenesJson = next.scenes as unknown as Prisma.InputJsonValue;
+  const bracketJson =
+    next.bracket === null
+      ? Prisma.JsonNull
+      : (next.bracket as unknown as Prisma.InputJsonValue);
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
@@ -110,27 +136,39 @@ const persist = async (
       currentCard: currentCardJson,
       rarityCounters: rarityJson,
       scenes: scenesJson,
+      bracket: bracketJson,
     },
     update: {
       currentCard: currentCardJson,
       rarityCounters: rarityJson,
       scenes: scenesJson,
+      bracket: bracketJson,
     },
   });
   return {
     currentCard: (saved.currentCard as LiveOverlayCard | null) ?? null,
     rarityCounters: normalizeCounters(saved.rarityCounters),
     scenes: normalizeScenes((saved as { scenes?: unknown }).scenes),
+    bracket: normalizeBracket((saved as { bracket?: unknown }).bracket),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
 
+// El updater devuelve un PARCIAL; lo mezclamos con el estado actual, así los
+// updaters existentes (que no tocan bracket) lo preservan automáticamente.
 const updateState = async (
   token: string,
-  updater: (state: LiveOverlayState) => PersistPayload
+  updater: (state: LiveOverlayState) => Partial<PersistPayload>
 ): Promise<LiveOverlayState> => {
   const current = await getLiveOverlayState(token);
-  return persist(token, updater(current));
+  const patch = updater(current);
+  return persist(token, {
+    currentCard:
+      patch.currentCard !== undefined ? patch.currentCard : current.currentCard,
+    rarityCounters: patch.rarityCounters ?? current.rarityCounters,
+    scenes: patch.scenes ?? current.scenes,
+    bracket: patch.bracket !== undefined ? patch.bracket : current.bracket,
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -355,6 +393,16 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
       scenes,
     };
   });
+
+/** Guarda/actualiza el bracket de torneo. */
+export const setLiveOverlayBracket = (
+  token: string,
+  bracket: LiveOverlayBracket
+) => updateState(token, () => ({ bracket }));
+
+/** Quita el bracket. */
+export const clearLiveOverlayBracket = (token: string) =>
+  updateState(token, () => ({ bracket: null }));
 
 /** Suma/resta al valor actual de la barra de meta (clamp ≥ 0). */
 export const adjustLiveOverlayGoal = (token: string, amount: number) =>

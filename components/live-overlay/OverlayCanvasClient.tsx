@@ -8,7 +8,7 @@ import {
 } from "@/lib/live-overlay/types";
 import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
-import { playOverlaySfx, unlockOverlayAudio } from "@/lib/live-overlay/sfx";
+import { playOverlaySfx, ensureOverlayAudio } from "@/lib/live-overlay/sfx";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -151,13 +151,21 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     }
   }, [sound?.triggeredAt, sound?.props?.sfx]);
 
-  // Desbloquea el audio tras el primer gesto (necesario solo para preview en
-  // navegador; en OBS el audio arranca solo).
+  // Desbloqueo de audio. En OBS suele arrancar solo; en un navegador de prueba
+  // el audio queda bloqueado hasta el primer gesto. Mostramos un aviso mientras
+  // esté bloqueado y lo desbloqueamos al primer clic/tecla.
+  const [audioReady, setAudioReady] = useState(false);
   useEffect(() => {
-    const unlock = () => unlockOverlayAudio();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    let mounted = true;
+    ensureOverlayAudio().then((ready) => mounted && setAudioReady(ready));
+    const unlock = async () => {
+      const ready = await ensureOverlayAudio();
+      if (mounted) setAudioReady(ready);
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
     return () => {
+      mounted = false;
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
@@ -350,6 +358,13 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             key={confettiKey}
             durationMs={confetti?.ttlMs ?? 4500}
           />
+        ) : null}
+
+        {/* Aviso de audio bloqueado (solo hasta el primer clic; en OBS no sale) */}
+        {!audioReady ? (
+          <div className="absolute bottom-4 left-1/2 z-[70] -translate-x-1/2 animate-pulse rounded-full bg-black/85 px-5 py-2.5 text-base font-bold text-white shadow-lg">
+            🔊 Clic para activar sonido
+          </div>
         ) : null}
       </div>
     </div>

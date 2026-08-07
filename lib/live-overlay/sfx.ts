@@ -41,6 +41,24 @@ export const unlockOverlayAudio = () => {
   if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
 };
 
+/** Crea y reanuda el AudioContext; devuelve si quedó reproduciendo ("running"). */
+export const ensureOverlayAudio = async (): Promise<boolean> => {
+  const ctx = getCtx();
+  if (!ctx) return false;
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      // requiere un gesto del usuario
+    }
+  }
+  return ctx.state === "running";
+};
+
+/** ¿El audio del overlay ya está desbloqueado? */
+export const isOverlayAudioReady = (): boolean =>
+  !!audioCtx && audioCtx.state === "running";
+
 // Una nota simple con envolvente ADSR corta.
 const tone = (
   ctx: AudioContext,

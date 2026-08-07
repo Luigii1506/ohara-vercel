@@ -318,7 +318,11 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
       };
     }
     const now = new Date().toISOString();
-    let scenes = state.scenes;
+    // "1 combo a la vez": quitamos los one-shots previos (confeti/sonido/sello)
+    // y dejamos SOLO los de este combo, así no se apilan.
+    let scenes = state.scenes.filter(
+      (s) => s.id !== "confetti" && s.id !== "sound" && s.id !== "stamp"
+    );
     if (combo.confetti) {
       scenes = upsertScene(scenes, {
         id: "confetti",

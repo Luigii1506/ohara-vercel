@@ -104,38 +104,51 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // así se ve aunque el overlay acabe de cargar, pero un disparo viejo NO se
   // repite al refrescar OBS.
   useEffect(() => {
-    const trigger = confetti?.triggeredAt ?? null;
+    // Escena de confeti removida (ej. combo nuevo sin confeti / limpiar) → corta.
+    if (!confetti) {
+      lastConfettiTrigger.current = null;
+      setConfettiKey(null);
+      return;
+    }
+    const trigger = confetti.triggeredAt ?? null;
     const isNew = trigger && trigger !== lastConfettiTrigger.current;
     lastConfettiTrigger.current = trigger;
     if (!isNew) return;
     const ageMs = Date.now() - new Date(trigger).getTime();
     // Ventana generosa (ttl + margen para el polling y desfase de reloj).
-    if (ageMs <= (confetti?.ttlMs ?? 4500) + 6000) {
+    if (ageMs <= (confetti.ttlMs ?? 4500) + 6000) {
       setConfettiKey(trigger);
     }
-  }, [confetti?.triggeredAt, confetti?.ttlMs]);
+  }, [confetti, confetti?.triggeredAt, confetti?.ttlMs]);
 
   // Muestra el sello cuando su triggeredAt cambia (frescura) y lo auto-oculta
   // tras su ttl.
   useEffect(() => {
-    const trigger = stamp?.triggeredAt ?? null;
+    // Escena de sello removida (ej. combo nuevo sin sello / limpiar) → oculta.
+    if (!stamp) {
+      lastStampTrigger.current = null;
+      window.clearTimeout(stampTimer.current);
+      setStampView(null);
+      return;
+    }
+    const trigger = stamp.triggeredAt ?? null;
     const isNew = trigger && trigger !== lastStampTrigger.current;
     lastStampTrigger.current = trigger;
     if (!isNew) return;
-    const ttl = stamp?.ttlMs ?? 2800;
+    const ttl = stamp.ttlMs ?? 2800;
     const ageMs = Date.now() - new Date(trigger).getTime();
     if (ageMs > ttl + 4000) return; // disparo viejo (refresh): no mostrar
     setStampView({
       key: trigger,
-      text: String(stamp?.props?.text ?? ""),
-      subtitle: String(stamp?.props?.subtitle ?? ""),
+      text: String(stamp.props?.text ?? ""),
+      subtitle: String(stamp.props?.subtitle ?? ""),
     });
     window.clearTimeout(stampTimer.current);
     stampTimer.current = window.setTimeout(
       () => setStampView(null),
       Math.max(400, ttl - Math.max(0, ageMs))
     );
-  }, [stamp?.triggeredAt, stamp?.ttlMs, stamp?.props?.text, stamp?.props?.subtitle]);
+  }, [stamp, stamp?.triggeredAt, stamp?.ttlMs, stamp?.props?.text, stamp?.props?.subtitle]);
 
   useEffect(() => () => window.clearTimeout(stampTimer.current), []);
 

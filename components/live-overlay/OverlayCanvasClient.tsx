@@ -409,9 +409,14 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         ) : null}
 
-        {/* Combo (confeti + sello) como unidad de 3s, se reemplaza y auto-elimina */}
+        {/* Combo (confeti + sello) como unidad de 3s, se reemplaza y auto-elimina.
+            El contenedor llena el lienzo para que el canvas del confeti tenga
+            tamaño (710×1265). */}
         {comboView ? (
-          <div key={`combo-${comboView.key}`}>
+          <div
+            key={`combo-${comboView.key}`}
+            className="pointer-events-none absolute inset-0 z-[55]"
+          >
             {comboView.confetti ? <ConfettiLayer durationMs={3000} /> : null}
             {comboView.stampText ? (
               <div className="pointer-events-none absolute inset-0 z-[55] flex flex-col items-center justify-center [animation:overlay-stamp-in_0.4s_cubic-bezier(0.34,1.56,0.64,1)]">

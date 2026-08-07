@@ -9,6 +9,7 @@ import {
 import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { playOverlaySfx, ensureOverlayAudio } from "@/lib/live-overlay/sfx";
+import BracketView from "@/components/live-overlay/BracketView";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -442,6 +443,14 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             key={confettiKey}
             durationMs={confetti?.ttlMs ?? 4500}
           />
+        ) : null}
+
+        {/* Escena BRACKET a pantalla completa (opaca → sobrevive al chroma).
+            Cubre todo cuando está activa. */}
+        {state.bracket?.active ? (
+          <div className="absolute inset-0 z-[80]">
+            <BracketView bracket={state.bracket} />
+          </div>
         ) : null}
 
         {/* Aviso de audio bloqueado (solo hasta el primer clic; en OBS no sale) */}

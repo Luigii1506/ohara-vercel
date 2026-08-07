@@ -12,6 +12,7 @@ import {
   removeLiveOverlayScene,
   resetLiveOverlayRarityCounters,
   setLiveOverlayBracket,
+  setLiveOverlayBracketActive,
   setLiveOverlayCard,
   setLiveOverlayRarityCounter,
   setLiveOverlayScene,
@@ -125,6 +126,11 @@ type OverlayAction =
         round2?: string[];
         champion?: string;
       };
+    }
+  | {
+      action: "set_bracket_active";
+      token: string;
+      active: boolean;
     }
   | {
       action: "clear_bracket";
@@ -406,6 +412,13 @@ export async function POST(request: NextRequest) {
         round2: slots(b.round2, 2) as [string, string],
         champion: b.champion ? String(b.champion).trim() : "",
       });
+      break;
+    }
+    case "set_bracket_active": {
+      nextState = await setLiveOverlayBracketActive(
+        overlayToken,
+        body.active === true
+      );
       break;
     }
     case "clear_bracket": {

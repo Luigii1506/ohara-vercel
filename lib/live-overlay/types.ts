@@ -61,6 +61,7 @@ export type LiveOverlayScene = {
 // 4 jugadores: Ronda 1 (4 slots) → Ronda 2 (2 slots) → Campeón (1).
 // ===========================================================================
 export type LiveOverlayBracket = {
+  active: boolean; // visible como escena a pantalla completa en el overlay
   title: string; // "BRACKET"
   subtitle: string; // "RUMBO A LA GLORIA"
   round1: [string, string, string, string];
@@ -68,7 +69,11 @@ export type LiveOverlayBracket = {
   champion: string;
 };
 
+/** Campos editables del bracket (sin la bandera de visibilidad). */
+export type LiveOverlayBracketData = Omit<LiveOverlayBracket, "active">;
+
 export const createEmptyBracket = (): LiveOverlayBracket => ({
+  active: false,
   title: "BRACKET",
   subtitle: "RUMBO A LA GLORIA",
   round1: ["", "", "", ""],

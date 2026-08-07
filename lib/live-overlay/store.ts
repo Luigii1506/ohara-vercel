@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   LiveOverlayBracket,
+  LiveOverlayBracketData,
   LiveOverlayCard,
   LiveOverlayRarityCounterKey,
   LiveOverlayRarityCounters,
@@ -12,6 +13,7 @@ import type {
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   LIVE_OVERLAY_SCENE_TYPES,
+  createEmptyBracket,
 } from "@/lib/live-overlay/types";
 import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
 
@@ -46,6 +48,7 @@ const normalizeBracket = (raw: unknown): LiveOverlayBracket | null => {
       ? Array.from({ length: n }, (_, i) => str(v[i]))
       : Array.from({ length: n }, () => "");
   return {
+    active: r.active === true,
     title: str(r.title) || "BRACKET",
     subtitle: str(r.subtitle),
     round1: arr(r.round1, 4) as [string, string, string, string],
@@ -394,13 +397,25 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
     };
   });
 
-/** Guarda/actualiza el bracket de torneo. */
+/** Guarda/actualiza los NOMBRES del bracket (preserva la visibilidad `active`). */
 export const setLiveOverlayBracket = (
   token: string,
-  bracket: LiveOverlayBracket
-) => updateState(token, () => ({ bracket }));
+  data: LiveOverlayBracketData
+) =>
+  updateState(token, (state) => ({
+    bracket: {
+      ...(state.bracket ?? createEmptyBracket()),
+      ...data,
+    },
+  }));
 
-/** Quita el bracket. */
+/** Muestra/oculta el bracket como escena a pantalla completa (preserva nombres). */
+export const setLiveOverlayBracketActive = (token: string, active: boolean) =>
+  updateState(token, (state) => ({
+    bracket: { ...(state.bracket ?? createEmptyBracket()), active },
+  }));
+
+/** Quita el bracket por completo. */
 export const clearLiveOverlayBracket = (token: string) =>
   updateState(token, () => ({ bracket: null }));
 

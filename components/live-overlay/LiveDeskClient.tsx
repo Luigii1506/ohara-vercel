@@ -11,8 +11,8 @@ import {
 import { useRegion } from "@/components/region/RegionProvider";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
-import { LIVE_OVERLAY_SFX, playOverlaySfx } from "@/lib/live-overlay/sfx";
-import { LIVE_OVERLAY_COMBOS, findLiveOverlayCombo } from "@/lib/live-overlay/combos";
+import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
+import { LIVE_OVERLAY_COMBOS } from "@/lib/live-overlay/combos";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -278,25 +278,19 @@ export default function LiveDeskClient({
   );
 
   const triggerCombo = useCallback(
-    (combo: string) => {
-      // Preview local del sonido del combo (feedback inmediato para el operador;
-      // el visual sí sale solo en el overlay).
-      const sfx = findLiveOverlayCombo(combo)?.sfx;
-      if (sfx) playOverlaySfx(sfx);
-      runAction({ action: "trigger_combo", combo }, `combo-${combo}`);
-    },
+    (combo: string) =>
+      runAction({ action: "trigger_combo", combo }, `combo-${combo}`),
     [runAction]
   );
 
   const triggerSound = useCallback(
-    (sfx: string) => {
-      // Suena localmente (feedback para el operador) y también en el overlay.
-      playOverlaySfx(sfx);
+    (sfx: string) =>
+      // El sonido sale SOLO por el overlay (lo que capta OBS). El dispositivo de
+      // control (celular/iPad) es un remoto, no reproduce audio.
       runAction(
         { action: "trigger_scene", type: "sound", props: { sfx } },
         `sfx-${sfx}`
-      );
-    },
+      ),
     [runAction]
   );
 

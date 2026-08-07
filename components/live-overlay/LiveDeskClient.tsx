@@ -11,7 +11,8 @@ import {
 import { useRegion } from "@/components/region/RegionProvider";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
-import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
+import { LIVE_OVERLAY_SFX, playOverlaySfx } from "@/lib/live-overlay/sfx";
+import { LIVE_OVERLAY_COMBOS, findLiveOverlayCombo } from "@/lib/live-overlay/combos";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -276,12 +277,26 @@ export default function LiveDeskClient({
     [runAction]
   );
 
+  const triggerCombo = useCallback(
+    (combo: string) => {
+      // Preview local del sonido del combo (feedback inmediato para el operador;
+      // el visual sí sale solo en el overlay).
+      const sfx = findLiveOverlayCombo(combo)?.sfx;
+      if (sfx) playOverlaySfx(sfx);
+      runAction({ action: "trigger_combo", combo }, `combo-${combo}`);
+    },
+    [runAction]
+  );
+
   const triggerSound = useCallback(
-    (sfx: string) =>
+    (sfx: string) => {
+      // Suena localmente (feedback para el operador) y también en el overlay.
+      playOverlaySfx(sfx);
       runAction(
         { action: "trigger_scene", type: "sound", props: { sfx } },
         `sfx-${sfx}`
-      ),
+      );
+    },
     [runAction]
   );
 
@@ -343,12 +358,32 @@ export default function LiveDeskClient({
   // de la tablet).
   const scenesPanel = (
     <div className="space-y-3">
+      {/* Combos: un toque = varias escenas juntas */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Combos
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {LIVE_OVERLAY_COMBOS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => triggerCombo(c.id)}
+              disabled={actionLoading === `combo-${c.id}`}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-fuchsia-500 to-amber-400 py-3 text-sm font-black text-white shadow-sm active:scale-95 disabled:opacity-60"
+            >
+              <span className="text-lg leading-none">{c.emoji}</span> {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Efectos rápidos */}
       <button
         type="button"
         onClick={triggerConfetti}
         disabled={actionLoading === "confetti"}
-        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-lg font-black text-white shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-fuchsia-200 bg-fuchsia-50 text-lg font-black text-fuchsia-700 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
       >
         🎊 Confeti
       </button>
@@ -894,6 +929,14 @@ export default function LiveDeskClient({
           {/* Deck de acciones: rejilla de botones grandes (Stream Deck) */}
           <div className="grid flex-[0.58] auto-rows-fr grid-cols-3 gap-4">
             {[
+              {
+                key: "sold",
+                emoji: "💰",
+                label: "Vendido",
+                onClick: () => triggerCombo("sold"),
+                disabled: actionLoading === "combo-sold",
+                tone: "fuchsia" as const,
+              },
               {
                 key: "confetti",
                 emoji: "🎊",

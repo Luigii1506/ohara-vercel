@@ -34,6 +34,14 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const [confettiKey, setConfettiKey] = useState<string | null>(null);
   const lastConfettiTrigger = useRef<string | null | undefined>(undefined);
   const lastSoundTrigger = useRef<string | null | undefined>(undefined);
+  // Sello one-shot (¡VENDIDO! etc): se muestra un momento y se auto-oculta.
+  const [stampView, setStampView] = useState<{
+    key: string;
+    text: string;
+    subtitle: string;
+  } | null>(null);
+  const lastStampTrigger = useRef<string | null | undefined>(undefined);
+  const stampTimer = useRef<number | undefined>(undefined);
 
   const lastUpdatedAt = useRef<string | null>(null);
 
@@ -89,6 +97,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const goal = state.scenes.find(
     (s: LiveOverlayScene) => s.type === "goal" && s.visible
   );
+  const stamp = state.scenes.find((s: LiveOverlayScene) => s.type === "stamp");
 
   // Dispara el confeti cuando triggeredAt cambia (dedupe: no se repite en cada
   // poll). Además, por FRESCURA: solo se reproduce si el disparo es reciente,
@@ -105,6 +114,30 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       setConfettiKey(trigger);
     }
   }, [confetti?.triggeredAt, confetti?.ttlMs]);
+
+  // Muestra el sello cuando su triggeredAt cambia (frescura) y lo auto-oculta
+  // tras su ttl.
+  useEffect(() => {
+    const trigger = stamp?.triggeredAt ?? null;
+    const isNew = trigger && trigger !== lastStampTrigger.current;
+    lastStampTrigger.current = trigger;
+    if (!isNew) return;
+    const ttl = stamp?.ttlMs ?? 2800;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    if (ageMs > ttl + 4000) return; // disparo viejo (refresh): no mostrar
+    setStampView({
+      key: trigger,
+      text: String(stamp?.props?.text ?? ""),
+      subtitle: String(stamp?.props?.subtitle ?? ""),
+    });
+    window.clearTimeout(stampTimer.current);
+    stampTimer.current = window.setTimeout(
+      () => setStampView(null),
+      Math.max(400, ttl - Math.max(0, ageMs))
+    );
+  }, [stamp?.triggeredAt, stamp?.ttlMs, stamp?.props?.text, stamp?.props?.subtitle]);
+
+  useEffect(() => () => window.clearTimeout(stampTimer.current), []);
 
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
   useEffect(() => {
@@ -148,6 +181,11 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           @keyframes overlay-mode-in {
             0%   { opacity: 0; transform: translateY(-24px) scale(0.8); }
             100% { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes overlay-stamp-in {
+            0%   { opacity: 0; transform: scale(2.2); }
+            60%  { opacity: 1; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
           }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
@@ -284,6 +322,25 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                 </div>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {/* Sello one-shot (¡VENDIDO! etc) — centrado, encima de la carta */}
+        {stampView ? (
+          <div
+            key={stampView.key}
+            className="pointer-events-none absolute inset-0 z-[55] flex flex-col items-center justify-center [animation:overlay-stamp-in_0.4s_cubic-bezier(0.34,1.56,0.64,1)]"
+          >
+            <div className="-rotate-6 rounded-3xl border-[6px] border-white bg-[#ff2d6f] px-10 py-5 shadow-[0_16px_60px_rgba(0,0,0,0.6)]">
+              <span className="text-7xl font-black uppercase italic tracking-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.35)]">
+                {stampView.text}
+              </span>
+            </div>
+            {stampView.subtitle ? (
+              <span className="mt-3 -rotate-6 text-3xl font-black uppercase text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
+                {stampView.subtitle}
+              </span>
+            ) : null}
           </div>
         ) : null}
 

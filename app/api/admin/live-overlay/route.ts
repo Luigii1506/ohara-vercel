@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import {
   adjustLiveOverlayGoal,
+  applyLiveOverlayCombo,
   clearLiveOverlayCard,
   clearLiveOverlayScenes,
   getLiveOverlayState,
@@ -13,7 +14,9 @@ import {
   setLiveOverlayRarityCounter,
   setLiveOverlayScene,
   triggerLiveOverlayScene,
+  triggerLiveOverlayStamp,
 } from "@/lib/live-overlay/store";
+import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
 import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 import {
@@ -97,6 +100,17 @@ type OverlayAction =
       action: "adjust_goal";
       token: string;
       amount: number;
+    }
+  | {
+      action: "trigger_combo";
+      token: string;
+      combo: string;
+    }
+  | {
+      action: "trigger_stamp";
+      token: string;
+      text: string;
+      subtitle?: string;
     };
 
 const sanitizeSceneType = (value: unknown): LiveOverlaySceneType | null => {
@@ -333,6 +347,29 @@ export async function POST(request: NextRequest) {
       nextState = await adjustLiveOverlayGoal(
         overlayToken,
         sanitizeNumber(body.amount, 0)
+      );
+      break;
+    }
+    case "trigger_combo": {
+      const comboId = String(body.combo ?? "").trim();
+      if (!findLiveOverlayCombo(comboId)) {
+        return NextResponse.json({ error: "Invalid combo" }, { status: 400 });
+      }
+      nextState = await applyLiveOverlayCombo(overlayToken, comboId);
+      break;
+    }
+    case "trigger_stamp": {
+      const text = String(body.text ?? "").trim();
+      if (!text) {
+        return NextResponse.json(
+          { error: "Stamp text is required" },
+          { status: 400 }
+        );
+      }
+      nextState = await triggerLiveOverlayStamp(
+        overlayToken,
+        text,
+        body.subtitle ? String(body.subtitle).trim() : ""
       );
       break;
     }

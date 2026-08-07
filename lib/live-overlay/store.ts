@@ -12,6 +12,7 @@ import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   LIVE_OVERLAY_SCENE_TYPES,
 } from "@/lib/live-overlay/types";
+import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
 
 /**
  * Estado del overlay persistido en Postgres (tabla LiveOverlayState). Antes era
@@ -280,6 +281,83 @@ export const clearLiveOverlayScenes = (token: string) =>
     rarityCounters: state.rarityCounters,
     scenes: [],
   }));
+
+/** Dispara el sello one-shot (ej. "¡VENDIDO!"). */
+export const triggerLiveOverlayStamp = (
+  token: string,
+  text: string,
+  subtitle = "",
+  ttlMs = 2800
+) =>
+  updateState(token, (state) => ({
+    currentCard: state.currentCard,
+    rarityCounters: state.rarityCounters,
+    scenes: upsertScene(state.scenes, {
+      id: "stamp",
+      type: "stamp",
+      z: 55,
+      visible: true,
+      props: { text, subtitle },
+      triggeredAt: new Date().toISOString(),
+      ttlMs,
+    }),
+  }));
+
+/**
+ * Aplica un combo (confeti + sonido + sello) de forma ATÓMICA: un solo
+ * updateState → un solo broadcast, así llega todo junto y sincronizado.
+ */
+export const applyLiveOverlayCombo = (token: string, comboId: string) =>
+  updateState(token, (state) => {
+    const combo = findLiveOverlayCombo(comboId);
+    if (!combo) {
+      return {
+        currentCard: state.currentCard,
+        rarityCounters: state.rarityCounters,
+        scenes: state.scenes,
+      };
+    }
+    const now = new Date().toISOString();
+    let scenes = state.scenes;
+    if (combo.confetti) {
+      scenes = upsertScene(scenes, {
+        id: "confetti",
+        type: "confetti",
+        z: 50,
+        visible: true,
+        props: {},
+        triggeredAt: now,
+        ttlMs: 4500,
+      });
+    }
+    if (combo.sfx) {
+      scenes = upsertScene(scenes, {
+        id: "sound",
+        type: "sound",
+        z: 5,
+        visible: true,
+        props: { sfx: combo.sfx },
+        triggeredAt: now,
+        ttlMs: null,
+      });
+    }
+    if (combo.stamp) {
+      scenes = upsertScene(scenes, {
+        id: "stamp",
+        type: "stamp",
+        z: 55,
+        visible: true,
+        props: { text: combo.stamp.text, subtitle: combo.stamp.subtitle ?? "" },
+        triggeredAt: now,
+        ttlMs: 2800,
+      });
+    }
+    return {
+      currentCard: state.currentCard,
+      rarityCounters: state.rarityCounters,
+      scenes,
+    };
+  });
 
 /** Suma/resta al valor actual de la barra de meta (clamp ≥ 0). */
 export const adjustLiveOverlayGoal = (token: string, amount: number) =>

@@ -404,15 +404,20 @@ export default function LiveDeskClient({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error ?? "No se pudo firmar la subida");
-        const put = await fetch(data.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": data.contentType },
-          body: file,
-        });
-        if (!put.ok) {
+        let put: Response;
+        try {
+          put = await fetch(data.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": data.contentType },
+            body: file,
+          });
+        } catch {
           throw new Error(
-            "Falló la subida a R2. Revisa el CORS del bucket (PUT desde oharatcg.com)."
+            "No se pudo conectar a R2 (CORS). Configura el CORS del bucket R2 para permitir PUT desde oharatcg.com."
           );
+        }
+        if (!put.ok) {
+          throw new Error(`R2 rechazó la subida (HTTP ${put.status}).`);
         }
         setVUrl(data.publicUrl);
         if (!vLabel.trim()) {

@@ -58,6 +58,13 @@ export default {
       const cacheKey = new Request(request.url, request);
       const cache = caches.default;
 
+      // Video con Range request → responder 206 (seek + duración en <video>).
+      const isVideo = extension === 'mp4' || extension === 'webm';
+      const rangeHeader = request.headers.get('Range');
+      if (isVideo && rangeHeader) {
+        return serveVideoRange(env, imagePath, extension, rangeHeader);
+      }
+
       // Check Cloudflare Edge Cache
       let response = await cache.match(cacheKey);
 
@@ -158,6 +165,9 @@ async function createImageResponse(
   // Content-Length
   headers.set('Content-Length', String(object.size));
 
+  // Permite range requests (necesario para seek/duración de video en <video>).
+  headers.set('Accept-Ranges', 'bytes');
+
   const response = new Response(object.body, {
     status: 200,
     headers,
@@ -212,6 +222,55 @@ function generateFallbackPaths(imagePath: string): string[] {
   }
 
   return [...new Set(paths)]; // Remove duplicates
+}
+
+/**
+ * Sirve un video con soporte de Range (HTTP 206) para que <video> pueda hacer
+ * seek y calcular la duración correctamente.
+ */
+async function serveVideoRange(
+  env: Env,
+  key: string,
+  extension: string,
+  rangeHeader: string
+): Promise<Response> {
+  const head = await env.IMAGES_BUCKET.head(key);
+  if (!head) {
+    return new Response('Not found', { status: 404 });
+  }
+  const size = head.size;
+
+  const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  let start = match && match[1] ? parseInt(match[1], 10) : 0;
+  let end = match && match[2] ? parseInt(match[2], 10) : size - 1;
+  if (Number.isNaN(start)) start = 0;
+  if (Number.isNaN(end) || end >= size) end = size - 1;
+
+  if (start > end || start >= size) {
+    return new Response('Range Not Satisfiable', {
+      status: 416,
+      headers: { 'Content-Range': `bytes */${size}` },
+    });
+  }
+
+  const length = end - start + 1;
+  const object = await env.IMAGES_BUCKET.get(key, {
+    range: { offset: start, length },
+  });
+
+  const headers = new Headers();
+  headers.set('Content-Type', getContentType(extension));
+  headers.set('Accept-Ranges', 'bytes');
+  headers.set('Content-Range', `bytes ${start}-${end}/${size}`);
+  headers.set('Content-Length', String(length));
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+
+  return new Response(object ? object.body : null, {
+    status: 206,
+    headers,
+  });
 }
 
 /**

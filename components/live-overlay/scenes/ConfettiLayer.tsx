@@ -61,19 +61,19 @@ export default function ConfettiLayer({
     canvas.width = width;
     canvas.height = height;
 
-    const particleCount = 260;
+    const particleCount = 340;
     const particles: Particle[] = [];
     for (let i = 0; i < particleCount; i += 1) {
-      // Dos CAÑONES en los LADOS a media-baja altura (no en el borde inferior),
-      // disparando en diagonal hacia arriba y al centro. Modelo canvas-confetti:
-      // velocidad de disparo ALTA que se frena por resistencia del aire (drag) y
-      // luego cae flotando (gravedad). El origen está a ~58% de alto.
+      // Dos CAÑONES en los LADOS a media-baja altura, disparando en diagonal
+      // hacia arriba y AL CENTRO con fuerza para CRUZAR toda la pantalla (que no
+      // se queden en los tercios). Ángulos más abiertos + más velocidad + menos
+      // fricción = más alcance horizontal.
       const fromLeft = i % 2 === 0;
-      const angle = (55 + Math.random() * 35) * (Math.PI / 180); // 55°–90° sobre horizontal
-      const speed = 21 + Math.random() * 15; // 21–36 (disparo fuerte)
+      const angle = (32 + Math.random() * 52) * (Math.PI / 180); // 32°–84° sobre horizontal
+      const speed = 30 + Math.random() * 26; // 30–56 (disparo potente)
       particles.push({
         x: fromLeft ? -8 : width + 8,
-        y: height * 0.58 + (Math.random() - 0.5) * 70,
+        y: height * 0.6 + (Math.random() - 0.5) * 80,
         vx: Math.cos(angle) * speed * (fromLeft ? 1 : -1),
         vy: -Math.sin(angle) * speed,
         size: 7 + Math.random() * 9,
@@ -86,10 +86,10 @@ export default function ConfettiLayer({
       });
     }
 
-    // drag = resistencia del aire (frena el disparo rápido → el "pop"); gravity
-    // acelera la caída. Velocidad terminal ≈ gravity/(1-drag).
-    const gravity = 0.35;
-    const drag = 0.93;
+    // drag = resistencia del aire (frena el disparo → el "pop"); gravity acelera
+    // la caída. Menos drag = más alcance horizontal (cruza al centro).
+    const gravity = 0.33;
+    const drag = 0.95;
     let raf = 0;
     const start = performance.now();
 

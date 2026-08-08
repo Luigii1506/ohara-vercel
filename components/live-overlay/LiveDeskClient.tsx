@@ -315,6 +315,19 @@ export default function LiveDeskClient({
     [runAction]
   );
 
+  const triggerFx = useCallback(
+    (variant: "coins" | "fireworks" | "manga") =>
+      runAction(
+        { action: "trigger_scene", type: "fx", props: { variant } },
+        `fx-${variant}`
+      ),
+    [runAction]
+  );
+  const triggerShine = useCallback(
+    () => runAction({ action: "trigger_scene", type: "shine" }, "shine"),
+    [runAction]
+  );
+
   const triggerCombo = useCallback(
     (combo: string) =>
       runAction({ action: "trigger_combo", combo }, `combo-${combo}`),
@@ -546,14 +559,30 @@ export default function LiveDeskClient({
       </div>
 
       {/* Efectos rápidos */}
-      <button
-        type="button"
-        onClick={triggerConfetti}
-        disabled={actionLoading === "confetti"}
-        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-fuchsia-200 bg-fuchsia-50 text-lg font-black text-fuchsia-700 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
-      >
-        🎊 Confeti
-      </button>
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Efectos
+        </span>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { key: "confetti", emoji: "🎊", label: "Confeti", onClick: triggerConfetti },
+            { key: "coins", emoji: "🪙", label: "Monedas", onClick: () => triggerFx("coins") },
+            { key: "fireworks", emoji: "🎆", label: "Fuegos", onClick: () => triggerFx("fireworks") },
+            { key: "manga", emoji: "💥", label: "Manga", onClick: () => triggerFx("manga") },
+            { key: "shine", emoji: "✨", label: "Brillo", onClick: triggerShine },
+          ].map((fx) => (
+            <button
+              key={fx.key}
+              type="button"
+              onClick={fx.onClick}
+              className="flex flex-col items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-slate-800 active:scale-95 active:bg-slate-100"
+            >
+              <span className="text-xl leading-none">{fx.emoji}</span>
+              <span className="text-[11px] font-bold">{fx.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Videos */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3">

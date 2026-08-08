@@ -8,6 +8,7 @@ import {
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
 import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
+import FxLayer, { type FxVariant } from "@/components/live-overlay/scenes/FxLayer";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { playOverlaySfx, ensureOverlayAudio } from "@/lib/live-overlay/sfx";
 import BracketView from "@/components/live-overlay/BracketView";
@@ -70,6 +71,15 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     endSec?: number;
   } | null>(null);
   const lastVideoTrigger = useRef<string | null | undefined>(undefined);
+  // Efectos fx (monedas/fuegos/manga): se apilan como el confeti.
+  const [fxBursts, setFxBursts] = useState<{ key: string; variant: FxVariant }[]>(
+    []
+  );
+  const lastFxTrigger = useRef<string | null | undefined>(undefined);
+  // Brillo holográfico sobre la carta.
+  const [shineKey, setShineKey] = useState<string | null>(null);
+  const lastShineTrigger = useRef<string | null | undefined>(undefined);
+  const shineTimer = useRef<number | undefined>(undefined);
 
   const lastUpdatedAt = useRef<string | null>(null);
 
@@ -129,6 +139,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const stamp = state.scenes.find((s: LiveOverlayScene) => s.type === "stamp");
   const combo = state.scenes.find((s: LiveOverlayScene) => s.type === "combo");
   const video = state.scenes.find((s: LiveOverlayScene) => s.type === "video");
+  const fx = state.scenes.find((s: LiveOverlayScene) => s.type === "fx");
+  const shine = state.scenes.find((s: LiveOverlayScene) => s.type === "shine");
 
   // Dispara el confeti cuando triggeredAt cambia (dedupe: no se repite en cada
   // poll). Además, por FRESCURA: solo se reproduce si el disparo es reciente,
@@ -245,6 +257,33 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     });
   }, [video, video?.triggeredAt]);
 
+  // fx (monedas/fuegos/manga): agrega una ráfaga por cada disparo nuevo.
+  useEffect(() => {
+    const trigger = fx?.triggeredAt ?? null;
+    const isNew = trigger && trigger !== lastFxTrigger.current;
+    lastFxTrigger.current = trigger;
+    if (!isNew) return;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    if (ageMs > 8000) return;
+    const variant = String(fx?.props?.variant ?? "coins") as FxVariant;
+    setFxBursts((b) => [...b, { key: trigger, variant }]);
+  }, [fx?.triggeredAt, fx?.props?.variant]);
+
+  // Brillo holográfico sobre la carta (se auto-oculta).
+  useEffect(() => {
+    const trigger = shine?.triggeredAt ?? null;
+    const isNew = trigger && trigger !== lastShineTrigger.current;
+    lastShineTrigger.current = trigger;
+    if (!isNew) return;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    if (ageMs > 6000) return;
+    setShineKey(trigger);
+    window.clearTimeout(shineTimer.current);
+    shineTimer.current = window.setTimeout(() => setShineKey(null), 1200);
+  }, [shine?.triggeredAt]);
+
+  useEffect(() => () => window.clearTimeout(shineTimer.current), []);
+
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
   useEffect(() => {
     const trigger = sound?.triggeredAt ?? null;
@@ -301,6 +340,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             60%  { opacity: 1; transform: scale(0.9); }
             100% { opacity: 1; transform: scale(1); }
           }
+          @keyframes overlay-shine {
+            0%   { transform: translateX(-120%); }
+            100% { transform: translateX(120%); }
+          }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
         <div className="absolute left-0 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-3">
@@ -334,6 +377,22 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                 alt={state.currentCard.code}
                 className="w-[350px] rounded-2xl shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
               />
+            ) : null}
+
+            {/* Brillo holográfico (barrido de luz sobre la carta) */}
+            {shineKey && state.currentCard.imageUrl ? (
+              <div
+                key={shineKey}
+                className="pointer-events-none absolute left-1/2 top-0 h-[490px] w-[350px] -translate-x-1/2 overflow-hidden rounded-2xl"
+              >
+                <div
+                  className="absolute inset-0 [animation:overlay-shine_1.1s_ease-out]"
+                  style={{
+                    background:
+                      "linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.55) 46%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0.55) 54%, transparent 68%)",
+                  }}
+                />
+              </div>
             ) : null}
             <div className="w-[290px] rounded-2xl bg-black/80 px-4 py-3.5 text-center text-white backdrop-blur">
               <div className="text-4xl font-black leading-none tracking-tight">
@@ -492,6 +551,17 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             durationMs={confetti?.ttlMs ?? 4500}
             onDone={() =>
               setConfettiBursts((b) => b.filter((x) => x !== id))
+            }
+          />
+        ))}
+
+        {/* Efectos fx (monedas / fuegos / manga), apilables */}
+        {fxBursts.map((b) => (
+          <FxLayer
+            key={b.key}
+            variant={b.variant}
+            onDone={() =>
+              setFxBursts((x) => x.filter((y) => y.key !== b.key))
             }
           />
         ))}

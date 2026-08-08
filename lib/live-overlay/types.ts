@@ -43,6 +43,8 @@ export const LIVE_OVERLAY_SCENE_TYPES = [
   "stamp",
   "combo",
   "video",
+  "fx",
+  "shine",
 ] as const;
 
 export type LiveOverlaySceneType = (typeof LIVE_OVERLAY_SCENE_TYPES)[number];

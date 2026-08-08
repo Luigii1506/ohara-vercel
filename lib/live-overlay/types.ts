@@ -105,3 +105,34 @@ export type LiveOverlayState = {
   videoClips: LiveOverlayVideoClip[];
   updatedAt: string;
 };
+
+/**
+ * Normaliza CUALQUIER estado entrante (socket/fetch) a la forma completa con
+ * defaults. Evita crashes cuando llega un estado viejo (ej. el Durable Object
+ * cacheó una versión previa que no tenía algún campo como `videoClips`).
+ */
+export const normalizeLiveOverlayState = (
+  s: Partial<LiveOverlayState> | null | undefined
+): LiveOverlayState => {
+  const rarityCounters = LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
+    (acc, key) => {
+      const v = (s?.rarityCounters as Record<string, unknown> | undefined)?.[
+        key
+      ];
+      acc[key] = typeof v === "number" && Number.isFinite(v) ? v : 0;
+      return acc;
+    },
+    {} as LiveOverlayRarityCounters
+  );
+  return {
+    currentCard: s?.currentCard ?? null,
+    rarityCounters,
+    scenes: Array.isArray(s?.scenes) ? s!.scenes! : [],
+    bracket: s?.bracket ?? null,
+    videoClips: Array.isArray(s?.videoClips) ? s!.videoClips! : [],
+    updatedAt:
+      typeof s?.updatedAt === "string"
+        ? s!.updatedAt!
+        : new Date(0).toISOString(),
+  };
+};

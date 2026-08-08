@@ -5,6 +5,7 @@ import type { CardWithCollectionData } from "@/types";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   createEmptyBracket,
+  normalizeLiveOverlayState,
   type LiveOverlayBracket,
   type LiveOverlayCard,
   type LiveOverlayRarityCounterKey,
@@ -145,7 +146,7 @@ export default function LiveDeskClient({
     }
 
     const data = await response.json();
-    setState(data.state ?? EMPTY_STATE);
+    setState(normalizeLiveOverlayState(data.state));
   }, [overlayToken]);
 
   useEffect(() => {
@@ -160,7 +161,7 @@ export default function LiveDeskClient({
   // optimista tras cada comando (como antes).
   const { connected: socketConnected } = useOverlaySocket({
     token: overlayToken,
-    onState: setState,
+    onState: (s) => setState(normalizeLiveOverlayState(s)),
   });
 
   // Pre-llena el formulario del bracket UNA vez con lo que ya haya en el overlay

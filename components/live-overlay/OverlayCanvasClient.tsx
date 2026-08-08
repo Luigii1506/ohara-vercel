@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  normalizeLiveOverlayState,
   type LiveOverlayScene,
   type LiveOverlayState,
 } from "@/lib/live-overlay/types";
@@ -73,9 +74,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
 
   // Aplica un estado (venga del socket o del polling) manteniendo sincronizado
   // el updatedAt para el polling condicional.
-  const applyState = useCallback((next: LiveOverlayState) => {
-    lastUpdatedAt.current = next?.updatedAt ?? lastUpdatedAt.current;
-    setState(next ?? EMPTY_STATE);
+  const applyState = useCallback((next: Partial<LiveOverlayState> | null) => {
+    const norm = normalizeLiveOverlayState(next);
+    lastUpdatedAt.current = norm.updatedAt;
+    setState(norm);
   }, []);
 
   // Empujón instantáneo por WebSocket (ohara-live-worker). Si no está

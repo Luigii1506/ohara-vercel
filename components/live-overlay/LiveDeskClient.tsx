@@ -618,7 +618,18 @@ export default function LiveDeskClient({
                 {vUploadError}
               </p>
             ) : null}
-            {vUrl.trim() ? (
+            {!vUrl.trim() ? (
+              <p className="text-[11px] text-slate-400">
+                Sube un video con ⬆ o pega una URL directa .mp4/.webm para
+                recortarlo.
+              </p>
+            ) : /youtube\.com|youtu\.be/i.test(vUrl) ? (
+              <p className="rounded-lg bg-rose-50 p-2 text-[11px] font-semibold leading-snug text-rose-700">
+                Los enlaces de YouTube NO son archivos de video (son una página).
+                Descarga el clip (yt-dlp, si tienes derechos) y súbelo con “⬆
+                Subir”, o pega una URL directa que termine en .mp4/.webm.
+              </p>
+            ) : (
               <VideoTrimmer
                 url={vUrl.trim()}
                 start={vStart}
@@ -628,10 +639,6 @@ export default function LiveDeskClient({
                   setVEnd(e);
                 }}
               />
-            ) : (
-              <p className="text-[11px] text-slate-400">
-                Pega la URL de un video para recortarlo.
-              </p>
             )}
             <div className="grid grid-cols-[1fr_3.5rem] gap-2">
               <input

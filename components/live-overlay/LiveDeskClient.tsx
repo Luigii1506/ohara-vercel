@@ -322,8 +322,10 @@ export default function LiveDeskClient({
   );
 
   const videoActive = state.scenes.some((s) => s.type === "video");
+  const videoStopTimer = useRef<number | undefined>(undefined);
   const triggerVideo = useCallback(
-    (clip: LiveOverlayVideoClip) =>
+    (clip: LiveOverlayVideoClip) => {
+      if (videoStopTimer.current) window.clearTimeout(videoStopTimer.current);
       runAction(
         {
           action: "trigger_scene",
@@ -340,12 +342,30 @@ export default function LiveDeskClient({
           },
         },
         `video-${clip.id}`
-      ),
+      );
+      // Auto-quitar la escena cuando termina el segmento (salvo loop), para que
+      // "Detener" no quede prendido y el overlay no lo reproduzca al refrescar.
+      if (!clip.loop) {
+        const durMs =
+          ((clip.endSec ?? 0) - (clip.startSec ?? 0)) * 1000;
+        if (durMs > 0) {
+          videoStopTimer.current = window.setTimeout(() => {
+            runAction({ action: "remove_scene", id: "video" }, "video-autostop");
+          }, durMs + 500);
+        }
+      }
+    },
     [runAction]
   );
-  const stopVideo = useCallback(
-    () => runAction({ action: "remove_scene", id: "video" }, "video-stop"),
-    [runAction]
+  const stopVideo = useCallback(() => {
+    if (videoStopTimer.current) window.clearTimeout(videoStopTimer.current);
+    runAction({ action: "remove_scene", id: "video" }, "video-stop");
+  }, [runAction]);
+  useEffect(
+    () => () => {
+      if (videoStopTimer.current) window.clearTimeout(videoStopTimer.current);
+    },
+    []
   );
 
   const resetVideoEditor = useCallback(() => {

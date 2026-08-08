@@ -20,7 +20,7 @@ export interface Env {
 }
 
 const DEFAULT_CACHE_TTL = 31536000; // 1 year
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif', 'mp4', 'webm'];
 const KEYCDN_FALLBACK = 'https://oharatcg-21eab.kxcdn.com';
 
 export default {
@@ -226,6 +226,8 @@ function getContentType(extension: string): string {
     'avif': 'image/avif',
     'gif': 'image/gif',
     'svg': 'image/svg+xml',
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
   };
 
   return contentTypes[extension] || 'application/octet-stream';

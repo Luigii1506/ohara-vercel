@@ -123,6 +123,8 @@ export default function LiveDeskClient({
   const [vLoop, setVLoop] = useState(false);
   const [vMuted, setVMuted] = useState(false);
   const [vFit, setVFit] = useState<"cover" | "contain">("cover");
+  const [vUploading, setVUploading] = useState(false);
+  const [vUploadError, setVUploadError] = useState<string | null>(null);
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -386,6 +388,42 @@ export default function LiveDeskClient({
     [runAction]
   );
 
+  const uploadVideoFile = useCallback(
+    async (file: File) => {
+      setVUploadError(null);
+      setVUploading(true);
+      try {
+        const contentType = file.type === "video/webm" ? "video/webm" : "video/mp4";
+        const res = await fetch("/api/admin/live-overlay/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, contentType }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "No se pudo firmar la subida");
+        const put = await fetch(data.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": data.contentType },
+          body: file,
+        });
+        if (!put.ok) {
+          throw new Error(
+            "Falló la subida a R2. Revisa el CORS del bucket (PUT desde oharatcg.com)."
+          );
+        }
+        setVUrl(data.publicUrl);
+        if (!vLabel.trim()) {
+          setVLabel(file.name.replace(/\.[^.]+$/, "").slice(0, 40));
+        }
+      } catch (e) {
+        setVUploadError((e as Error).message);
+      } finally {
+        setVUploading(false);
+      }
+    },
+    [vLabel]
+  );
+
   const triggerSound = useCallback(
     (sfx: string) =>
       // El sonido sale SOLO por el overlay (lo que capta OBS). El dispositivo de
@@ -547,12 +585,36 @@ export default function LiveDeskClient({
         {/* Editor / trimmer */}
         {showVideoEditor ? (
           <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-            <input
-              value={vUrl}
-              onChange={(e) => setVUrl(e.target.value)}
-              placeholder="URL del video (mp4/webm en R2)"
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
-            />
+            <div className="flex gap-2">
+              <input
+                value={vUrl}
+                onChange={(e) => setVUrl(e.target.value)}
+                placeholder="URL del video (mp4/webm) o sube uno →"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+              />
+              <label
+                className={`inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 active:bg-slate-100 ${
+                  vUploading ? "pointer-events-none opacity-60" : ""
+                }`}
+              >
+                {vUploading ? "Subiendo…" : "⬆ Subir"}
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadVideoFile(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            {vUploadError ? (
+              <p className="text-[11px] font-semibold text-rose-600">
+                {vUploadError}
+              </p>
+            ) : null}
             {vUrl.trim() ? (
               <VideoTrimmer
                 url={vUrl.trim()}

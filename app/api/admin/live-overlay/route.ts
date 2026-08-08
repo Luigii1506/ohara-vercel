@@ -11,6 +11,8 @@ import {
   incrementLiveOverlayRarityCounter,
   removeLiveOverlayScene,
   resetLiveOverlayRarityCounters,
+  addLiveOverlayVideoClip,
+  removeLiveOverlayVideoClip,
   setLiveOverlayBracket,
   setLiveOverlayBracketActive,
   setLiveOverlayCard,
@@ -135,6 +137,26 @@ type OverlayAction =
   | {
       action: "clear_bracket";
       token: string;
+    }
+  | {
+      action: "add_video_clip";
+      token: string;
+      clip: {
+        id?: string;
+        label?: string;
+        emoji?: string;
+        url: string;
+        startSec?: number;
+        endSec?: number;
+        loop?: boolean;
+        muted?: boolean;
+        fit?: "cover" | "contain";
+      };
+    }
+  | {
+      action: "remove_video_clip";
+      token: string;
+      id: string;
     };
 
 const sanitizeSceneType = (value: unknown): LiveOverlaySceneType | null => {
@@ -423,6 +445,42 @@ export async function POST(request: NextRequest) {
     }
     case "clear_bracket": {
       nextState = await clearLiveOverlayBracket(overlayToken);
+      break;
+    }
+    case "add_video_clip": {
+      const c = body.clip;
+      const url = String(c?.url ?? "").trim();
+      if (!url) {
+        return NextResponse.json(
+          { error: "La URL del video es requerida" },
+          { status: 400 }
+        );
+      }
+      const id =
+        c.id && String(c.id).trim()
+          ? String(c.id).trim()
+          : `clip_${Date.now()}`;
+      const startSec = Number(c.startSec);
+      const endSec = Number(c.endSec);
+      nextState = await addLiveOverlayVideoClip(overlayToken, {
+        id,
+        label: c.label ? String(c.label).trim() : "Video",
+        emoji: c.emoji ? String(c.emoji) : "🎬",
+        url,
+        startSec: Number.isFinite(startSec) ? Math.max(0, startSec) : undefined,
+        endSec: Number.isFinite(endSec) ? Math.max(0, endSec) : undefined,
+        loop: c.loop === true,
+        muted: c.muted === true,
+        fit: c.fit === "contain" ? "contain" : "cover",
+      });
+      break;
+    }
+    case "remove_video_clip": {
+      const id = String(body.id ?? "").trim();
+      if (!id) {
+        return NextResponse.json({ error: "id requerido" }, { status: 400 });
+      }
+      nextState = await removeLiveOverlayVideoClip(overlayToken, id);
       break;
     }
     default:

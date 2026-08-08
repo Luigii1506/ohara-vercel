@@ -1030,6 +1030,7 @@ model LiveOverlayState {
   rarityCounters Json
   scenes         Json?
   bracket        Json?
+  videoClips     Json?
   updatedAt      DateTime @updatedAt
 }
 

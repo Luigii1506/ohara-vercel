@@ -9,6 +9,7 @@ import type {
   LiveOverlayScene,
   LiveOverlaySceneType,
   LiveOverlayState,
+  LiveOverlayVideoClip,
 } from "@/lib/live-overlay/types";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
@@ -35,8 +36,34 @@ const createDefaultState = (): LiveOverlayState => ({
   rarityCounters: createDefaultRarityCounters(),
   scenes: [],
   bracket: null,
+  videoClips: [],
   updatedAt: new Date(0).toISOString(),
 });
+
+/** Normaliza la biblioteca de clips de video. */
+const normalizeVideoClips = (raw: unknown): LiveOverlayVideoClip[] => {
+  if (!Array.isArray(raw)) return [];
+  const clips: LiveOverlayVideoClip[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const url = typeof r.url === "string" ? r.url : "";
+    const id = typeof r.id === "string" ? r.id : "";
+    if (!url || !id) continue;
+    clips.push({
+      id,
+      label: typeof r.label === "string" ? r.label : "Video",
+      emoji: typeof r.emoji === "string" ? r.emoji : "🎬",
+      url,
+      startSec: typeof r.startSec === "number" ? r.startSec : undefined,
+      endSec: typeof r.endSec === "number" ? r.endSec : undefined,
+      loop: r.loop === true,
+      muted: r.muted === true,
+      fit: r.fit === "contain" ? "contain" : "cover",
+    });
+  }
+  return clips;
+};
 
 /** Normaliza el bracket persistido (o null). */
 const normalizeBracket = (raw: unknown): LiveOverlayBracket | null => {
@@ -106,6 +133,7 @@ export const getLiveOverlayState = async (
     rarityCounters: normalizeCounters(row.rarityCounters),
     scenes: normalizeScenes((row as { scenes?: unknown }).scenes),
     bracket: normalizeBracket((row as { bracket?: unknown }).bracket),
+    videoClips: normalizeVideoClips((row as { videoClips?: unknown }).videoClips),
     updatedAt: row.updatedAt.toISOString(),
   };
 };
@@ -115,6 +143,7 @@ type PersistPayload = {
   rarityCounters: LiveOverlayRarityCounters;
   scenes: LiveOverlayScene[];
   bracket: LiveOverlayBracket | null;
+  videoClips: LiveOverlayVideoClip[];
 };
 
 const persist = async (
@@ -131,6 +160,7 @@ const persist = async (
     next.bracket === null
       ? Prisma.JsonNull
       : (next.bracket as unknown as Prisma.InputJsonValue);
+  const videoClipsJson = next.videoClips as unknown as Prisma.InputJsonValue;
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
@@ -140,12 +170,14 @@ const persist = async (
       rarityCounters: rarityJson,
       scenes: scenesJson,
       bracket: bracketJson,
+      videoClips: videoClipsJson,
     },
     update: {
       currentCard: currentCardJson,
       rarityCounters: rarityJson,
       scenes: scenesJson,
       bracket: bracketJson,
+      videoClips: videoClipsJson,
     },
   });
   return {
@@ -153,6 +185,9 @@ const persist = async (
     rarityCounters: normalizeCounters(saved.rarityCounters),
     scenes: normalizeScenes((saved as { scenes?: unknown }).scenes),
     bracket: normalizeBracket((saved as { bracket?: unknown }).bracket),
+    videoClips: normalizeVideoClips(
+      (saved as { videoClips?: unknown }).videoClips
+    ),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
@@ -171,6 +206,7 @@ const updateState = async (
     rarityCounters: patch.rarityCounters ?? current.rarityCounters,
     scenes: patch.scenes ?? current.scenes,
     bracket: patch.bracket !== undefined ? patch.bracket : current.bracket,
+    videoClips: patch.videoClips ?? current.videoClips,
   });
 };
 
@@ -418,6 +454,24 @@ export const setLiveOverlayBracketActive = (token: string, active: boolean) =>
 /** Quita el bracket por completo. */
 export const clearLiveOverlayBracket = (token: string) =>
   updateState(token, () => ({ bracket: null }));
+
+/** Agrega o reemplaza (por id) un clip de video en la biblioteca. */
+export const addLiveOverlayVideoClip = (
+  token: string,
+  clip: LiveOverlayVideoClip
+) =>
+  updateState(token, (state) => ({
+    videoClips: [
+      ...state.videoClips.filter((c) => c.id !== clip.id),
+      clip,
+    ],
+  }));
+
+/** Quita un clip de la biblioteca. */
+export const removeLiveOverlayVideoClip = (token: string, id: string) =>
+  updateState(token, (state) => ({
+    videoClips: state.videoClips.filter((c) => c.id !== id),
+  }));
 
 /** Suma/resta al valor actual de la barra de meta (clamp ≥ 0). */
 export const adjustLiveOverlayGoal = (token: string, amount: number) =>

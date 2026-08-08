@@ -82,10 +82,26 @@ export const createEmptyBracket = (): LiveOverlayBracket => ({
   champion: "",
 });
 
+// ===========================================================================
+// Biblioteca de clips de video (se gestiona desde el Live Desk, se guarda en DB)
+// ===========================================================================
+export type LiveOverlayVideoClip = {
+  id: string;
+  label: string;
+  emoji: string;
+  url: string; // video hospedado (R2 u otra URL directa .mp4/.webm)
+  startSec?: number; // recorte de reproducción
+  endSec?: number;
+  loop?: boolean;
+  muted?: boolean;
+  fit?: "cover" | "contain";
+};
+
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;
   rarityCounters: LiveOverlayRarityCounters;
   scenes: LiveOverlayScene[];
   bracket: LiveOverlayBracket | null;
+  videoClips: LiveOverlayVideoClip[];
   updatedAt: string;
 };

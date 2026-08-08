@@ -9,16 +9,14 @@ import {
   type LiveOverlayCard,
   type LiveOverlayRarityCounterKey,
   type LiveOverlayState,
+  type LiveOverlayVideoClip,
 } from "@/lib/live-overlay/types";
 import { useRegion } from "@/components/region/RegionProvider";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
 import { LIVE_OVERLAY_COMBOS } from "@/lib/live-overlay/combos";
-import {
-  LIVE_OVERLAY_VIDEO_CLIPS,
-  type LiveOverlayVideoClip,
-} from "@/lib/live-overlay/videos";
+import VideoTrimmer from "@/components/live-overlay/VideoTrimmer";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -41,6 +39,7 @@ const EMPTY_STATE: LiveOverlayState = {
   ),
   scenes: [],
   bracket: null,
+  videoClips: [],
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -113,6 +112,16 @@ export default function LiveDeskClient({
     createEmptyBracket()
   );
   const bracketInit = useRef(false);
+  // Editor de clips de video.
+  const [showVideoEditor, setShowVideoEditor] = useState(false);
+  const [vUrl, setVUrl] = useState("");
+  const [vLabel, setVLabel] = useState("");
+  const [vEmoji, setVEmoji] = useState("🎬");
+  const [vStart, setVStart] = useState(0);
+  const [vEnd, setVEnd] = useState(0);
+  const [vLoop, setVLoop] = useState(false);
+  const [vMuted, setVMuted] = useState(false);
+  const [vFit, setVFit] = useState<"cover" | "contain">("cover");
 
   const overlayUrl = useMemo(() => {
     if (!overlayToken || !origin) return null;
@@ -331,6 +340,51 @@ export default function LiveDeskClient({
     [runAction]
   );
 
+  const resetVideoEditor = useCallback(() => {
+    setShowVideoEditor(false);
+    setVUrl("");
+    setVLabel("");
+    setVEmoji("🎬");
+    setVStart(0);
+    setVEnd(0);
+    setVLoop(false);
+    setVMuted(false);
+    setVFit("cover");
+  }, []);
+
+  const saveVideoClip = useCallback(() => {
+    const url = vUrl.trim();
+    if (!url) return;
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `clip_${Date.now()}`;
+    runAction(
+      {
+        action: "add_video_clip",
+        clip: {
+          id,
+          label: vLabel.trim() || "Video",
+          emoji: vEmoji.trim() || "🎬",
+          url,
+          startSec: vStart,
+          endSec: vEnd,
+          loop: vLoop,
+          muted: vMuted,
+          fit: vFit,
+        },
+      },
+      "video-save"
+    );
+    resetVideoEditor();
+  }, [vUrl, vLabel, vEmoji, vStart, vEnd, vLoop, vMuted, vFit, runAction, resetVideoEditor]);
+
+  const removeVideoClip = useCallback(
+    (id: string) =>
+      runAction({ action: "remove_video_clip", id }, `video-del-${id}`),
+    [runAction]
+  );
+
   const triggerSound = useCallback(
     (sfx: string) =>
       // El sonido sale SOLO por el overlay (lo que capta OBS). El dispositivo de
@@ -436,37 +490,139 @@ export default function LiveDeskClient({
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Videos
           </span>
-          {videoActive ? (
+          <div className="flex items-center gap-2">
+            {videoActive ? (
+              <button
+                type="button"
+                onClick={stopVideo}
+                className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700 active:bg-rose-200"
+              >
+                ■ Detener
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={stopVideo}
-              className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700 active:bg-rose-200"
+              onClick={() =>
+                showVideoEditor ? resetVideoEditor() : setShowVideoEditor(true)
+              }
+              className="rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white active:bg-slate-800"
             >
-              ■ Detener
+              {showVideoEditor ? "Cancelar" : "➕ Agregar"}
             </button>
-          ) : null}
+          </div>
         </div>
-        {LIVE_OVERLAY_VIDEO_CLIPS.length ? (
+
+        {/* Clips guardados */}
+        {state.videoClips.length ? (
           <div className="grid grid-cols-2 gap-2">
-            {LIVE_OVERLAY_VIDEO_CLIPS.map((clip) => (
-              <button
-                key={clip.id}
-                type="button"
-                onClick={() => triggerVideo(clip)}
-                disabled={actionLoading === `video-${clip.id}`}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-bold text-slate-800 active:scale-95 active:bg-slate-100 disabled:opacity-50"
-              >
-                <span>{clip.emoji}</span> {clip.label}
-              </button>
+            {state.videoClips.map((clip) => (
+              <div key={clip.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => triggerVideo(clip)}
+                  disabled={actionLoading === `video-${clip.id}`}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-bold text-slate-800 active:scale-95 active:bg-slate-100 disabled:opacity-50"
+                >
+                  <span>{clip.emoji}</span>
+                  <span className="truncate">{clip.label}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeVideoClip(clip.id)}
+                  aria-label="Eliminar clip"
+                  className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-xs font-black text-white shadow active:bg-rose-600"
+                >
+                  ×
+                </button>
+              </div>
             ))}
           </div>
-        ) : (
+        ) : !showVideoEditor ? (
           <p className="text-[11px] leading-snug text-slate-400">
-            Aún no hay clips. Agrega tus videos (URL de R2) en{" "}
-            <code>lib/live-overlay/videos.ts</code> y aparecerán aquí como
-            botones.
+            Sin clips. Toca “➕ Agregar” para subir una URL de video y recortarlo.
           </p>
-        )}
+        ) : null}
+
+        {/* Editor / trimmer */}
+        {showVideoEditor ? (
+          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+            <input
+              value={vUrl}
+              onChange={(e) => setVUrl(e.target.value)}
+              placeholder="URL del video (mp4/webm en R2)"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            />
+            {vUrl.trim() ? (
+              <VideoTrimmer
+                url={vUrl.trim()}
+                start={vStart}
+                end={vEnd}
+                onChange={(s, e) => {
+                  setVStart(s);
+                  setVEnd(e);
+                }}
+              />
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                Pega la URL de un video para recortarlo.
+              </p>
+            )}
+            <div className="grid grid-cols-[1fr_3.5rem] gap-2">
+              <input
+                value={vLabel}
+                onChange={(e) => setVLabel(e.target.value)}
+                placeholder="Nombre del botón"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+              />
+              <input
+                value={vEmoji}
+                onChange={(e) => setVEmoji(e.target.value)}
+                placeholder="🎬"
+                maxLength={4}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white text-center text-lg outline-none focus:border-amber-400"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={vLoop}
+                  onChange={(e) => setVLoop(e.target.checked)}
+                />
+                Loop
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={vMuted}
+                  onChange={(e) => setVMuted(e.target.checked)}
+                />
+                Silencio
+              </label>
+              <label className="flex items-center gap-1.5">
+                Ajuste
+                <select
+                  value={vFit}
+                  onChange={(e) =>
+                    setVFit(e.target.value === "contain" ? "contain" : "cover")
+                  }
+                  className="rounded border border-slate-200 bg-white px-1 py-0.5"
+                >
+                  <option value="cover">Llenar</option>
+                  <option value="contain">Contener</option>
+                </select>
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={saveVideoClip}
+              disabled={!vUrl.trim() || actionLoading === "video-save"}
+              className="h-11 w-full rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+            >
+              Guardar clip
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* Sonidos SFX */}

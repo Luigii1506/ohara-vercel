@@ -15,6 +15,10 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
 import { LIVE_OVERLAY_COMBOS } from "@/lib/live-overlay/combos";
+import {
+  LIVE_OVERLAY_VIDEO_CLIPS,
+  type LiveOverlayVideoClip,
+} from "@/lib/live-overlay/videos";
 import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
 
 type LiveDeskClientProps = {
@@ -301,6 +305,32 @@ export default function LiveDeskClient({
     [runAction]
   );
 
+  const videoActive = state.scenes.some((s) => s.type === "video");
+  const triggerVideo = useCallback(
+    (clip: LiveOverlayVideoClip) =>
+      runAction(
+        {
+          action: "trigger_scene",
+          type: "video",
+          props: {
+            clipId: clip.id,
+            url: clip.url,
+            loop: clip.loop === true,
+            muted: clip.muted === true,
+            fit: clip.fit ?? "cover",
+            ...(clip.startSec != null ? { startSec: clip.startSec } : {}),
+            ...(clip.endSec != null ? { endSec: clip.endSec } : {}),
+          },
+        },
+        `video-${clip.id}`
+      ),
+    [runAction]
+  );
+  const stopVideo = useCallback(
+    () => runAction({ action: "remove_scene", id: "video" }, "video-stop"),
+    [runAction]
+  );
+
   const triggerSound = useCallback(
     (sfx: string) =>
       // El sonido sale SOLO por el overlay (lo que capta OBS). El dispositivo de
@@ -399,6 +429,45 @@ export default function LiveDeskClient({
       >
         🎊 Confeti
       </button>
+
+      {/* Videos */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Videos
+          </span>
+          {videoActive ? (
+            <button
+              type="button"
+              onClick={stopVideo}
+              className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700 active:bg-rose-200"
+            >
+              ■ Detener
+            </button>
+          ) : null}
+        </div>
+        {LIVE_OVERLAY_VIDEO_CLIPS.length ? (
+          <div className="grid grid-cols-2 gap-2">
+            {LIVE_OVERLAY_VIDEO_CLIPS.map((clip) => (
+              <button
+                key={clip.id}
+                type="button"
+                onClick={() => triggerVideo(clip)}
+                disabled={actionLoading === `video-${clip.id}`}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-bold text-slate-800 active:scale-95 active:bg-slate-100 disabled:opacity-50"
+              >
+                <span>{clip.emoji}</span> {clip.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] leading-snug text-slate-400">
+            Aún no hay clips. Agrega tus videos (URL de R2) en{" "}
+            <code>lib/live-overlay/videos.ts</code> y aparecerán aquí como
+            botones.
+          </p>
+        )}
+      </div>
 
       {/* Sonidos SFX */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3">

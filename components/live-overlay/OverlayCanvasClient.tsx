@@ -55,6 +55,18 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   } | null>(null);
   const lastComboTrigger = useRef<string | null | undefined>(undefined);
   const comboTimer = useRef<number | undefined>(undefined);
+  // Escena de video (clip de R2). Se reproduce al dispararse y se oculta al
+  // terminar (o al detenerlo).
+  const [videoView, setVideoView] = useState<{
+    key: string;
+    url: string;
+    loop: boolean;
+    muted: boolean;
+    fit: "cover" | "contain";
+    startSec?: number;
+    endSec?: number;
+  } | null>(null);
+  const lastVideoTrigger = useRef<string | null | undefined>(undefined);
 
   const lastUpdatedAt = useRef<string | null>(null);
 
@@ -112,6 +124,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   );
   const stamp = state.scenes.find((s: LiveOverlayScene) => s.type === "stamp");
   const combo = state.scenes.find((s: LiveOverlayScene) => s.type === "combo");
+  const video = state.scenes.find((s: LiveOverlayScene) => s.type === "video");
 
   // Dispara el confeti cuando triggeredAt cambia (dedupe: no se repite en cada
   // poll). Además, por FRESCURA: solo se reproduce si el disparo es reciente,
@@ -199,6 +212,33 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   }, [combo, combo?.triggeredAt]);
 
   useEffect(() => () => window.clearTimeout(comboTimer.current), []);
+
+  // Escena de video: reproduce el clip cuando su triggeredAt cambia.
+  useEffect(() => {
+    if (!video) {
+      lastVideoTrigger.current = null;
+      setVideoView(null);
+      return;
+    }
+    const trigger = video.triggeredAt ?? null;
+    const isNew = trigger && trigger !== lastVideoTrigger.current;
+    lastVideoTrigger.current = trigger;
+    if (!isNew) return;
+    const ageMs = Date.now() - new Date(trigger).getTime();
+    if (ageMs > 5 * 60 * 1000) return; // no relanzar un disparo muy viejo
+    const p = (video.props || {}) as Record<string, unknown>;
+    const url = String(p.url ?? "");
+    if (!url) return;
+    setVideoView({
+      key: trigger,
+      url,
+      loop: p.loop === true,
+      muted: p.muted === true,
+      fit: p.fit === "contain" ? "contain" : "cover",
+      startSec: typeof p.startSec === "number" ? p.startSec : undefined,
+      endSec: typeof p.endSec === "number" ? p.endSec : undefined,
+    });
+  }, [video, video?.triggeredAt]);
 
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
   useEffect(() => {
@@ -450,6 +490,34 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             }
           />
         ))}
+
+        {/* Escena de VIDEO (clip de R2). El letterbox (contain) queda en verde
+            chroma → OBS lo vuelve transparente. */}
+        {videoView && videoView.url ? (
+          <div className="absolute inset-0 z-[75]">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              key={videoView.key}
+              src={
+                videoView.startSec != null
+                  ? `${videoView.url}#t=${videoView.startSec}${
+                      videoView.endSec != null ? `,${videoView.endSec}` : ""
+                    }`
+                  : videoView.url
+              }
+              autoPlay
+              playsInline
+              muted={videoView.muted}
+              loop={videoView.loop}
+              className={`h-full w-full ${
+                videoView.fit === "contain" ? "object-contain" : "object-cover"
+              }`}
+              onEnded={() => {
+                if (!videoView.loop) setVideoView(null);
+              }}
+            />
+          </div>
+        ) : null}
 
         {/* Escena BRACKET a pantalla completa (opaca → sobrevive al chroma).
             Cubre todo cuando está activa. */}

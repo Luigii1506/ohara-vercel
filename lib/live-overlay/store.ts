@@ -52,9 +52,10 @@ const normalizeVideoClips = (raw: unknown): LiveOverlayVideoClip[] => {
     if (!url || !id) continue;
     clips.push({
       id,
-      label: typeof r.label === "string" ? r.label : "Video",
+      label: typeof r.label === "string" ? r.label : "Clip",
       emoji: typeof r.emoji === "string" ? r.emoji : "🎬",
       url,
+      kind: r.kind === "audio" ? "audio" : "video",
       startSec: typeof r.startSec === "number" ? r.startSec : undefined,
       endSec: typeof r.endSec === "number" ? r.endSec : undefined,
       loop: r.loop === true,

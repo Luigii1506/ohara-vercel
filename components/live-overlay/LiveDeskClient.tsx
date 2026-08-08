@@ -5,6 +5,7 @@ import type { CardWithCollectionData } from "@/types";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   createEmptyBracket,
+  inferClipKind,
   normalizeLiveOverlayState,
   type LiveOverlayBracket,
   type LiveOverlayCard,
@@ -330,6 +331,7 @@ export default function LiveDeskClient({
           props: {
             clipId: clip.id,
             url: clip.url,
+            kind: clip.kind ?? inferClipKind(clip.url),
             loop: clip.loop === true,
             muted: clip.muted === true,
             fit: clip.fit ?? "cover",
@@ -365,14 +367,16 @@ export default function LiveDeskClient({
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `clip_${Date.now()}`;
+    const kind = inferClipKind(url);
     runAction(
       {
         action: "add_video_clip",
         clip: {
           id,
-          label: vLabel.trim() || "Video",
-          emoji: vEmoji.trim() || "🎬",
+          label: vLabel.trim() || (kind === "audio" ? "Sonido" : "Video"),
+          emoji: vEmoji.trim() || (kind === "audio" ? "🔊" : "🎬"),
           url,
+          kind,
           startSec: vStart,
           endSec: vEnd,
           loop: vLoop,
@@ -396,7 +400,7 @@ export default function LiveDeskClient({
       setVUploadError(null);
       setVUploading(true);
       try {
-        const contentType = file.type === "video/webm" ? "video/webm" : "video/mp4";
+        const contentType = file.type || "application/octet-stream";
         const res = await fetch("/api/admin/live-overlay/upload-url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -535,7 +539,7 @@ export default function LiveDeskClient({
       <div className="rounded-2xl border border-slate-200 bg-white p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Videos
+            Videos y sonidos
           </span>
           <div className="flex items-center gap-2">
             {videoActive ? (
@@ -586,7 +590,8 @@ export default function LiveDeskClient({
           </div>
         ) : !showVideoEditor ? (
           <p className="text-[11px] leading-snug text-slate-400">
-            Sin clips. Toca “➕ Agregar” para subir una URL de video y recortarlo.
+            Sin clips. Toca “➕ Agregar” para subir un video o audio (mp3) y
+            recortarlo.
           </p>
         ) : null}
 
@@ -597,7 +602,7 @@ export default function LiveDeskClient({
               <input
                 value={vUrl}
                 onChange={(e) => setVUrl(e.target.value)}
-                placeholder="URL del video (mp4/webm) o sube uno →"
+                placeholder="URL directa (.mp4/.webm/.mp3) o sube uno →"
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
               />
               <label
@@ -608,7 +613,7 @@ export default function LiveDeskClient({
                 {vUploading ? "Subiendo…" : "⬆ Subir"}
                 <input
                   type="file"
-                  accept="video/mp4,video/webm"
+                  accept="video/mp4,video/webm,audio/mpeg,audio/mp4,audio/ogg,audio/wav"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -625,8 +630,8 @@ export default function LiveDeskClient({
             ) : null}
             {!vUrl.trim() ? (
               <p className="text-[11px] text-slate-400">
-                Sube un video con ⬆ o pega una URL directa .mp4/.webm para
-                recortarlo.
+                Sube un video o audio (mp3) con ⬆, o pega una URL directa
+                (.mp4/.webm/.mp3) para recortarlo.
               </p>
             ) : /youtube\.com|youtu\.be/i.test(vUrl) ? (
               <p className="rounded-lg bg-rose-50 p-2 text-[11px] font-semibold leading-snug text-rose-700">

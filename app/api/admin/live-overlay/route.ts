@@ -22,7 +22,7 @@ import {
   triggerLiveOverlayStamp,
 } from "@/lib/live-overlay/store";
 import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
-import { createEmptyBracket } from "@/lib/live-overlay/types";
+import { createEmptyBracket, inferClipKind } from "@/lib/live-overlay/types";
 import { isLiveOverlayTokenValid } from "@/lib/live-overlay/token";
 import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 import {
@@ -146,6 +146,7 @@ type OverlayAction =
         label?: string;
         emoji?: string;
         url: string;
+        kind?: "audio" | "video";
         startSec?: number;
         endSec?: number;
         loop?: boolean;
@@ -462,11 +463,16 @@ export async function POST(request: NextRequest) {
           : `clip_${Date.now()}`;
       const startSec = Number(c.startSec);
       const endSec = Number(c.endSec);
+      const kind =
+        c.kind === "audio" || c.kind === "video"
+          ? c.kind
+          : inferClipKind(url);
       nextState = await addLiveOverlayVideoClip(overlayToken, {
         id,
-        label: c.label ? String(c.label).trim() : "Video",
-        emoji: c.emoji ? String(c.emoji) : "🎬",
+        label: c.label ? String(c.label).trim() : "Clip",
+        emoji: c.emoji ? String(c.emoji) : kind === "audio" ? "🔊" : "🎬",
         url,
+        kind,
         startSec: Number.isFinite(startSec) ? Math.max(0, startSec) : undefined,
         endSec: Number.isFinite(endSec) ? Math.max(0, endSec) : undefined,
         loop: c.loop === true,

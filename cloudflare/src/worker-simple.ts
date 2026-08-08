@@ -20,7 +20,7 @@ export interface Env {
 }
 
 const DEFAULT_CACHE_TTL = 31536000; // 1 year
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif', 'mp4', 'webm'];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif', 'mp4', 'webm', 'mp3', 'm4a', 'ogg', 'wav'];
 const KEYCDN_FALLBACK = 'https://oharatcg-21eab.kxcdn.com';
 
 export default {
@@ -58,11 +58,13 @@ export default {
       const cacheKey = new Request(request.url, request);
       const cache = caches.default;
 
-      // Video con Range request → responder 206 (seek + duración en <video>).
-      const isVideo = extension === 'mp4' || extension === 'webm';
+      // Media (video/audio) con Range request → 206 (seek + duración correctos).
+      const isMedia = ['mp4', 'webm', 'mp3', 'm4a', 'ogg', 'wav'].includes(
+        extension || ''
+      );
       const rangeHeader = request.headers.get('Range');
-      if (isVideo && rangeHeader) {
-        return serveVideoRange(env, imagePath, extension, rangeHeader);
+      if (isMedia && rangeHeader) {
+        return serveVideoRange(env, imagePath, extension || '', rangeHeader);
       }
 
       // Check Cloudflare Edge Cache
@@ -287,6 +289,10 @@ function getContentType(extension: string): string {
     'svg': 'image/svg+xml',
     'mp4': 'video/mp4',
     'webm': 'video/webm',
+    'mp3': 'audio/mpeg',
+    'm4a': 'audio/mp4',
+    'ogg': 'audio/ogg',
+    'wav': 'audio/wav',
   };
 
   return contentTypes[extension] || 'application/octet-stream';

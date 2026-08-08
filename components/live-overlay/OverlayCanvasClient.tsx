@@ -62,6 +62,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const [videoView, setVideoView] = useState<{
     key: string;
     url: string;
+    kind: "audio" | "video";
     loop: boolean;
     muted: boolean;
     fit: "cover" | "contain";
@@ -235,6 +236,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     setVideoView({
       key: trigger,
       url,
+      kind: p.kind === "audio" ? "audio" : "video",
       loop: p.loop === true,
       muted: p.muted === true,
       fit: p.fit === "contain" ? "contain" : "cover",
@@ -497,9 +499,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
         {/* Escena de VIDEO (clip de R2). El letterbox (contain) queda en verde
             chroma → OBS lo vuelve transparente. */}
         {videoView && videoView.url ? (
-          <div className="absolute inset-0 z-[75]">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <video
+          videoView.kind === "audio" ? (
+            // Audio: sin visual, solo reproduce el segmento.
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <audio
               key={videoView.key}
               src={
                 videoView.startSec != null
@@ -509,17 +512,38 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                   : videoView.url
               }
               autoPlay
-              playsInline
-              muted={videoView.muted}
               loop={videoView.loop}
-              className={`h-full w-full ${
-                videoView.fit === "contain" ? "object-contain" : "object-cover"
-              }`}
               onEnded={() => {
                 if (!videoView.loop) setVideoView(null);
               }}
             />
-          </div>
+          ) : (
+            <div className="absolute inset-0 z-[75]">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                key={videoView.key}
+                src={
+                  videoView.startSec != null
+                    ? `${videoView.url}#t=${videoView.startSec}${
+                        videoView.endSec != null ? `,${videoView.endSec}` : ""
+                      }`
+                    : videoView.url
+                }
+                autoPlay
+                playsInline
+                muted={videoView.muted}
+                loop={videoView.loop}
+                className={`h-full w-full ${
+                  videoView.fit === "contain"
+                    ? "object-contain"
+                    : "object-cover"
+                }`}
+                onEnded={() => {
+                  if (!videoView.loop) setVideoView(null);
+                }}
+              />
+            </div>
+          )
         ) : null}
 
         {/* Escena BRACKET a pantalla completa (opaca → sobrevive al chroma).

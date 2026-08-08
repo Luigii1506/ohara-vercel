@@ -89,13 +89,18 @@ export type LiveOverlayVideoClip = {
   id: string;
   label: string;
   emoji: string;
-  url: string; // video hospedado (R2 u otra URL directa .mp4/.webm)
+  url: string; // media hospedada en R2 (mp4/webm o mp3/m4a/ogg/wav)
+  kind?: "audio" | "video";
   startSec?: number; // recorte de reproducción
   endSec?: number;
   loop?: boolean;
   muted?: boolean;
   fit?: "cover" | "contain";
 };
+
+/** Infiere si una URL es audio por su extensión. */
+export const inferClipKind = (url: string): "audio" | "video" =>
+  /\.(mp3|m4a|ogg|wav|aac)(\?|#|$)/i.test(url) ? "audio" : "video";
 
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;

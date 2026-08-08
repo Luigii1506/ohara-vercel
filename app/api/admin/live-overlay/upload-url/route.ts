@@ -55,15 +55,26 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const contentType = String(body?.contentType ?? "video/mp4");
-  if (!/^video\/(mp4|webm)$/.test(contentType)) {
+  const EXT_BY_TYPE: Record<string, string> = {
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/mp4": "m4a",
+    "audio/ogg": "ogg",
+    "audio/wav": "wav",
+  };
+  const ext = EXT_BY_TYPE[contentType];
+  if (!ext) {
     return NextResponse.json(
-      { error: "Solo se permiten videos mp4 o webm" },
+      { error: "Formato no permitido (usa mp4/webm o mp3/m4a/ogg/wav)" },
       { status: 400 }
     );
   }
-  const ext = contentType.includes("webm") ? "webm" : "mp4";
-  const base = sanitize(String(body?.filename ?? "video"));
-  const key = `videos/${base}-${Date.now()}.${ext}`;
+  const kind = contentType.startsWith("audio/") ? "audio" : "video";
+  const folder = kind === "audio" ? "audio" : "videos";
+  const base = sanitize(String(body?.filename ?? "clip"));
+  const key = `${folder}/${base}-${Date.now()}.${ext}`;
 
   const command = new PutObjectCommand({
     Bucket: BUCKET,
@@ -74,5 +85,12 @@ export async function POST(request: NextRequest) {
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
   const publicUrl = `${PUBLIC_URL.replace(/\/$/, "")}/${key}`;
 
-  return NextResponse.json({ ok: true, uploadUrl, publicUrl, key, contentType });
+  return NextResponse.json({
+    ok: true,
+    uploadUrl,
+    publicUrl,
+    key,
+    contentType,
+    kind,
+  });
 }

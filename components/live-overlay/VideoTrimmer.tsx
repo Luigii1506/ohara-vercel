@@ -28,8 +28,9 @@ export default function VideoTrimmer({
   onChange,
   onDuration,
 }: Props) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLMediaElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const isAudio = /\.(mp3|m4a|ogg|wav|aac)(\?|#|$)/i.test(url);
   const dragging = useRef<null | "start" | "end">(null);
   const raf = useRef<number | undefined>(undefined);
   const [duration, setDuration] = useState(0);
@@ -155,20 +156,43 @@ export default function VideoTrimmer({
 
   return (
     <div className="space-y-2">
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={videoRef}
-        src={url}
-        onLoadedMetadata={onLoaded}
-        onError={() =>
-          setErr(
-            "No se pudo cargar el video. Verifica la URL y que el worker sirva mp4/webm con CORS."
-          )
-        }
-        preload="metadata"
-        playsInline
-        className="max-h-44 w-full rounded-lg bg-black object-contain"
-      />
+      {isAudio ? (
+        <div className="flex items-center gap-3 rounded-lg bg-slate-900 px-4 py-4 text-white">
+          <span className="text-3xl">🔊</span>
+          <span className="text-sm font-semibold">Audio</span>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio
+            ref={(el) => {
+              videoRef.current = el;
+            }}
+            src={url}
+            onLoadedMetadata={onLoaded}
+            onError={() =>
+              setErr(
+                "No se pudo cargar el audio. Verifica la URL y que el worker sirva mp3 con CORS."
+              )
+            }
+            preload="metadata"
+          />
+        </div>
+      ) : (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          ref={(el) => {
+            videoRef.current = el;
+          }}
+          src={url}
+          onLoadedMetadata={onLoaded}
+          onError={() =>
+            setErr(
+              "No se pudo cargar el video. Verifica la URL y que el worker sirva mp4/webm con CORS."
+            )
+          }
+          preload="metadata"
+          playsInline
+          className="max-h-44 w-full rounded-lg bg-black object-contain"
+        />
+      )}
       {err ? (
         <p className="text-[11px] font-semibold text-rose-600">{err}</p>
       ) : null}

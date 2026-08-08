@@ -98,6 +98,9 @@ export default function LiveDeskClient({
   const [mobileTab, setMobileTab] = useState<
     "counters" | "cards" | "effects" | "bracket"
   >("counters");
+  const [desktopTab, setDesktopTab] = useState<
+    "cards" | "counters" | "scenes" | "bracket"
+  >("cards");
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
   const [goalLabel, setGoalLabel] = useState("");
@@ -492,7 +495,7 @@ export default function LiveDeskClient({
   // Panel de escenas/efectos reutilizable (desktop sidebar + tab móvil + drawer
   // de la tablet).
   const scenesPanel = (
-    <div className="space-y-3">
+    <div className="space-y-3 xl:columns-2 xl:gap-4 xl:space-y-0 2xl:columns-3 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
       {/* Combos: un toque = varias escenas juntas */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3">
         <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1105,7 +1108,7 @@ export default function LiveDeskClient({
     <div className="min-h-screen w-full bg-slate-50">
       {/* Header compacto */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
+        <div className="flex w-full items-center gap-3 px-4 py-2.5 xl:px-6">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <span>Live Desk</span>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
@@ -1164,68 +1167,73 @@ export default function LiveDeskClient({
         </div>
       ) : null}
 
-      {/* ===================== DESKTOP (≥ xl) ===================== */}
-      <div className="mx-auto hidden max-w-7xl gap-4 px-3 py-4 xl:flex xl:px-6">
-        <main className="min-w-0 flex-1">
-          <div className="mb-4">{searchInput}</div>
-          {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
-        </main>
-
-        <aside className="w-[320px] shrink-0">
-          <div className="sticky top-16 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  En vivo
+      {/* ===================== DESKTOP (≥ xl) — tabs a todo el ancho ======== */}
+      <div className="hidden flex-col xl:flex">
+        {/* Carta en vivo (siempre visible) */}
+        <div className="flex items-center gap-3 bg-slate-900 px-6 py-2.5 text-white">
+          {liveCard ? (
+            <>
+              <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-500" />
+              <span className="truncate text-sm font-semibold">
+                {liveCard.code} · {liveCard.name}
+              </span>
+              {liveCard.setTitle ? (
+                <span className="truncate text-xs text-white/50">
+                  {liveCard.setTitle}
                 </span>
-                {liveCard ? (
-                  <button
-                    type="button"
-                    onClick={() => runAction({ action: "clear_card" }, "clear")}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Quitar
-                  </button>
-                ) : null}
-              </div>
-              {liveCard ? (
-                <div className="mt-3 flex gap-3">
-                  <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                    {liveCard.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={liveCard.imageUrl}
-                        alt={liveCard.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-amber-700">
-                      {liveCard.code}
-                    </div>
-                    <div className="text-sm font-bold leading-tight text-slate-900">
-                      {liveCard.name}
-                    </div>
-                    {liveCard.setTitle ? (
-                      <div className="mt-1 text-xs text-slate-500">
-                        {liveCard.setTitle}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-400">
-                  Toca una carta para mostrarla. Tócala de nuevo para quitarla.
-                </p>
-              )}
-            </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => runAction({ action: "clear_card" }, "clear")}
+                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-rose-600/90 px-3 py-1 text-sm font-bold"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Quitar
+              </button>
+            </>
+          ) : (
+            <span className="text-sm font-medium text-white/50">
+              Sin carta en vivo — busca una en “Cartas”.
+            </span>
+          )}
+        </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Contadores por rareza
-                </span>
+        {/* Tabs */}
+        <div className="sticky top-[49px] z-20 flex gap-1 border-b border-slate-200 bg-white/95 px-6 py-2 backdrop-blur">
+          {(
+            [
+              ["cards", "🃏 Cartas"],
+              ["counters", "🔢 Contadores"],
+              ["scenes", "🎬 Escenas y efectos"],
+              ["bracket", "🏆 Torneo"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDesktopTab(key)}
+              className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                desktopTab === key
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Contenido a todo el ancho */}
+        <div className="px-6 py-5">
+          {desktopTab === "cards" ? (
+            <>
+              <div className="mb-4 max-w-2xl">{searchInput}</div>
+              {results.length > 0 && !searchLoading
+                ? resultsGrid
+                : emptyOrLoading}
+            </>
+          ) : desktopTab === "counters" ? (
+            <div className="mx-auto max-w-4xl">
+              <div className="mb-3 flex justify-end">
                 <button
                   type="button"
                   onClick={() =>
@@ -1236,53 +1244,58 @@ export default function LiveDeskClient({
                   Reset all
                 </button>
               </div>
-              <div className="space-y-1.5">
-                {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
-                  <div
-                    key={rarity}
-                    className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5"
-                  >
-                    <span className="w-8 text-sm font-black text-slate-900">
-                      {rarity}
-                    </span>
-                    <span className="w-8 text-center text-lg font-black text-amber-700">
-                      {state.rarityCounters[rarity]}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        runAction(
-                          { action: "decrement_rarity_counter", rarity, amount: 1 },
-                          `minus-${rarity}`
-                        )
-                      }
-                      className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-900 hover:bg-slate-100"
+              <div className="grid grid-cols-3 gap-4">
+                {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => {
+                  const value = state.rarityCounters[rarity] ?? 0;
+                  return (
+                    <div
+                      key={rarity}
+                      className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
                     >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        runAction(
-                          { action: "increment_rarity_counter", rarity, amount: 1 },
-                          `plus-${rarity}`
-                        )
-                      }
-                      className="grid h-9 w-9 place-items-center rounded-lg bg-amber-400 text-slate-900 hover:bg-amber-300"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex flex-col items-center justify-center py-8">
+                        <span className="text-xl font-black uppercase tracking-wide text-slate-400">
+                          {rarity}
+                        </span>
+                        <span className="text-8xl font-black leading-none tabular-nums text-slate-900">
+                          {value}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-px bg-slate-200">
+                        <button
+                          type="button"
+                          disabled={value <= 0}
+                          onClick={() =>
+                            runAction(
+                              { action: "decrement_rarity_counter", rarity, amount: 1 },
+                              `dminus-${rarity}`
+                            )
+                          }
+                          className="flex h-16 items-center justify-center bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-25"
+                        >
+                          <Minus className="h-7 w-7" strokeWidth={2.5} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            runAction(
+                              { action: "increment_rarity_counter", rarity, amount: 1 },
+                              `dplus-${rarity}`
+                            )
+                          }
+                          className="flex h-16 items-center justify-center bg-amber-400 text-slate-900 hover:bg-amber-300"
+                        >
+                          <Plus className="h-8 w-8" strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Escenas y efectos
-                </span>
-                {state.scenes.length > 0 ? (
+          ) : desktopTab === "scenes" ? (
+            <div>
+              {state.scenes.length > 0 ? (
+                <div className="mb-3 flex justify-end">
                   <button
                     type="button"
                     onClick={() =>
@@ -1290,23 +1303,16 @@ export default function LiveDeskClient({
                     }
                     className="text-xs font-semibold text-slate-500 hover:underline"
                   >
-                    Limpiar
+                    Limpiar escenas
                   </button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
               {scenesPanel}
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  🏆 Torneo (Bracket)
-                </span>
-              </div>
-              {bracketPanel}
-            </div>
-          </div>
-        </aside>
+          ) : (
+            <div className="mx-auto max-w-3xl">{bracketPanel}</div>
+          )}
+        </div>
       </div>
 
       {/* ===================== TABLET / iPad (md → xl) — Stream Deck ========= */}

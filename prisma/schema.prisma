@@ -1024,6 +1024,33 @@ model CardPriceStat {
  * Estado del overlay de stream (Live Desk), persistido por token para que
  * funcione entre instancias serverless (el panel escribe, el overlay lee).
  */
+// Cola de revisión de cartas/alternas encontradas en sitios oficiales (Bandai).
+// Flujo tipo Limitless: escanear región → PENDING → Aceptar (sube) / Ignorar.
+model OfficialSyncItem {
+  id             Int                     @id @default(autoincrement())
+  region         String // EN, ASIA-EN, JP, FR
+  source         String // tag de fuente (= region)
+  cardId         String // id scrapeado, ej. "P-112_p1"
+  code           String // código base, ej. "P-112"
+  variant        String? // p1, p2… (null = base)
+  name           String?
+  setCode        String?
+  seriesLabel    String?
+  imageUrl       String // URL oficial de la imagen
+  isAlternate    Boolean                 @default(false)
+  exclusive      Boolean                 @default(false)
+  payload        Json? // carta parseada completa (para aplicar)
+  decisionStatus LimitlessDecisionStatus @default(PENDING)
+  appliedCardId  Int?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@unique([region, cardId])
+  @@index([region])
+  @@index([decisionStatus])
+  @@index([code])
+}
+
 model LiveOverlayState {
   token          String   @id
   currentCard    Json?

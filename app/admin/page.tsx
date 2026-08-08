@@ -168,6 +168,13 @@ export default function AdminDashboard() {
           description: "Reconcile Limitless set membership against your DB",
         },
         {
+          href: "/admin/official-sync",
+          label: "Official Sync",
+          icon: LinkIcon,
+          description:
+            "Escanea sitios oficiales (EN/Asia/JP/FR): revisa y sube alternas y exclusivas",
+        },
+        {
           href: "/admin/live-desk",
           label: "Live Desk",
           icon: Activity,

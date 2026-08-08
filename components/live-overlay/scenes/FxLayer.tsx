@@ -133,22 +133,25 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
       }
     }
 
-    // ---- BUBBLES (aros que suben; centro transparente) ----
+    // ---- BUBBLES (aros con centro transparente; aparecen por TODA la pantalla) ----
     type Bubble = {
-      x: number; y: number; vy: number; size: number;
-      wob: number; wobV: number; sway: number; color: string;
+      x: number; y: number; vx: number; vy: number; size: number;
+      wob: number; wobV: number; sway: number; born: number; color: string;
     };
     const bubbles: Bubble[] = [];
     if (variant === "bubbles") {
-      for (let i = 0; i < 32; i += 1) {
+      for (let i = 0; i < 42; i += 1) {
         bubbles.push({
-          x: rnd() * W,
-          y: H + 30 + rnd() * H * 0.4,
-          vy: -(0.7 + rnd() * 1.5),
+          // repartidas por todo el lienzo (y un poco fuera) → salen de todos lados
+          x: -40 + rnd() * (W + 80),
+          y: -40 + rnd() * (H + 80),
+          vx: (rnd() - 0.5) * 1,
+          vy: -(0.15 + rnd() * 0.9), // deriva suave hacia arriba
           size: 10 + rnd() * 30,
           wob: rnd() * Math.PI * 2,
           wobV: 0.015 + rnd() * 0.025,
-          sway: 8 + rnd() * 22,
+          sway: 6 + rnd() * 16,
+          born: rnd() * 900, // aparición escalonada
           color: BUBBLE_COLORS[Math.floor(rnd() * BUBBLE_COLORS.length)],
         });
       }
@@ -215,20 +218,25 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
         }
         ctx.restore();
       } else {
-        // bubbles
-        const fade = t < 0.85 ? 1 : Math.max(0, 1 - (t - 0.85) / 0.15);
+        // bubbles: aparecen por toda la pantalla, flotan y se desvanecen
+        const outFade = t < 0.82 ? 1 : Math.max(0, 1 - (t - 0.82) / 0.18);
         for (const b of bubbles) {
-          b.y += b.vy;
+          const local = elapsed - b.born;
+          if (local < 0) continue;
           b.wob += b.wobV;
+          b.x += b.vx;
+          b.y += b.vy;
           const x = b.x + Math.sin(b.wob) * b.sway;
-          const a = 0.55 * fade;
+          const fadeIn = Math.min(1, local / 350);
+          const a = 0.55 * fadeIn * outFade;
+          if (a <= 0.01) continue;
           ctx.lineWidth = Math.max(1.5, b.size * 0.07);
           ctx.strokeStyle = `${b.color}${a})`;
           ctx.beginPath();
           ctx.arc(x, b.y, b.size, 0, Math.PI * 2);
           ctx.stroke();
           // brillo (arco superior-izquierdo)
-          ctx.strokeStyle = `rgba(255,255,255,${0.75 * fade})`;
+          ctx.strokeStyle = `rgba(255,255,255,${0.7 * fadeIn * outFade})`;
           ctx.lineWidth = Math.max(1, b.size * 0.06);
           ctx.beginPath();
           ctx.arc(x, b.y, b.size * 0.72, Math.PI * 1.05, Math.PI * 1.5);

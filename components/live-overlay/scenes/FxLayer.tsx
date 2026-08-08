@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-export type FxVariant = "coins" | "fireworks" | "manga";
+export type FxVariant = "coins" | "fireworks" | "bubbles";
 
 type Props = {
   variant: FxVariant;
@@ -10,21 +10,52 @@ type Props = {
   onDone?: () => void;
 };
 
-// Paleta chroma-safe (sin verdes/teales).
 const FIREWORK_COLORS = ["#ff2d6f", "#f5b301", "#ffffff", "#ff7a1a", "#7db3ff", "#c99bff"];
+const BUBBLE_COLORS = ["rgba(180,220,255,", "rgba(255,255,255,", "rgba(255,190,225,", "rgba(200,235,255,"];
 const DEFAULT_DURATION: Record<FxVariant, number> = {
   coins: 2800,
   fireworks: 2800,
-  manga: 850,
+  bubbles: 3600,
 };
 
 const rnd = () => Math.random();
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
+/** Sprite de moneda con glow horneado (se dibuja 1 vez, luego drawImage → rápido). */
+const makeCoinSprite = (): HTMLCanvasElement | null => {
+  if (typeof document === "undefined") return null;
+  const s = document.createElement("canvas");
+  s.width = 80;
+  s.height = 80;
+  const c = s.getContext("2d");
+  if (!c) return null;
+  const glow = c.createRadialGradient(40, 40, 8, 40, 40, 40);
+  glow.addColorStop(0, "rgba(245,179,1,0.45)");
+  glow.addColorStop(1, "rgba(245,179,1,0)");
+  c.fillStyle = glow;
+  c.fillRect(0, 0, 80, 80);
+  const body = c.createRadialGradient(33, 33, 4, 40, 40, 22);
+  body.addColorStop(0, "#ffe9a8");
+  body.addColorStop(1, "#e0a41a");
+  c.beginPath();
+  c.arc(40, 40, 21, 0, Math.PI * 2);
+  c.fillStyle = body;
+  c.fill();
+  c.lineWidth = 2.5;
+  c.strokeStyle = "rgba(150,100,10,0.7)";
+  c.stroke();
+  c.beginPath();
+  c.arc(40, 40, 12, 0, Math.PI * 2);
+  c.strokeStyle = "rgba(255,240,180,0.9)";
+  c.lineWidth = 2;
+  c.stroke();
+  return s;
+};
+
 /**
- * Efectos one-shot en canvas puro (chroma-safe): monedas, fuegos artificiales y
- * líneas manga. Diseñados suaves y NO invasivos (glow suave, fades con easing,
- * pocas partículas, duración de un par de segundos).
+ * Efectos one-shot en canvas puro (chroma-safe): monedas (sprite, sin lag),
+ * fuegos artificiales (con glow) y burbujas (aros → centro transparente que se
+ * ve en el stream). Suaves, no invasivos, ~3s.
  */
 export default function FxLayer({ variant, durationMs, onDone }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -44,7 +75,7 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
 
     const duration = durationMs ?? DEFAULT_DURATION[variant];
 
-    // ---------------- COINS: lluvia dorada elegante ----------------
+    // ---- COINS ----
     type Coin = {
       x: number;
       y: number;
@@ -57,14 +88,15 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
       wobV: number;
     };
     const coins: Coin[] = [];
+    const coinSprite = variant === "coins" ? makeCoinSprite() : null;
     if (variant === "coins") {
-      for (let i = 0; i < 55; i += 1) {
+      for (let i = 0; i < 50; i += 1) {
         coins.push({
           x: rnd() * W,
           y: -40 - rnd() * H * 0.5,
           vx: (rnd() - 0.5) * 1,
-          vy: 2.4 + rnd() * 3,
-          size: 14 + rnd() * 12,
+          vy: 2.6 + rnd() * 3,
+          size: 15 + rnd() * 12,
           spin: rnd() * Math.PI * 2,
           spinV: (rnd() - 0.5) * 0.16,
           wob: rnd() * Math.PI * 2,
@@ -73,23 +105,16 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
       }
     }
 
-    // ---------------- FIREWORKS: estallidos con glow ----------------
+    // ---- FIREWORKS ----
     type Fp = {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      born: number;
-      life: number;
-      color: string;
-      size: number;
+      x: number; y: number; vx: number; vy: number;
+      born: number; life: number; color: string; size: number;
     };
     type Ring = { x: number; y: number; born: number; color: string };
     const fps: Fp[] = [];
     const rings: Ring[] = [];
     if (variant === "fireworks") {
-      const bursts = 3;
-      for (let b = 0; b < bursts; b += 1) {
+      for (let b = 0; b < 3; b += 1) {
         const cx = W * (0.28 + rnd() * 0.44);
         const cy = H * (0.2 + rnd() * 0.3);
         const born = b * 480 + rnd() * 120;
@@ -98,35 +123,33 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
         const n = 58;
         for (let k = 0; k < n; k += 1) {
           const a = (k / n) * Math.PI * 2 + rnd() * 0.08;
-          // dos anillos de velocidad para un estallido más lleno
           const sp = (k % 2 === 0 ? 2.6 : 4.2) + rnd() * 1.4;
           fps.push({
-            x: cx,
-            y: cy,
-            vx: Math.cos(a) * sp,
-            vy: Math.sin(a) * sp,
-            born,
-            life: 1100 + rnd() * 500,
-            color,
-            size: 2 + rnd() * 2.4,
+            x: cx, y: cy,
+            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+            born, life: 1100 + rnd() * 500, color, size: 2 + rnd() * 2.4,
           });
         }
       }
     }
 
-    // ---------------- MANGA: líneas de foco SOLO en los bordes ----------------
-    type Line = { angle: number; w: number; len: number };
-    const lines: Line[] = [];
-    const mcx = W / 2;
-    const mcy = H * 0.42;
-    const maxR = Math.hypot(W, H) / 2 + 40;
-    if (variant === "manga") {
-      const N = 60;
-      for (let i = 0; i < N; i += 1) {
-        lines.push({
-          angle: (i / N) * Math.PI * 2 + (rnd() - 0.5) * 0.05,
-          w: 2 + rnd() * 5,
-          len: 0.22 + rnd() * 0.16, // fracción del radio (banda exterior)
+    // ---- BUBBLES (aros que suben; centro transparente) ----
+    type Bubble = {
+      x: number; y: number; vy: number; size: number;
+      wob: number; wobV: number; sway: number; color: string;
+    };
+    const bubbles: Bubble[] = [];
+    if (variant === "bubbles") {
+      for (let i = 0; i < 32; i += 1) {
+        bubbles.push({
+          x: rnd() * W,
+          y: H + 30 + rnd() * H * 0.4,
+          vy: -(0.7 + rnd() * 1.5),
+          size: 10 + rnd() * 30,
+          wob: rnd() * Math.PI * 2,
+          wobV: 0.015 + rnd() * 0.025,
+          sway: 8 + rnd() * 22,
+          color: BUBBLE_COLORS[Math.floor(rnd() * BUBBLE_COLORS.length)],
         });
       }
     }
@@ -138,39 +161,26 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
       const elapsed = now - start;
       const t = elapsed / duration;
       ctx.clearRect(0, 0, W, H);
-      ctx.lineCap = "round";
 
       if (variant === "coins") {
         const fade = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3);
+        ctx.globalAlpha = fade;
         for (const c of coins) {
           c.vy += 0.05;
           c.wob += c.wobV;
           c.x += c.vx + Math.sin(c.wob) * 0.5;
           c.y += c.vy;
           c.spin += c.spinV;
+          if (!coinSprite) continue;
+          const draw = c.size * 2.4;
           ctx.save();
-          ctx.globalAlpha = fade;
           ctx.translate(c.x, c.y);
-          ctx.scale(Math.abs(Math.cos(c.spin)) * 0.85 + 0.15, 1);
-          ctx.shadowColor = "rgba(245,179,1,0.9)";
-          ctx.shadowBlur = 14;
-          ctx.beginPath();
-          ctx.arc(0, 0, c.size / 2, 0, Math.PI * 2);
-          ctx.fillStyle = "#f7c948";
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.lineWidth = 1.5;
-          ctx.strokeStyle = "rgba(150,100,10,0.6)";
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(0, 0, c.size / 3.6, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(255,238,170,0.9)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+          ctx.scale(Math.abs(Math.cos(c.spin)) * 0.9 + 0.1, 1);
+          ctx.drawImage(coinSprite, -draw / 2, -draw / 2, draw, draw);
           ctx.restore();
         }
+        ctx.globalAlpha = 1;
       } else if (variant === "fireworks") {
-        // anillo de destello inicial
         for (const r of rings) {
           const local = elapsed - r.born;
           if (local < 0 || local > 420) continue;
@@ -186,20 +196,16 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
           ctx.stroke();
           ctx.restore();
         }
-        // partículas con glow
         ctx.save();
         for (const p of fps) {
           if (elapsed < p.born) continue;
           const local = elapsed - p.born;
           if (local > p.life) continue;
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vy += 0.045;
-          p.vx *= 0.985;
-          p.vy *= 0.985;
+          p.x += p.vx; p.y += p.vy;
+          p.vy += 0.045; p.vx *= 0.985; p.vy *= 0.985;
           const lp = local / p.life;
           const flick = lp > 0.55 ? 0.6 + 0.4 * Math.sin(local * 0.05) : 1;
-          ctx.globalAlpha = Math.max(0, (1 - lp * lp)) * flick;
+          ctx.globalAlpha = Math.max(0, 1 - lp * lp) * flick;
           ctx.shadowColor = p.color;
           ctx.shadowBlur = 12;
           ctx.beginPath();
@@ -209,27 +215,25 @@ export default function FxLayer({ variant, durationMs, onDone }: Props) {
         }
         ctx.restore();
       } else {
-        // manga: banda de líneas en los bordes, centro limpio (no invasivo)
-        const appear = easeOut(Math.min(1, t / 0.25));
-        const fade = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
-        const alpha = appear * fade * 0.8;
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = "#ffffff";
-        ctx.shadowColor = "rgba(255,255,255,0.6)";
-        ctx.shadowBlur = 6;
-        for (const l of lines) {
-          const dx = Math.cos(l.angle);
-          const dy = Math.sin(l.angle);
-          const outer = maxR;
-          const inner = maxR * (1 - l.len * appear); // crece desde el borde hacia dentro
-          ctx.lineWidth = l.w;
+        // bubbles
+        const fade = t < 0.85 ? 1 : Math.max(0, 1 - (t - 0.85) / 0.15);
+        for (const b of bubbles) {
+          b.y += b.vy;
+          b.wob += b.wobV;
+          const x = b.x + Math.sin(b.wob) * b.sway;
+          const a = 0.55 * fade;
+          ctx.lineWidth = Math.max(1.5, b.size * 0.07);
+          ctx.strokeStyle = `${b.color}${a})`;
           ctx.beginPath();
-          ctx.moveTo(mcx + dx * inner, mcy + dy * inner);
-          ctx.lineTo(mcx + dx * outer, mcy + dy * outer);
+          ctx.arc(x, b.y, b.size, 0, Math.PI * 2);
+          ctx.stroke();
+          // brillo (arco superior-izquierdo)
+          ctx.strokeStyle = `rgba(255,255,255,${0.75 * fade})`;
+          ctx.lineWidth = Math.max(1, b.size * 0.06);
+          ctx.beginPath();
+          ctx.arc(x, b.y, b.size * 0.72, Math.PI * 1.05, Math.PI * 1.5);
           ctx.stroke();
         }
-        ctx.restore();
       }
 
       ctx.globalAlpha = 1;

@@ -53,6 +53,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   const [comboView, setComboView] = useState<{
     key: string;
     confetti: boolean;
+    emoji: string;
+    label: string;
     stampText: string;
     stampSubtitle: string;
   } | null>(null);
@@ -217,6 +219,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
     setComboView({
       key: trigger,
       confetti: !!props.confetti,
+      emoji: String(props.emoji ?? ""),
+      label: String(props.label ?? ""),
       stampText: String(props.stampText ?? ""),
       stampSubtitle: String(props.stampSubtitle ?? ""),
     });
@@ -344,6 +348,13 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             0%   { transform: translateX(-120%); }
             100% { transform: translateX(120%); }
           }
+          @keyframes overlay-glass {
+            0%   { opacity: 0; transform: scale(0.82) translateY(12px); filter: blur(6px); }
+            12%  { opacity: 1; transform: scale(1.03) translateY(0); filter: blur(0); }
+            20%  { transform: scale(1); }
+            80%  { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(1.03); }
+          }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
         <div className="absolute left-0 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-3">
@@ -379,21 +390,6 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
               />
             ) : null}
 
-            {/* Brillo holográfico (barrido de luz sobre la carta) */}
-            {shineKey && state.currentCard.imageUrl ? (
-              <div
-                key={shineKey}
-                className="pointer-events-none absolute left-1/2 top-0 h-[490px] w-[350px] -translate-x-1/2 overflow-hidden rounded-2xl"
-              >
-                <div
-                  className="absolute inset-0 [animation:overlay-shine_1.1s_ease-out]"
-                  style={{
-                    background:
-                      "linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.55) 46%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0.55) 54%, transparent 68%)",
-                  }}
-                />
-              </div>
-            ) : null}
             <div className="w-[290px] rounded-2xl bg-black/80 px-4 py-3.5 text-center text-white backdrop-blur">
               <div className="text-4xl font-black leading-none tracking-tight">
                 {state.currentCard.code}
@@ -526,18 +522,23 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             className="pointer-events-none absolute inset-0 z-[55]"
           >
             {comboView.confetti ? <ConfettiLayer durationMs={3000} /> : null}
-            {comboView.stampText ? (
-              <div className="pointer-events-none absolute inset-0 z-[55] flex flex-col items-center justify-center [animation:overlay-stamp-in_0.4s_cubic-bezier(0.34,1.56,0.64,1)]">
-                <div className="-rotate-6 rounded-3xl border-[6px] border-white bg-[#ff2d6f] px-10 py-5 shadow-[0_16px_60px_rgba(0,0,0,0.6)]">
-                  <span className="text-7xl font-black uppercase italic tracking-tight text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.35)]">
-                    {comboView.stampText}
+            {comboView.emoji || comboView.stampText || comboView.label ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex min-w-[300px] flex-col items-center gap-3 rounded-[2rem] border border-white/15 bg-[rgba(16,12,30,0.8)] px-16 py-10 text-center shadow-[0_24px_90px_rgba(0,0,0,0.55),0_0_60px_rgba(255,45,111,0.25)] backdrop-blur-xl [animation:overlay-glass_3s_cubic-bezier(0.34,1.4,0.5,1)_forwards]">
+                  {comboView.emoji ? (
+                    <span className="text-8xl leading-none drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]">
+                      {comboView.emoji}
+                    </span>
+                  ) : null}
+                  <span className="text-6xl font-black uppercase tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
+                    {comboView.stampText || comboView.label}
                   </span>
+                  {comboView.stampSubtitle ? (
+                    <span className="text-2xl font-bold uppercase tracking-[0.2em] text-white/60">
+                      {comboView.stampSubtitle}
+                    </span>
+                  ) : null}
                 </div>
-                {comboView.stampSubtitle ? (
-                  <span className="mt-3 -rotate-6 text-3xl font-black uppercase text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
-                    {comboView.stampSubtitle}
-                  </span>
-                ) : null}
               </div>
             ) : null}
           </div>
@@ -555,7 +556,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           />
         ))}
 
-        {/* Efectos fx (monedas / fuegos / manga), apilables */}
+        {/* Efectos fx (monedas / fuegos / burbujas), apilables */}
         {fxBursts.map((b) => (
           <FxLayer
             key={b.key}
@@ -565,6 +566,22 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             }
           />
         ))}
+
+        {/* Brillo: barrido de luz diagonal a pantalla completa (siempre visible) */}
+        {shineKey ? (
+          <div
+            key={shineKey}
+            className="pointer-events-none absolute inset-0 z-[62] overflow-hidden"
+          >
+            <div
+              className="absolute inset-y-0 -left-1/3 -right-1/3 [animation:overlay-shine_1.1s_ease-out_forwards]"
+              style={{
+                background:
+                  "linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.45) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.45) 52%, transparent 58%)",
+              }}
+            />
+          </div>
+        ) : null}
 
         {/* Escena de VIDEO (clip de R2). El letterbox (contain) queda en verde
             chroma → OBS lo vuelve transparente. */}

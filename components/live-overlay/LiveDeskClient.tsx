@@ -316,7 +316,7 @@ export default function LiveDeskClient({
   );
 
   const triggerFx = useCallback(
-    (variant: "coins" | "fireworks" | "manga") =>
+    (variant: "coins" | "fireworks" | "bubbles") =>
       runAction(
         { action: "trigger_scene", type: "fx", props: { variant } },
         `fx-${variant}`
@@ -568,7 +568,7 @@ export default function LiveDeskClient({
             { key: "confetti", emoji: "🎊", label: "Confeti", onClick: triggerConfetti },
             { key: "coins", emoji: "🪙", label: "Monedas", onClick: () => triggerFx("coins") },
             { key: "fireworks", emoji: "🎆", label: "Fuegos", onClick: () => triggerFx("fireworks") },
-            { key: "manga", emoji: "💥", label: "Manga", onClick: () => triggerFx("manga") },
+            { key: "bubbles", emoji: "🫧", label: "Burbujas", onClick: () => triggerFx("bubbles") },
             { key: "shine", emoji: "✨", label: "Brillo", onClick: triggerShine },
           ].map((fx) => (
             <button

@@ -420,6 +420,8 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
           comboId: combo.id,
           confetti: !!combo.confetti,
           sfx: combo.sfx ?? "",
+          emoji: combo.emoji ?? "",
+          label: combo.label ?? "",
           stampText: combo.stamp?.text ?? "",
           stampSubtitle: combo.stamp?.subtitle ?? "",
         },

@@ -291,34 +291,55 @@ async function ensureSet(setCode: string): Promise<number | null> {
   return created.id;
 }
 
-/** Sube UN item aceptado: descarga imagen, sube variantes a R2, crea Card + CardSource. */
-export async function applyOfficialItem(itemId: number): Promise<{ cardId: number }> {
-  const item = await prisma.officialSyncItem.findUnique({ where: { id: itemId } });
-  if (!item) throw new Error("Item no encontrado");
-  if (item.decisionStatus === "APPLIED" && item.appliedCardId)
-    return { cardId: item.appliedCardId };
+/** Deriva la URL de la imagen BASE a partir de la de una alterna (quita _pN). */
+const baseImageUrlFrom = (altUrl: string, variant: string | null) => {
+  if (!variant) return altUrl;
+  return altUrl.replace(
+    new RegExp(`_${variant}(?=\\.[a-z0-9]+(\\?|$))`, "i"),
+    ""
+  );
+};
 
-  const p = (item.payload as unknown as OfficialScrapedCard) || null;
-  const cfg = OFFICIAL_REGIONS[item.region.toUpperCase()];
-  const language = cfg?.language ?? null;
-
-  // Descargar imagen oficial y subir variantes a R2
-  const base = imageBase(item.region, item.cardId);
-  const resp = await axios.get<ArrayBuffer>(item.imageUrl, {
-    responseType: "arraybuffer",
-    headers: { "User-Agent": UA, Referer: cfg?.baseUrl ?? "" },
+/** Carta BASE (no-alterna) de un código en una región (baseCardId = null). */
+async function findRegionBase(code: string, region: string) {
+  return prisma.card.findFirst({
+    where: { code, region, baseCardId: null },
+    select: { id: true },
   });
-  await uploadVariants(Buffer.from(resp.data), base);
-  const src = `${R2_PUBLIC.replace(/\/$/, "")}/cards/${base}.webp`;
+}
 
-  const setId = await ensureSet(item.setCode || item.code.split("-")[0]);
+type PersistArgs = {
+  region: string;
+  language: string | null;
+  code: string;
+  setCode: string;
+  cardId: string; // id scrapeado (key de imagen + CardSource)
+  variant: string | null;
+  isAlternate: boolean;
+  baseCardId: number | null;
+  imageUrl: string;
+  name: string;
+  payload: OfficialScrapedCard | null;
+  refererBase: string;
+};
 
+/** Descarga imagen → variantes a R2 → crea Card (+CardSet+CardSource). */
+async function persistCard(a: PersistArgs): Promise<number> {
+  const keyBase = imageBase(a.region, a.cardId);
+  const resp = await axios.get<ArrayBuffer>(a.imageUrl, {
+    responseType: "arraybuffer",
+    headers: { "User-Agent": UA, Referer: a.refererBase },
+  });
+  await uploadVariants(Buffer.from(resp.data), keyBase);
+  const src = `${R2_PUBLIC.replace(/\/$/, "")}/cards/${keyBase}.webp`;
+  const setId = await ensureSet(a.setCode || a.code.split("-")[0]);
+  const p = a.payload;
   const created = await prisma.card.create({
     data: {
       src,
-      name: item.name || item.code,
-      code: item.code,
-      setCode: item.setCode || item.code.split("-")[0],
+      name: a.name || a.code,
+      code: a.code,
+      setCode: a.setCode || a.code.split("-")[0],
       category: p?.category || "Character",
       rarity: p?.rarity ?? null,
       cost: p?.cost ?? null,
@@ -326,16 +347,16 @@ export async function applyOfficialItem(itemId: number): Promise<{ cardId: numbe
       power: p?.power ?? null,
       counter: p?.counter ?? null,
       triggerCard: p?.trigger ?? null,
-      isFirstEdition: !item.isAlternate,
-      alias: item.variant ?? "0",
-      order: item.variant ? item.variant.replace(/^p/i, "") : "0",
-      alternateArt: item.isAlternate ? "Alternate Art" : null,
-      region: item.region,
-      language,
+      isFirstEdition: !a.isAlternate,
+      alias: a.variant ?? "0",
+      order: a.variant ? a.variant.replace(/^p/i, "") : "0",
+      alternateArt: a.isAlternate ? "Alternate Art" : null,
+      baseCardId: a.baseCardId,
+      region: a.region,
+      language: a.language,
     } as never,
     select: { id: true },
   });
-
   if (setId) {
     await prisma.cardSet
       .create({ data: { cardId: created.id, setId } })
@@ -344,20 +365,76 @@ export async function applyOfficialItem(itemId: number): Promise<{ cardId: numbe
   await prisma.cardSource
     .create({
       data: {
-        source: item.source,
-        sourceId: item.cardId,
-        sourceImageUrl: item.imageUrl,
+        source: a.region,
+        sourceId: a.cardId,
+        sourceImageUrl: a.imageUrl,
         cardId: created.id,
       } as never,
     })
     .catch(() => {});
+  return created.id;
+}
 
-  await prisma.officialSyncItem.update({
-    where: { id: item.id },
-    data: { decisionStatus: "APPLIED", appliedCardId: created.id },
+/**
+ * Aplica un item aceptado. Las alternas se ENLAZAN a la carta base de SU MISMA
+ * región (baseCardId); si esa base no existe en la región, se crea primero.
+ */
+export async function applyOfficialItem(
+  itemId: number
+): Promise<{ cardId: number }> {
+  const item = await prisma.officialSyncItem.findUnique({ where: { id: itemId } });
+  if (!item) throw new Error("Item no encontrado");
+  if (item.decisionStatus === "APPLIED" && item.appliedCardId)
+    return { cardId: item.appliedCardId };
+
+  const p = (item.payload as unknown as OfficialScrapedCard) || null;
+  const cfg = OFFICIAL_REGIONS[item.region.toUpperCase()];
+  const language = cfg?.language ?? null;
+  const refererBase = cfg?.baseUrl ?? "";
+  const setCode = item.setCode || item.code.split("-")[0];
+
+  const markApplied = (cardId: number) =>
+    prisma.officialSyncItem.update({
+      where: { id: item.id },
+      data: { decisionStatus: "APPLIED", appliedCardId: cardId },
+    });
+
+  // Carta BASE: si ya existe en la región se reusa; si no, se crea.
+  if (!item.isAlternate) {
+    const existing = await findRegionBase(item.code, item.region);
+    if (existing) {
+      await markApplied(existing.id);
+      return { cardId: existing.id };
+    }
+    const id = await persistCard({
+      region: item.region, language, code: item.code, setCode,
+      cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
+      imageUrl: item.imageUrl, name: item.name || item.code, payload: p,
+      refererBase,
+    });
+    await markApplied(id);
+    return { cardId: id };
+  }
+
+  // ALTERNA: asegurar la base de la misma región (crearla si falta), luego enlazar.
+  let base = await findRegionBase(item.code, item.region);
+  if (!base) {
+    const baseId = await persistCard({
+      region: item.region, language, code: item.code, setCode,
+      cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
+      imageUrl: baseImageUrlFrom(item.imageUrl, item.variant),
+      name: item.name || item.code, payload: p, refererBase,
+    });
+    base = { id: baseId };
+  }
+  const altId = await persistCard({
+    region: item.region, language, code: item.code, setCode,
+    cardId: item.cardId, variant: item.variant, isAlternate: true,
+    baseCardId: base.id, imageUrl: item.imageUrl,
+    name: item.name || item.code, payload: p, refererBase,
   });
-
-  return { cardId: created.id };
+  await markApplied(altId);
+  return { cardId: altId };
 }
 
 export async function ignoreOfficialItem(itemId: number) {

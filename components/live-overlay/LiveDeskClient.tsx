@@ -26,6 +26,7 @@ import {
   categoryOptions,
   altArtOptions,
 } from "@/helpers/constants";
+import { sortCards } from "@/lib/cards/sort";
 
 type LiveDeskClientProps = {
   overlayToken: string | null;
@@ -240,7 +241,9 @@ export default function LiveDeskClient({
         });
         if (!response.ok) throw new Error("Failed to search cards");
         const data = await response.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
+        const rawItems = Array.isArray(data?.items) ? data.items : [];
+        // Mismo orden que /card-list (por collectionOrder / prefijo+código).
+        const items = sortCards(rawItems as CardWithCollectionData[]);
 
         const flattened = items.flatMap((card: CardWithCollectionData) => {
           const base = { ...toOverlayCard(card), baseId: String(card.id) };

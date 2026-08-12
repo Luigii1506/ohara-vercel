@@ -19,7 +19,13 @@ import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { LIVE_OVERLAY_SFX } from "@/lib/live-overlay/sfx";
 import { LIVE_OVERLAY_COMBOS } from "@/lib/live-overlay/combos";
 import VideoTrimmer from "@/components/live-overlay/VideoTrimmer";
-import { Copy, ExternalLink, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Minus, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import {
+  colorOptions,
+  rarityOptions,
+  categoryOptions,
+  altArtOptions,
+} from "@/helpers/constants";
 
 type LiveDeskClientProps = {
   overlayToken: string | null;
@@ -91,6 +97,27 @@ export default function LiveDeskClient({
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<FlattenedCardResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  // Filtros del buscador (como /card-list).
+  const [fColors, setFColors] = useState<string[]>([]);
+  const [fRarities, setFRarities] = useState<string[]>([]);
+  const [fCategories, setFCategories] = useState<string[]>([]);
+  const [fAltArts, setFAltArts] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchLimit, setSearchLimit] = useState(60);
+  const [resultBaseCount, setResultBaseCount] = useState(0);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const filtersKey = useMemo(
+    () =>
+      [
+        fColors.join(","),
+        fRarities.join(","),
+        fCategories.join(","),
+        fAltArts.join(","),
+      ].join("|"),
+    [fColors, fRarities, fCategories, fAltArts]
+  );
+  const anyFilter =
+    fColors.length + fRarities.length + fCategories.length + fAltArts.length > 0;
   const [state, setState] = useState<LiveOverlayState>(EMPTY_STATE);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
@@ -182,9 +209,12 @@ export default function LiveDeskClient({
   useEffect(() => {
     if (!overlayToken) return;
 
-    const trimmedSearch = search.trim();
-    if (trimmedSearch.length < 2) {
+    const q = search.trim();
+    const active = q.length >= 2 || anyFilter;
+    if (!active) {
       setResults([]);
+      setResultBaseCount(0);
+      setTotalCount(null);
       setSearchLoading(false);
       return;
     }
@@ -193,48 +223,42 @@ export default function LiveDeskClient({
     const timeout = window.setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const params = new URLSearchParams({
-          search: trimmedSearch,
-          includeRelations: "true",
-          includeAlternates: "true",
-          limit: "48",
-          region: region || "US",
-        });
+        const params = new URLSearchParams();
+        if (q) params.set("search", q);
+        if (fColors.length) params.set("colors", fColors.join(","));
+        if (fRarities.length) params.set("rarities", fRarities.join(","));
+        if (fCategories.length) params.set("categories", fCategories.join(","));
+        if (fAltArts.length) params.set("altArts", fAltArts.join(","));
+        params.set("region", region || "US");
+        params.set("includeRelations", "true");
+        params.set("includeAlternates", "true");
+        params.set("limit", String(searchLimit));
+
         const response = await fetch(`/api/cards/full?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to search cards");
-        }
-
+        if (!response.ok) throw new Error("Failed to search cards");
         const data = await response.json();
         const items = Array.isArray(data?.items) ? data.items : [];
 
         const flattened = items.flatMap((card: CardWithCollectionData) => {
-          const base = {
-            ...toOverlayCard(card),
-            baseId: String(card.id),
-          };
-
+          const base = { ...toOverlayCard(card), baseId: String(card.id) };
           const alternates = (card.alternates ?? []).map((alternate) => ({
             ...toOverlayCard(alternate),
             baseId: String(card.id),
           }));
-
           return [base, ...alternates];
         });
 
         setResults(flattened);
+        setResultBaseCount(items.length);
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error("[live-desk] search failed:", error);
         setResults([]);
       } finally {
-        if (!controller.signal.aborted) {
-          setSearchLoading(false);
-        }
+        if (!controller.signal.aborted) setSearchLoading(false);
       }
     }, 220);
 
@@ -242,7 +266,23 @@ export default function LiveDeskClient({
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [overlayToken, region, search]);
+  }, [
+    overlayToken,
+    region,
+    search,
+    filtersKey,
+    searchLimit,
+    anyFilter,
+    fColors,
+    fRarities,
+    fCategories,
+    fAltArts,
+  ]);
+
+  // Reinicia el límite al cambiar búsqueda o filtros.
+  useEffect(() => {
+    setSearchLimit(60);
+  }, [search, filtersKey]);
 
   const runAction = useCallback(
     async (payload: Record<string, unknown>, loadingKey: string) => {
@@ -1144,6 +1184,14 @@ export default function LiveDeskClient({
     </div>
   );
 
+  const clearSearch = () => {
+    setSearch("");
+    setFColors([]);
+    setFRarities([]);
+    setFCategories([]);
+    setFAltArts([]);
+  };
+
   const searchInput = (
     <div className="relative">
       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -1151,10 +1199,123 @@ export default function LiveDeskClient({
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Busca por nombre o código…"
-        className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-base text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+        className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-12 text-base text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
       />
+      {search ? (
+        <button
+          type="button"
+          onClick={() => setSearch("")}
+          aria-label="Borrar búsqueda"
+          className="absolute right-2.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      ) : null}
     </div>
   );
+
+  const filterGroup = (
+    title: string,
+    options: { value: string; label: string }[],
+    selected: string[],
+    setSelected: (v: string[]) => void
+  ) => (
+    <div>
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        {title}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = selected.includes(o.value);
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() =>
+                setSelected(
+                  on
+                    ? selected.filter((v) => v !== o.value)
+                    : [...selected, o.value]
+                )
+              }
+              className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                on
+                  ? "border-amber-400 bg-amber-100 text-amber-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const searchFilters = (
+    <div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-bold transition ${
+            anyFilter
+              ? "border-amber-400 bg-amber-50 text-amber-800"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Filtros
+          {anyFilter ? (
+            <span className="rounded-full bg-amber-400 px-1.5 text-[11px] font-black text-slate-900">
+              {fColors.length + fRarities.length + fCategories.length + fAltArts.length}
+            </span>
+          ) : null}
+        </button>
+        {anyFilter || search ? (
+          <button
+            type="button"
+            onClick={clearSearch}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+          >
+            <X className="h-3.5 w-3.5" /> Limpiar
+          </button>
+        ) : null}
+      </div>
+      {showFilters ? (
+        <div className="mt-2 space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+          {filterGroup("Color", colorOptions, fColors, setFColors)}
+          {filterGroup("Rareza", rarityOptions, fRarities, setFRarities)}
+          {filterGroup("Categoría", categoryOptions, fCategories, setFCategories)}
+          {filterGroup(
+            "Arte alterno",
+            altArtOptions.slice(0, 12),
+            fAltArts,
+            setFAltArts
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const resultsFooter =
+    results.length > 0 ? (
+      <div className="mt-3 flex items-center justify-center gap-3 pb-2">
+        <span className="text-xs font-semibold text-slate-500">
+          {resultBaseCount} carta{resultBaseCount === 1 ? "" : "s"}
+        </span>
+        {resultBaseCount >= searchLimit ? (
+          <button
+            type="button"
+            onClick={() => setSearchLimit((l) => l + 60)}
+            disabled={searchLoading}
+            className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {searchLoading ? "Cargando…" : "Mostrar más"}
+          </button>
+        ) : null}
+      </div>
+    ) : null;
 
   const emptyOrLoading = searchLoading ? (
     <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
@@ -1162,10 +1323,25 @@ export default function LiveDeskClient({
     </div>
   ) : (
     <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-12 text-center text-sm text-slate-500">
-      {search.trim().length < 2
-        ? "Escribe al menos 2 caracteres para buscar una carta."
-        : "No encontramos cartas para esa búsqueda."}
+      {search.trim().length < 2 && !anyFilter
+        ? "Escribe al menos 2 caracteres o usa un filtro para buscar."
+        : "No encontramos cartas con esos criterios."}
     </div>
+  );
+
+  // Bloque completo de búsqueda (filtros + resultados + mostrar más).
+  const searchBody = (
+    <>
+      <div className="mb-3">{searchFilters}</div>
+      {results.length > 0 ? (
+        <>
+          {resultsGrid}
+          {resultsFooter}
+        </>
+      ) : (
+        emptyOrLoading
+      )}
+    </>
   );
 
   const liveCard = state.currentCard;
@@ -1293,9 +1469,7 @@ export default function LiveDeskClient({
           {desktopTab === "cards" ? (
             <>
               <div className="mb-4 max-w-2xl">{searchInput}</div>
-              {results.length > 0 && !searchLoading
-                ? resultsGrid
-                : emptyOrLoading}
+              {searchBody}
             </>
           ) : desktopTab === "counters" ? (
             <div className="mx-auto max-w-4xl">
@@ -1568,9 +1742,7 @@ export default function LiveDeskClient({
                     </button>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto">
-                    {results.length > 0 && !searchLoading
-                      ? resultsGrid
-                      : emptyOrLoading}
+                    {searchBody}
                   </div>
                 </div>
               ) : tabletDrawer === "scenes" ? (
@@ -1803,7 +1975,7 @@ export default function LiveDeskClient({
             <div className="sticky top-0 z-10 -mx-3 -mt-3 bg-slate-50 px-3 pb-2 pt-3">
               {searchInput}
             </div>
-            {results.length > 0 && !searchLoading ? resultsGrid : emptyOrLoading}
+            {searchBody}
           </div>
         )}
       </div>

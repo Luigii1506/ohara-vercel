@@ -524,9 +524,17 @@ const AddCardsPage = () => {
   const allCardsSignatureRef = useRef<string | null>(null);
 
   // Filtros vacíos para traer TODAS las cartas
+  // Búsqueda con debounce que se manda al SERVIDOR (misma búsqueda compuesta
+  // estricta que /card-list: nombre + color + poder + rareza en AND).
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fullQueryFilters = useMemo<CardsFilters>(
-    () => ({ region }),
-    [region]
+    () => ({ region, search: debouncedSearch.trim() || undefined }),
+    [region, debouncedSearch]
   );
 
   const {

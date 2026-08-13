@@ -14,6 +14,7 @@ export type CardsFilters = {
   searchSetIds?: number[]; // internal: resolved set/product matches from smart search
   searchSetOnly?: boolean; // internal: the raw search resolves to a specific set title/code
   searchSetAnyRegion?: boolean; // internal: exact set searches can bypass the active region
+  skipRegionScope?: boolean; // internal: no aplicar el scope de región por defecto (ej. Mi Colección, que muestra todas las regiones salvo filtro explícito)
   sets?: string[];
   setCodes?: string[];
   colors?: string[];

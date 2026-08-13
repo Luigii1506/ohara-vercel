@@ -43,7 +43,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import ClearFiltersButton from "../ClearFiltersButton";
-import { sortByCollectionOrder } from "@/lib/cards/sort";
+import {
+  sortByCollectionOrder,
+  compareByVariantThenCollectionOrder,
+} from "@/lib/cards/sort";
+import { cardMatchesActiveFilters, matchesCardCode } from "@/lib/cardFilters";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -780,42 +784,6 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
     );
   };
 
-  const matchesCardCode = (code: string, search: string) => {
-    const query = search.toLowerCase().trim();
-    const fullCode = code.toLowerCase();
-
-    // Si el query incluye un guión, se busca de forma literal.
-    if (query.includes("-")) {
-      return fullCode.includes(query);
-    }
-
-    // Separamos el código en partes usando el guión.
-    const parts = code.split("-");
-
-    // Si el query es numérico.
-    if (/^\d+$/.test(query)) {
-      if (query[0] === "0") {
-        // Si inicia con cero, se compara la cadena exacta.
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits ? matchDigits[0] === query : false;
-        });
-      } else {
-        // Si no inicia con cero, se compara numéricamente.
-        const queryNumber = parseInt(query, 10);
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits
-            ? parseInt(matchDigits[0], 10) === queryNumber
-            : false;
-        });
-      }
-    }
-
-    // Si el query no es numérico, se busca por subcadena en cada parte.
-    return parts.some((part) => part.toLowerCase().includes(query));
-  };
-
   const filteredCards = useMemo(() => {
     if (!cards || cards.length === 0) return [];
 
@@ -849,23 +817,13 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
           return false;
         }
 
-        const searchLower = search.trim().toLowerCase();
         const matchesSearch =
-          card.name.toLowerCase().includes(searchLower) ||
-          (card.power ?? "").toLowerCase().includes(searchLower) ||
-          (card.cost ?? "").toLowerCase().includes(searchLower) ||
-          (card.attribute ?? "").toLowerCase().includes(searchLower) ||
-          (card.rarity ?? "").toLowerCase().includes(searchLower) ||
+          cardMatchesActiveFilters(card, { search }) ||
+          (card.alternates ?? []).some((alt) =>
+            cardMatchesActiveFilters(alt, { search })
+          ) ||
           matchesCardCode(card.code, search) ||
-          (card.texts ?? []).some((item) =>
-            item.text.toLowerCase().includes(searchLower)
-          ) ||
-          (card.types ?? []).some((item) =>
-            item.type.toLowerCase().includes(searchLower)
-          ) ||
-          (card.sets ?? []).some((item) =>
-            item.set.title.toLowerCase().includes(searchLower)
-          );
+          (card.alternates ?? []).some((alt) => matchesCardCode(alt.code, search));
 
         const matchesColors =
           selectedColors.length === 0 ||
@@ -970,19 +928,13 @@ const TcgLinker = ({ initialCards }: TcgLinkerLayoutProps) => {
           matchesAltArts
         );
       })
-      .sort((a, b) => {
-        // Primero ordenar por el sort seleccionado si existe
-        if (selectedSort === "Most variants") {
-          const variantDiff = b.alternates?.length - a.alternates?.length;
-          if (variantDiff !== 0) return variantDiff;
-        } else if (selectedSort === "Less variants") {
-          const variantDiff = a.alternates?.length - b.alternates?.length;
-          if (variantDiff !== 0) return variantDiff;
-        }
-
-        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
-        return sortByCollectionOrder(a, b);
-      });
+      .sort(
+        selectedSort === "Most variants"
+          ? compareByVariantThenCollectionOrder("most")
+          : selectedSort === "Less variants"
+            ? compareByVariantThenCollectionOrder("less")
+            : sortByCollectionOrder
+      );
   }, [
     cards,
     search,

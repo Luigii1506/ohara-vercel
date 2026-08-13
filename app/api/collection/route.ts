@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import { buildDirectWhere } from "@/lib/cards/query";
+import type { CardsFilters } from "@/lib/cards/types";
 
 // GET /api/collection - Obtener la colección del usuario con estadísticas
 export async function GET(request: NextRequest) {
@@ -60,138 +62,37 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Construir filtros para las cartas
+    // Construir filtros para las cartas — misma búsqueda compuesta que
+    // /card-list y el resto del catálogo (buildDirectWhere), en vez de la
+    // condición ad hoc anterior (`name contains search`, sin código/set/keywords).
     const cardFilters: any = { collectionId: collection.id };
 
-    const cardConditions: any[] = [];
+    const cardsFilters: CardsFilters = {
+      search: search || undefined,
+      sets: selectedSets.length ? selectedSets : undefined,
+      setCodes: selectedCodes.length ? selectedCodes : undefined,
+      colors: selectedColors.length ? selectedColors : undefined,
+      rarities: selectedRarities.length ? selectedRarities : undefined,
+      categories: selectedCategories.length ? selectedCategories : undefined,
+      costs: selectedCosts.length ? selectedCosts : undefined,
+      power: selectedPower.length ? selectedPower : undefined,
+      attributes: selectedAttributes.length ? selectedAttributes : undefined,
+      types: selectedTypes.length ? selectedTypes : undefined,
+      effects: selectedEffects.length ? selectedEffects : undefined,
+      altArts: selectedAltArts.length ? selectedAltArts : undefined,
+      region: selectedRegion || undefined,
+      counter: selectedCounter || undefined,
+      trigger: selectedTrigger || undefined,
+      // Colección debe mostrar cartas de TODAS las regiones salvo que el
+      // usuario pida una explícita — buildDirectWhere por defecto escopea a
+      // la región default (US), lo cual escondería cartas propias de otras
+      // regiones si no se pide esto.
+      skipRegionScope: !selectedRegion,
+    };
 
-    if (search) {
-      cardConditions.push({
-        name: {
-          contains: search,
-          mode: "insensitive",
-        },
-      });
-    }
-
-    if (selectedSets.length) {
-      cardConditions.push({
-        sets: {
-          some: {
-            set: { code: { in: selectedSets } },
-          },
-        },
-      });
-    }
-
-    if (selectedCodes.length) {
-      cardConditions.push({
-        OR: selectedCodes.map((code) => ({
-          code: { contains: code, mode: "insensitive" },
-        })),
-      });
-    }
-
-    if (selectedColors.length) {
-      cardConditions.push({
-        colors: {
-          some: {
-            OR: selectedColors.map((color) => ({
-              color: { equals: color, mode: "insensitive" },
-            })),
-          },
-        },
-      });
-    }
-
-    if (selectedTypes.length) {
-      cardConditions.push({
-        types: {
-          some: {
-            OR: selectedTypes.map((type) => ({
-              type: { equals: type, mode: "insensitive" },
-            })),
-          },
-        },
-      });
-    }
-
-    if (selectedEffects.length) {
-      cardConditions.push({
-        effects: {
-          some: {
-            OR: selectedEffects.map((effect) => ({
-              effect: { equals: effect, mode: "insensitive" },
-            })),
-          },
-        },
-      });
-    }
-
-    if (selectedRarities.length) {
-      cardConditions.push({
-        rarity: { in: selectedRarities },
-      });
-    }
-
-    if (selectedCategories.length) {
-      cardConditions.push({
-        category: { in: selectedCategories },
-      });
-    }
-
-    if (selectedCosts.length) {
-      cardConditions.push({
-        cost: { in: selectedCosts },
-      });
-    }
-
-    if (selectedPower.length) {
-      cardConditions.push({
-        power: { in: selectedPower },
-      });
-    }
-
-    if (selectedAttributes.length) {
-      cardConditions.push({
-        attribute: { in: selectedAttributes },
-      });
-    }
-
-    if (selectedAltArts.length) {
-      cardConditions.push({
-        alternateArt: { in: selectedAltArts },
-      });
-    }
-
-    if (selectedRegion) {
-      cardConditions.push({
-        region: selectedRegion,
-      });
-    }
-
-    if (selectedCounter) {
-      if (selectedCounter === "No counter") {
-        cardConditions.push({ counter: null });
-      } else {
-        cardConditions.push({
-          counter: { contains: selectedCounter, mode: "insensitive" },
-        });
-      }
-    }
-
-    if (selectedTrigger) {
-      if (selectedTrigger === "No trigger") {
-        cardConditions.push({ triggerCard: null });
-      } else {
-        cardConditions.push({
-          triggerCard: { contains: selectedTrigger, mode: "insensitive" },
-        });
-      }
-    }
-
-    if (cardConditions.length) {
-      cardFilters.card = { AND: cardConditions };
+    const cardWhere = buildDirectWhere(cardsFilters);
+    if (Object.keys(cardWhere).length > 0) {
+      cardFilters.card = cardWhere;
     }
 
     // Configurar ordenamiento

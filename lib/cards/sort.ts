@@ -85,6 +85,25 @@ export const sortCards = (
   return [...cards].sort(sortByCollectionOrder);
 };
 
+export type VariantSortDirection = "most" | "less";
+
+/**
+ * Comparator por cantidad de variantes/alternates ("Most variants"/"Less
+ * variants"), con desempate por `sortByCollectionOrder`. Antes estaba
+ * duplicado con la misma forma en CardListClient, add-cards, DeckBuilderLayout
+ * y TcgLinker.
+ */
+export const compareByVariantThenCollectionOrder =
+  (direction: VariantSortDirection) =>
+  (a: CardWithCollectionData, b: CardWithCollectionData): number => {
+    const diff =
+      (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
+    if (diff !== 0) {
+      return direction === "most" ? -diff : diff;
+    }
+    return sortByCollectionOrder(a, b);
+  };
+
 const digitsRegex = /\d+/g;
 
 const normalizeCodeSegment = (value: string) =>

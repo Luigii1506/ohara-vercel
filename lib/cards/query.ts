@@ -232,7 +232,7 @@ const shouldSkipSearchTokenConditions = (filters: CardsFilters) =>
   Boolean(filters.searchSetIds?.length && filters.searchSetOnly);
 
 const shouldIgnoreRegionForSearch = (filters: CardsFilters) =>
-  false;
+  Boolean(filters.skipRegionScope);
 
 const buildTokenSearchCondition = (
   search: string,
@@ -1362,7 +1362,7 @@ export const fetchAllCardsFromDb = async (
 
 // Build WHERE conditions for direct matching (without the "withAlternates" OR logic)
 // Used for counting individual cards that match filters
-const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
+export const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   const ignoreRegion = shouldIgnoreRegionForSearch(filters);
   const selectedRegion = normalizeRegion(filters.region);
   const regionCondition = ignoreRegion

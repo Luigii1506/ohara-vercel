@@ -80,7 +80,10 @@ import {
   Check,
   Plus,
 } from "lucide-react";
-import { sortByCollectionOrder } from "@/lib/cards/sort";
+import {
+  sortByCollectionOrder,
+  compareByVariantThenCollectionOrder,
+} from "@/lib/cards/sort";
 import { DON_CATEGORY } from "@/helpers/constants";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
@@ -1015,13 +1018,9 @@ const CardListClient = ({
     const sortedCards = [...normalizedCards];
 
     if (selectedSort === "most_variants") {
-      sortedCards.sort(
-        (a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0)
-      );
+      sortedCards.sort(compareByVariantThenCollectionOrder("most"));
     } else if (selectedSort === "less_variants") {
-      sortedCards.sort(
-        (a, b) => (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0)
-      );
+      sortedCards.sort(compareByVariantThenCollectionOrder("less"));
     } else if (selectedSort === "code_asc") {
       sortedCards.sort((a, b) => a.code.localeCompare(b.code));
     } else if (selectedSort === "code_desc") {

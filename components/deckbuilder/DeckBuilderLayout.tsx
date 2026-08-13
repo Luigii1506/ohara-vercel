@@ -52,7 +52,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { allColors, categoryOptions } from "@/helpers/constants";
-import { sortByCollectionOrder } from "@/lib/cards/sort";
+import {
+  sortByCollectionOrder,
+  compareByVariantThenCollectionOrder,
+} from "@/lib/cards/sort";
+import { matchesCardCode } from "@/lib/cardFilters";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
 import type { CardsFilters } from "@/lib/cards/types";
@@ -592,47 +596,17 @@ const CompleteDeckBuilderLayout = ({
     selectedCodes?.length +
     selectedAltArts?.length;
 
-  const matchesCardCode = (code: string, search: string) => {
-    const query = search.toLowerCase().trim();
-    const fullCode = code.toLowerCase();
-
-    // Si el query incluye un guión, se busca de forma literal.
-    if (query.includes("-")) {
-      return fullCode.includes(query);
-    }
-
-    // Separamos el código en partes usando el guión.
-    const parts = code.split("-");
-
-    // Si el query es numérico.
-    if (/^\d+$/.test(query)) {
-      if (query[0] === "0") {
-        // Si inicia con cero, se compara la cadena exacta.
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits ? matchDigits[0] === query : false;
-        });
-      } else {
-        // Si no inicia con cero, se compara numéricamente.
-        const queryNumber = parseInt(query, 10);
-        return parts.some((part) => {
-          const matchDigits = part.match(/\d+/);
-          return matchDigits
-            ? parseInt(matchDigits[0], 10) === queryNumber
-            : false;
-        });
-      }
-    }
-
-    // Si el query no es numérico, se busca por subcadena en cada parte.
-    return parts.some((part) => part.toLowerCase().includes(query));
-  };
-
   const filteredCards = useMemo(() => {
     if (!cardsSource || cardsSource.length === 0) return [];
 
-    const mapped = cardsSource
-      .filter((card) => {
+    // Con useServerCards (siempre true hoy) el servidor ya aplicó todos los
+    // filtros vía cardsFilters/usePaginatedCards — re-filtrar acá con un
+    // matcher naive puede OCULTAR resultados que el servidor sí resolvió bien
+    // (ej. color/rareza como palabra libre vía la búsqueda compuesta). Ese
+    // re-filtro solo tiene sentido para el modo legacy sin servidor.
+    const mapped = !useServerCards
+      ? cardsSource
+          .filter((card) => {
         const searchLower = search.trim().toLowerCase();
         const matchesSearch =
           card.name.toLowerCase().includes(searchLower) ||
@@ -756,31 +730,27 @@ const CompleteDeckBuilderLayout = ({
           matchesAltArts
         );
       })
-      .map((card) => ({
-        ...card,
-        // Filtrar alternativas excluidas (ocultar todas si showOnlyBaseCards está activo)
-        alternates: filterValidAlternates(card.alternates, showOnlyBaseCards),
-      }));
+          .map((card) => ({
+            ...card,
+            alternates: filterValidAlternates(card.alternates, showOnlyBaseCards),
+          }))
+      : cardsSource.map((card) => ({
+          ...card,
+          // Filtrar alternativas excluidas (ocultar todas si showOnlyBaseCards está activo)
+          alternates: filterValidAlternates(card.alternates, showOnlyBaseCards),
+        }));
 
     if (isBackendSort) {
       return mapped;
     }
 
-    return mapped.sort((a, b) => {
-      // Primero ordenar por el sort seleccionado si existe
-      if (selectedSort === "Most variants") {
-        const variantDiff =
-          (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
-        if (variantDiff !== 0) return variantDiff;
-      } else if (selectedSort === "Less variants") {
-        const variantDiff =
-          (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
-        if (variantDiff !== 0) return variantDiff;
-      }
-
-      // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
-      return sortByCollectionOrder(a, b);
-    });
+    return mapped.sort(
+      selectedSort === "Most variants"
+        ? compareByVariantThenCollectionOrder("most")
+        : selectedSort === "Less variants"
+          ? compareByVariantThenCollectionOrder("less")
+          : sortByCollectionOrder
+    );
   }, [
     cardsSource,
     search,
@@ -800,6 +770,7 @@ const CompleteDeckBuilderLayout = ({
     selectedCodes,
     showOnlyBaseCards,
     isBackendSort,
+    useServerCards,
   ]);
 
   const containerRef = useRef<HTMLDivElement>(null);

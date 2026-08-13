@@ -94,7 +94,10 @@ import {
 import { highlightText } from "@/helpers/functions";
 import { rarityFormatter } from "@/helpers/formatters";
 import Alternates from "@/public/assets/images/variantsICON_VERTICAL.svg";
-import { sortByCollectionOrder } from "@/lib/cards/sort";
+import {
+  sortByCollectionOrder,
+  compareByVariantThenCollectionOrder,
+} from "@/lib/cards/sort";
 import LazyImage from "@/components/LazyImage";
 import {
   matchesCardCode,
@@ -550,8 +553,14 @@ const AddCardsPage = () => {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ✅ Guardar en Zustand cuando lleguen las cartas
+  // ✅ Guardar en Zustand cuando lleguen las cartas — SOLO sin búsqueda activa.
+  // Este store es global (lo comparten /simulator, /admin/edit-card,
+  // /admin/tcg-linker, ShopDeckBuilder) y esas pantallas asumen que contiene
+  // el catálogo COMPLETO; si hay una búsqueda activa aquí, `allCardsData` es
+  // el subconjunto filtrado por el servidor y NO debe pisar ese cache global.
+  const hasActiveSearch = debouncedSearch.trim().length > 0;
   useEffect(() => {
+    if (hasActiveSearch) return;
     if (!allCardsData) return;
 
     if (!allCardsData.length) {
@@ -588,10 +597,15 @@ const AddCardsPage = () => {
     if (!isFetchingAllCards) {
       setIsFullyLoaded(true);
     }
-  }, [allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
+  }, [allCardsData, hasActiveSearch, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
 
-  // ✅ Usar cachedCards si existen, sino allCardsData
-  const cards = cachedCards.length > 0 ? cachedCards : allCardsData ?? [];
+  // ✅ Con búsqueda activa, usar el resultado del servidor (ya filtrado);
+  // sin búsqueda, usar el catálogo completo cacheado si ya existe.
+  const cards = hasActiveSearch
+    ? allCardsData ?? []
+    : cachedCards.length > 0
+      ? cachedCards
+      : allCardsData ?? [];
   const isLoading = isLoadingAllCards;
 
   // 🔄 Handle refresh with visual feedback
@@ -1694,21 +1708,13 @@ const AddCardsPage = () => {
           matchesCodes
         );
       })
-      .sort((a, b) => {
-        // Primero ordenar por el sort seleccionado si existe
-        if (selectedSort === "Most variants") {
-          const variantDiff =
-            (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        } else if (selectedSort === "Less variants") {
-          const variantDiff =
-            (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0);
-          if (variantDiff !== 0) return variantDiff;
-        }
-
-        // Luego aplicar orden estándar de colección (OP → EB → ST → P → otros)
-        return sortByCollectionOrder(a, b);
-      });
+      .sort(
+        selectedSort === "Most variants"
+          ? compareByVariantThenCollectionOrder("most")
+          : selectedSort === "Less variants"
+            ? compareByVariantThenCollectionOrder("less")
+            : sortByCollectionOrder
+      );
   }, [
     cards,
     search,

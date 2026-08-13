@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import LazyImage from "@/components/LazyImage";
 import { SIMULATOR_CARD_FALLBACK } from "@/store/simulatorStore";
+import { matchesCardCode } from "@/lib/cardFilters";
 
 interface SimulatorControlsProps {
   cards: CardWithCollectionData[];
@@ -114,8 +115,7 @@ const SimulatorControls: React.FC<SimulatorControlsProps> = ({
     return cards
       .filter((card) => {
         const name = card.name?.toLowerCase() ?? "";
-        const code = card.code?.toLowerCase() ?? "";
-        return name.includes(term) || code.includes(term);
+        return name.includes(term) || matchesCardCode(card.code ?? "", term);
       })
       .slice(0, 40);
   }, [cards, search]);

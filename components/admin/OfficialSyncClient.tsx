@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { proxyImage } from "@/lib/proxyImage";
 
 type Item = {
   id: number;
@@ -211,7 +212,7 @@ export default function OfficialSyncClient() {
               <div className="relative aspect-[2.5/3.5] bg-slate-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={it.imageUrl}
+                  src={proxyImage(it.imageUrl)}
                   alt={it.cardId}
                   className="h-full w-full object-cover"
                   loading="lazy"

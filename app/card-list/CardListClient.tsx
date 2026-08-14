@@ -80,10 +80,7 @@ import {
   Check,
   Plus,
 } from "lucide-react";
-import {
-  sortByCollectionOrder,
-  compareByVariantThenCollectionOrder,
-} from "@/lib/cards/sort";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
 import { DON_CATEGORY } from "@/helpers/constants";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
@@ -1018,9 +1015,13 @@ const CardListClient = ({
     const sortedCards = [...normalizedCards];
 
     if (selectedSort === "most_variants") {
-      sortedCards.sort(compareByVariantThenCollectionOrder("most"));
+      sortedCards.sort(
+        (a, b) => (b.alternates?.length ?? 0) - (a.alternates?.length ?? 0)
+      );
     } else if (selectedSort === "less_variants") {
-      sortedCards.sort(compareByVariantThenCollectionOrder("less"));
+      sortedCards.sort(
+        (a, b) => (a.alternates?.length ?? 0) - (b.alternates?.length ?? 0)
+      );
     } else if (selectedSort === "code_asc") {
       sortedCards.sort((a, b) => a.code.localeCompare(b.code));
     } else if (selectedSort === "code_desc") {
@@ -1509,7 +1510,7 @@ const CardListClient = ({
             </button>
           </div>
 
-          {showSearchTips && !showSearchModal && (
+          {/* {showSearchTips && !showSearchModal && (
             <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-700">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col">
@@ -1583,7 +1584,7 @@ const CardListClient = ({
             >
               {t("cardList.search.chipsShow")}
             </button>
-          )}
+          )} */}
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-2">
@@ -1612,10 +1613,16 @@ const CardListClient = ({
             </div>
 
             <div className="flex-1 flex justify-end">
-              <ViewSwitch
+              {/* <ViewSwitch
                 viewSelected={viewSelected}
                 setViewSelected={setViewSelected}
-              />
+              /> */}
+               <SortSelect
+                  options={sortOptions}
+                  selected={selectedSort}
+                  setSelected={setSelectedSort}
+                  buttonLabel={t("common.sort")}
+                />
             </div>
           </div>
         </div>
@@ -1943,7 +1950,7 @@ const CardListClient = ({
             isActive={showOnlyBaseCards}
             onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
           /> */}
-          {isDesktop ? (
+          {isDesktop &&
             <MultiSelect
               options={sortOptionsForSelect}
               selected={selectedSort ? [selectedSort] : []}
@@ -1959,14 +1966,9 @@ const CardListClient = ({
                 return current?.label || t("common.sort");
               }}
             />
-          ) : (
-            <SortSelect
-              options={sortOptions}
-              selected={selectedSort}
-              setSelected={setSelectedSort}
-              buttonLabel={t("common.sort")}
-            />
-          )}
+          }
+
+          
 
           <div className="hidden md:flex justify-center items-center">
             <ViewSwitch

@@ -3,6 +3,7 @@ import * as cheerio from "cheerio";
 import sharp from "sharp";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
+import { officialVariantTokens, normalizeOfficialVariantToken } from "@/lib/cards/officialVariant";
 
 /**
  * Sincronización con los sitios OFICIALES (plataforma Bandai): en/asia-en/jp/fr.
@@ -142,19 +143,6 @@ export async function fetchOfficialCards(
   return out;
 }
 
-/** Tokens de variante que ya tenemos para un code (cualquier región). */
-const variantTokens = (alias: string | null, order: string) => {
-  const toks = new Set<string>();
-  const a = (alias || "").trim().toLowerCase();
-  if (a && a !== "0") toks.add(a);
-  const o = (order || "").trim().toLowerCase();
-  if (o && o !== "0") {
-    toks.add(o);
-    if (/^\d+$/.test(o)) toks.add(`p${o}`);
-  }
-  return toks;
-};
-
 export type ScanResult = { region: string; scanned: number; missing: number; created: number };
 
 /** Escanea una región (o un set) y llena la cola de PENDIENTES con lo faltante. */
@@ -187,7 +175,7 @@ export async function scanOfficialRegion(
   const bases = Array.from(new Set(all.map((c) => c.code)));
   const dbRows = await prisma.card.findMany({
     where: { code: { in: bases } },
-    select: { code: true, alias: true, order: true, region: true },
+    select: { code: true, officialVariantCode: true, region: true },
   });
   const tokensByCode = new Map<string, Set<string>>();
   const codesInDb = new Set<string>();
@@ -195,7 +183,7 @@ export async function scanOfficialRegion(
   for (const r of dbRows) {
     codesInDb.add(r.code);
     if (!tokensByCode.has(r.code)) tokensByCode.set(r.code, new Set());
-    variantTokens(r.alias, r.order).forEach((t) =>
+    officialVariantTokens(r.officialVariantCode).forEach((t) =>
       tokensByCode.get(r.code)!.add(t)
     );
     if (!codeRegions.has(r.code)) codeRegions.set(r.code, new Set());
@@ -348,8 +336,9 @@ async function persistCard(a: PersistArgs): Promise<number> {
       counter: p?.counter ?? null,
       triggerCard: p?.trigger ?? null,
       isFirstEdition: !a.isAlternate,
-      alias: a.variant ?? "0",
+      alias: "",
       order: a.variant ? a.variant.replace(/^p/i, "") : "0",
+      officialVariantCode: a.variant ? normalizeOfficialVariantToken(a.variant) : null,
       alternateArt: a.isAlternate ? "Alternate Art" : null,
       baseCardId: a.baseCardId,
       region: a.region,

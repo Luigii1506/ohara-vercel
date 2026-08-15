@@ -45,6 +45,7 @@ model Card {
   isWatchlisted         Boolean             @default(false)
   alias                 String?             @default("")
   order                 String              @default("0")
+  officialVariantCode   String? // token oficial "p1"/"p2"/... para matching cross-región (officialSync). Nunca mostrar al usuario. null = desconocido / alterna curada a mano.
   collectionOrder       String              @default("")
   isPro                 Boolean             @default(false)
   region                String? // US, JP, CN, KR, TH, FR

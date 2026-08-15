@@ -10,6 +10,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { writeFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { officialVariantTokens } from "@/lib/cards/officialVariant";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
@@ -82,22 +83,6 @@ async function fetchCards(
   return out;
 }
 
-/** Tokens de variante que ya tenemos para un code (de cualquier región). */
-const variantTokens = (
-  alias: string | null,
-  order: string
-): string[] => {
-  const toks: string[] = [];
-  const a = (alias || "").trim().toLowerCase();
-  if (a && a !== "0") toks.push(a);
-  const o = (order || "").trim().toLowerCase();
-  if (o && o !== "0") {
-    toks.push(o);
-    if (/^\d+$/.test(o)) toks.push(`p${o}`);
-  }
-  return toks;
-};
-
 async function main() {
   for (const src of SOURCES) {
     console.log(`\n======== ${src.tag} (${src.base}) ========`);
@@ -131,14 +116,14 @@ async function main() {
     const bases = Array.from(new Set(all.map((c) => c.base)));
     const dbRows = await prisma.card.findMany({
       where: { code: { in: bases } },
-      select: { code: true, alias: true, order: true },
+      select: { code: true, officialVariantCode: true },
     });
     const byCode = new Map<string, Set<string>>();
     const codesInDb = new Set<string>();
     for (const r of dbRows) {
       codesInDb.add(r.code);
       if (!byCode.has(r.code)) byCode.set(r.code, new Set());
-      for (const t of variantTokens(r.alias, r.order))
+      for (const t of officialVariantTokens(r.officialVariantCode))
         byCode.get(r.code)!.add(t);
     }
 

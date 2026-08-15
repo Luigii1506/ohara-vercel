@@ -2,6 +2,7 @@ import { rarityFormatter } from "@/helpers/formatters";
 import { ShoppingCart, X } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import { CardWithCollectionData } from "@/types";
+import { isOfficialVariantToken } from "@/lib/cards/officialVariant";
 import CardsVariations from "@/components/CardVariations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CardDetailSkeleton } from "./skeletons";
@@ -375,8 +376,10 @@ const CardModal: React.FC<CardModalProps> = ({
                         {selectedSetTitle ?? "—"}
                       </div>
                       <div className="text-center text-[14px] leading-[18px] font-[400] min-h-[18px]">
-                        {selectedCard?.alias?.replace(/^\d+\s*/, "") ||
-                          "\u00A0"}
+                        {selectedCard?.alias &&
+                        !isOfficialVariantToken(selectedCard.alias)
+                          ? selectedCard.alias.replace(/^\d+\s*/, "")
+                          : "\u00A0"}
                       </div>
                     </div>
                   </div>
@@ -434,7 +437,10 @@ const CardModal: React.FC<CardModalProps> = ({
                     {selectedSetTitle ?? "—"}
                   </div>
                   <div className="text-center text-[13px] leading-[15px] min-h-[15px]">
-                    {selectedCard?.alias?.replace(/^\d+\s*/, "") || "\u00A0"}
+                    {selectedCard?.alias &&
+                    !isOfficialVariantToken(selectedCard.alias)
+                      ? selectedCard.alias.replace(/^\d+\s*/, "")
+                      : "\u00A0"}
                   </div>
 
                   {renderPriceSummary()}

@@ -52,6 +52,7 @@ export type CardData = {
   id: string;
   alias: string;
   order?: string | null;
+  officialVariantCode?: string | null;
   tcgUrl?: string;
   tcgplayerProductId?: string | null;
   tcgplayerLinkStatus?: boolean | null;

@@ -200,9 +200,14 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         maxHeight="92vh"
         desktopModal
         desktopMaxWidth="max-w-lg"
+        fullScreenMobile
+        showHandle={false}
       >
         {/* Header - Use base card info */}
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-3 pt-1">
+        <div
+          className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-3 pt-1"
+          style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               {/* Code, Rarity, Category */}
@@ -242,9 +247,8 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         {/* Scrollable Content */}
         <div
           ref={scrollRef}
-          className="overflow-y-auto flex-1 pb-4"
+          className="overflow-y-auto flex-1 pb-4 max-h-[calc(100dvh-76px)] md:max-h-[calc(92vh-100px)]"
           style={{
-            maxHeight: "calc(92vh - 100px)",
             WebkitOverflowScrolling: "touch",
           }}
         >
@@ -280,7 +284,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                   {/* Card Image Container - Sin borde, solo sombra */}
                   <div
                     key={displayedCard.id}
-                    className="relative w-44 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden animate-in fade-in zoom-in-[0.98] duration-200"
+                    className="relative w-60 sm:w-64 aspect-[2.5/3.5] rounded-xl overflow-hidden animate-in fade-in zoom-in-[0.98] duration-200"
                     style={{
                       boxShadow: isHovering
                         ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"

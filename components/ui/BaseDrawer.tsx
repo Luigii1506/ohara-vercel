@@ -32,6 +32,8 @@ interface BaseDrawerProps {
   desktopModal?: boolean;
   /** Max width when using desktopModal (default: "max-w-4xl") */
   desktopMaxWidth?: string;
+  /** On mobile, cover the entire viewport (including the topbar) instead of a bottom sheet. Desktop is unaffected. */
+  fullScreenMobile?: boolean;
 }
 
 const BaseDrawer: React.FC<BaseDrawerProps> = ({
@@ -43,6 +45,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
   showHandle = true,
   desktopModal = false,
   desktopMaxWidth = "max-w-4xl",
+  fullScreenMobile = false,
 }) => {
   const [shouldRender, setShouldRender] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -306,7 +309,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
       <>
         {/* Backdrop */}
         <div
-          className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
+          className={`fixed inset-0 ${fullScreenMobile ? "z-[100]" : "z-40"} bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
             isVisible ? "opacity-100" : "opacity-0"
           }`}
           onClick={handleBackdropClick}
@@ -314,18 +317,25 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
         />
 
         {/* Drawer / Modal */}
-        <div className="fixed inset-0 z-50 flex items-end md:items-center md:justify-center pointer-events-none">
+        <div
+          className={`fixed inset-0 ${fullScreenMobile ? "z-[101]" : "z-50"} flex items-end md:items-center md:justify-center pointer-events-none`}
+        >
           <div
             ref={drawerRef}
-            className={`w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl ${
+            className={`w-full overflow-hidden bg-white shadow-2xl ${
+              fullScreenMobile ? "h-full" : "rounded-t-3xl border border-slate-200"
+            } ${
               isDragging ? "transition-none" : "transition-all duration-300"
-            } ease-out md:max-h-[85vh] md:${desktopMaxWidth} md:rounded-3xl ${
+            } ease-out md:max-h-[85vh] md:${desktopMaxWidth} md:rounded-3xl md:border md:border-slate-200 ${
               isVisible
                 ? "translate-y-0 md:translate-y-0 md:scale-100 md:opacity-100"
                 : "translate-y-full md:translate-y-0 md:scale-95 md:opacity-0"
             } ${isVisible ? "pointer-events-auto" : "pointer-events-none"}`}
             style={{
-              maxHeight: `min(${maxHeight}, 90vh)`,
+              maxHeight:
+                fullScreenMobile && isMobileViewport
+                  ? "100dvh"
+                  : `min(${maxHeight}, 90vh)`,
               ...drawerStyle,
             }}
             onPointerDown={handleDragStart}

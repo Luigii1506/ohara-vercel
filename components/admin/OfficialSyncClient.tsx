@@ -104,7 +104,11 @@ export default function OfficialSyncClient() {
     }
   };
 
-  const decide = async (ids: number[], action: "apply" | "ignore") => {
+  const decide = async (
+    ids: number[],
+    action: "apply" | "ignore" | "link",
+    existingCardId?: number
+  ) => {
     if (!ids.length) return;
     setBusy((b) => {
       const n = new Set(b);
@@ -114,13 +118,14 @@ export default function OfficialSyncClient() {
     setMsg(null);
     try {
       // en bloques de 12 para no exceder el timeout al subir imágenes
+      // ("link" siempre es un solo id, así que esto no cambia su comportamiento)
       let done = 0;
       for (let i = 0; i < ids.length; i += 12) {
         const chunk = ids.slice(i, i + 12);
         const r = await fetch("/api/admin/official-sync/decide", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: chunk, action }),
+          body: JSON.stringify({ ids: chunk, action, existingCardId }),
         });
         const d = await r.json();
         if (!r.ok) throw new Error(d?.error || "Falló");
@@ -129,7 +134,9 @@ export default function OfficialSyncClient() {
         if (d.failed?.length)
           setMsg(`Algunas fallaron: ${d.failed.map((f: { id: number; error: string }) => `#${f.id}: ${f.error}`).join("; ")}`);
       }
-      setMsg((m) => m ?? `${action === "apply" ? "Subidas" : "Ignoradas"}: ${done}.`);
+      const actionLabel =
+        action === "apply" ? "Subidas" : action === "link" ? "Vinculadas" : "Ignoradas";
+      setMsg((m) => m ?? `${actionLabel}: ${done}.`);
       await load(region);
     } catch (e) {
       setMsg((e as Error).message);
@@ -339,14 +346,18 @@ export default function OfficialSyncClient() {
                     {existing.length ? (
                       <div className="border-t border-slate-200 pt-1">
                         <div className="mb-1 font-bold text-slate-700">
-                          Ya en tu BD ({existing.length}):
+                          Ya en tu BD ({existing.length}) — click para vincular
+                          en vez de crear una nueva:
                         </div>
                         <div className="flex gap-1 overflow-x-auto">
                           {existing.map((c) => (
-                            <div
+                            <button
+                              type="button"
                               key={c.id}
-                              className="flex w-14 shrink-0 flex-col items-center gap-0.5"
-                              title={`region=${c.region ?? "—"} alias="${c.alias ?? ""}" officialVariantCode=${c.officialVariantCode ?? "—"}`}
+                              disabled={isBusy}
+                              onClick={() => decide([it.id], "link", c.id)}
+                              className="flex w-14 shrink-0 flex-col items-center gap-0.5 rounded border border-transparent hover:border-blue-400 disabled:opacity-50"
+                              title={`Vincular a esta carta (#${c.id}, region=${c.region ?? "—"}, alias="${c.alias ?? ""}") en vez de crear una nueva`}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -362,7 +373,7 @@ export default function OfficialSyncClient() {
                                 {c.officialVariantCode ??
                                   (c.baseCardId ? c.alias || "alt" : "base")}
                               </span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>

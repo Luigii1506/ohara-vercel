@@ -13,9 +13,20 @@ import { officialVariantTokens, normalizeOfficialVariantToken } from "@/lib/card
 
 export const OFFICIAL_REGIONS: Record<
   string,
-  { baseUrl: string; region: string; language: string; label: string }
+  {
+    baseUrl: string;
+    region: string;
+    // Región REAL de la carta física a crear/enlazar, si es distinta de
+    // `region` (que solo identifica la fuente/serie escaneada para la cola).
+    // EN (en.onepiece-cardgame.com) es el catálogo oficial "mundial", pero
+    // las cartas físicas que representa SON las de EE.UU. — deben enlazarse
+    // a la carta base region=US existente, no crear una región "EN" aparte.
+    cardRegion?: string;
+    language: string;
+    label: string;
+  }
 > = {
-  EN: { baseUrl: "https://en.onepiece-cardgame.com", region: "EN", language: "en", label: "Inglés (mundial)" },
+  EN: { baseUrl: "https://en.onepiece-cardgame.com", region: "EN", cardRegion: "US", language: "en", label: "Inglés (mundial)" },
   "ASIA-EN": { baseUrl: "https://asia-en.onepiece-cardgame.com", region: "ASIA-EN", language: "en", label: "Inglés (Asia)" },
   JP: { baseUrl: "https://www.onepiece-cardgame.com", region: "JP", language: "ja", label: "Japonés" },
   FR: { baseUrl: "https://fr.onepiece-cardgame.com", region: "FR", language: "fr", label: "Francés" },
@@ -56,6 +67,7 @@ export type OfficialScrapedCard = {
   seriesLabel: string;
   rarity: string | null;
   category: string | null;
+  attribute: string | null;
   cost: string | null;
   life: string | null;
   power: string | null;
@@ -115,6 +127,9 @@ export async function fetchOfficialCards(
     const isLife = costLabel.toUpperCase().includes("LIFE") || costLabel.toUpperCase().includes("VIE");
     const powerNum = numOf(norm($m.find(".power").text(), $m.find(".power h3").text().trim()));
     const counterNum = numOf(norm($m.find(".counter").text(), $m.find(".counter h3").text().trim()));
+    const attributeRaw =
+      $m.find(".attribute img").attr("alt")?.trim() ||
+      norm($m.find(".attribute").text(), $m.find(".attribute h3").text().trim());
     const colorRaw = norm($m.find(".color").text(), $m.find(".color h3").text().trim());
     const featureRaw = norm($m.find(".feature").text(), $m.find(".feature h3").text().trim());
     const textRaw = norm($m.find(".text").text(), $m.find(".text h3").text().trim());
@@ -130,6 +145,7 @@ export async function fetchOfficialCards(
       seriesLabel,
       rarity: rarityRaw ? RARITY_MAP[rarityRaw.toUpperCase()] || rarityRaw : null,
       category: CATEGORY_MAP[categoryRaw.toUpperCase()] || categoryRaw || "Character",
+      attribute: attributeRaw || null,
       cost: !isLife && costNum ? `${costNum} Cost` : null,
       life: isLife && costNum ? `${costNum} Life` : null,
       power: powerNum ? `${powerNum} Power` : null,
@@ -297,7 +313,8 @@ async function findRegionBase(code: string, region: string) {
 }
 
 type PersistArgs = {
-  region: string;
+  region: string; // región REAL de la carta (Card.region) — puede diferir de la fuente escaneada
+  source: string; // fuente escaneada (CardSource.source), para trazabilidad
   language: string | null;
   code: string;
   setCode: string;
@@ -313,7 +330,7 @@ type PersistArgs = {
 
 /** Descarga imagen → variantes a R2 → crea Card (+CardSet+CardSource). */
 async function persistCard(a: PersistArgs): Promise<number> {
-  const keyBase = imageBase(a.region, a.cardId);
+  const keyBase = imageBase(a.source, a.cardId);
   const resp = await axios.get<ArrayBuffer>(a.imageUrl, {
     responseType: "arraybuffer",
     headers: { "User-Agent": UA, Referer: a.refererBase },
@@ -322,6 +339,20 @@ async function persistCard(a: PersistArgs): Promise<number> {
   const src = `${R2_PUBLIC.replace(/\/$/, "")}/cards/${keyBase}.webp`;
   const setId = await ensureSet(a.setCode || a.code.split("-")[0]);
   const p = a.payload;
+
+  // El atributo/color/tipo de una carta no cambia entre regiones (mismo
+  // juego, mismas reglas) — si el scrape no trajo attribute (ej. por un
+  // layout distinto) pero YA tenemos ese code en otra región, lo reusamos en
+  // vez de depender únicamente del scrape de esta página.
+  let attribute = p?.attribute ?? null;
+  if (!attribute) {
+    const sibling = await prisma.card.findFirst({
+      where: { code: a.code, attribute: { not: null } },
+      select: { attribute: true },
+    });
+    attribute = sibling?.attribute ?? null;
+  }
+
   const created = await prisma.card.create({
     data: {
       src,
@@ -330,6 +361,7 @@ async function persistCard(a: PersistArgs): Promise<number> {
       setCode: a.setCode || a.code.split("-")[0],
       category: p?.category || "Character",
       rarity: p?.rarity ?? null,
+      attribute,
       cost: p?.cost ?? null,
       life: p?.life ?? null,
       power: p?.power ?? null,
@@ -354,13 +386,26 @@ async function persistCard(a: PersistArgs): Promise<number> {
   await prisma.cardSource
     .create({
       data: {
-        source: a.region,
+        source: a.source,
         sourceId: a.cardId,
         sourceImageUrl: a.imageUrl,
         cardId: created.id,
       } as never,
     })
     .catch(() => {});
+  if (p?.colors?.length) {
+    await prisma.cardColor.createMany({
+      data: p.colors.map((color) => ({ cardId: created.id, color })),
+    });
+  }
+  if (p?.types?.length) {
+    await prisma.cardType.createMany({
+      data: p.types.map((type) => ({ cardId: created.id, type })),
+    });
+  }
+  if (p?.text) {
+    await prisma.cardText.create({ data: { cardId: created.id, text: p.text } });
+  }
   return created.id;
 }
 
@@ -368,6 +413,11 @@ async function persistCard(a: PersistArgs): Promise<number> {
  * Aplica un item aceptado. Las alternas se ENLAZAN a la carta base de SU MISMA
  * región (baseCardId); si esa base no existe en la región, se crea primero.
  */
+// Sentinel de "procesándose" en appliedCardId — evita que dos clicks (o un
+// doble-submit) casi simultáneos sobre el mismo item disparen dos
+// persistCard() y creen cartas duplicadas (ver claim más abajo).
+const CLAIM_SENTINEL = -1;
+
 export async function applyOfficialItem(
   itemId: number
 ): Promise<{ cardId: number }> {
@@ -376,54 +426,122 @@ export async function applyOfficialItem(
   if (item.decisionStatus === "APPLIED" && item.appliedCardId)
     return { cardId: item.appliedCardId };
 
-  const p = (item.payload as unknown as OfficialScrapedCard) || null;
-  const cfg = OFFICIAL_REGIONS[item.region.toUpperCase()];
-  const language = cfg?.language ?? null;
-  const refererBase = cfg?.baseUrl ?? "";
-  const setCode = item.setCode || item.code.split("-")[0];
-
-  const markApplied = (cardId: number) =>
-    prisma.officialSyncItem.update({
-      where: { id: item.id },
-      data: { decisionStatus: "APPLIED", appliedCardId: cardId },
-    });
-
-  // Carta BASE: si ya existe en la región se reusa; si no, se crea.
-  if (!item.isAlternate) {
-    const existing = await findRegionBase(item.code, item.region);
-    if (existing) {
-      await markApplied(existing.id);
-      return { cardId: existing.id };
+  // Reclamar atómicamente: el UPDATE solo afecta una fila si decisionStatus
+  // sigue PENDING y nadie más lo reclamó todavía (appliedCardId sigue null).
+  // Si dos requests llegan casi juntas, Postgres serializa el UPDATE por fila
+  // y la segunda ve appliedCardId ya distinto de null -> count 0.
+  const claim = await prisma.officialSyncItem.updateMany({
+    where: { id: item.id, decisionStatus: "PENDING", appliedCardId: null },
+    data: { appliedCardId: CLAIM_SENTINEL },
+  });
+  if (claim.count === 0) {
+    const fresh = await prisma.officialSyncItem.findUnique({ where: { id: item.id } });
+    if (fresh?.decisionStatus === "APPLIED" && fresh.appliedCardId) {
+      return { cardId: fresh.appliedCardId };
     }
-    const id = await persistCard({
-      region: item.region, language, code: item.code, setCode,
-      cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
-      imageUrl: item.imageUrl, name: item.name || item.code, payload: p,
-      refererBase,
-    });
-    await markApplied(id);
-    return { cardId: id };
+    throw new Error(
+      "Este item ya se está procesando (otro click/pestaña) — esperá unos segundos y refrescá."
+    );
   }
 
-  // ALTERNA: asegurar la base de la misma región (crearla si falta), luego enlazar.
-  let base = await findRegionBase(item.code, item.region);
-  if (!base) {
-    const baseId = await persistCard({
-      region: item.region, language, code: item.code, setCode,
-      cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
-      imageUrl: baseImageUrlFrom(item.imageUrl, item.variant),
+  try {
+    const p = (item.payload as unknown as OfficialScrapedCard) || null;
+    const cfg = OFFICIAL_REGIONS[item.region.toUpperCase()];
+    const language = cfg?.language ?? null;
+    const refererBase = cfg?.baseUrl ?? "";
+    const setCode = item.setCode || item.code.split("-")[0];
+    // Región REAL de la carta a crear/enlazar (ej. EN -> US, la carta física
+    // ya existente); si no hay override, es la misma región escaneada.
+    const cardRegion = cfg?.cardRegion ?? item.region;
+
+    const markApplied = (cardId: number) =>
+      prisma.officialSyncItem.update({
+        where: { id: item.id },
+        data: { decisionStatus: "APPLIED", appliedCardId: cardId },
+      });
+
+    // Carta BASE: si ya existe en la región (real) se reusa; si no, se crea.
+    if (!item.isAlternate) {
+      const existing = await findRegionBase(item.code, cardRegion);
+      if (existing) {
+        await markApplied(existing.id);
+        return { cardId: existing.id };
+      }
+      const id = await persistCard({
+        region: cardRegion, source: item.region, language, code: item.code, setCode,
+        cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
+        imageUrl: item.imageUrl, name: item.name || item.code, payload: p,
+        refererBase,
+      });
+      await markApplied(id);
+      return { cardId: id };
+    }
+
+    // ALTERNA: asegurar la base de la región REAL (crearla si falta), luego enlazar.
+    let base = await findRegionBase(item.code, cardRegion);
+    if (!base) {
+      const baseId = await persistCard({
+        region: cardRegion, source: item.region, language, code: item.code, setCode,
+        cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
+        imageUrl: baseImageUrlFrom(item.imageUrl, item.variant),
+        name: item.name || item.code, payload: p, refererBase,
+      });
+      base = { id: baseId };
+    }
+    const altId = await persistCard({
+      region: cardRegion, source: item.region, language, code: item.code, setCode,
+      cardId: item.cardId, variant: item.variant, isAlternate: true,
+      baseCardId: base.id, imageUrl: item.imageUrl,
       name: item.name || item.code, payload: p, refererBase,
     });
-    base = { id: baseId };
+    await markApplied(altId);
+    return { cardId: altId };
+  } catch (e) {
+    // Liberar el claim para que se pueda reintentar (si no, quedaría
+    // atascado en "procesándose" para siempre tras un error).
+    await prisma.officialSyncItem
+      .updateMany({
+        where: { id: item.id, appliedCardId: CLAIM_SENTINEL },
+        data: { appliedCardId: null },
+      })
+      .catch(() => {});
+    throw e;
   }
-  const altId = await persistCard({
-    region: item.region, language, code: item.code, setCode,
-    cardId: item.cardId, variant: item.variant, isAlternate: true,
-    baseCardId: base.id, imageUrl: item.imageUrl,
-    name: item.name || item.code, payload: p, refererBase,
+}
+
+/**
+ * Vincula un item de la cola a una carta EXISTENTE (en vez de crear una
+ * nueva): solo etiqueta esa carta con el officialVariantCode correcto y
+ * marca el item como aplicado. Para cuando el admin ya tiene la carta mismo
+ * catalogada de otra forma (alias libre, sin el token oficial).
+ */
+export async function linkOfficialItemToExistingCard(
+  itemId: number,
+  existingCardId: number
+): Promise<{ cardId: number }> {
+  const item = await prisma.officialSyncItem.findUnique({ where: { id: itemId } });
+  if (!item) throw new Error("Item no encontrado");
+  if (item.decisionStatus === "APPLIED" && item.appliedCardId)
+    return { cardId: item.appliedCardId };
+
+  const card = await prisma.card.findUnique({ where: { id: existingCardId } });
+  if (!card) throw new Error("Carta no encontrada");
+  if (card.code !== item.code) {
+    throw new Error(
+      `La carta #${existingCardId} es del código ${card.code}, no ${item.code}`
+    );
+  }
+
+  const officialVariantCode = normalizeOfficialVariantToken(item.variant);
+  await prisma.card.update({
+    where: { id: existingCardId },
+    data: officialVariantCode ? { officialVariantCode } : {},
   });
-  await markApplied(altId);
-  return { cardId: altId };
+  await prisma.officialSyncItem.update({
+    where: { id: item.id },
+    data: { decisionStatus: "APPLIED", appliedCardId: existingCardId },
+  });
+  return { cardId: existingCardId };
 }
 
 export async function ignoreOfficialItem(itemId: number) {

@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { proxyImage } from "@/lib/proxyImage";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type OfficialPayload = {
   rarity?: string | null;
@@ -56,7 +62,7 @@ export default function OfficialSyncClient() {
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState<Set<number>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [reviewId, setReviewId] = useState<number | null>(null);
 
   const load = useCallback(async (reg: string) => {
     setLoading(true);
@@ -137,6 +143,7 @@ export default function OfficialSyncClient() {
       const actionLabel =
         action === "apply" ? "Subidas" : action === "link" ? "Vinculadas" : "Ignoradas";
       setMsg((m) => m ?? `${actionLabel}: ${done}.`);
+      setReviewId((cur) => (ids.includes(cur ?? -1) ? null : cur));
       await load(region);
     } catch (e) {
       setMsg((e as Error).message);
@@ -149,17 +156,10 @@ export default function OfficialSyncClient() {
     }
   };
 
-  const toggleExpanded = (id: number) => {
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  };
-
   const pendingFor = (key: string) =>
     pending.find((p) => p.region === key)?.count ?? 0;
+
+  const reviewItem = items.find((i) => i.id === reviewId) ?? null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -231,6 +231,7 @@ export default function OfficialSyncClient() {
               type="button"
               onClick={() => decide(items.map((i) => i.id), "apply")}
               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+              title="Crea una carta nueva por cada pendiente, sin revisar una por una"
             >
               Aceptar todo ({items.length})
             </button>
@@ -250,14 +251,16 @@ export default function OfficialSyncClient() {
         {items.map((it) => {
           const isBusy = busy.has(it.id);
           const existing = existingByCode[it.code] ?? [];
-          const isExpanded = expanded.has(it.id);
-          const p = it.payload;
           return (
             <div
               key={it.id}
               className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
             >
-              <div className="relative aspect-[2.5/3.5] bg-slate-100">
+              <button
+                type="button"
+                onClick={() => setReviewId(it.id)}
+                className="relative block aspect-[2.5/3.5] w-full bg-slate-100"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={proxyImage(it.imageUrl)}
@@ -290,17 +293,10 @@ export default function OfficialSyncClient() {
                     </span>
                   ) : null}
                 </div>
-                <a
-                  href={it.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-black/80"
-                  title="Abrir la imagen original del sitio oficial en una pestaña nueva"
-                >
-                  🔗 Original
-                </a>
-              </div>
+                <div className="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-center text-[10px] font-bold uppercase text-white">
+                  Revisar →
+                </div>
+              </button>
               <div className="p-1.5">
                 <div className="truncate text-[11px] font-bold text-slate-900">
                   {it.cardId}
@@ -308,97 +304,21 @@ export default function OfficialSyncClient() {
                 <div className="truncate text-[10px] text-slate-500">
                   {it.name}
                 </div>
-                <div className="truncate text-[9px] text-slate-400">
-                  {it.setCode ?? "—"}
-                  {it.seriesLabel ? ` · ${it.seriesLabel}` : ""}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleExpanded(it.id)}
-                  className="mt-1 text-[9px] font-bold text-blue-600 hover:underline"
-                >
-                  {isExpanded ? "Ocultar detalle ▲" : "Ver detalle ▼"}
-                </button>
-
-                {isExpanded ? (
-                  <div className="mt-1 space-y-1 rounded-lg bg-slate-50 p-1.5 text-[9px] text-slate-600">
-                    {p ? (
-                      <div className="space-y-0.5">
-                        {p.rarity ? <div>Rareza: {p.rarity}</div> : null}
-                        {p.category ? <div>Categoría: {p.category}</div> : null}
-                        {p.cost ? <div>Costo: {p.cost}</div> : null}
-                        {p.life ? <div>Vida: {p.life}</div> : null}
-                        {p.power ? <div>Poder: {p.power}</div> : null}
-                        {p.counter ? <div>Counter: {p.counter}</div> : null}
-                        {p.colors?.length ? (
-                          <div>Colores: {p.colors.join(", ")}</div>
-                        ) : null}
-                        {p.trigger ? <div>Trigger: {p.trigger}</div> : null}
-                        {p.text ? (
-                          <div className="line-clamp-3">Texto: {p.text}</div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div>Sin detalle scrapeado.</div>
-                    )}
-
-                    {existing.length ? (
-                      <div className="border-t border-slate-200 pt-1">
-                        <div className="mb-1 font-bold text-slate-700">
-                          Ya en tu BD ({existing.length}) — click para vincular
-                          en vez de crear una nueva:
-                        </div>
-                        <div className="flex gap-1 overflow-x-auto">
-                          {existing.map((c) => (
-                            <button
-                              type="button"
-                              key={c.id}
-                              disabled={isBusy}
-                              onClick={() => decide([it.id], "link", c.id)}
-                              className="flex w-14 shrink-0 flex-col items-center gap-0.5 rounded border border-transparent hover:border-blue-400 disabled:opacity-50"
-                              title={`Vincular a esta carta (#${c.id}, region=${c.region ?? "—"}, alias="${c.alias ?? ""}") en vez de crear una nueva`}
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={c.src}
-                                alt={`${c.code} ${c.region ?? ""}`}
-                                className="h-16 w-14 rounded object-cover"
-                                loading="lazy"
-                              />
-                              <span className="truncate text-[8px] font-bold text-slate-500">
-                                {c.region ?? "—"}
-                              </span>
-                              <span className="truncate text-[8px] text-slate-400">
-                                {c.officialVariantCode ??
-                                  (c.baseCardId ? c.alias || "alt" : "base")}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="border-t border-slate-200 pt-1 text-slate-400">
-                        No hay ninguna carta con este código en tu BD todavía.
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-
                 <div className="mt-1.5 flex gap-1">
                   <button
                     type="button"
                     disabled={isBusy}
-                    onClick={() => decide([it.id], "apply")}
-                    className="flex-1 rounded-md bg-emerald-600 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    onClick={() => setReviewId(it.id)}
+                    className="flex-1 rounded-md bg-slate-900 py-1 text-[11px] font-bold text-white hover:bg-slate-700 disabled:opacity-50"
                   >
-                    {isBusy ? "…" : "Aceptar"}
+                    {isBusy ? "…" : "Revisar"}
                   </button>
                   <button
                     type="button"
                     disabled={isBusy}
                     onClick={() => decide([it.id], "ignore")}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                    title="Ignorar rápido, sin abrir el detalle"
                   >
                     ✕
                   </button>
@@ -415,6 +335,192 @@ export default function OfficialSyncClient() {
           alternas/cartas nuevas.
         </div>
       ) : null}
+
+      {/* Modal de revisión */}
+      <Dialog
+        open={!!reviewItem}
+        onOpenChange={(open) => {
+          if (!open) setReviewId(null);
+        }}
+      >
+        {reviewItem ? (
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {reviewItem.name ?? reviewItem.cardId}{" "}
+                <span className="font-normal text-slate-400">
+                  · {reviewItem.cardId}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            <ReviewBody
+              item={reviewItem}
+              existing={existingByCode[reviewItem.code] ?? []}
+              busy={busy.has(reviewItem.id)}
+              onCreate={() => decide([reviewItem.id], "apply")}
+              onIgnore={() => decide([reviewItem.id], "ignore")}
+              onLink={(cardId) => decide([reviewItem.id], "link", cardId)}
+            />
+          </DialogContent>
+        ) : null}
+      </Dialog>
+    </div>
+  );
+}
+
+function ReviewBody({
+  item,
+  existing,
+  busy,
+  onCreate,
+  onIgnore,
+  onLink,
+}: {
+  item: Item;
+  existing: ExistingCard[];
+  busy: boolean;
+  onCreate: () => void;
+  onIgnore: () => void;
+  onLink: (existingCardId: number) => void;
+}) {
+  const p = item.payload;
+  return (
+    <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
+      {/* Imagen + origen */}
+      <div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proxyImage(item.imageUrl)}
+            alt={item.cardId}
+            className="w-full object-contain"
+          />
+        </div>
+        <a
+          href={item.imageUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 block rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-bold text-blue-600 hover:bg-slate-50"
+        >
+          🔗 Ver imagen original
+        </a>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-black uppercase text-white">
+            {item.region}
+          </span>
+          {item.isAlternate ? (
+            <span className="rounded bg-fuchsia-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-white">
+              Alt {item.variant}
+            </span>
+          ) : null}
+          {item.exclusive ? (
+            <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-white">
+              Exclusiva
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-2 text-xs text-slate-500">
+          {item.setCode ?? "—"}
+          {item.seriesLabel ? ` · ${item.seriesLabel}` : ""}
+        </div>
+      </div>
+
+      {/* Detalle + decisión */}
+      <div className="space-y-4">
+        {p ? (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+            {p.rarity ? <div><span className="text-slate-400">Rareza:</span> {p.rarity}</div> : null}
+            {p.category ? <div><span className="text-slate-400">Categoría:</span> {p.category}</div> : null}
+            {p.cost ? <div><span className="text-slate-400">Costo:</span> {p.cost}</div> : null}
+            {p.life ? <div><span className="text-slate-400">Vida:</span> {p.life}</div> : null}
+            {p.power ? <div><span className="text-slate-400">Poder:</span> {p.power}</div> : null}
+            {p.counter ? <div><span className="text-slate-400">Counter:</span> {p.counter}</div> : null}
+            {p.colors?.length ? (
+              <div className="col-span-2">
+                <span className="text-slate-400">Colores:</span> {p.colors.join(", ")}
+              </div>
+            ) : null}
+            {p.types?.length ? (
+              <div className="col-span-2">
+                <span className="text-slate-400">Tipos:</span> {p.types.join(", ")}
+              </div>
+            ) : null}
+            {p.trigger ? (
+              <div className="col-span-2">
+                <span className="text-slate-400">Trigger:</span> {p.trigger}
+              </div>
+            ) : null}
+            {p.text ? (
+              <div className="col-span-2">
+                <span className="text-slate-400">Texto:</span> {p.text}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-400">
+            Sin detalle scrapeado.
+          </div>
+        )}
+
+        <div>
+          <div className="mb-1.5 text-sm font-bold text-slate-700">
+            {existing.length
+              ? `Ya tienes ${existing.length} carta(s) con este código — elige una si es la misma:`
+              : "No hay ninguna carta con este código en tu BD todavía."}
+          </div>
+          {existing.length ? (
+            <div className="flex flex-wrap gap-2">
+              {existing.map((c) => (
+                <button
+                  type="button"
+                  key={c.id}
+                  disabled={busy}
+                  onClick={() => onLink(c.id)}
+                  className="flex w-20 flex-col items-center gap-1 rounded-lg border border-slate-200 p-1.5 hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50"
+                  title={`Vincular a esta carta (#${c.id})`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.src}
+                    alt={`${c.code} ${c.region ?? ""}`}
+                    className="h-24 w-20 rounded object-cover"
+                    loading="lazy"
+                  />
+                  <span className="truncate text-[10px] font-bold text-slate-600">
+                    {c.region ?? "—"}
+                  </span>
+                  <span className="truncate text-[9px] text-slate-400">
+                    {c.officialVariantCode ??
+                      (c.baseCardId ? c.alias || "alt" : "base")}
+                  </span>
+                  <span className="text-[9px] font-bold text-blue-600">
+                    Vincular
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex gap-2 border-t border-slate-200 pt-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCreate}
+            className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {busy ? "…" : "+ Crear carta nueva"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onIgnore}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Ignorar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

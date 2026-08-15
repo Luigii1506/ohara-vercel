@@ -3,6 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { proxyImage } from "@/lib/proxyImage";
 
+type OfficialPayload = {
+  rarity?: string | null;
+  category?: string | null;
+  cost?: string | null;
+  life?: string | null;
+  power?: string | null;
+  counter?: string | null;
+  colors?: string[];
+  types?: string[];
+  text?: string | null;
+  trigger?: string | null;
+};
+
 type Item = {
   id: number;
   region: string;
@@ -15,6 +28,17 @@ type Item = {
   imageUrl: string;
   isAlternate: boolean;
   exclusive: boolean;
+  payload?: OfficialPayload | null;
+};
+type ExistingCard = {
+  id: number;
+  code: string;
+  region: string | null;
+  src: string;
+  alias: string | null;
+  officialVariantCode: string | null;
+  alternateArt: string | null;
+  baseCardId: number | null;
 };
 type RegionOpt = { key: string; label: string };
 type PendingCount = { region: string; count: number };
@@ -25,10 +49,14 @@ export default function OfficialSyncClient() {
   const [region, setRegion] = useState("EN");
   const [setFilter, setSetFilter] = useState("");
   const [items, setItems] = useState<Item[]>([]);
+  const [existingByCode, setExistingByCode] = useState<
+    Record<string, ExistingCard[]>
+  >({});
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState<Set<number>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const load = useCallback(async (reg: string) => {
     setLoading(true);
@@ -42,6 +70,7 @@ export default function OfficialSyncClient() {
       if (d.regions?.length) setRegions(d.regions);
       setPending(d.pendingCounts ?? []);
       setItems(d.items ?? []);
+      setExistingByCode(d.existingByCode ?? {});
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -111,6 +140,15 @@ export default function OfficialSyncClient() {
         return n;
       });
     }
+  };
+
+  const toggleExpanded = (id: number) => {
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   };
 
   const pendingFor = (key: string) =>
@@ -204,6 +242,9 @@ export default function OfficialSyncClient() {
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {items.map((it) => {
           const isBusy = busy.has(it.id);
+          const existing = existingByCode[it.code] ?? [];
+          const isExpanded = expanded.has(it.id);
+          const p = it.payload;
           return (
             <div
               key={it.id}
@@ -229,6 +270,29 @@ export default function OfficialSyncClient() {
                     </span>
                   ) : null}
                 </div>
+                <div className="absolute right-1 top-1 flex flex-col items-end gap-1">
+                  <span className="rounded bg-slate-900/80 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                    {it.region}
+                  </span>
+                  {existing.length ? (
+                    <span
+                      className="rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-900"
+                      title="Ya hay cartas de este código en tu BD — revisa antes de aceptar"
+                    >
+                      Ya tienes {existing.length}
+                    </span>
+                  ) : null}
+                </div>
+                <a
+                  href={it.imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-black/80"
+                  title="Abrir la imagen original del sitio oficial en una pestaña nueva"
+                >
+                  🔗 Original
+                </a>
               </div>
               <div className="p-1.5">
                 <div className="truncate text-[11px] font-bold text-slate-900">
@@ -237,6 +301,79 @@ export default function OfficialSyncClient() {
                 <div className="truncate text-[10px] text-slate-500">
                   {it.name}
                 </div>
+                <div className="truncate text-[9px] text-slate-400">
+                  {it.setCode ?? "—"}
+                  {it.seriesLabel ? ` · ${it.seriesLabel}` : ""}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(it.id)}
+                  className="mt-1 text-[9px] font-bold text-blue-600 hover:underline"
+                >
+                  {isExpanded ? "Ocultar detalle ▲" : "Ver detalle ▼"}
+                </button>
+
+                {isExpanded ? (
+                  <div className="mt-1 space-y-1 rounded-lg bg-slate-50 p-1.5 text-[9px] text-slate-600">
+                    {p ? (
+                      <div className="space-y-0.5">
+                        {p.rarity ? <div>Rareza: {p.rarity}</div> : null}
+                        {p.category ? <div>Categoría: {p.category}</div> : null}
+                        {p.cost ? <div>Costo: {p.cost}</div> : null}
+                        {p.life ? <div>Vida: {p.life}</div> : null}
+                        {p.power ? <div>Poder: {p.power}</div> : null}
+                        {p.counter ? <div>Counter: {p.counter}</div> : null}
+                        {p.colors?.length ? (
+                          <div>Colores: {p.colors.join(", ")}</div>
+                        ) : null}
+                        {p.trigger ? <div>Trigger: {p.trigger}</div> : null}
+                        {p.text ? (
+                          <div className="line-clamp-3">Texto: {p.text}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div>Sin detalle scrapeado.</div>
+                    )}
+
+                    {existing.length ? (
+                      <div className="border-t border-slate-200 pt-1">
+                        <div className="mb-1 font-bold text-slate-700">
+                          Ya en tu BD ({existing.length}):
+                        </div>
+                        <div className="flex gap-1 overflow-x-auto">
+                          {existing.map((c) => (
+                            <div
+                              key={c.id}
+                              className="flex w-14 shrink-0 flex-col items-center gap-0.5"
+                              title={`region=${c.region ?? "—"} alias="${c.alias ?? ""}" officialVariantCode=${c.officialVariantCode ?? "—"}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={c.src}
+                                alt={`${c.code} ${c.region ?? ""}`}
+                                className="h-16 w-14 rounded object-cover"
+                                loading="lazy"
+                              />
+                              <span className="truncate text-[8px] font-bold text-slate-500">
+                                {c.region ?? "—"}
+                              </span>
+                              <span className="truncate text-[8px] text-slate-400">
+                                {c.officialVariantCode ??
+                                  (c.baseCardId ? c.alias || "alt" : "base")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-t border-slate-200 pt-1 text-slate-400">
+                        No hay ninguna carta con este código en tu BD todavía.
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
                 <div className="mt-1.5 flex gap-1">
                   <button
                     type="button"

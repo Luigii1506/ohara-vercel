@@ -36,6 +36,31 @@ export async function GET(req: NextRequest) {
     take: 2000,
   });
 
+  // Cartas que YA existen (cualquier región) para los mismos códigos, para
+  // que el admin pueda comparar visualmente antes de aceptar en vez de
+  // confiar ciegamente en el matching automático por alias/officialVariantCode.
+  const codes = Array.from(new Set(items.map((i) => i.code)));
+  const existingCards = codes.length
+    ? await prisma.card.findMany({
+        where: { code: { in: codes } },
+        select: {
+          id: true,
+          code: true,
+          region: true,
+          src: true,
+          alias: true,
+          officialVariantCode: true,
+          alternateArt: true,
+          baseCardId: true,
+        },
+        orderBy: { id: "asc" },
+      })
+    : [];
+  const existingByCode: Record<string, typeof existingCards> = {};
+  for (const card of existingCards) {
+    (existingByCode[card.code] ??= []).push(card);
+  }
+
   // Conteos por región (PENDIENTES)
   const pendingCounts = await prisma.officialSyncItem.groupBy({
     by: ["region"],
@@ -50,6 +75,7 @@ export async function GET(req: NextRequest) {
       label: cfg.label,
     })),
     items,
+    existingByCode,
     pendingCounts: pendingCounts.map((c) => ({
       region: c.region,
       count: c._count._all,

@@ -1946,10 +1946,12 @@ const CardListClient = ({
               onToggle={(value) => setIsProVersion(value)}
             />
           )} */}
-          <BaseCardsToggle
-            isActive={showOnlyBaseCards}
-            onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
-          />
+          <div className="hidden md:block">
+            <BaseCardsToggle
+              isActive={showOnlyBaseCards}
+              onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
+            />
+          </div>
           {isDesktop &&
             <MultiSelect
               options={sortOptionsForSelect}

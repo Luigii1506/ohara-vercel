@@ -1614,18 +1614,15 @@ export const countCardsByFilters = async (
   const { enrichedFilters, forceEmpty } =
     await enrichFiltersWithResolvedSearchSet(filters);
   if (forceEmpty) return 0;
+  // Mismo criterio que sumCardsValueByFilters: con baseOnly, colapsar a
+  // cartas base únicas (como se ven las tiles del grid); sin baseOnly,
+  // contar cada fila que matchea directo (bases + alternas), para que el
+  // contador y el valor total siempre describan la misma población.
   const shouldCountBaseOnly = Boolean(enrichedFilters.baseOnly);
-  const shouldCountDirect =
-    !shouldCountBaseOnly &&
-    (Boolean(enrichedFilters.searchSetIds?.length) ||
-      hasAltArtSearch(enrichedFilters) ||
-      hasSpecificStructuredSearch(enrichedFilters));
 
   const where = shouldCountBaseOnly
     ? buildWhere(enrichedFilters, false)
-    : shouldCountDirect
-    ? buildDirectWhere(enrichedFilters)
-    : buildWhere(enrichedFilters, false);
+    : buildDirectWhere(enrichedFilters);
 
   return prisma.card.count({ where });
 };

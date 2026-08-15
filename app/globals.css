@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bloqueo de orientación para quien abre el sitio en el navegador normal
+   (no instalado como PWA). Solo se activa en dispositivos táctiles
+   (pointer:coarse, hover:none) en horizontal — así nunca afecta
+   desktop/laptop, que siempre reportan orientation:landscape. */
+.orientation-lock {
+  display: none;
+}
+
+@media screen and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  .orientation-lock {
+    display: flex;
+  }
+}
+
+@keyframes orientation-lock-rotate {
+  0%,
+  15% {
+    transform: rotate(-90deg);
+  }
+  50%,
+  65% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;

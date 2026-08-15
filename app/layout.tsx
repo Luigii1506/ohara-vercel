@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/ui/MobileToast";
 import QueryProvider from "@/components/QueryProvider";
 import { DynamicThemeColor } from "@/components/DynamicThemeColor";
 import UnregisterSW from "@/components/UnregisterSW";
+import OrientationLock from "@/components/OrientationLock";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 // Definición de las fuentes con optimización de carga
@@ -188,6 +189,7 @@ export default function RootLayout({
       </head>
       {/* Aquí se aplica Noto Sans JP globalmente */}
       <body className={notoSansJP.className}>
+        <OrientationLock />
         <DynamicThemeColor />
         <UnregisterSW />
         <QueryProvider>

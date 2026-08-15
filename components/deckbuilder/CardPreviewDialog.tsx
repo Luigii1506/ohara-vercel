@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { X, ZoomIn, Gavel, Info, DollarSign, Layers } from "lucide-react";
+import { X, ZoomIn, Gavel, Info, DollarSign, Layers, Check } from "lucide-react";
 import { CardWithCollectionData } from "@/types";
 import { Oswald } from "next/font/google";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
@@ -64,7 +64,11 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50 });
   const [isHovering, setIsHovering] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("details");
+  const [selectedVariantId, setSelectedVariantId] = useState<
+    string | number | null
+  >(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleMove = useCallback((clientX: number, clientY: number) => {
     if (!cardRef.current) return;
@@ -128,6 +132,21 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   );
   const hasVariants = variants.length > 1;
 
+  // La variante que se está mostrando arriba (imagen/precio/tcgplayer):
+  // la seleccionada a mano en la pestaña Variantes, o si no, la que abrió el diálogo.
+  const displayedCard = useMemo<CardWithCollectionData>(() => {
+    if (selectedVariantId != null) {
+      const found = variants.find((v) => v.id === selectedVariantId);
+      if (found) return found;
+    }
+    return altCard as CardWithCollectionData;
+  }, [selectedVariantId, variants, altCard]);
+
+  const selectVariant = useCallback((variant: CardWithCollectionData) => {
+    setSelectedVariantId(variant.id);
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const tabs = useMemo(() => {
     const list: { id: TabId; label: string; icon: typeof Info }[] = [];
     if (!isDon) list.push({ id: "details", label: t("cardPreview.tabDetails"), icon: Info });
@@ -138,32 +157,35 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
     return list;
   }, [isDon, hasRulings, t]);
 
-  // Reset a la primera pestaña disponible cuando cambia la carta mostrada o
-  // cuando la pestaña activa deja de existir (ej. cambia isDon/hasRulings).
+  // Reset a la primera pestaña disponible y a la variante original cuando
+  // cambia la carta mostrada (nueva apertura del diálogo).
   useEffect(() => {
+    setSelectedVariantId(null);
     if (!tabs.some((tab) => tab.id === activeTab)) {
       setActiveTab(tabs[0]?.id ?? "pricing");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [infoCard?.id, tabs]);
+  }, [infoCard?.id]);
 
   if (!altCard || !infoCard) return null;
 
-  const priceValue = getNumericPrice(altCard.marketPrice);
-  const lowValue = getNumericPrice(altCard.lowPrice);
-  const midValue = getNumericPrice(altCard.midPrice);
-  const highValue = getNumericPrice(altCard.highPrice);
+  const priceValue = getNumericPrice(displayedCard.marketPrice);
+  const lowValue = getNumericPrice(displayedCard.lowPrice);
+  const midValue = getNumericPrice(displayedCard.midPrice);
+  const highValue = getNumericPrice(displayedCard.highPrice);
   const tcgUrl =
-    altCard?.tcgUrl && altCard.tcgUrl !== ""
-      ? altCard.tcgUrl
+    displayedCard?.tcgUrl && displayedCard.tcgUrl !== ""
+      ? displayedCard.tcgUrl
       : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
           infoCard.name
         )}&Rarity=${encodeURIComponent(
-          infoCard.rarity ?? ""
+          displayedCard.rarity ?? infoCard.rarity ?? ""
         )}&Color=${encodeURIComponent(
           infoCard.colors?.[0]?.color ?? ""
         )}&CardType=${encodeURIComponent(infoCard.category ?? "")}`;
-  const isUsCard = (altCard?.region ?? infoCard?.region) === "US";
+  const isUsCard = (displayedCard?.region ?? infoCard?.region) === "US";
+  const showQuantityBadge =
+    currentQuantity > 0 && displayedCard.id === altCard.id;
 
   const activeIndex = Math.max(
     0,
@@ -191,7 +213,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                   {infoCard.code}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span>{infoCard.rarity}</span>
+                <span>{displayedCard.rarity ?? infoCard.rarity}</span>
                 <span className="text-slate-300">•</span>
                 <span>{infoCard.category}</span>
               </div>
@@ -201,7 +223,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
               </h2>
               {/* Types - from base card */}
               {infoCard.types && infoCard.types.length > 0 && (
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="block text-xs text-slate-500 mt-0.5">
                   {infoCard.types
                     .map((t: { type: string }) => t.type)
                     .join(" / ")}
@@ -219,6 +241,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
 
         {/* Scrollable Content */}
         <div
+          ref={scrollRef}
           className="overflow-y-auto flex-1 pb-4"
           style={{
             maxHeight: "calc(92vh - 100px)",
@@ -256,7 +279,8 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 >
                   {/* Card Image Container - Sin borde, solo sombra */}
                   <div
-                    className="relative w-44 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden"
+                    key={displayedCard.id}
+                    className="relative w-44 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden animate-in fade-in zoom-in-[0.98] duration-200"
                     style={{
                       boxShadow: isHovering
                         ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
@@ -265,14 +289,14 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     }}
                   >
                     <img
-                      src={getOptimizedImageUrl(altCard.src, "medium")}
+                      src={getOptimizedImageUrl(displayedCard.src, "medium")}
                       alt={infoCard.name}
                       className="w-full h-full object-cover"
                       draggable={false}
                     />
 
                     {/* Quantity Badge - Top Right */}
-                    {currentQuantity > 0 && (
+                    {showQuantityBadge && (
                       <div className="absolute top-0 right-0 bg-black text-white rounded-tr-xl rounded-bl-lg min-w-[28px] h-[28px] flex items-center justify-center text-sm font-bold border-2 border-white shadow-lg z-20">
                         x{currentQuantity}
                       </div>
@@ -281,7 +305,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     {/* Price Badge - Bottom Left */}
                     {priceValue && (
                       <div className="absolute bottom-0 left-0 bg-emerald-600 text-white rounded-bl-xl px-2 py-1 text-xs font-bold border-2 border-white shadow-lg z-20">
-                        {formatCurrency(priceValue, altCard.priceCurrency)}
+                        {formatCurrency(priceValue, displayedCard.priceCurrency)}
                       </div>
                     )}
 
@@ -336,31 +360,39 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
             </div>
           </div>
 
+          {selectedVariantId != null && (
+            <p className="block px-4 pb-1 text-center text-[11px] font-medium text-slate-400">
+              {displayedCard.alias && displayedCard.alias !== "0"
+                ? displayedCard.alias
+                : displayedCard.alternateArt || t("cardPreview.tabVariants")}
+            </p>
+          )}
+
           {/* Tabs */}
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as TabId)}
             className="mt-1"
           >
-            <div className="sticky top-0 z-[5] bg-white/95 backdrop-blur px-4 py-2">
-              <TabsList className="relative flex w-full rounded-2xl bg-slate-100 p-1 h-auto">
-                <div
-                  className="absolute inset-y-1 left-1 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md transition-transform duration-300 ease-out"
-                  style={{
-                    width: `calc(${100 / tabs.length}% - 4px)`,
-                    transform: `translateX(calc(${activeIndex * 100}% + ${activeIndex * 2}px))`,
-                  }}
-                />
+            <div className="sticky top-0 z-[5] border-b border-slate-200 bg-white px-4">
+              <TabsList className="relative flex h-auto w-full gap-0 rounded-none bg-transparent p-0">
                 {tabs.map((tab) => (
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="relative z-10 flex flex-1 flex-col items-center gap-0.5 rounded-xl bg-transparent px-1 py-2 text-[10.5px] font-bold text-slate-500 shadow-none transition-colors data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
+                    className="relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-none bg-transparent px-1 py-2.5 text-[12px] font-semibold text-slate-400 shadow-none transition-colors data-[state=active]:bg-transparent data-[state=active]:text-slate-900 data-[state=active]:shadow-none"
                   >
-                    <tab.icon className="h-4 w-4" />
+                    <tab.icon className="h-[15px] w-[15px]" strokeWidth={2.25} />
                     <span>{tab.label}</span>
                   </TabsTrigger>
                 ))}
+                <div
+                  className="absolute bottom-0 left-0 h-[2.5px] rounded-full bg-slate-900 transition-transform duration-300 ease-out"
+                  style={{
+                    width: `${100 / tabs.length}%`,
+                    transform: `translateX(${activeIndex * 100}%)`,
+                  }}
+                />
               </TabsList>
             </div>
 
@@ -383,13 +415,13 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                       {t("cardPreview.priceMarket")}
                     </p>
                     <p className="mt-1 block text-3xl font-black text-emerald-700">
-                      {formatCurrency(priceValue, altCard.priceCurrency)}
+                      {formatCurrency(priceValue, displayedCard.priceCurrency)}
                     </p>
-                    {altCard.priceUpdatedAt && (
+                    {displayedCard.priceUpdatedAt && (
                       <p className="mt-1 block text-[11px] text-emerald-700/60">
                         {t("cardPreview.priceLastUpdated", {
                           date: new Date(
-                            altCard.priceUpdatedAt as unknown as string
+                            displayedCard.priceUpdatedAt as unknown as string
                           ).toLocaleDateString(),
                         })}
                       </p>
@@ -401,18 +433,18 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                       <PriceStat
                         label={t("cardPreview.priceLow")}
                         value={lowValue}
-                        currency={altCard.priceCurrency}
+                        currency={displayedCard.priceCurrency}
                       />
                       <PriceStat
                         label={t("cardPreview.priceMid")}
                         value={midValue}
-                        currency={altCard.priceCurrency}
+                        currency={displayedCard.priceCurrency}
                         emphasize
                       />
                       <PriceStat
                         label={t("cardPreview.priceHigh")}
                         value={highValue}
-                        currency={altCard.priceCurrency}
+                        currency={displayedCard.priceCurrency}
                       />
                     </div>
                   )}
@@ -480,12 +512,9 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
 
             <TabsContent value="variants" className="mt-0 px-4 py-4">
               {hasVariants ? (
-                <div
-                  className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2"
-                  style={{ WebkitOverflowScrolling: "touch" }}
-                >
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {variants.map((variant, idx) => {
-                    const isCurrent = variant.id === altCard.id;
+                    const isSelected = variant.id === displayedCard.id;
                     const vPrice = getNumericPrice(variant.marketPrice);
                     const label =
                       idx === 0
@@ -494,38 +523,43 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                           ? variant.alias
                           : variant.alternateArt || t("cardPreview.tabVariants");
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={variant.id}
-                        className={`flex w-24 shrink-0 flex-col items-center gap-1.5 rounded-2xl border-2 p-2 transition-colors ${
-                          isCurrent
-                            ? "border-amber-400 bg-amber-50"
-                            : "border-slate-100 bg-white"
+                        onClick={() => selectVariant(variant)}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className={`group flex flex-col overflow-hidden rounded-xl border-2 bg-white text-left transition-all ${
+                          isSelected
+                            ? "border-slate-900 shadow-md"
+                            : "border-slate-150 hover:border-slate-300"
                         }`}
                       >
-                        <div className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-lg">
+                        <div className="relative aspect-[2.5/3.5] w-full overflow-hidden bg-slate-100">
                           <img
-                            src={getOptimizedImageUrl(variant.src, "thumb")}
+                            src={getOptimizedImageUrl(variant.src, "small")}
                             alt={variant.name}
                             className="h-full w-full object-cover"
                             draggable={false}
                           />
-                          {isCurrent && (
-                            <div className="pointer-events-none absolute top-1 left-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase text-white shadow">
-                              {t("cardPreview.variantsViewing")}
+                          {isSelected && (
+                            <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow">
+                              <Check className="h-3 w-3" strokeWidth={3} />
                             </div>
                           )}
                         </div>
-                        <span className="line-clamp-1 text-center text-[10px] font-semibold text-slate-600">
-                          {label}
-                        </span>
-                        {vPrice ? (
-                          <span className="text-[10px] font-bold text-emerald-600">
-                            {formatCurrency(vPrice, variant.priceCurrency)}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-300">—</span>
-                        )}
-                      </div>
+                        <div className="px-2 py-1.5">
+                          <p className="truncate text-[11px] font-semibold text-slate-700">
+                            {label}
+                          </p>
+                          {vPrice ? (
+                            <p className="text-[11px] font-bold text-emerald-600">
+                              {formatCurrency(vPrice, variant.priceCurrency)}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-slate-300">—</p>
+                          )}
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -540,7 +574,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
       </BaseDrawer>
 
       {/* Large Image Overlay */}
-      {showLargeImage && altCard && (
+      {showLargeImage && displayedCard && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-[9999] px-5 cursor-pointer"
           onClick={() => setShowLargeImage(false)}
@@ -555,7 +589,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
             </div>
             <div className="flex flex-col items-center gap-4">
               <img
-                src={getOptimizedImageUrl(altCard.src, "large")}
+                src={getOptimizedImageUrl(displayedCard.src, "large")}
                 className="max-w-full max-h-[calc(100dvh-150px)] object-contain rounded-lg shadow-2xl"
                 alt={infoCard.name}
               />
@@ -563,11 +597,11 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 <span className={`${oswald.className} font-medium text-lg`}>
                   {infoCard.code}
                 </span>
-                {altCard.sets && altCard.sets.length > 0 && (
-                  <p className="text-white/70 text-sm mt-1">
+                {displayedCard.sets && displayedCard.sets.length > 0 && (
+                  <p className="block text-white/70 text-sm mt-1">
                     {
-                      (altCard.sets[0] as { set?: { title?: string } })?.set
-                        ?.title
+                      (displayedCard.sets[0] as { set?: { title?: string } })
+                        ?.set?.title
                     }
                   </p>
                 )}

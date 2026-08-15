@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
-import { X, ZoomIn, Gavel, ChevronDown } from "lucide-react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { X, ZoomIn, Gavel, Info, DollarSign, Layers } from "lucide-react";
 import { CardWithCollectionData } from "@/types";
 import { Oswald } from "next/font/google";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
-import { getColors } from "@/helpers/functions";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardDetails from "@/components/CardDetails";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -33,6 +33,8 @@ const formatCurrency = (value: number, currency?: string | null) =>
 const openTcgplayer = (webUrl: string) => {
   window.open(webUrl, "_blank", "noopener,noreferrer");
 };
+
+type TabId = "details" | "pricing" | "rulings" | "variants";
 
 interface CardPreviewDialogProps {
   isOpen: boolean;
@@ -61,7 +63,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50 });
   const [isHovering, setIsHovering] = useState(false);
-  const [isRulingsExpanded, setIsRulingsExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabId>("details");
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleMove = useCallback((clientX: number, clientY: number) => {
@@ -119,10 +121,38 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   // Rulings from base card (infoCard)
   const rulings = infoCard?.rulings || [];
   const hasRulings = rulings.length > 0;
+  const isDon = (infoCard?.category || "").toLowerCase() === "don";
+  const variants = useMemo(
+    () => (infoCard ? [infoCard, ...(infoCard.alternates ?? [])] : []),
+    [infoCard]
+  );
+  const hasVariants = variants.length > 1;
+
+  const tabs = useMemo(() => {
+    const list: { id: TabId; label: string; icon: typeof Info }[] = [];
+    if (!isDon) list.push({ id: "details", label: t("cardPreview.tabDetails"), icon: Info });
+    list.push({ id: "pricing", label: t("cardPreview.tabPricing"), icon: DollarSign });
+    if (!isDon && hasRulings)
+      list.push({ id: "rulings", label: t("cardPreview.tabRulings"), icon: Gavel });
+    list.push({ id: "variants", label: t("cardPreview.tabVariants"), icon: Layers });
+    return list;
+  }, [isDon, hasRulings, t]);
+
+  // Reset a la primera pestaña disponible cuando cambia la carta mostrada o
+  // cuando la pestaña activa deja de existir (ej. cambia isDon/hasRulings).
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0]?.id ?? "pricing");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infoCard?.id, tabs]);
 
   if (!altCard || !infoCard) return null;
 
   const priceValue = getNumericPrice(altCard.marketPrice);
+  const lowValue = getNumericPrice(altCard.lowPrice);
+  const midValue = getNumericPrice(altCard.midPrice);
+  const highValue = getNumericPrice(altCard.highPrice);
   const tcgUrl =
     altCard?.tcgUrl && altCard.tcgUrl !== ""
       ? altCard.tcgUrl
@@ -135,9 +165,10 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
         )}&CardType=${encodeURIComponent(infoCard.category ?? "")}`;
   const isUsCard = (altCard?.region ?? infoCard?.region) === "US";
 
-  const isDon = (infoCard.category || "").toLowerCase() === "don";
-  // Get colors for gradient (from base card)
-  const colors = infoCard.colors || [];
+  const activeIndex = Math.max(
+    0,
+    tabs.findIndex((tab) => tab.id === activeTab)
+  );
 
   return (
     <>
@@ -195,7 +226,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
           }}
         >
           {/* Card Image with 3D Tilt Effect */}
-          <div className="p-4 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
+          <div className="px-4 pt-3 pb-2 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
             <div
               ref={cardRef}
               className="relative cursor-pointer"
@@ -225,7 +256,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 >
                   {/* Card Image Container - Sin borde, solo sombra */}
                   <div
-                    className="relative w-52 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden"
+                    className="relative w-44 sm:w-60 aspect-[2.5/3.5] rounded-xl overflow-hidden"
                     style={{
                       boxShadow: isHovering
                         ? "0 30px 60px -15px rgba(0, 0, 0, 0.5), 0 15px 30px -10px rgba(0, 0, 0, 0.3)"
@@ -305,75 +336,118 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
             </div>
           </div>
 
-          {isUsCard && (
-            <div className="flex justify-center px-4 mt-3">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openTcgplayer(tcgUrl);
-                }}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-sm hover:bg-blue-500 transition-colors px-4 py-2"
-              >
-                <TcgplayerLogo className="h-5 w-12 text-white" />
-                <span>{t("cardPreview.viewOnTcg")}</span>
-              </button>
+          {/* Tabs */}
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as TabId)}
+            className="mt-1"
+          >
+            <div className="sticky top-0 z-[5] bg-white/95 backdrop-blur px-4 py-2">
+              <TabsList className="relative flex w-full rounded-2xl bg-slate-100 p-1 h-auto">
+                <div
+                  className="absolute inset-y-1 left-1 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md transition-transform duration-300 ease-out"
+                  style={{
+                    width: `calc(${100 / tabs.length}% - 4px)`,
+                    transform: `translateX(calc(${activeIndex * 100}% + ${activeIndex * 2}px))`,
+                  }}
+                />
+                {tabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="relative z-10 flex flex-1 flex-col items-center gap-0.5 rounded-xl bg-transparent px-1 py-2 text-[10.5px] font-bold text-slate-500 shadow-none transition-colors data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
+                  >
+                    <tab.icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
-          )}
 
-          {/* Card Info Section - Using base card for effect/texts */}
-          {!isDon && (
-            <div className="mx-4 my-3">
-              <CardDetails
-                card={infoCard}
-                searchTerm=""
-                isModal={false}
-                isTextOnly={false}
-              />
-            </div>
-          )}
+            {!isDon && (
+              <TabsContent value="details" className="mt-0 px-4 py-3">
+                <CardDetails
+                  card={infoCard}
+                  searchTerm=""
+                  isModal={false}
+                  isTextOnly={false}
+                />
+              </TabsContent>
+            )}
 
-          {/* Rulings Section - Elegant expandable */}
-          {hasRulings && !isDon && (
-            <div className="px-4 pb-4">
-              <button
-                onClick={() => setIsRulingsExpanded(!isRulingsExpanded)}
-                className="w-full group"
-              >
-                <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200/60 px-4 py-3 transition-all hover:border-amber-300 hover:shadow-md">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md">
-                      <Gavel className="h-5 w-5" />
-                    </div>
-                    <div className="text-left flex flex-col">
-                      <p className="font-semibold text-slate-800">
-                        {t("cardPreview.rulingsTitle")}
-                      </p>
-                      <p className="text-xs text-amber-700">
-                        {t("cardPreview.rulingsSubtitle", {
-                          count: rulings.length,
+            <TabsContent value="pricing" className="mt-0 px-4 py-4 space-y-4">
+              {priceValue ? (
+                <>
+                  <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 text-center">
+                    <p className="block text-[11px] font-bold uppercase tracking-wide text-emerald-700/70">
+                      {t("cardPreview.priceMarket")}
+                    </p>
+                    <p className="mt-1 block text-3xl font-black text-emerald-700">
+                      {formatCurrency(priceValue, altCard.priceCurrency)}
+                    </p>
+                    {altCard.priceUpdatedAt && (
+                      <p className="mt-1 block text-[11px] text-emerald-700/60">
+                        {t("cardPreview.priceLastUpdated", {
+                          date: new Date(
+                            altCard.priceUpdatedAt as unknown as string
+                          ).toLocaleDateString(),
                         })}
                       </p>
-                    </div>
+                    )}
                   </div>
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-600 transition-transform duration-300 ${
-                      isRulingsExpanded ? "rotate-180" : ""
-                    }`}
-                  >
-                    <ChevronDown className="h-5 w-5" />
-                  </div>
-                </div>
-              </button>
 
-              {/* Expandable Rulings Content */}
-              <div
-                className={`overflow-hidden transition-all duration-300 ease-out ${
-                  isRulingsExpanded
-                    ? "max-h-[2000px] opacity-100 mt-3"
-                    : "max-h-0 opacity-0"
-                }`}
-              >
+                  {(lowValue || midValue || highValue) && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <PriceStat
+                        label={t("cardPreview.priceLow")}
+                        value={lowValue}
+                        currency={altCard.priceCurrency}
+                      />
+                      <PriceStat
+                        label={t("cardPreview.priceMid")}
+                        value={midValue}
+                        currency={altCard.priceCurrency}
+                        emphasize
+                      />
+                      <PriceStat
+                        label={t("cardPreview.priceHigh")}
+                        value={highValue}
+                        currency={altCard.priceCurrency}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
+                  {t("cardPreview.noPriceData")}
+                </div>
+              )}
+
+              {isUsCard && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTcgplayer(tcgUrl);
+                  }}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500"
+                >
+                  <TcgplayerLogo className="h-5 w-12 text-white" />
+                  <span>{t("cardPreview.viewOnTcg")}</span>
+                </button>
+              )}
+            </TabsContent>
+
+            {!isDon && hasRulings && (
+              <TabsContent value="rulings" className="mt-0 px-4 py-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm">
+                    <Gavel className="h-4 w-4" />
+                  </div>
+                  <p className="text-xs font-semibold text-amber-700">
+                    {t("cardPreview.rulingsSubtitle", { count: rulings.length })}
+                  </p>
+                </div>
                 <div className="space-y-3">
                   {rulings.map((ruling, index) => (
                     <div
@@ -401,9 +475,67 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
+              </TabsContent>
+            )}
+
+            <TabsContent value="variants" className="mt-0 px-4 py-4">
+              {hasVariants ? (
+                <div
+                  className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
+                  {variants.map((variant, idx) => {
+                    const isCurrent = variant.id === altCard.id;
+                    const vPrice = getNumericPrice(variant.marketPrice);
+                    const label =
+                      idx === 0
+                        ? t("cardPreview.variantsBase")
+                        : variant.alias && variant.alias !== "0"
+                          ? variant.alias
+                          : variant.alternateArt || t("cardPreview.tabVariants");
+                    return (
+                      <div
+                        key={variant.id}
+                        className={`flex w-24 shrink-0 flex-col items-center gap-1.5 rounded-2xl border-2 p-2 transition-colors ${
+                          isCurrent
+                            ? "border-amber-400 bg-amber-50"
+                            : "border-slate-100 bg-white"
+                        }`}
+                      >
+                        <div className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-lg">
+                          <img
+                            src={getOptimizedImageUrl(variant.src, "thumb")}
+                            alt={variant.name}
+                            className="h-full w-full object-cover"
+                            draggable={false}
+                          />
+                          {isCurrent && (
+                            <div className="pointer-events-none absolute top-1 left-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase text-white shadow">
+                              {t("cardPreview.variantsViewing")}
+                            </div>
+                          )}
+                        </div>
+                        <span className="line-clamp-1 text-center text-[10px] font-semibold text-slate-600">
+                          {label}
+                        </span>
+                        {vPrice ? (
+                          <span className="text-[10px] font-bold text-emerald-600">
+                            {formatCurrency(vPrice, variant.priceCurrency)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-300">—</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
+                  {t("cardPreview.noVariants")}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </BaseDrawer>
 
@@ -447,5 +579,31 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
     </>
   );
 };
+
+const PriceStat: React.FC<{
+  label: string;
+  value: number | null;
+  currency?: string | null;
+  emphasize?: boolean;
+}> = ({ label, value, currency, emphasize }) => (
+  <div
+    className={`rounded-xl border p-2.5 text-center ${
+      emphasize
+        ? "border-slate-300 bg-slate-50"
+        : "border-slate-100 bg-white"
+    }`}
+  >
+    <p className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">
+      {label}
+    </p>
+    <p
+      className={`mt-0.5 block text-sm font-bold ${
+        emphasize ? "text-slate-800" : "text-slate-600"
+      }`}
+    >
+      {value ? formatCurrency(value, currency) : "—"}
+    </p>
+  </div>
+);
 
 export default CardPreviewDialog;

@@ -125,6 +125,19 @@ export type MessageKey =
   | "cardPreview.viewOnTcg"
   | "cardPreview.rulingsTitle"
   | "cardPreview.rulingsSubtitle"
+  | "cardPreview.tabDetails"
+  | "cardPreview.tabPricing"
+  | "cardPreview.tabRulings"
+  | "cardPreview.tabVariants"
+  | "cardPreview.priceMarket"
+  | "cardPreview.priceLow"
+  | "cardPreview.priceMid"
+  | "cardPreview.priceHigh"
+  | "cardPreview.priceLastUpdated"
+  | "cardPreview.noPriceData"
+  | "cardPreview.variantsBase"
+  | "cardPreview.variantsViewing"
+  | "cardPreview.noVariants"
   | "cardDetails.familyType"
   | "cardDetails.cost"
   | "cardDetails.power"
@@ -481,6 +494,19 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "cardPreview.viewOnTcg": "Ver en TCGplayer",
     "cardPreview.rulingsTitle": "Reglas oficiales",
     "cardPreview.rulingsSubtitle": "{count} preguntas y respuestas",
+    "cardPreview.tabDetails": "Detalles",
+    "cardPreview.tabPricing": "Precio",
+    "cardPreview.tabRulings": "Reglas",
+    "cardPreview.tabVariants": "Variantes",
+    "cardPreview.priceMarket": "Precio de mercado",
+    "cardPreview.priceLow": "Mínimo",
+    "cardPreview.priceMid": "Mediano",
+    "cardPreview.priceHigh": "Máximo",
+    "cardPreview.priceLastUpdated": "Actualizado {date}",
+    "cardPreview.noPriceData": "Sin datos de precio para esta versión",
+    "cardPreview.variantsBase": "Base",
+    "cardPreview.variantsViewing": "Viendo",
+    "cardPreview.noVariants": "Esta carta no tiene otras versiones",
     "cardDetails.familyType": "Familia",
     "cardDetails.cost": "Coste",
     "cardDetails.power": "Poder",
@@ -854,6 +880,19 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "cardPreview.viewOnTcg": "View on TCGplayer",
     "cardPreview.rulingsTitle": "Official rulings",
     "cardPreview.rulingsSubtitle": "{count} Q&A",
+    "cardPreview.tabDetails": "Details",
+    "cardPreview.tabPricing": "Pricing",
+    "cardPreview.tabRulings": "Rulings",
+    "cardPreview.tabVariants": "Variants",
+    "cardPreview.priceMarket": "Market price",
+    "cardPreview.priceLow": "Low",
+    "cardPreview.priceMid": "Median",
+    "cardPreview.priceHigh": "High",
+    "cardPreview.priceLastUpdated": "Updated {date}",
+    "cardPreview.noPriceData": "No price data for this version",
+    "cardPreview.variantsBase": "Base",
+    "cardPreview.variantsViewing": "Viewing",
+    "cardPreview.noVariants": "This card has no other versions",
     "cardDetails.familyType": "Family type",
     "cardDetails.cost": "Cost",
     "cardDetails.power": "Power",

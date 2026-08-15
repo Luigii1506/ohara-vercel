@@ -11,7 +11,7 @@
 
 type Extended = { name: string; value: string }[];
 
-const RARITY_MAP: Record<string, string> = {
+export const RARITY_MAP: Record<string, string> = {
   L: "Leader",
   C: "Common",
   UC: "Uncommon",
@@ -22,6 +22,16 @@ const RARITY_MAP: Record<string, string> = {
   PR: "Promo",
   SP: "Special Card",
   TR: "Treasure Rare",
+};
+
+/** Normaliza un código de rareza crudo de TCGplayer ("R", "SR"...) al nombre
+ * completo ("Rare", "Super Rare"...). Si ya viene completo o no se reconoce,
+ * lo devuelve tal cual. */
+export const normalizeRarity = (raw?: string | null): string | null => {
+  if (!raw) return raw ?? null;
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  return RARITY_MAP[trimmed.toUpperCase()] ?? trimmed;
 };
 
 const CATEGORY_MAP: Record<string, string> = {

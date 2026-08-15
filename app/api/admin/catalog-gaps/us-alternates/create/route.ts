@@ -12,6 +12,7 @@ import {
   parseTcgCard,
   classifyAlternateArt,
   splitDisclaimer,
+  normalizeRarity,
 } from "@/lib/services/tcgplayerCardData";
 import { findBestSetMatch, resolveTcgSetTargets } from "@/lib/services/catalogSetResolver";
 
@@ -209,7 +210,7 @@ export async function POST(req: NextRequest) {
           counter: base.counter,
           category: base.category,
           life: base.life,
-          rarity: prod.rarity ?? base.rarity,
+          rarity: normalizeRarity(prod.rarity) ?? base.rarity,
           illustrator: base.illustrator,
           alternateArt,
           disclaimer,

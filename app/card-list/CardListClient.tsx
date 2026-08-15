@@ -1946,10 +1946,10 @@ const CardListClient = ({
               onToggle={(value) => setIsProVersion(value)}
             />
           )} */}
-          {/* <BaseCardsToggle
+          <BaseCardsToggle
             isActive={showOnlyBaseCards}
             onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
-          /> */}
+          />
           {isDesktop &&
             <MultiSelect
               options={sortOptionsForSelect}

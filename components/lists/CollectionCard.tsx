@@ -12,7 +12,11 @@ interface CollectionCardProps {
   onShare: (list: UserList) => void;
   onDelete: (list: UserList) => void;
   onPreview: (list: UserList) => void;
-  formatCurrency: (value: number, currency?: string) => string;
+  formatCurrency: (
+    value: number,
+    currency?: string | null,
+    listForCurrency?: UserList | null
+  ) => string;
 }
 
 export const CollectionCard: React.FC<CollectionCardProps> = ({
@@ -67,7 +71,7 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
 
               {hasValue && (
                 <p className="mt-2 text-base sm:text-lg font-bold text-slate-900">
-                  {formatCurrency(list.totalValue!, list.currency)}
+                  {formatCurrency(list.totalValue!, list.currency, list)}
                 </p>
               )}
             </div>

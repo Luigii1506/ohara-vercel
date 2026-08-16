@@ -50,6 +50,8 @@ interface BookFlipContainerProps {
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   priceField?: "marketPrice" | "midPrice";
+  displayCurrency?: string | null;
+  exchangeRate?: number | string | null;
   // Mode flags
   showInteriorPage?: boolean;
   // Page change callback
@@ -118,6 +120,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onEditPrice,
   onToggleSold,
   priceField,
+  displayCurrency,
+  exchangeRate,
   showInteriorPage = true,
   onPageChange,
   onNavigationReady,
@@ -419,6 +423,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
             priceField={priceField}
+            displayCurrency={displayCurrency}
+            exchangeRate={exchangeRate}
             shareUrl={shareUrl}
           />
         </FlipPage>
@@ -446,6 +452,8 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
     onDragHandlers,
     dragOverPosition,
     selectedCardForPlacement,
+    displayCurrency,
+    exchangeRate,
   ]);
 
   // Handle page flip events

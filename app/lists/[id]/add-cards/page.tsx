@@ -76,6 +76,7 @@ import { Oswald } from "next/font/google";
 import { BookFlipContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
+import { convertForListDisplay } from "@/lib/lists/currency";
 import SearchFilters from "@/components/home/SearchFilters";
 import DropdownSearch from "@/components/DropdownSearch";
 import FiltersSidebar from "@/components/FiltersSidebar";
@@ -133,6 +134,8 @@ interface UserList {
   maxColumns: number | null;
   totalPages: number;
   color: string | null;
+  displayCurrency?: string | null;
+  exchangeRate?: number | string | null;
 }
 
 interface SimpleListCard {
@@ -1276,12 +1279,19 @@ const AddCardsPage = () => {
     );
   };
 
-  const formatCurrency = (value: number, currency?: string | null) =>
-    new Intl.NumberFormat(undefined, {
+  const formatCurrency = (value: number, currency?: string | null) => {
+    const sourceCurrency = currency || "USD";
+    const { value: displayValue, currency: displayCurrencyCode } =
+      sourceCurrency === "USD"
+        ? convertForListDisplay(value, list)
+        : { value, currency: sourceCurrency };
+
+    return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: currency || "USD",
+      currency: displayCurrencyCode,
       minimumFractionDigits: 2,
-    }).format(value);
+    }).format(displayValue);
+  };
 
 
   const isOwner =
@@ -3543,6 +3553,8 @@ const AddCardsPage = () => {
                         priceField={
                           isAdmin && showListedMedian ? "midPrice" : "marketPrice"
                         }
+                        displayCurrency={list.displayCurrency}
+                        exchangeRate={list.exchangeRate}
                         showInteriorPage={true} // add-cards shows interior page for proper synchronization
                         onPageChange={(pageIndex) => {
                           hasUserNavigated.current = true; // Mark that user has manually navigated

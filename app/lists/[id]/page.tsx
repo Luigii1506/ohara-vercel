@@ -589,6 +589,8 @@ const ListDetailPage = () => {
             priceField={
               isAdmin && showListedMedian ? "midPrice" : "marketPrice"
             }
+            displayCurrency={list.displayCurrency}
+            exchangeRate={list.exchangeRate}
             showInteriorPage={true} // page.tsx shows interior page on desktop
             onPageChange={handlePageChange}
             onNavigationReady={setNavigationFunctions}

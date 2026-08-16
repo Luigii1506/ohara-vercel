@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UserList, UserListCard } from "@/types";
+import { convertForListDisplay } from "@/lib/lists/currency";
 import DropdownSearch from "@/components/DropdownSearch";
 import ListsFiltersSidebar from "@/components/ListsFiltersSidebar";
 import BaseDrawer from "@/components/ui/BaseDrawer";
@@ -405,13 +406,26 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     setPreviewDrawer({ open: false, list: null, cards: [], loading: false });
   };
 
-  // Format currency
-  const formatCurrency = (value: number, currency?: string) =>
-    new Intl.NumberFormat(undefined, {
+  // Format currency: cada carpeta puede tener su propia moneda de despliegue
+  // (ej. MXN con un tipo de cambio fijo), así que recibe la carpeta a la que
+  // pertenece el valor para convertir antes de formatear.
+  const formatCurrency = (
+    value: number,
+    currency?: string | null,
+    listForCurrency?: UserList | null
+  ) => {
+    const sourceCurrency = currency || "USD";
+    const { value: displayValue, currency: displayCurrencyCode } =
+      sourceCurrency === "USD"
+        ? convertForListDisplay(value, listForCurrency)
+        : { value, currency: sourceCurrency };
+
+    return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: currency || "USD",
+      currency: displayCurrencyCode,
       minimumFractionDigits: 2,
-    }).format(value);
+    }).format(displayValue);
+  };
 
   // Loading skeleton
   if (loading) {
@@ -865,6 +879,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
                           {formatCurrency(
                             previewDrawer.list.totalValue,
                             previewDrawer.list.currency,
+                            previewDrawer.list,
                           )}
                         </span>
                       </div>

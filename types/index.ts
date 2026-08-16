@@ -271,6 +271,8 @@ export interface UserList {
   };
   totalValue?: number;
   currency?: string;
+  displayCurrency?: string | null;
+  exchangeRate?: number | string | null;
 }
 
 export interface UserListCard {

@@ -3,6 +3,7 @@ import { Plus, Check, DollarSign, ExternalLink, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
+import { convertForListDisplay } from "@/lib/lists/currency";
 
 interface CardGridProps {
   cards: GridCard[][];
@@ -11,6 +12,9 @@ interface CardGridProps {
   maxRows: number;
   maxColumns: number;
   isEditing?: boolean;
+  /** Moneda de despliegue de la carpeta (ej. "MXN") y su tipo de cambio fijo. */
+  displayCurrency?: string | null;
+  exchangeRate?: number | string | null;
   onCardClick?: (card: CardWithCollectionData) => void;
   onPositionClick?: (row: number, col: number, page?: number) => void;
   onDragHandlers?: {
@@ -54,6 +58,8 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onEditPrice,
   onToggleSold,
   priceField = "marketPrice",
+  displayCurrency,
+  exchangeRate,
 }) => {
   return (
     <div
@@ -168,12 +174,22 @@ export const CardGrid: React.FC<CardGridProps> = ({
                           return Number.isFinite(numberValue) ? numberValue : null;
                         };
 
-                        const formatCurrency = (value: number, currency?: string | null) =>
-                          new Intl.NumberFormat(undefined, {
+                        const formatCurrency = (value: number, currency?: string | null) => {
+                          const sourceCurrency = currency || "USD";
+                          const { value: displayValue, currency: displayCurrencyCode } =
+                            sourceCurrency === "USD"
+                              ? convertForListDisplay(value, {
+                                  displayCurrency,
+                                  exchangeRate,
+                                })
+                              : { value, currency: sourceCurrency };
+
+                          return new Intl.NumberFormat(undefined, {
                             style: "currency",
-                            currency: currency || "USD",
+                            currency: displayCurrencyCode,
                             minimumFractionDigits: 2,
-                          }).format(value);
+                          }).format(displayValue);
+                        };
 
                         const customPriceValue = getNumericPrice(cell.existing?.customPrice);
                         const priceValue =

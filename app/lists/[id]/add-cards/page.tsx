@@ -492,6 +492,9 @@ const AddCardsPage = () => {
   const [isOpen, setIsOpen] = useState(false);
   const simpleModalBaseCard = selectedCard ?? null;
   const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+  // Listed Median (midPrice) se muestra por default; admin puede alternar a Market Price.
+  const [showListedMedian, setShowListedMedian] = useState(true);
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
     baseCard ?? simpleModalBaseCard ?? undefined;
@@ -1251,9 +1254,15 @@ const AddCardsPage = () => {
   };
 
   const getCardPriceValue = (card: CardWithCollectionData) => {
-    // Mostramos Listed Median (midPrice) en vez de Market Price; si una
-    // carta aún no tiene midPrice, caemos a marketPrice para no dejar el
-    // precio en blanco.
+    // Listed Median (midPrice) es el default para todos; solo un admin puede
+    // alternar a Market Price con el toggle.
+    if (isAdmin && !showListedMedian) {
+      return (
+        getNumericPrice(card.marketPrice) ??
+        getNumericPrice(card.alternates?.[0]?.marketPrice) ??
+        null
+      );
+    }
     return (
       getNumericPrice((card as any).midPrice) ??
       getNumericPrice((card.alternates?.[0] as any)?.midPrice) ??
@@ -1663,7 +1672,7 @@ const AddCardsPage = () => {
     }
 
     return { totalValue, currency };
-  }, [existingCards, simpleListCards, list?.isOrdered]);
+  }, [existingCards, simpleListCards, list?.isOrdered, showListedMedian, isAdmin]);
 
   const folderTotalLabel = formatCurrency(
     folderTotalValue.totalValue,
@@ -2799,6 +2808,17 @@ const AddCardsPage = () => {
                       />
                     </Button>
                   </div>
+                  {isAdmin && (
+                    <Button
+                      onClick={() => setShowListedMedian((v) => !v)}
+                      variant={showListedMedian ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+                      title="Solo admin: alternar entre Listed Median y Market Price"
+                    >
+                      {showListedMedian ? "Listed Median" : "Market Price"}
+                    </Button>
+                  )}
                   <ViewSwitch
                     viewSelected={viewSelected}
                     setViewSelected={setViewSelected}
@@ -3530,7 +3550,9 @@ const AddCardsPage = () => {
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
-                        priceField="midPrice"
+                        priceField={
+                          isAdmin && !showListedMedian ? "marketPrice" : "midPrice"
+                        }
                         displayCurrency={list.displayCurrency}
                         exchangeRate={list.exchangeRate}
                         showInteriorPage={true} // add-cards shows interior page for proper synchronization

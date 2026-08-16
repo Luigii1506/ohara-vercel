@@ -22,6 +22,7 @@ import {
   Lock,
   Globe,
   Check,
+  DollarSign,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
@@ -37,6 +38,8 @@ const CreateFolderPage = () => {
     description: "",
     isPublic: false,
     hideTcgLink: false,
+    displayCurrency: "USD" as "USD" | "MXN",
+    exchangeRate: "",
     color: "#10B981", // Verde por defecto para carpetas
     maxRows: 3,
     maxColumns: 3,
@@ -89,6 +92,14 @@ const CreateFolderPage = () => {
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       showErrorToast("El nombre de la carpeta es requerido");
+      return;
+    }
+
+    if (
+      formData.displayCurrency !== "USD" &&
+      !(Number(formData.exchangeRate) > 0)
+    ) {
+      showErrorToast("Ingresa un tipo de cambio válido");
       return;
     }
 
@@ -422,6 +433,81 @@ const CreateFolderPage = () => {
                     className="touch-manipulation"
                   />
                 </div>
+              </div>
+
+              {/* Moneda de precios */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  <h3 className="font-medium text-gray-900">
+                    Moneda de precios
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant={
+                      formData.displayCurrency === "USD" ? "default" : "outline"
+                    }
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        displayCurrency: "USD",
+                      }))
+                    }
+                    className={`h-12 ${
+                      formData.displayCurrency === "USD"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Dólares (USD)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={
+                      formData.displayCurrency === "MXN" ? "default" : "outline"
+                    }
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        displayCurrency: "MXN",
+                      }))
+                    }
+                    className={`h-12 ${
+                      formData.displayCurrency === "MXN"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Pesos (MXN)
+                  </Button>
+                </div>
+                {formData.displayCurrency === "MXN" && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                      Tipo de cambio (1 USD = ? MXN)
+                    </Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder="Ej. 18.50"
+                      value={formData.exchangeRate}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          exchangeRate: e.target.value,
+                        }))
+                      }
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Los precios de las cartas (en USD) se mostrarán
+                      convertidos a pesos con este tipo de cambio.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Selector de color */}

@@ -274,6 +274,8 @@ export async function PUT(
       color,
       isPublic,
       hideTcgLink,
+      displayCurrency,
+      exchangeRate,
       maxRows,
       maxColumns,
       totalPages,
@@ -313,6 +315,33 @@ export async function PUT(
         { error: "El campo hideTcgLink debe ser verdadero o falso" },
         { status: 400 }
       );
+    }
+
+    // Moneda de despliegue de precios: USD (default, sin conversión) o
+    // cualquier otra (ej. MXN) con un tipo de cambio fijo requerido.
+    let normalizedDisplayCurrency: string | undefined;
+    let normalizedExchangeRate: number | null | undefined;
+    if (displayCurrency !== undefined) {
+      normalizedDisplayCurrency =
+        typeof displayCurrency === "string" && displayCurrency.trim()
+          ? displayCurrency.trim().toUpperCase()
+          : "USD";
+
+      if (normalizedDisplayCurrency !== "USD") {
+        const rate = Number(exchangeRate);
+        if (!Number.isFinite(rate) || rate <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Se requiere un tipo de cambio válido para usar una moneda distinta a USD",
+            },
+            { status: 400 }
+          );
+        }
+        normalizedExchangeRate = rate;
+      } else {
+        normalizedExchangeRate = null;
+      }
     }
 
     if (
@@ -448,6 +477,8 @@ export async function PUT(
         isPublic: typeof isPublic === "boolean" ? isPublic : undefined,
         hideTcgLink:
           typeof hideTcgLink === "boolean" ? hideTcgLink : undefined,
+        displayCurrency: normalizedDisplayCurrency,
+        exchangeRate: normalizedExchangeRate,
         maxRows: maxRows || undefined,
         maxColumns: maxColumns || undefined,
         totalPages: totalPages !== undefined ? totalPages : undefined,

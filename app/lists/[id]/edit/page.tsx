@@ -29,6 +29,7 @@ import {
   Lock,
   Edit3,
   Tag,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -43,6 +44,8 @@ interface UserList {
   isDeletable: boolean;
   isPublic: boolean;
   hideTcgLink: boolean;
+  displayCurrency: string;
+  exchangeRate: number | string | null;
   color: string | null;
   totalPages: number;
   maxRows: number | null;
@@ -67,6 +70,8 @@ const EditListPage = () => {
     description: "",
     isPublic: false,
     hideTcgLink: false,
+    displayCurrency: "USD" as "USD" | "MXN",
+    exchangeRate: "",
     color: "#3b82f6",
     maxRows: 3,
     maxColumns: 3,
@@ -87,6 +92,10 @@ const EditListPage = () => {
           description: data.list.description || "",
           isPublic: data.list.isPublic,
           hideTcgLink: data.list.hideTcgLink || false,
+          displayCurrency:
+            data.list.displayCurrency === "MXN" ? "MXN" : "USD",
+          exchangeRate:
+            data.list.exchangeRate != null ? String(data.list.exchangeRate) : "",
           color: data.list.color || "#3b82f6",
           maxRows: data.list.maxRows || 3,
           maxColumns: data.list.maxColumns || 3,
@@ -133,6 +142,14 @@ const EditListPage = () => {
 
     if (!formData.name.trim()) {
       toast.error("El nombre de la lista es requerido");
+      return;
+    }
+
+    if (
+      formData.displayCurrency !== "USD" &&
+      !(Number(formData.exchangeRate) > 0)
+    ) {
+      toast.error("Ingresa un tipo de cambio válido");
       return;
     }
 
@@ -690,6 +707,89 @@ const EditListPage = () => {
                         }
                         className="touch-manipulation"
                       />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Moneda de precios */}
+                <Card className="border border-slate-200 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <DollarSign className="h-5 w-5 text-emerald-600" />
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Moneda de precios
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          type="button"
+                          variant={
+                            formData.displayCurrency === "USD"
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              displayCurrency: "USD",
+                            }))
+                          }
+                          className={`h-12 touch-manipulation ${
+                            formData.displayCurrency === "USD"
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          Dólares (USD)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={
+                            formData.displayCurrency === "MXN"
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              displayCurrency: "MXN",
+                            }))
+                          }
+                          className={`h-12 touch-manipulation ${
+                            formData.displayCurrency === "MXN"
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          Pesos (MXN)
+                        </Button>
+                      </div>
+                      {formData.displayCurrency === "MXN" && (
+                        <div>
+                          <Label className="text-sm font-medium text-slate-700 mb-1 block">
+                            Tipo de cambio (1 USD = ? MXN)
+                          </Label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min="0"
+                            placeholder="Ej. 18.50"
+                            value={formData.exchangeRate}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                exchangeRate: e.target.value,
+                              }))
+                            }
+                          />
+                          <p className="mt-1 text-xs text-slate-500">
+                            Los precios de las cartas (en USD) se mostrarán
+                            convertidos a pesos con este tipo de cambio.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

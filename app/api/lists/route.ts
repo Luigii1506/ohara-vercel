@@ -96,7 +96,31 @@ export async function POST(request: NextRequest) {
       isPublic = false,
       isCollection = false, // Agregar este campo por seguridad
       hideTcgLink = false,
+      displayCurrency = "USD",
+      exchangeRate,
     } = body;
+
+    // Moneda de despliegue de precios: USD (default, sin conversión) o
+    // cualquier otra (ej. MXN) con un tipo de cambio fijo requerido.
+    const normalizedDisplayCurrency =
+      typeof displayCurrency === "string" && displayCurrency.trim()
+        ? displayCurrency.trim().toUpperCase()
+        : "USD";
+
+    let normalizedExchangeRate: number | null = null;
+    if (normalizedDisplayCurrency !== "USD") {
+      const rate = Number(exchangeRate);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Se requiere un tipo de cambio válido para usar una moneda distinta a USD",
+          },
+          { status: 400 }
+        );
+      }
+      normalizedExchangeRate = rate;
+    }
 
     // Validación adicional: nunca permitir crear listas de colección manualmente
     if (isCollection === true) {
@@ -177,6 +201,8 @@ export async function POST(request: NextRequest) {
           color: color || null,
           isPublic,
           hideTcgLink: hideTcgLink === true,
+          displayCurrency: normalizedDisplayCurrency,
+          exchangeRate: normalizedExchangeRate,
           isDeletable: true,
           isCollection: false, // Siempre false para listas normales
         },
@@ -222,6 +248,8 @@ export async function POST(request: NextRequest) {
               color: color || null,
               isPublic,
               hideTcgLink: hideTcgLink === true,
+              displayCurrency: normalizedDisplayCurrency,
+              exchangeRate: normalizedExchangeRate,
               isDeletable: true,
               isCollection: false,
             },

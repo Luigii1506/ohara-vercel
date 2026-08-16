@@ -15,6 +15,7 @@ import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 import { useUser } from "@/app/context/UserContext";
 import CollectionReportDrawer from "@/components/CollectionReportDrawer";
 import SnapshotsDrawer from "@/components/SnapshotsDrawer";
+import { convertForListDisplay } from "@/lib/lists/currency";
 
 import { Oswald } from "next/font/google";
 
@@ -47,6 +48,8 @@ interface UserList {
   isCollection: boolean;
   isPublic: boolean;
   hideTcgLink: boolean;
+  displayCurrency?: string | null;
+  exchangeRate?: number | string | null;
   totalPages: number;
   maxRows: number | null;
   maxColumns: number | null;
@@ -136,12 +139,25 @@ const ListDetailPage = () => {
     );
   };
 
-  const formatCurrency = (value: number, currency?: string | null) =>
-    new Intl.NumberFormat(undefined, {
+  // Si la carpeta tiene una moneda de despliegue distinta a USD (ej. MXN con
+  // un tipo de cambio fijo), convertimos aquí antes de formatear — así todos
+  // los lugares que ya llaman a formatCurrency(valor, moneda) heredan la
+  // conversión sin tener que tocar cada uno. Solo convierte valores que ya
+  // están en USD (o sin moneda explícita); un customCurrency ya distinto de
+  // USD se deja tal cual para no convertir dos veces.
+  const formatCurrency = (value: number, currency?: string | null) => {
+    const sourceCurrency = currency || "USD";
+    const { value: displayValue, currency: displayCurrencyCode } =
+      sourceCurrency === "USD"
+        ? convertForListDisplay(value, list)
+        : { value, currency: sourceCurrency };
+
+    return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: currency || "USD",
+      currency: displayCurrencyCode,
       minimumFractionDigits: 2,
-    }).format(value);
+    }).format(displayValue);
+  };
 
   const folderTotalValue = useMemo(() => {
     let totalValue = 0;

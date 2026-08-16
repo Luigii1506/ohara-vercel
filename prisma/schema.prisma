@@ -24,9 +24,9 @@ model Card {
   alternateArt          String?
   status                String?
   triggerCard           String?
-  disclaimer            String?   @db.Text // aviso de TCGplayer: pre-errata / no legal / reprint, etc.
-  regulationMark        Int?      // bloque de regulación (1-5); null = sin marca / promo
-  standardLegal         Boolean?  // legal en el formato Standard
+  disclaimer            String?             @db.Text // aviso de TCGplayer: pre-errata / no legal / reprint, etc.
+  regulationMark        Int? // bloque de regulación (1-5); null = sin marca / promo
+  standardLegal         Boolean? // legal en el formato Standard
   code                  String
   setCode               String
   isFirstEdition        Boolean
@@ -178,15 +178,15 @@ model CardVariantGroupRegionReview {
 }
 
 model CardSource {
-  id        Int      @id @default(autoincrement())
-  cardId    Int
-  source    String
-  sourceId  String
+  id             Int      @id @default(autoincrement())
+  cardId         Int
+  source         String
+  sourceId       String
   sourceImageUrl String?
-  offerType String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  offerType      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([source, sourceId, sourceImageUrl])
   @@index([cardId])
@@ -484,25 +484,27 @@ model VerificationToken {
 }
 
 model UserList {
-  id           Int                @id @default(autoincrement())
-  userId       Int
-  name         String
-  description  String?
-  isOrdered    Boolean            @default(false)
-  isDeletable  Boolean            @default(true)
-  isCollection Boolean            @default(false)
-  maxRows      Int?
-  maxColumns   Int?
-  totalPages   Int                @default(1)
-  color        String?
-  isPublic     Boolean            @default(false)
-  hideTcgLink  Boolean            @default(false)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards        UserListCard[]
-  backcards    UserListBackcard[] // 🎴 Relación con backcards
-  snapshots    UserListSnapshot[]
+  id              Int                @id @default(autoincrement())
+  userId          Int
+  name            String
+  description     String?
+  isOrdered       Boolean            @default(false)
+  isDeletable     Boolean            @default(true)
+  isCollection    Boolean            @default(false)
+  maxRows         Int?
+  maxColumns      Int?
+  totalPages      Int                @default(1)
+  color           String?
+  isPublic        Boolean            @default(false)
+  hideTcgLink     Boolean            @default(false)
+  displayCurrency String             @default("USD")
+  exchangeRate    Decimal?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards           UserListCard[]
+  backcards       UserListBackcard[] // 🎴 Relación con backcards
+  snapshots       UserListSnapshot[]
 
   @@unique([userId, name])
   @@index([userId, isPublic])
@@ -572,30 +574,30 @@ model UserListBackcard {
 }
 
 model Collection {
-  id        Int              @id @default(autoincrement())
-  userId    Int              @unique
-  isPublic  Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        Int                  @id @default(autoincrement())
+  userId    Int                  @unique
+  isPublic  Boolean              @default(false)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards     CollectionCard[]
   slots     CollectionCardSlot[]
 }
 
 model CollectionCard {
-  id             Int        @id @default(autoincrement())
+  id             Int                  @id @default(autoincrement())
   collectionId   Int
   cardId         Int
-  quantity       Int        @default(1)
+  quantity       Int                  @default(1)
   sortOrder      Int?
   notes          String?
   condition      String?
   customPrice    Decimal?
   customCurrency String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  collection     Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  card           Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  collection     Collection           @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  card           Card                 @relation(fields: [cardId], references: [id], onDelete: Cascade)
   slots          CollectionCardSlot[]
 
   @@unique([collectionId, cardId])
@@ -603,14 +605,14 @@ model CollectionCard {
 }
 
 model CollectionCardSlot {
-  id               Int             @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   collectionId     Int
   collectionCardId Int
   sortOrder        Int
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  collection       Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  collectionCard   CollectionCard  @relation(fields: [collectionCardId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  collection       Collection     @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionCard   CollectionCard @relation(fields: [collectionCardId], references: [id], onDelete: Cascade)
 
   @@index([collectionId, sortOrder])
   @@index([collectionCardId])
@@ -691,22 +693,22 @@ model Event {
 }
 
 model Set {
-  id              Int        @id @default(autoincrement())
-  image           String
-  title           String
-  originalTitle   String?
-  translatedTitle String?
-  code            String?
-  region          String?
-  releaseDate     DateTime   @map("release_date")
-  isOpen          Boolean    @default(false) @map("is_open")
-  createdAt       DateTime?  @default(now()) @map("created_at")
-  updatedAt       DateTime?  @updatedAt @map("updated_at")
-  version         String?
-  aliasesJson     Json?
-  cards           CardSet[]
-  events          EventSet[]
-  products        Product[]
+  id               Int                  @id @default(autoincrement())
+  image            String
+  title            String
+  originalTitle    String?
+  translatedTitle  String?
+  code             String?
+  region           String?
+  releaseDate      DateTime             @map("release_date")
+  isOpen           Boolean              @default(false) @map("is_open")
+  createdAt        DateTime?            @default(now()) @map("created_at")
+  updatedAt        DateTime?            @updatedAt @map("updated_at")
+  version          String?
+  aliasesJson      Json?
+  cards            CardSet[]
+  events           EventSet[]
+  products         Product[]
   limitlessReviews LimitlessSetReview[]
 
   @@index([region])
@@ -856,18 +858,18 @@ model EventMissingSet {
 }
 
 model MissingCard {
-  id         Int                @id @default(autoincrement())
-  code       String
-  title      String
-  imageUrl   String
+  id           Int                @id @default(autoincrement())
+  code         String
+  title        String
+  imageUrl     String
   // Identidad canónica INDEPENDIENTE del evento (`CÓDIGO|variante`, ej.
   // "OP15-113|treasure-cup"). La misma carta en distintos eventos comparte
   // canonicalKey → se colapsa a un solo MissingCard con múltiples eventos.
   canonicalKey String?
-  isApproved Boolean            @default(false)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  events     EventMissingCard[]
+  isApproved   Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  events       EventMissingCard[]
 
   @@unique([code, title, imageUrl], name: "code_title_imageUrl")
   @@index([code])
@@ -938,26 +940,26 @@ model AltArtReview {
 }
 
 model LimitlessSetReview {
-  id              Int                        @id @default(autoincrement())
-  slug            String
-  sourceUrl       String
-  sourceTitle     String
-  sourceCategory  String?
-  region          String?                    @default("US")
-  dbSetId         Int?
-  dbSet           Set?                       @relation(fields: [dbSetId], references: [id], onDelete: SetNull)
-  status          LimitlessReviewStatus      @default(PENDING)
-  declaredCount   Int                        @default(0)
-  dbSetCardCount  Int                        @default(0)
-  matchedCount    Int                        @default(0)
-  wrongSetCount   Int                        @default(0)
-  missingCount    Int                        @default(0)
-  extraCount      Int                        @default(0)
-  snapshotJson    Json?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  lastSyncedAt    DateTime                   @default(now())
-  items           LimitlessSetReviewItem[]
+  id             Int                      @id @default(autoincrement())
+  slug           String
+  sourceUrl      String
+  sourceTitle    String
+  sourceCategory String?
+  region         String?                  @default("US")
+  dbSetId        Int?
+  dbSet          Set?                     @relation(fields: [dbSetId], references: [id], onDelete: SetNull)
+  status         LimitlessReviewStatus    @default(PENDING)
+  declaredCount  Int                      @default(0)
+  dbSetCardCount Int                      @default(0)
+  matchedCount   Int                      @default(0)
+  wrongSetCount  Int                      @default(0)
+  missingCount   Int                      @default(0)
+  extraCount     Int                      @default(0)
+  snapshotJson   Json?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  lastSyncedAt   DateTime                 @default(now())
+  items          LimitlessSetReviewItem[]
 
   @@unique([slug, region])
   @@index([status])
@@ -965,11 +967,11 @@ model LimitlessSetReview {
 }
 
 model LimitlessSetReviewItem {
-  id               Int                         @id @default(autoincrement())
+  id               Int                     @id @default(autoincrement())
   reviewId         Int
-  review           LimitlessSetReview          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  review           LimitlessSetReview      @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   kind             LimitlessReviewItemKind
-  decisionStatus   LimitlessDecisionStatus     @default(PENDING)
+  decisionStatus   LimitlessDecisionStatus @default(PENDING)
   code             String
   name             String?
   printTitle       String?
@@ -978,8 +980,8 @@ model LimitlessSetReviewItem {
   matchedCardId    Int?
   candidateCardIds Int[]
   metadataJson     Json?
-  createdAt        DateTime                    @default(now())
-  updatedAt        DateTime                    @updatedAt
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
   @@index([reviewId])
   @@index([kind])
@@ -1025,7 +1027,7 @@ model CardPriceLog {
  * recorrer los millones de CardPriceLog en cada request del dashboard de mercado.
  */
 model CardPriceStat {
-  cardId      Int       @id
+  cardId      Int      @id
   priceNow    Decimal?
   price7dAgo  Decimal?
   price30dAgo Decimal?
@@ -1036,10 +1038,10 @@ model CardPriceStat {
   ath         Decimal? // máximo histórico (ventana)
   atl         Decimal? // mínimo histórico (ventana)
   athPct      Float? // % desde el ATH (negativo = descuento)
-  points      Int       @default(0) // puntos de historial (confianza)
+  points      Int      @default(0) // puntos de historial (confianza)
   spark       Json? // serie semanal de precio (90d) para el sparkline
-  computedAt  DateTime  @default(now())
-  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  computedAt  DateTime @default(now())
+  card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([pct7d])
   @@index([pct30d])

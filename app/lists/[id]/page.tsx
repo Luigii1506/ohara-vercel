@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, List, FileText, Copy, Loader2, Camera } from "lucide-react";
+import { ArrowLeft, List, FileText, Copy, Loader2, Camera, Eye } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { MainContentSkeleton } from "@/components/skeletons";
@@ -57,9 +57,13 @@ interface UserList {
 const ListDetailPage = () => {
   const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const listId = params.id as string;
   const { role } = useUser();
   const isAdmin = role === "ADMIN";
+
+  const snapshotParam = searchParams?.get("snapshot") ?? null;
+  const viewingSnapshotId = snapshotParam ? Number(snapshotParam) : null;
 
   // States
   const [list, setList] = useState<UserList | null>(null);
@@ -67,6 +71,8 @@ const ListDetailPage = () => {
   const [showReportDrawer, setShowReportDrawer] = useState(false);
   const [showSnapshotsDrawer, setShowSnapshotsDrawer] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [snapshotData, setSnapshotData] = useState<any | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
 
   // Start at view 0 (interior cover + page 1)
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
@@ -75,6 +81,39 @@ const ListDetailPage = () => {
   const [importing, setImporting] = useState(false);
   // Admin-only: alternar el precio mostrado entre Market Price y Listed Median.
   const [showListedMedian, setShowListedMedian] = useState(false);
+
+  // Cartas congeladas del snapshot, adaptadas al mismo shape que usa la
+  // página para el estado en vivo (ListCard[]), para reusar el mismo grid,
+  // paginación y helpers de precio sin duplicar lógica de render.
+  const snapshotCards: ListCard[] = useMemo(() => {
+    if (!snapshotData?.cardsSnapshot) return [];
+    return snapshotData.cardsSnapshot.map((c: any) => ({
+      id: c.listCardId,
+      cardId: String(c.cardId),
+      quantity: c.quantity,
+      position: null,
+      page: c.page,
+      row: c.row,
+      column: c.column,
+      customPrice: c.customPrice,
+      customCurrency: c.customCurrency,
+      isSold: c.isSold,
+      soldAt: c.soldAt,
+      soldPrice: c.soldPrice,
+      card: {
+        id: c.cardId,
+        name: c.name,
+        code: c.code,
+        src: c.src,
+        marketPrice: c.marketPrice,
+        priceCurrency: c.priceCurrency,
+      } as CardWithCollectionData,
+    }));
+  }, [snapshotData]);
+
+  const displayedCards: ListCard[] = viewingSnapshotId
+    ? snapshotCards
+    : list?.cards ?? [];
 
   // Helper functions for price handling
   const getNumericPrice = (value: any) => {
@@ -107,7 +146,7 @@ const ListDetailPage = () => {
     let totalValue = 0;
     let currency = "USD";
 
-    list?.cards?.forEach((listCard) => {
+    displayedCards.forEach((listCard) => {
       const priceValue = getListCardPriceValue(listCard);
       const quantity = listCard.quantity || 1;
       if (priceValue !== null) {
@@ -118,12 +157,15 @@ const ListDetailPage = () => {
     });
 
     return { totalValue, currency };
-  }, [list?.cards, showListedMedian, isAdmin]);
+  }, [displayedCards, showListedMedian, isAdmin]);
 
-  const folderTotalLabel = formatCurrency(
-    folderTotalValue.totalValue,
-    folderTotalValue.currency
-  );
+  // En modo snapshot usamos el total ya congelado (usa el precio real de
+  // venta de las cartas vendidas, no el precio de lista) en vez de
+  // recalcularlo con la lógica de la vista en vivo.
+  const folderTotalLabel =
+    viewingSnapshotId && snapshotData
+      ? formatCurrency(Number(snapshotData.totalValue), snapshotData.currency)
+      : formatCurrency(folderTotalValue.totalValue, folderTotalValue.currency);
 
   const getTcgUrl = (card: CardWithCollectionData) => {
     if (list?.hideTcgLink) return null;
@@ -238,7 +280,7 @@ const ListDetailPage = () => {
   const getCardsForPage = (pageNumber: number | string) => {
     if (pageNumber === 0 || pageNumber === "cover") return []; // Cover pages have no cards
 
-    return list?.cards.filter((listCard) => listCard.page === pageNumber) || [];
+    return displayedCards.filter((listCard) => listCard.page === pageNumber);
   };
 
   // Window resize handler for responsive calculations
@@ -407,6 +449,43 @@ const ListDetailPage = () => {
     fetchList();
   }, [listId]);
 
+  // Cuando la URL trae ?snapshot=<id>, cargamos ese snapshot congelado en
+  // vez del estado en vivo de la carpeta.
+  useEffect(() => {
+    if (!viewingSnapshotId) {
+      setSnapshotData(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSnapshot(true);
+    fetch(`/api/lists/${listId}/snapshots/${viewingSnapshotId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setSnapshotData(data?.snapshot ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSnapshotData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSnapshot(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listId, viewingSnapshotId]);
+
+  // Cambia entre ver un snapshot puntual (id) o el estado en vivo (null),
+  // reflejado en la URL para que sea compartible/navegable.
+  const goToSnapshot = (snapshotId: number | null) => {
+    const url = new URL(window.location.href);
+    if (snapshotId) {
+      url.searchParams.set("snapshot", String(snapshotId));
+    } else {
+      url.searchParams.delete("snapshot");
+    }
+    router.push(`${url.pathname}${url.search}`);
+  };
+
   const handleCardClick = (card: CardWithCollectionData) => {
     setSelectedCard(card);
     setShowLargeImage(true);
@@ -483,7 +562,7 @@ const ListDetailPage = () => {
             totalPages={totalPages}
             maxRows={maxRows}
             maxColumns={maxColumns}
-            cardCount={list.cards.length}
+            cardCount={displayedCards.length}
             totalValueLabel={folderTotalLabel}
             shareUrl={shareUrl || undefined}
             createGrid={createGrid}
@@ -511,11 +590,10 @@ const ListDetailPage = () => {
   const renderSimpleList = () => {
     if (!list || list.isOrdered) return null;
 
-    const safeFilteredCards =
-      list.cards.filter(
-        (listCard) =>
-          listCard && listCard.card && listCard.card.name && listCard.card.code
-      ) || [];
+    const safeFilteredCards = displayedCards.filter(
+      (listCard) =>
+        listCard && listCard.card && listCard.card.name && listCard.card.code
+    );
 
     return (
       <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
@@ -736,6 +814,27 @@ const ListDetailPage = () => {
 
   return (
     <>
+      {viewingSnapshotId && (
+        <div className="fixed inset-x-0 top-0 z-[65] flex items-center justify-between gap-3 bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
+          <div className="flex min-w-0 items-center gap-2">
+            <Camera className="h-4 w-4 shrink-0 text-slate-300" />
+            <span className="truncate">
+              {loadingSnapshot
+                ? "Cargando snapshot…"
+                : `Viendo snapshot${
+                    snapshotData?.label ? `: ${snapshotData.label}` : ""
+                  }`}
+            </span>
+          </div>
+          <button
+            onClick={() => goToSnapshot(null)}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Vista actual
+          </button>
+        </div>
+      )}
       {list.isOrdered ? (
         <div
           className="h-full overflow-hidden w-full"
@@ -814,6 +913,8 @@ const ListDetailPage = () => {
           onClose={() => setShowSnapshotsDrawer(false)}
           listId={list.id}
           listName={list.name}
+          currentSnapshotId={viewingSnapshotId}
+          onSelectSnapshot={goToSnapshot}
         />
       )}
 

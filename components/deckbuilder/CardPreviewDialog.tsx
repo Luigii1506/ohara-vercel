@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { X, ZoomIn, Gavel, Info, DollarSign, Layers, Check } from "lucide-react";
+import {
+  X,
+  ZoomIn,
+  Gavel,
+  Info,
+  DollarSign,
+  Layers,
+  Check,
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
 import { CardWithCollectionData } from "@/types";
 import { Oswald } from "next/font/google";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
@@ -9,6 +20,7 @@ import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardDetails from "@/components/CardDetails";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import type { MessageKey } from "@/components/i18n/messages";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const oswald = Oswald({
@@ -67,6 +79,13 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   const [selectedVariantId, setSelectedVariantId] = useState<
     string | number | null
   >(null);
+  const [historyRange, setHistoryRange] = useState<
+    "30" | "90" | "180" | "365"
+  >("90");
+  const [priceHistory, setPriceHistory] = useState<
+    { date: string; price: number }[] | null
+  >(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +186,31 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [infoCard?.id]);
 
+  // Historial de precio (para la gráfica de la pestaña Pricing). Solo se
+  // pide cuando esa pestaña está activa, y se vuelve a pedir si cambia la
+  // variante mostrada o el rango seleccionado (1M/3M/6M/1Y).
+  const displayedCardId = displayedCard?.id;
+  useEffect(() => {
+    if (activeTab !== "pricing" || displayedCardId == null) return;
+    let cancelled = false;
+    setPriceHistory(null);
+    setHistoryLoading(true);
+    fetch(`/api/market/cards/${displayedCardId}/history?days=${historyRange}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setPriceHistory(d?.history ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPriceHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, displayedCardId, historyRange]);
+
   if (!altCard || !infoCard) return null;
 
   const priceValue = getNumericPrice(displayedCard.marketPrice);
@@ -251,6 +295,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
           style={{
             WebkitOverflowScrolling: "touch",
           }}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {/* Card Image with 3D Tilt Effect */}
           <div className="px-4 pt-3 pb-2 flex justify-center bg-gradient-to-b from-slate-100 to-slate-50">
@@ -431,6 +476,15 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                       </p>
                     )}
                   </div>
+
+                  <PriceHistoryCard
+                    history={priceHistory}
+                    loading={historyLoading}
+                    range={historyRange}
+                    onRangeChange={setHistoryRange}
+                    currency={displayedCard.priceCurrency}
+                    t={t}
+                  />
 
                   {(lowValue || midValue || highValue) && (
                     <div className="grid grid-cols-3 gap-2">
@@ -643,5 +697,253 @@ const PriceStat: React.FC<{
     </p>
   </div>
 );
+
+const HISTORY_RANGES: {
+  key: "30" | "90" | "180" | "365";
+  labelKey: MessageKey;
+}[] = [
+  { key: "30", labelKey: "cardPreview.chartRange1M" },
+  { key: "90", labelKey: "cardPreview.chartRange3M" },
+  { key: "180", labelKey: "cardPreview.chartRange6M" },
+  { key: "365", labelKey: "cardPreview.chartRange1Y" },
+];
+
+const PriceHistoryCard: React.FC<{
+  history: { date: string; price: number }[] | null;
+  loading: boolean;
+  range: "30" | "90" | "180" | "365";
+  onRangeChange: (range: "30" | "90" | "180" | "365") => void;
+  currency?: string | null;
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string;
+}> = ({ history, loading, range, onRangeChange, currency, t }) => {
+  const hasData = !!history && history.length >= 2;
+  const first = hasData ? history![0].price : null;
+  const last = hasData ? history![history!.length - 1].price : null;
+  const changePct =
+    first != null && last != null && first !== 0
+      ? ((last - first) / first) * 100
+      : null;
+  const up = (changePct ?? 0) >= 0;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-bold text-slate-700">
+            {t("cardPreview.chartTitle")}
+          </p>
+          {hasData && changePct != null && (
+            <span
+              className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                up
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-rose-50 text-rose-600"
+              }`}
+            >
+              {up ? (
+                <TrendingUp className="h-2.5 w-2.5" strokeWidth={3} />
+              ) : (
+                <TrendingDown className="h-2.5 w-2.5" strokeWidth={3} />
+              )}
+              {up ? "+" : ""}
+              {changePct.toFixed(1)}%
+            </span>
+          )}
+        </div>
+        <div className="flex gap-1">
+          {HISTORY_RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => onRangeChange(r.key)}
+              className={`rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${
+                range === r.key
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              {t(r.labelKey)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex h-40 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+        </div>
+      ) : hasData ? (
+        <PriceHistoryChart history={history!} currency={currency} t={t} />
+      ) : (
+        <div className="flex h-40 items-center justify-center text-center text-xs text-slate-400">
+          {t("cardPreview.chartNoData")}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PriceHistoryChart: React.FC<{
+  history: { date: string; price: number }[];
+  currency?: string | null;
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string;
+}> = ({ history, currency, t }) => {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const w = 320;
+  const h = 140;
+  const padX = 3;
+  const padTop = 18;
+  const padBottom = 4;
+
+  const prices = history.map((p) => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const innerH = h - padTop - padBottom;
+  const stepX = (w - padX * 2) / (history.length - 1);
+  const x = (i: number) => padX + i * stepX;
+  const y = (v: number) => padTop + innerH - ((v - min) / range) * innerH;
+
+  const points = history.map((p, i) => ({ x: x(i), y: y(p.price) }));
+
+  // Curva suave a través de los puntos medios (Q bezier), barato y prolijo.
+  let linePath = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const midX = (points[i].x + points[i + 1].x) / 2;
+    const midY = (points[i].y + points[i + 1].y) / 2;
+    linePath += ` Q ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)} ${midX.toFixed(1)} ${midY.toFixed(1)}`;
+  }
+  if (points.length > 1) {
+    const lastPt = points[points.length - 1];
+    const prevPt = points[points.length - 2];
+    linePath += ` Q ${prevPt.x.toFixed(1)} ${prevPt.y.toFixed(1)} ${lastPt.x.toFixed(1)} ${lastPt.y.toFixed(1)}`;
+  }
+
+  const lastPt = points[points.length - 1];
+  const firstPt = points[0];
+  const areaPath = `${linePath} L ${lastPt.x.toFixed(1)} ${h} L ${firstPt.x.toFixed(1)} ${h} Z`;
+
+  const up = prices[prices.length - 1] >= prices[0];
+  const color = up ? "#059669" : "#e11d48";
+  const gradientId = `price-chart-fill-${up ? "up" : "down"}`;
+
+  const updatePointer = (clientX: number, rect: DOMRect) => {
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    setHoverIndex(Math.round(ratio * (history.length - 1)));
+  };
+
+  const hovered = hoverIndex != null ? history[hoverIndex] : null;
+  const hoverX = hoverIndex != null ? points[hoverIndex].x : null;
+  const hoverY = hoverIndex != null ? points[hoverIndex].y : null;
+  const tooltipW = 74;
+  const tooltipX = hoverX != null
+    ? Math.min(Math.max(hoverX - tooltipW / 2, padX), w - padX - tooltipW)
+    : 0;
+
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="h-40 w-full touch-none select-none"
+        preserveAspectRatio="none"
+        onMouseMove={(e) =>
+          updatePointer(e.clientX, e.currentTarget.getBoundingClientRect())
+        }
+        onMouseLeave={() => setHoverIndex(null)}
+        onTouchStart={(e) =>
+          updatePointer(
+            e.touches[0].clientX,
+            e.currentTarget.getBoundingClientRect()
+          )
+        }
+        onTouchMove={(e) =>
+          updatePointer(
+            e.touches[0].clientX,
+            e.currentTarget.getBoundingClientRect()
+          )
+        }
+        onTouchEnd={() => setHoverIndex(null)}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gradientId})`} />
+        <path
+          d={linePath}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <circle cx={lastPt.x} cy={lastPt.y} r={3.5} fill={color} />
+        <circle
+          cx={lastPt.x}
+          cy={lastPt.y}
+          r={6}
+          fill={color}
+          opacity={0.18}
+        />
+
+        {hoverX != null && hoverY != null && (
+          <>
+            <line
+              x1={hoverX}
+              y1={padTop}
+              x2={hoverX}
+              y2={h}
+              stroke="#94a3b8"
+              strokeWidth={1}
+              strokeDasharray="3,3"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={hoverX}
+              cy={hoverY}
+              r={4}
+              fill="white"
+              stroke={color}
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+            <g transform={`translate(${tooltipX.toFixed(1)}, 0)`}>
+              <rect
+                x={0}
+                y={0}
+                width={tooltipW}
+                height={15}
+                rx={4}
+                fill="#0f172a"
+              />
+              <text
+                x={tooltipW / 2}
+                y={10.5}
+                textAnchor="middle"
+                fontSize={8.5}
+                fontWeight={700}
+                fill="white"
+              >
+                {formatCurrency(hovered!.price, currency)}
+              </text>
+            </g>
+          </>
+        )}
+      </svg>
+      <div className="mt-1 flex items-center justify-between px-0.5 text-[10px] text-slate-400">
+        <span>{history[0].date}</span>
+        <span>
+          {t("cardPreview.chartMin")} {formatCurrency(min, currency)} ·{" "}
+          {t("cardPreview.chartMax")} {formatCurrency(max, currency)}
+        </span>
+        <span>{history[history.length - 1].date}</span>
+      </div>
+    </div>
+  );
+};
 
 export default CardPreviewDialog;

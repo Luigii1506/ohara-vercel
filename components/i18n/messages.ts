@@ -135,6 +135,14 @@ export type MessageKey =
   | "cardPreview.priceHigh"
   | "cardPreview.priceLastUpdated"
   | "cardPreview.noPriceData"
+  | "cardPreview.chartTitle"
+  | "cardPreview.chartRange1M"
+  | "cardPreview.chartRange3M"
+  | "cardPreview.chartRange6M"
+  | "cardPreview.chartRange1Y"
+  | "cardPreview.chartNoData"
+  | "cardPreview.chartMin"
+  | "cardPreview.chartMax"
   | "cardPreview.variantsBase"
   | "cardPreview.variantsViewing"
   | "cardPreview.noVariants"
@@ -504,6 +512,14 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "cardPreview.priceHigh": "Máximo",
     "cardPreview.priceLastUpdated": "Actualizado {date}",
     "cardPreview.noPriceData": "Sin datos de precio para esta versión",
+    "cardPreview.chartTitle": "Historial de precio",
+    "cardPreview.chartRange1M": "1M",
+    "cardPreview.chartRange3M": "3M",
+    "cardPreview.chartRange6M": "6M",
+    "cardPreview.chartRange1Y": "1A",
+    "cardPreview.chartNoData": "Sin historial suficiente todavía",
+    "cardPreview.chartMin": "Mín",
+    "cardPreview.chartMax": "Máx",
     "cardPreview.variantsBase": "Base",
     "cardPreview.variantsViewing": "Viendo",
     "cardPreview.noVariants": "Esta carta no tiene otras versiones",
@@ -890,6 +906,14 @@ export const messages: Record<SupportedLanguage, Messages> = {
     "cardPreview.priceHigh": "High",
     "cardPreview.priceLastUpdated": "Updated {date}",
     "cardPreview.noPriceData": "No price data for this version",
+    "cardPreview.chartTitle": "Price history",
+    "cardPreview.chartRange1M": "1M",
+    "cardPreview.chartRange3M": "3M",
+    "cardPreview.chartRange6M": "6M",
+    "cardPreview.chartRange1Y": "1Y",
+    "cardPreview.chartNoData": "Not enough history yet",
+    "cardPreview.chartMin": "Low",
+    "cardPreview.chartMax": "High",
     "cardPreview.variantsBase": "Base",
     "cardPreview.variantsViewing": "Viewing",
     "cardPreview.noVariants": "This card has no other versions",

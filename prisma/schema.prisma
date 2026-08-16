@@ -502,6 +502,7 @@ model UserList {
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards        UserListCard[]
   backcards    UserListBackcard[] // 🎴 Relación con backcards
+  snapshots    UserListSnapshot[]
 
   @@unique([userId, name])
   @@index([userId, isPublic])
@@ -509,10 +510,10 @@ model UserList {
 }
 
 model UserListCard {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   listId         Int
   cardId         Int
-  quantity       Int      @default(1)
+  quantity       Int       @default(1)
   sortOrder      Int?
   page           Int?
   row            Int?
@@ -521,15 +522,38 @@ model UserListCard {
   condition      String?
   customPrice    Decimal?
   customCurrency String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  list           UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  isSold         Boolean   @default(false)
+  soldAt         DateTime?
+  soldPrice      Decimal?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  card           Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  list           UserList  @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   @@unique([listId, page, row, column], name: "unique_physical_position")
   @@index([listId, cardId])
   @@index([listId, sortOrder])
+  @@index([listId, isSold])
   @@index([cardId])
+}
+
+// 📸 Snapshot congelado del estado de una carpeta de venta en un momento dado.
+model UserListSnapshot {
+  id             Int      @id @default(autoincrement())
+  listId         Int
+  label          String?
+  createdAt      DateTime @default(now())
+  totalCards     Int
+  totalUnique    Int
+  soldCount      Int
+  soldValue      Decimal
+  availableValue Decimal
+  totalValue     Decimal
+  currency       String   @default("USD")
+  cardsSnapshot  Json
+  list           UserList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([listId, createdAt])
 }
 
 // 🎴 Modelo para almacenar posiciones de backcard

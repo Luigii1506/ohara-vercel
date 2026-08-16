@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Check, DollarSign, ExternalLink } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -33,6 +33,7 @@ interface CardGridProps {
   selectedCardForPlacement?: CardWithCollectionData | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
 }
@@ -51,6 +52,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   selectedCardForPlacement,
   canEditPrice = false,
   onEditPrice,
+  onToggleSold,
   priceField = "marketPrice",
 }) => {
   return (
@@ -135,11 +137,21 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       >
                         <img
                           alt={cell.card.name}
-                          className="w-full h-full object-cover transition-opacity duration-300 opacity-100"
+                          className={cn(
+                            "w-full h-full object-cover transition-opacity duration-300 opacity-100",
+                            cell.existing?.isSold && "grayscale opacity-50"
+                          )}
                           loading="lazy"
                           src={cell.card.src}
                         />
                       </div>
+
+                      {/* Vendida - Cinta diagonal, visible en cualquier vista */}
+                      {cell.existing?.isSold && (
+                        <div className="pointer-events-none absolute inset-x-[-15%] top-[38%] z-10 -rotate-[18deg] bg-slate-900/85 py-1 text-center text-[10px] font-black uppercase tracking-widest text-white shadow-md">
+                          Vendida
+                        </div>
+                      )}
 
                       {/* Quantity Badge - Shows in both viewing and editing modes */}
                       {cell.quantity && cell.quantity > 1 && (
@@ -196,6 +208,30 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               title="Editar precio"
                             >
                               <DollarSign className="h-4 w-4" />
+                            </button>
+                          )}
+                          {canEditPrice &&
+                            cell.existing &&
+                            !cell.existing.isOptimistic &&
+                            onToggleSold && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleSold({ card: cell.card!, listCard: cell.existing });
+                              }}
+                              className={cn(
+                                "absolute bottom-2 left-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+                                cell.existing?.isSold
+                                  ? "bg-slate-500 hover:bg-slate-600"
+                                  : "bg-emerald-600 hover:bg-emerald-700"
+                              )}
+                              title={
+                                cell.existing?.isSold
+                                  ? "Marcar como disponible"
+                                  : "Marcar como vendida"
+                              }
+                            >
+                              <Tag className="h-4 w-4" />
                             </button>
                           )}
                           {/* Ir a TCGplayer (lado derecho) — si la carta está linkeada. */}

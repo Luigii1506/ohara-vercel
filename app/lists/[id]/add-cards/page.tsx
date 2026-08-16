@@ -41,6 +41,7 @@ import {
   AlertTriangle,
   Loader2,
   DollarSign,
+  Tag,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -510,6 +511,13 @@ const AddCardsPage = () => {
   const [priceEditInput, setPriceEditInput] = useState("");
   const [priceEditCurrency, setPriceEditCurrency] = useState("USD");
   const [isPriceEditSaving, setIsPriceEditSaving] = useState(false);
+
+  const [soldEditOpen, setSoldEditOpen] = useState(false);
+  const [soldEditCard, setSoldEditCard] =
+    useState<CardWithCollectionData | null>(null);
+  const [soldEditListCard, setSoldEditListCard] = useState<any>(null);
+  const [soldEditPriceInput, setSoldEditPriceInput] = useState("");
+  const [isSoldEditSaving, setIsSoldEditSaving] = useState(false);
 
   // Refs for card-list functionality
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1394,6 +1402,92 @@ const AddCardsPage = () => {
       toast.error("Error al guardar el precio");
     } finally {
       setIsPriceEditSaving(false);
+    }
+  };
+
+  const openSoldEdit = (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => {
+    const alreadySold = Boolean(entry.listCard?.isSold);
+    const existingSoldPrice = entry.listCard?.soldPrice ?? null;
+    const suggestedPrice =
+      entry.listCard?.customPrice ?? getCardPriceValue(entry.card) ?? null;
+    setSoldEditCard(entry.card);
+    setSoldEditListCard(entry.listCard);
+    setSoldEditPriceInput(
+      alreadySold && existingSoldPrice !== null
+        ? Number(existingSoldPrice).toFixed(2)
+        : suggestedPrice !== null
+          ? Number(suggestedPrice).toFixed(2)
+          : ""
+    );
+    setSoldEditOpen(true);
+  };
+
+  const handleToggleSoldStatus = async (nextIsSold: boolean) => {
+    if (!list || !soldEditListCard || !soldEditCard) return;
+    if (!isOwner) return;
+
+    setIsSoldEditSaving(true);
+    try {
+      const soldPrice = nextIsSold ? parsePriceValue(soldEditPriceInput) : null;
+
+      const response = await fetch(
+        `/api/lists/${listId}/cards/${soldEditListCard.cardId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            listCardId: soldEditListCard.id,
+            isSold: nextIsSold,
+            ...(nextIsSold ? { soldPrice } : {}),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Error al actualizar el estado de venta"
+        );
+      }
+
+      if (
+        soldEditListCard.page &&
+        soldEditListCard.row &&
+        soldEditListCard.column
+      ) {
+        const key = `${soldEditListCard.page}-${soldEditListCard.row}-${soldEditListCard.column}`;
+        updateExistingCards((prev) => {
+          if (!prev[key]) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...prev[key],
+              isSold: nextIsSold,
+              soldPrice: nextIsSold ? soldPrice : null,
+              soldAt: nextIsSold ? new Date().toISOString() : null,
+            },
+          };
+        });
+      }
+
+      toast.success(
+        nextIsSold ? "Carta marcada como vendida" : "Carta marcada como disponible"
+      );
+      setSoldEditOpen(false);
+      setSoldEditCard(null);
+      setSoldEditListCard(null);
+    } catch (error) {
+      console.error("Error actualizando estado de venta:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Error al actualizar el estado de venta"
+      );
+    } finally {
+      setIsSoldEditSaving(false);
     }
   };
 
@@ -3445,6 +3539,7 @@ const AddCardsPage = () => {
                         selectedCardForPlacement={selectedCardForPlacement}
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
+                        onToggleSold={openSoldEdit}
                         priceField={
                           isAdmin && showListedMedian ? "midPrice" : "marketPrice"
                         }
@@ -4430,6 +4525,135 @@ const AddCardsPage = () => {
                 disabled={isPriceEditSaving}
               >
                 {isPriceEditSaving ? "Guardando..." : "Guardar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Mark as Sold / Available */}
+      {isMobile ? (
+        <BaseDrawer
+          isOpen={soldEditOpen}
+          onClose={() => {
+            if (!isSoldEditSaving) {
+              setSoldEditOpen(false);
+            }
+          }}
+          preventClose={isSoldEditSaving}
+          maxHeight="70vh"
+        >
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Tag className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">
+                  {soldEditListCard?.isSold
+                    ? "Marcar como disponible"
+                    : "Marcar como vendida"}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {soldEditCard?.name ?? "Carta seleccionada"}
+                </p>
+              </div>
+            </div>
+
+            {soldEditListCard?.isSold ? (
+              <p className="text-sm text-gray-600">
+                Esta carta se mostrará de nuevo con su color normal y
+                disponible para la venta.
+              </p>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio de venta
+                </label>
+                <Input
+                  value={soldEditPriceInput}
+                  onChange={(e) => setSoldEditPriceInput(e.target.value)}
+                  placeholder="Ej. 12.50"
+                  inputMode="decimal"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setSoldEditOpen(false)}
+                disabled={isSoldEditSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-slate-900 text-white hover:bg-slate-800"
+                onClick={() =>
+                  handleToggleSoldStatus(!soldEditListCard?.isSold)
+                }
+                disabled={isSoldEditSaving}
+              >
+                {isSoldEditSaving
+                  ? "Guardando..."
+                  : soldEditListCard?.isSold
+                    ? "Marcar disponible"
+                    : "Marcar vendida"}
+              </Button>
+            </div>
+          </div>
+        </BaseDrawer>
+      ) : (
+        <Dialog open={soldEditOpen} onOpenChange={setSoldEditOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {soldEditListCard?.isSold
+                  ? "Marcar como disponible"
+                  : "Marcar como vendida"}
+              </DialogTitle>
+              <DialogDescription>
+                {soldEditCard?.name ?? "Carta seleccionada"}
+              </DialogDescription>
+            </DialogHeader>
+            {soldEditListCard?.isSold ? (
+              <p className="text-sm text-gray-600">
+                Esta carta se mostrará de nuevo con su color normal y
+                disponible para la venta.
+              </p>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio de venta
+                </label>
+                <Input
+                  value={soldEditPriceInput}
+                  onChange={(e) => setSoldEditPriceInput(e.target.value)}
+                  placeholder="Ej. 12.50"
+                  inputMode="decimal"
+                />
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSoldEditOpen(false)}
+                disabled={isSoldEditSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() =>
+                  handleToggleSoldStatus(!soldEditListCard?.isSold)
+                }
+                disabled={isSoldEditSaving}
+              >
+                {isSoldEditSaving
+                  ? "Guardando..."
+                  : soldEditListCard?.isSold
+                    ? "Marcar disponible"
+                    : "Marcar vendida"}
               </Button>
             </DialogFooter>
           </DialogContent>

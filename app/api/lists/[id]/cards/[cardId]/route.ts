@@ -48,6 +48,8 @@ export async function PUT(
       position,
       customPrice,
       customCurrency,
+      isSold,
+      soldPrice,
       listCardId,
     } = body;
 
@@ -112,6 +114,25 @@ export async function PUT(
 
     if (customCurrency !== undefined) {
       updateData.customCurrency = customCurrency || null;
+    }
+
+    if (isSold !== undefined) {
+      if (typeof isSold !== "boolean") {
+        return NextResponse.json(
+          { error: "isSold debe ser verdadero o falso" },
+          { status: 400 }
+        );
+      }
+      updateData.isSold = isSold;
+      updateData.soldAt = isSold ? new Date() : null;
+      updateData.soldPrice = isSold
+        ? soldPrice !== undefined
+          ? parseCustomPrice(soldPrice)
+          : listCard.soldPrice
+        : null;
+    } else if (soldPrice !== undefined) {
+      // Actualizar solo el precio de venta de una carta ya marcada como vendida
+      updateData.soldPrice = parseCustomPrice(soldPrice);
     }
 
     // Manejar cambio de posición para listas ordenadas

@@ -286,10 +286,48 @@ export interface UserListCard {
   condition?: string;
   customPrice?: number | string | null;
   customCurrency?: string | null;
+  isSold?: boolean;
+  soldAt?: Date | string | null;
+  soldPrice?: number | string | null;
   createdAt: Date;
   updatedAt: Date;
   list: UserList;
   card: Card;
+}
+
+// 📸 Snapshot congelado del estado de una carpeta de venta en un momento dado.
+export interface UserListSnapshotCardEntry {
+  listCardId: number;
+  cardId: number;
+  code: string;
+  name: string;
+  src: string;
+  quantity: number;
+  customPrice: number | null;
+  customCurrency: string | null;
+  marketPrice: number | null;
+  priceCurrency: string | null;
+  isSold: boolean;
+  soldAt: string | null;
+  soldPrice: number | null;
+  page: number | null;
+  row: number | null;
+  column: number | null;
+}
+
+export interface UserListSnapshot {
+  id: number;
+  listId: number;
+  label?: string | null;
+  createdAt: Date | string;
+  totalCards: number;
+  totalUnique: number;
+  soldCount: number;
+  soldValue: number | string;
+  availableValue: number | string;
+  totalValue: number | string;
+  currency: string;
+  cardsSnapshot?: UserListSnapshotCardEntry[];
 }
 
 // Interfaces para posicionamiento en listas ordenadas

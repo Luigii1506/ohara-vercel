@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, List, FileText, Copy, Loader2 } from "lucide-react";
+import { ArrowLeft, List, FileText, Copy, Loader2, Camera } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { MainContentSkeleton } from "@/components/skeletons";
@@ -14,6 +14,7 @@ import { useFolderDimensions } from "@/hooks/useFolderDimensions";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 import { useUser } from "@/app/context/UserContext";
 import CollectionReportDrawer from "@/components/CollectionReportDrawer";
+import SnapshotsDrawer from "@/components/SnapshotsDrawer";
 
 import { Oswald } from "next/font/google";
 
@@ -32,6 +33,9 @@ interface ListCard {
   column: number | null;
   customPrice?: number | string | null;
   customCurrency?: string | null;
+  isSold?: boolean;
+  soldAt?: string | null;
+  soldPrice?: number | string | null;
   card: CardWithCollectionData;
 }
 
@@ -61,6 +65,7 @@ const ListDetailPage = () => {
   const [list, setList] = useState<UserList | null>(null);
   const [loading, setLoading] = useState(true);
   const [showReportDrawer, setShowReportDrawer] = useState(false);
+  const [showSnapshotsDrawer, setShowSnapshotsDrawer] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
 
   // Start at view 0 (interior cover + page 1)
@@ -572,6 +577,17 @@ const ListDetailPage = () => {
                   <span className="hidden sm:inline">Generate Report</span>
                 </Button>
               )}
+              {isOwner && !list?.isCollection && (
+                <Button
+                  onClick={() => setShowSnapshotsDrawer(true)}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                >
+                  <Camera className="h-4 w-4" />
+                  <span className="hidden sm:inline">Snapshots</span>
+                </Button>
+              )}
               <div className="text-sm text-slate-600">
                 {safeFilteredCards.length} cartas
               </div>
@@ -594,8 +610,15 @@ const ListDetailPage = () => {
                       <img
                         src={listCard.card.src}
                         alt={listCard.card.name}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${
+                          listCard.isSold ? "grayscale opacity-50" : ""
+                        }`}
                       />
+                      {listCard.isSold && (
+                        <div className="pointer-events-none absolute inset-x-[-15%] top-[38%] -rotate-[18deg] bg-slate-900/85 py-1 text-center text-[10px] font-black uppercase tracking-widest text-white shadow-md">
+                          Vendida
+                        </div>
+                      )}
                       {listCard.quantity > 1 && (
                         <div className="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white shadow-md">
                           {listCard.quantity}
@@ -610,12 +633,26 @@ const ListDetailPage = () => {
                         {listCard.card.code}
                       </p>
                       {(() => {
-                        const priceValue = getListCardPriceValue(listCard);
-                        const tcgUrl = getTcgUrl(listCard.card);
+                        const soldPriceValue = getNumericPrice(
+                          listCard.soldPrice
+                        );
+                        const priceValue = listCard.isSold
+                          ? soldPriceValue ?? getListCardPriceValue(listCard)
+                          : getListCardPriceValue(listCard);
+                        const tcgUrl = listCard.isSold
+                          ? null
+                          : getTcgUrl(listCard.card);
                         if (priceValue !== null) {
                           return (
                             <div className="mt-1.5 space-y-1.5">
-                              <p className="text-sm font-bold text-emerald-600">
+                              <p
+                                className={`text-sm font-bold ${
+                                  listCard.isSold
+                                    ? "text-slate-500"
+                                    : "text-emerald-600"
+                                }`}
+                              >
+                                {listCard.isSold && "Vendida en "}
                                 {formatCurrency(
                                   priceValue,
                                   listCard.customCurrency ||
@@ -770,6 +807,16 @@ const ListDetailPage = () => {
         />
       )}
 
+      {/* Snapshots Drawer (dueño, carpetas normales — no la Colección) */}
+      {list && isOwner && !list.isCollection && (
+        <SnapshotsDrawer
+          isOpen={showSnapshotsDrawer}
+          onClose={() => setShowSnapshotsDrawer(false)}
+          listId={list.id}
+          listName={list.name}
+        />
+      )}
+
       {/* Floating Admin Report Button for Folders */}
       {isAdmin && list?.isOrdered && (
         <button
@@ -779,6 +826,19 @@ const ListDetailPage = () => {
         >
           <FileText className="h-5 w-5" />
           <span className="hidden sm:inline">Report</span>
+        </button>
+      )}
+
+      {/* Floating Snapshots Button para carpetas ordenadas (dueño, no Colección).
+          Anclado a la izquierda para no chocar con el stack de botones de la derecha. */}
+      {isOwner && list?.isOrdered && !list?.isCollection && (
+        <button
+          onClick={() => setShowSnapshotsDrawer(true)}
+          className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full shadow-lg transition-all hover:scale-105"
+          title="Ver snapshots de esta carpeta"
+        >
+          <Camera className="h-5 w-5" />
+          <span className="hidden sm:inline">Snapshots</span>
         </button>
       )}
 

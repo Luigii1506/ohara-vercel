@@ -175,6 +175,18 @@ p::after {
   display: none !important;
 }
 
+/* react-pageflip (page-flip) trae ".stf__parent canvas { position: absolute;
+   left: 0; top: 0; width/height: 100% }" para sus propios canvases internos.
+   Es un selector genérico por tag, así que también agarra el <canvas> del QR
+   de la portada interior de las carpetas y lo saca del centrado con flex,
+   pegándolo a la esquina superior izquierda del folder. Se anula solo para
+   nuestro QR. */
+.qr-code-canvas {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+}
+
 /* Clases para la animación de salida */
 .card-exit {
   opacity: 1;

@@ -59,8 +59,9 @@ const ListDetailPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const listId = params.id as string;
-  const { role } = useUser();
+  const { role, userId } = useUser();
   const isAdmin = role === "ADMIN";
+  const isLoggedIn = Boolean(userId);
 
   const snapshotParam = searchParams?.get("snapshot") ?? null;
   const viewingSnapshotId = snapshotParam ? Number(snapshotParam) : null;
@@ -613,8 +614,8 @@ const ListDetailPage = () => {
               <h1 className="text-lg font-bold text-slate-900">{list.name}</h1>
             </div>
             <div className="flex items-center gap-3">
-              {/* Importar (copiar) la lista a mi cuenta — solo si NO es mía. */}
-              {!isOwner && (
+              {/* Importar (copiar) la lista a mi cuenta — solo si NO es mía y estoy logueado. */}
+              {!isOwner && isLoggedIn && (
                 <Button
                   onClick={handleImportList}
                   disabled={importing}
@@ -952,7 +953,7 @@ const ListDetailPage = () => {
             isAdmin && list?.isOrdered ? "bottom-24" : "bottom-6"
           }`}
         >
-          {!isOwner && (
+          {!isOwner && isLoggedIn && (
             <button
               onClick={handleImportList}
               disabled={importing}

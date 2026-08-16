@@ -103,7 +103,11 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             <div className="flex flex-col items-center text-center">
               {shareUrl && (
                 <div className="mb-4 flex flex-col items-center justify-center gap-2 w-[240px] h-[240px]">
-                  <QRCodeCanvas value={shareUrl} size={120} className="block" />
+                  <QRCodeCanvas
+                    value={shareUrl}
+                    size={120}
+                    className="block qr-code-canvas"
+                  />
                 </div>
               )}
               <img

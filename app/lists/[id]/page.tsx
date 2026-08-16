@@ -42,6 +42,7 @@ interface UserList {
   isOrdered: boolean;
   isCollection: boolean;
   isPublic: boolean;
+  hideTcgLink: boolean;
   totalPages: number;
   maxRows: number | null;
   maxColumns: number | null;
@@ -120,6 +121,7 @@ const ListDetailPage = () => {
   );
 
   const getTcgUrl = (card: CardWithCollectionData) => {
+    if (list?.hideTcgLink) return null;
     if (card.tcgUrl && card.tcgUrl.trim() !== "") {
       return card.tcgUrl;
     }

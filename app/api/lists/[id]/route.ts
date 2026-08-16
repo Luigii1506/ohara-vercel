@@ -273,6 +273,7 @@ export async function PUT(
       description,
       color,
       isPublic,
+      hideTcgLink,
       maxRows,
       maxColumns,
       totalPages,
@@ -303,6 +304,13 @@ export async function PUT(
     if (isPublic !== undefined && typeof isPublic !== "boolean") {
       return NextResponse.json(
         { error: "El campo isPublic debe ser verdadero o falso" },
+        { status: 400 }
+      );
+    }
+
+    if (hideTcgLink !== undefined && typeof hideTcgLink !== "boolean") {
+      return NextResponse.json(
+        { error: "El campo hideTcgLink debe ser verdadero o falso" },
         { status: 400 }
       );
     }
@@ -438,6 +446,8 @@ export async function PUT(
           description !== undefined ? description?.trim() || null : undefined,
         color: color !== undefined ? color || null : undefined,
         isPublic: typeof isPublic === "boolean" ? isPublic : undefined,
+        hideTcgLink:
+          typeof hideTcgLink === "boolean" ? hideTcgLink : undefined,
         maxRows: maxRows || undefined,
         maxColumns: maxColumns || undefined,
         totalPages: totalPages !== undefined ? totalPages : undefined,

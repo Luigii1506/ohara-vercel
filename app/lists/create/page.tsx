@@ -36,6 +36,7 @@ const CreateFolderPage = () => {
     name: "",
     description: "",
     isPublic: false,
+    hideTcgLink: false,
     color: "#10B981", // Verde por defecto para carpetas
     maxRows: 3,
     maxColumns: 3,
@@ -398,6 +399,28 @@ const CreateFolderPage = () => {
                   {formData.isPublic
                     ? "✨ Visible para toda la comunidad"
                     : "🔒 Solo visible para ti"}
+                </div>
+              </div>
+
+              {/* Carpeta de venta: ocultar link de TCGplayer */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
+                  <div className="space-y-0.5 pr-3">
+                    <Label className="text-sm font-medium text-gray-900">
+                      Ocultar link de TCGplayer
+                    </Label>
+                    <p className="text-xs text-gray-500">
+                      Muestra solo tu precio, sin redirigir a TCGplayer. Ideal
+                      para carpetas de venta.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.hideTcgLink}
+                    onCheckedChange={(checked) =>
+                      handleSwitchChange("hideTcgLink", checked)
+                    }
+                    className="touch-manipulation"
+                  />
                 </div>
               </div>
 

@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Lock,
   Edit3,
+  Tag,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -41,6 +42,7 @@ interface UserList {
   isCollection: boolean;
   isDeletable: boolean;
   isPublic: boolean;
+  hideTcgLink: boolean;
   color: string | null;
   totalPages: number;
   maxRows: number | null;
@@ -64,6 +66,7 @@ const EditListPage = () => {
     name: "",
     description: "",
     isPublic: false,
+    hideTcgLink: false,
     color: "#3b82f6",
     maxRows: 3,
     maxColumns: 3,
@@ -83,6 +86,7 @@ const EditListPage = () => {
           name: data.list.name,
           description: data.list.description || "",
           isPublic: data.list.isPublic,
+          hideTcgLink: data.list.hideTcgLink || false,
           color: data.list.color || "#3b82f6",
           maxRows: data.list.maxRows || 3,
           maxColumns: data.list.maxColumns || 3,
@@ -655,6 +659,34 @@ const EditListPage = () => {
                         checked={formData.isPublic}
                         onCheckedChange={(checked) =>
                           handleSwitchChange("isPublic", checked)
+                        }
+                        className="touch-manipulation"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Carpeta de venta: ocultar link de TCGplayer */}
+                <Card className="border border-slate-200 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <Tag className="h-5 w-5 text-slate-500" />
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            Ocultar link de TCGplayer
+                          </h3>
+                        </div>
+                        <p className="text-slate-600">
+                          {formData.hideTcgLink
+                            ? "Solo se mostrará tu precio, sin redirigir a TCGplayer"
+                            : "Se mostrará el link para ver la carta en TCGplayer"}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.hideTcgLink}
+                        onCheckedChange={(checked) =>
+                          handleSwitchChange("hideTcgLink", checked)
                         }
                         className="touch-manipulation"
                       />

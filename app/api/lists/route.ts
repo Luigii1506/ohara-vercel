@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
       color,
       isPublic = false,
       isCollection = false, // Agregar este campo por seguridad
+      hideTcgLink = false,
     } = body;
 
     // Validación adicional: nunca permitir crear listas de colección manualmente
@@ -175,6 +176,7 @@ export async function POST(request: NextRequest) {
           totalPages: 1,
           color: color || null,
           isPublic,
+          hideTcgLink: hideTcgLink === true,
           isDeletable: true,
           isCollection: false, // Siempre false para listas normales
         },
@@ -219,6 +221,7 @@ export async function POST(request: NextRequest) {
               totalPages: 1,
               color: color || null,
               isPublic,
+              hideTcgLink: hideTcgLink === true,
               isDeletable: true,
               isCollection: false,
             },

@@ -84,10 +84,22 @@ export async function POST(request: NextRequest) {
 
     console.log(`📥 Downloading image from: ${imageUrl}`);
 
-    // Download image
-    const imageResponse = await fetch(imageUrl);
+    // Download image. Muchos CDNs de sitios de cartas (ej. Cardmarket) tienen
+    // protección anti-hotlink: devuelven 403 sin un User-Agent de navegador y
+    // un Referer que "pertenezca" al mismo dominio. Usamos el propio origin de
+    // la URL como Referer, un bypass genérico que no depende de un dominio
+    // específico.
+    const imageResponse = await fetch(imageUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Referer: new URL(imageUrl).origin,
+      },
+    });
     if (!imageResponse.ok) {
-      throw new Error(`Failed to download image: ${imageResponse.statusText}`);
+      throw new Error(
+        `Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`
+      );
     }
 
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());

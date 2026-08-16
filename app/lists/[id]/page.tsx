@@ -564,7 +564,7 @@ const ListDetailPage = () => {
             maxRows={maxRows}
             maxColumns={maxColumns}
             cardCount={displayedCards.length}
-            totalValueLabel={folderTotalLabel}
+            // totalValueLabel={folderTotalLabel} // oculto: no mostrar el valor total en esta vista pública
             shareUrl={shareUrl || undefined}
             createGrid={createGrid}
             getCardsForPage={getCardsForPage}

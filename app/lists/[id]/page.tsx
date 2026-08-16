@@ -83,8 +83,6 @@ const ListDetailPage = () => {
   const [shareUrl, setShareUrl] = useState("");
   const [isOwner, setIsOwner] = useState(false);
   const [importing, setImporting] = useState(false);
-  // Admin-only: alternar el precio mostrado entre Market Price y Listed Median.
-  const [showListedMedian, setShowListedMedian] = useState(false);
 
   // Cartas congeladas del snapshot, adaptadas al mismo shape que usa la
   // página para el estado en vivo (ListCard[]), para reusar el mismo grid,
@@ -127,10 +125,14 @@ const ListDetailPage = () => {
   };
 
   const getCardPriceValue = (card: CardWithCollectionData) => {
-    if (isAdmin && showListedMedian) {
-      return getNumericPrice((card as any).midPrice) ?? null;
-    }
-    return getNumericPrice(card.marketPrice) ?? null;
+    // Mostramos Listed Median (midPrice) en vez de Market Price; si una
+    // carta aún no tiene midPrice, caemos a marketPrice para no dejar el
+    // precio en blanco.
+    return (
+      getNumericPrice((card as any).midPrice) ??
+      getNumericPrice(card.marketPrice) ??
+      null
+    );
   };
 
   const getListCardPriceValue = (listCard: ListCard) => {
@@ -174,7 +176,7 @@ const ListDetailPage = () => {
     });
 
     return { totalValue, currency };
-  }, [displayedCards, showListedMedian, isAdmin]);
+  }, [displayedCards]);
 
   // En modo snapshot usamos el total ya congelado (usa el precio real de
   // venta de las cartas vendidas, no el precio de lista) en vez de
@@ -586,9 +588,7 @@ const ListDetailPage = () => {
             getCardsForPage={getCardsForPage}
             isEditing={false}
             onCardClick={handleCardClick}
-            priceField={
-              isAdmin && showListedMedian ? "midPrice" : "marketPrice"
-            }
+            priceField="midPrice"
             displayCurrency={list.displayCurrency}
             exchangeRate={list.exchangeRate}
             showInteriorPage={true} // page.tsx shows interior page on desktop
@@ -649,18 +649,6 @@ const ListDetailPage = () => {
                   <span className="hidden sm:inline">
                     {importing ? "Importando…" : "Importar copia"}
                   </span>
-                </Button>
-              )}
-              {/* Admin: alternar Market Price / Listed Median (aunque no sea mía). */}
-              {isAdmin && (
-                <Button
-                  onClick={() => setShowListedMedian((v) => !v)}
-                  variant={showListedMedian ? "default" : "outline"}
-                  size="sm"
-                  className="gap-2 text-xs font-semibold"
-                  title="Solo admin: alternar entre Market Price y Listed Median"
-                >
-                  {showListedMedian ? "Listed Median" : "Market Price"}
                 </Button>
               )}
               {isAdmin && (
@@ -986,19 +974,6 @@ const ListDetailPage = () => {
               <span className="hidden sm:inline">
                 {importing ? "Importando…" : "Importar copia"}
               </span>
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              onClick={() => setShowListedMedian((v) => !v)}
-              className={`rounded-full px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:scale-105 ${
-                showListedMedian
-                  ? "bg-sky-600 text-white hover:bg-sky-700"
-                  : "bg-white text-slate-700 hover:bg-slate-100"
-              }`}
-              title="Solo admin: alternar entre Market Price y Listed Median"
-            >
-              {showListedMedian ? "Listed Median" : "Market Price"}
             </button>
           )}
         </div>

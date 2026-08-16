@@ -192,9 +192,15 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         };
 
                         const customPriceValue = getNumericPrice(cell.existing?.customPrice);
+                        // Si la carta no tiene el precio preferido (ej. midPrice
+                        // sin poblar aún), caemos al otro campo de precio en vez
+                        // de dejar el badge en blanco.
+                        const fallbackPriceField =
+                          priceField === "midPrice" ? "marketPrice" : "midPrice";
                         const priceValue =
                           customPriceValue ??
-                          getNumericPrice((cell.card as any)[priceField]);
+                          getNumericPrice((cell.card as any)[priceField]) ??
+                          getNumericPrice((cell.card as any)[fallbackPriceField]);
                         const currencyValue =
                           cell.existing?.customCurrency ?? cell.card.priceCurrency;
 

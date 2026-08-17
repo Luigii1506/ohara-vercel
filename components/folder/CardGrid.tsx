@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Check, DollarSign, ExternalLink, Tag } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink, Tag, Move } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -33,11 +33,19 @@ interface CardGridProps {
       column: number
     ) => void;
   };
+  /** Arrastre de una carta YA colocada (para moverla a otra casilla). */
+  onCardDragStart?: (
+    e: React.DragEvent,
+    card: CardWithCollectionData,
+    position: { page: number; row: number; column: number }
+  ) => void;
   dragOverPosition?: { page: number; row: number; column: number } | null;
   selectedCardForPlacement?: CardWithCollectionData | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  /** Botón "mover": arranca el modo mover-por-toque para esta carta. */
+  onStartMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
 }
@@ -52,11 +60,13 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onCardClick,
   onPositionClick,
   onDragHandlers,
+  onCardDragStart,
   dragOverPosition,
   selectedCardForPlacement,
   canEditPrice = false,
   onEditPrice,
   onToggleSold,
+  onStartMove,
   priceField = "marketPrice",
   displayCurrency,
   exchangeRate,
@@ -102,7 +112,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       className={cn(
                         "group relative rounded-[4%] shadow-md overflow-hidden transition-all duration-200 hover:shadow-lg",
                         isEditing
-                          ? "cursor-pointer hover:scale-105"
+                          ? "cursor-pointer hover:scale-105 active:cursor-grabbing"
                           : "cursor-grab"
                       )}
                       style={{
@@ -111,6 +121,14 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         maxWidth: "100%",
                         maxHeight: "100%",
                       }}
+                      draggable={isEditing && !!onCardDragStart}
+                      onDragStart={(e) =>
+                        onCardDragStart?.(e, cell.card!, {
+                          page: currentPage,
+                          row: actualRow,
+                          column: actualCol,
+                        })
+                      }
                       {...(isEditing && onDragHandlers
                         ? {
                             onDragOver: onDragHandlers.onDragOver,
@@ -136,6 +154,13 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         className="relative w-full h-full cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation(); // 🛡️ Evitar propagación hacia BookFlipContainer
+                          // Si hay una carta "levantada" para mover, este toque
+                          // completa el movimiento (mueve o intercambia) en vez
+                          // de abrir el visor de imagen.
+                          if (isEditing && selectedCardForPlacement) {
+                            onPositionClick?.(actualRow, actualCol, currentPage);
+                            return;
+                          }
                           if (onCardClick && cell.card) {
                             onCardClick(cell.card);
                           }
@@ -298,6 +323,28 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               />
                             </svg>
                           </button>
+                          {/* Mover: levanta la carta para moverla (tap-to-move,
+                              funciona igual en mobile que arrastrando con mouse). */}
+                          {canEditPrice &&
+                            cell.existing &&
+                            !cell.existing.isOptimistic &&
+                            onStartMove && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onStartMove({ card: cell.card!, listCard: cell.existing });
+                              }}
+                              className={cn(
+                                "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-opacity duration-200",
+                                selectedCardForPlacement?.id === cell.card?.id
+                                  ? "bg-indigo-700 opacity-100"
+                                  : "bg-indigo-500 hover:bg-indigo-600 opacity-0 group-hover:opacity-100"
+                              )}
+                              title="Mover a otra casilla"
+                            >
+                              <Move className="h-4 w-4" />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

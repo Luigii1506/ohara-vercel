@@ -42,6 +42,7 @@ import {
   Loader2,
   DollarSign,
   Tag,
+  FilePlus2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -396,6 +397,15 @@ const AddCardsPage = () => {
   } | null>(null);
   const [selectedCardForPlacement, setSelectedCardForPlacement] =
     useState<CardWithCollectionData | null>(null);
+  // Posición de origen de la carta "levantada" para mover (tap-to-move o
+  // drag-and-drop); si está seteada junto con selectedCardForPlacement, el
+  // siguiente toque/drop en una casilla completa el movimiento en vez de
+  // agregar una carta nueva.
+  const [movingFrom, setMovingFrom] = useState<{
+    page: number;
+    row: number;
+    column: number;
+  } | null>(null);
 
   // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard
   const [backcardPositions, setBackcardPositions] = useState<Set<string>>(
@@ -506,6 +516,11 @@ const AddCardsPage = () => {
   const handleSelectedCardChange = (card: CardWithCollectionData) => {
     setSelectedCard(card);
   };
+
+  const [insertPageOpen, setInsertPageOpen] = useState(false);
+  const [insertAfterPageInput, setInsertAfterPageInput] = useState("");
+  const [isInsertingPage, setIsInsertingPage] = useState(false);
+  const [jumpToPageInput, setJumpToPageInput] = useState("");
 
   const [priceEditOpen, setPriceEditOpen] = useState(false);
   const [priceEditCard, setPriceEditCard] =
@@ -1928,6 +1943,14 @@ const AddCardsPage = () => {
     e.dataTransfer.effectAllowed = "move";
   };
 
+  const handleGridCardDragStart = (
+    e: React.DragEvent,
+    card: CardWithCollectionData,
+    position: { page: number; row: number; column: number }
+  ) => {
+    handleDragStart(e, card, "grid", position);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -1960,6 +1983,15 @@ const AddCardsPage = () => {
     setDragOverPosition(null);
 
     if (!draggedCard) return;
+
+    // Arrastre de una carta YA colocada: mover/swap, no agregar de nuevo.
+    if (draggedCard.sourceType === "grid" && draggedCard.sourcePosition) {
+      const from = draggedCard.sourcePosition;
+      const card = draggedCard.card;
+      setDraggedCard(null);
+      await handleMoveCardWithinFolder(card, from, { page, row, column });
+      return;
+    }
 
     if (list?.isOrdered) {
       // Handle ordered list (folder) drop
@@ -2206,6 +2238,155 @@ const AddCardsPage = () => {
     setExistingCards(next);
   };
 
+  // Mueve una carta YA colocada de `from` a `to` dentro de la misma carpeta.
+  // Si `to` está ocupada por otra carta, el backend hace swap; reflejamos ese
+  // mismo intercambio en el estado local para no tener que re-fetch.
+  const handleMoveCardWithinFolder = async (
+    card: CardWithCollectionData,
+    from: { page: number; row: number; column: number },
+    to: { page: number; row: number; column: number }
+  ) => {
+    if (!list?.isOrdered || !isOwner) return;
+    if (
+      from.page === to.page &&
+      from.row === to.row &&
+      from.column === to.column
+    ) {
+      return;
+    }
+
+    const fromKey = `${from.page}-${from.row}-${from.column}`;
+    const toKey = `${to.page}-${to.row}-${to.column}`;
+    const destinationEntry = existingCardsRef.current[toKey];
+
+    try {
+      const response = await fetch(
+        `/api/lists/${listId}/cards/${card.id}/reposition`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            toPage: to.page,
+            toRow: to.row,
+            toColumn: to.column,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Error al mover la carta");
+      }
+
+      updateExistingCards((prev) => {
+        const next = { ...prev };
+        const sourceEntry = next[fromKey];
+        if (!sourceEntry) return prev;
+
+        if (destinationEntry) {
+          next[fromKey] = {
+            ...destinationEntry,
+            page: from.page,
+            row: from.row,
+            column: from.column,
+          };
+        } else {
+          delete next[fromKey];
+        }
+
+        next[toKey] = {
+          ...sourceEntry,
+          page: to.page,
+          row: to.row,
+          column: to.column,
+        };
+        return next;
+      });
+
+      if (list && to.page > (list.totalPages || 1)) {
+        setList((prev: any) => (prev ? { ...prev, totalPages: to.page } : prev));
+      }
+    } catch (error: any) {
+      console.error("Error moviendo carta:", error);
+      toast.error(error.message || "Error al mover la carta");
+    }
+  };
+
+  // Levanta una carta ya colocada para moverla: funciona con un toque en
+  // cualquier dispositivo (incluido mobile, donde arrastrar no aplica) —
+  // el siguiente toque en una casilla (vacía u ocupada) completa el
+  // movimiento vía handlePositionClick.
+  const startMovingCard = (entry: { card: CardWithCollectionData; listCard: any }) => {
+    if (!entry.listCard || entry.listCard.page == null) return;
+    setSelectedCardForPlacement(entry.card);
+    setMovingFrom({
+      page: entry.listCard.page,
+      row: entry.listCard.row,
+      column: entry.listCard.column,
+    });
+  };
+
+  const cancelMovingCard = () => {
+    setSelectedCardForPlacement(null);
+    setMovingFrom(null);
+  };
+
+  // Salto directo a una página (ej. para ir a mover una carta lejos sin dar
+  // "siguiente" decenas de veces). Usa el mismo patrón que el atajo de
+  // teclado "End" (setCurrentPage con el número de página real).
+  const handleJumpToPage = () => {
+    const target = parseInt(jumpToPageInput, 10);
+    const maxNavigablePage = getMaxNavigablePage();
+    if (!Number.isInteger(target) || target < 0 || target > maxNavigablePage) {
+      toast.error(`Ingresa una página entre 0 y ${maxNavigablePage}`);
+      return;
+    }
+    hasUserNavigated.current = true;
+    setCurrentPage(target);
+    currentPageRef.current = target;
+    setJumpToPageInput("");
+  };
+
+  const openInsertPageDialog = () => {
+    setInsertAfterPageInput(String(getMaxUsedPage()));
+    setInsertPageOpen(true);
+  };
+
+  const handleConfirmInsertPage = async () => {
+    if (!list?.isOrdered || !isOwner) return;
+
+    const afterPage = parseInt(insertAfterPageInput, 10);
+    if (!Number.isInteger(afterPage) || afterPage < 0) {
+      toast.error("Ingresa un número de página válido");
+      return;
+    }
+
+    setIsInsertingPage(true);
+    try {
+      const response = await fetch(`/api/lists/${listId}/pages/insert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ afterPage }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Error al insertar la página");
+      }
+
+      toast.success(`Página en blanco insertada como página ${data.insertedPage}`);
+      setInsertPageOpen(false);
+
+      await fetchList();
+      await fetchExistingCards();
+    } catch (error: any) {
+      console.error("Error insertando página:", error);
+      toast.error(error.message || "Error al insertar la página en blanco");
+    } finally {
+      setIsInsertingPage(false);
+    }
+  };
+
   const scheduleAddFlush = () => {
     if (addFlushTimerRef.current) {
       clearTimeout(addFlushTimerRef.current);
@@ -2398,6 +2579,28 @@ const AddCardsPage = () => {
     // Use the specific page provided, fallback to currentPage if not provided
     const targetPage = page ?? currentPage;
     const cardAtPosition = getCardAtPosition(row, col, targetPage);
+
+    // Hay una carta "levantada" para mover (botón Mover o arrastre desde el
+    // grid): esta casilla es el destino. Funciona igual si está vacía
+    // (mueve) o si tiene otra carta (intercambia), y funciona en cualquier
+    // dispositivo porque solo depende de toques/clics, no de drag nativo.
+    if (selectedCardForPlacement && movingFrom) {
+      const to = { page: targetPage, row, column: col };
+      const cardToMove = selectedCardForPlacement;
+      const from = movingFrom;
+      cancelMovingCard();
+
+      if (
+        from.page === to.page &&
+        from.row === to.row &&
+        from.column === to.column
+      ) {
+        return; // Tocó la misma casilla de origen: cancelar sin hacer nada
+      }
+
+      await handleMoveCardWithinFolder(cardToMove, from, to);
+      return;
+    }
 
     // If there's a selected card for placement, place it here
     if (selectedCardForPlacement && !cardAtPosition) {
@@ -2808,6 +3011,40 @@ const AddCardsPage = () => {
                       />
                     </Button>
                   </div>
+                  {list?.isOrdered && (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={jumpToPageInput}
+                        onChange={(e) => setJumpToPageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleJumpToPage();
+                        }}
+                        placeholder="Página #"
+                        inputMode="numeric"
+                        className="h-8 w-20 text-xs"
+                        title="Ir directo a esa página (útil para mover una carta lejos)"
+                      />
+                      <Button
+                        onClick={handleJumpToPage}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                      >
+                        Ir
+                      </Button>
+                    </div>
+                  )}
+                  {list?.isOrdered && isOwner && (
+                    <Button
+                      onClick={openInsertPageDialog}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      title="Insertar página en blanco"
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                    </Button>
+                  )}
                   {isAdmin && (
                     <Button
                       onClick={() => setShowListedMedian((v) => !v)}
@@ -2904,11 +3141,13 @@ const AddCardsPage = () => {
                         {selectedCardForPlacement.name}
                       </p>
                       <p className="text-xs text-blue-700">
-                        Lista para colocar - Click en posición o arrastra
+                        {movingFrom
+                          ? "Moviendo esta carta — toca la casilla destino"
+                          : "Lista para colocar - Click en posición o arrastra"}
                       </p>
                     </div>
                     <button
-                      onClick={() => setSelectedCardForPlacement(null)}
+                      onClick={cancelMovingCard}
                       className="p-1 hover:bg-blue-100 rounded-full"
                     >
                       <X className="h-4 w-4 text-blue-600" />
@@ -3545,11 +3784,13 @@ const AddCardsPage = () => {
                           onDragLeave: handleDragLeave,
                           onDrop: handleDrop,
                         }}
+                        onCardDragStart={handleGridCardDragStart}
                         dragOverPosition={dragOverPosition}
                         selectedCardForPlacement={selectedCardForPlacement}
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
+                        onStartMove={startMovingCard}
                         priceField={
                           isAdmin && !showListedMedian ? "marketPrice" : "midPrice"
                         }
@@ -4108,11 +4349,13 @@ const AddCardsPage = () => {
                         {selectedCardForPlacement.name}
                       </p>
                       <p className="text-xs text-blue-700">
-                        Lista para colocar - Toca una posición
+                        {movingFrom
+                          ? "Moviendo esta carta — toca la casilla destino"
+                          : "Lista para colocar - Toca una posición"}
                       </p>
                     </div>
                     <button
-                      onClick={() => setSelectedCardForPlacement(null)}
+                      onClick={cancelMovingCard}
                       className="p-1 hover:bg-blue-100 rounded-full"
                     >
                       <X className="h-4 w-4 text-blue-600" />
@@ -4423,6 +4666,48 @@ const AddCardsPage = () => {
           )}
         </div>
       </BaseDrawer>
+
+      {/* Insertar página en blanco */}
+      <Dialog open={insertPageOpen} onOpenChange={setInsertPageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Insertar página en blanco</DialogTitle>
+            <DialogDescription>
+              Las páginas siguientes se recorren una posición — ninguna carta
+              se pierde ni cambia de página relativa.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Insertar después de la página #
+            </label>
+            <Input
+              value={insertAfterPageInput}
+              onChange={(e) => setInsertAfterPageInput(e.target.value)}
+              placeholder="Ej. 3"
+              inputMode="numeric"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Usa 0 para insertarla antes de la página 1.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setInsertPageOpen(false)}
+              disabled={isInsertingPage}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmInsertPage}
+              disabled={isInsertingPage}
+            >
+              {isInsertingPage ? "Insertando..." : "Insertar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Custom Price */}
       {isMobile ? (

@@ -40,7 +40,7 @@ interface FolderContainerProps {
     ) => void;
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
-  selectedCardForPlacement?: CardWithCollectionData | null;
+  movingCardIds?: Set<string>;
   // Mode flags
   showInteriorPage?: boolean; // Controls whether to show interior cover page (add-cards = false, page.tsx = true)
 }
@@ -62,7 +62,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
   onPositionClick,
   onDragHandlers,
   dragOverPosition,
-  selectedCardForPlacement,
+  movingCardIds,
   showInteriorPage = true,
 }) => {
   // Calculate safe page number
@@ -193,7 +193,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
             onPositionClick={onPositionClick}
             onDragHandlers={onDragHandlers}
             dragOverPosition={dragOverPosition}
-            selectedCardForPlacement={selectedCardForPlacement}
+            movingCardIds={movingCardIds}
             shareUrl={shareUrl}
           />
         ) : (
@@ -241,7 +241,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
                 onPositionClick={onPositionClick}
                 onDragHandlers={onDragHandlers}
                 dragOverPosition={dragOverPosition}
-                selectedCardForPlacement={selectedCardForPlacement}
+                movingCardIds={movingCardIds}
                 shareUrl={shareUrl}
               />
             </div>
@@ -271,7 +271,7 @@ export const FolderContainer: React.FC<FolderContainerProps> = ({
                 onPositionClick={onPositionClick}
                 onDragHandlers={onDragHandlers}
                 dragOverPosition={dragOverPosition}
-                selectedCardForPlacement={selectedCardForPlacement}
+                movingCardIds={movingCardIds}
                 shareUrl={shareUrl}
               />
             </div>

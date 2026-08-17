@@ -40,12 +40,13 @@ interface CardGridProps {
     position: { page: number; row: number; column: number }
   ) => void;
   dragOverPosition?: { page: number; row: number; column: number } | null;
-  selectedCardForPlacement?: CardWithCollectionData | null;
+  /** IDs de cartas actualmente "levantadas" para mover (selección múltiple). */
+  movingCardIds?: Set<string>;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
-  /** Botón "mover": arranca el modo mover-por-toque para esta carta. */
-  onStartMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  /** Botón "mover": agrega/quita esta carta de la selección múltiple. */
+  onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
 }
@@ -62,11 +63,11 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onDragHandlers,
   onCardDragStart,
   dragOverPosition,
-  selectedCardForPlacement,
+  movingCardIds,
   canEditPrice = false,
   onEditPrice,
   onToggleSold,
-  onStartMove,
+  onToggleMove,
   priceField = "marketPrice",
   displayCurrency,
   exchangeRate,
@@ -90,9 +91,9 @@ export const CardGrid: React.FC<CardGridProps> = ({
             dragOverPosition?.row === actualRow &&
             dragOverPosition?.column === actualCol;
 
-          const isAvailableForPlacement =
-            selectedCardForPlacement && !cell && isEditing;
-          const canReplaceCard = selectedCardForPlacement && cell && isEditing;
+          const hasCardsToMove = (movingCardIds?.size ?? 0) > 0;
+          const isAvailableForPlacement = hasCardsToMove && !cell && isEditing;
+          const canReplaceCard = hasCardsToMove && cell && isEditing;
 
           return (
             <div
@@ -154,10 +155,10 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         className="relative w-full h-full cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation(); // 🛡️ Evitar propagación hacia BookFlipContainer
-                          // Si hay una carta "levantada" para mover, este toque
-                          // completa el movimiento (mueve o intercambia) en vez
-                          // de abrir el visor de imagen.
-                          if (isEditing && selectedCardForPlacement) {
+                          // Si hay cartas "levantadas" para mover, este toque
+                          // completa el movimiento (mueve/intercambia/acomoda)
+                          // en vez de abrir el visor de imagen.
+                          if (isEditing && hasCardsToMove) {
                             onPositionClick?.(actualRow, actualCol, currentPage);
                             return;
                           }
@@ -323,24 +324,25 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               />
                             </svg>
                           </button>
-                          {/* Mover: levanta la carta para moverla (tap-to-move,
-                              funciona igual en mobile que arrastrando con mouse). */}
+                          {/* Mover: agrega/quita la carta de la selección para
+                              moverla (tap-to-move, funciona igual en mobile
+                              que arrastrando con mouse; admite varias). */}
                           {canEditPrice &&
                             cell.existing &&
                             !cell.existing.isOptimistic &&
-                            onStartMove && (
+                            onToggleMove && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onStartMove({ card: cell.card!, listCard: cell.existing });
+                                onToggleMove({ card: cell.card!, listCard: cell.existing });
                               }}
                               className={cn(
                                 "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-opacity duration-200",
-                                selectedCardForPlacement?.id === cell.card?.id
+                                movingCardIds?.has(cell.card?.id ?? "")
                                   ? "bg-indigo-700 opacity-100"
                                   : "bg-indigo-500 hover:bg-indigo-600 opacity-0 group-hover:opacity-100"
                               )}
-                              title="Mover a otra casilla"
+                              title="Agregar/quitar de la selección para mover"
                             >
                               <Move className="h-4 w-4" />
                             </button>
@@ -427,7 +429,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       : {})}
                   >
                     <div className="text-center">
-                      {selectedCardForPlacement ? (
+                      {hasCardsToMove ? (
                         <>
                           <Plus className="h-8 w-8 mx-auto mb-1 text-green-500" />
                           <div className="text-xs text-green-600 font-medium">

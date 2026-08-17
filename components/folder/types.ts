@@ -65,7 +65,7 @@ export interface FolderProps {
     ) => void;
   };
   dragOverPosition?: { page: number; row: number; column: number } | null;
-  selectedCardForPlacement?: CardWithCollectionData | null;
+  movingCardIds?: Set<string>;
 }
 
 export interface NavigationProps {

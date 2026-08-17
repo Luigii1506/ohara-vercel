@@ -613,7 +613,6 @@ const CreateFolderPage = () => {
                       onDrop: () => {},
                     }}
                     dragOverPosition={null}
-                    selectedCardForPlacement={null}
                     showInteriorPage={false}
                   />
                 </div>

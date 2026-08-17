@@ -395,17 +395,20 @@ const AddCardsPage = () => {
     row: number;
     column: number;
   } | null>(null);
-  const [selectedCardForPlacement, setSelectedCardForPlacement] =
-    useState<CardWithCollectionData | null>(null);
-  // Posición de origen de la carta "levantada" para mover (tap-to-move o
-  // drag-and-drop); si está seteada junto con selectedCardForPlacement, el
-  // siguiente toque/drop en una casilla completa el movimiento en vez de
-  // agregar una carta nueva.
-  const [movingFrom, setMovingFrom] = useState<{
-    page: number;
-    row: number;
-    column: number;
-  } | null>(null);
+  // Cartas "levantadas" para mover (tap-to-move o drag-and-drop), en el
+  // orden en que se seleccionaron. Una sola carta se mueve/intercambia con
+  // el destino; varias se acomodan en orden a partir del destino, saltando
+  // casillas ya ocupadas por otras cartas.
+  const [movingCards, setMovingCards] = useState<
+    Array<{
+      card: CardWithCollectionData;
+      from: { page: number; row: number; column: number };
+    }>
+  >([]);
+  const movingCardIds = useMemo(
+    () => new Set(movingCards.map((m) => m.card.id)),
+    [movingCards]
+  );
 
   // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard
   const [backcardPositions, setBackcardPositions] = useState<Set<string>>(
@@ -2312,23 +2315,75 @@ const AddCardsPage = () => {
     }
   };
 
-  // Levanta una carta ya colocada para moverla: funciona con un toque en
-  // cualquier dispositivo (incluido mobile, donde arrastrar no aplica) —
-  // el siguiente toque en una casilla (vacía u ocupada) completa el
-  // movimiento vía handlePositionClick.
-  const startMovingCard = (entry: { card: CardWithCollectionData; listCard: any }) => {
+  // Botón "Mover": agrega/quita una carta de la selección múltiple (toggle).
+  // Funciona con toques en cualquier dispositivo — el siguiente toque en una
+  // casilla (vacía u ocupada) completa el movimiento vía handlePositionClick.
+  const toggleMovingCard = (entry: { card: CardWithCollectionData; listCard: any }) => {
     if (!entry.listCard || entry.listCard.page == null) return;
-    setSelectedCardForPlacement(entry.card);
-    setMovingFrom({
-      page: entry.listCard.page,
-      row: entry.listCard.row,
-      column: entry.listCard.column,
+    setMovingCards((prev) => {
+      if (prev.some((m) => m.card.id === entry.card.id)) {
+        return prev.filter((m) => m.card.id !== entry.card.id);
+      }
+      return [
+        ...prev,
+        {
+          card: entry.card,
+          from: {
+            page: entry.listCard.page,
+            row: entry.listCard.row,
+            column: entry.listCard.column,
+          },
+        },
+      ];
     });
   };
 
-  const cancelMovingCard = () => {
-    setSelectedCardForPlacement(null);
-    setMovingFrom(null);
+  const cancelMovingCards = () => {
+    setMovingCards([]);
+  };
+
+  // Mueve varias cartas ya colocadas a la vez: se acomodan en `to` y en
+  // adelante (orden de lectura), en el orden en que se seleccionaron,
+  // saltando cualquier casilla ocupada por OTRA carta sin eliminarla. Para
+  // una sola carta reusamos el flujo existente (mueve o intercambia).
+  const handleMoveCardsBatch = async (
+    cards: Array<{
+      card: CardWithCollectionData;
+      from: { page: number; row: number; column: number };
+    }>,
+    to: { page: number; row: number; column: number }
+  ) => {
+    if (!list?.isOrdered || !isOwner || cards.length === 0) return;
+
+    if (cards.length === 1) {
+      await handleMoveCardWithinFolder(cards[0].card, cards[0].from, to);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/lists/${listId}/cards/move-batch`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardIds: cards.map((c) => c.card.id),
+          toPage: to.page,
+          toRow: to.row,
+          toColumn: to.column,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Error al mover las cartas");
+      }
+
+      toast.success(`${cards.length} cartas movidas`);
+      await fetchList();
+      await fetchExistingCards();
+    } catch (error: any) {
+      console.error("Error moviendo cartas:", error);
+      toast.error(error.message || "Error al mover las cartas");
+    }
   };
 
   // Salto directo a una página (ej. para ir a mover una carta lejos sin dar
@@ -2580,118 +2635,32 @@ const AddCardsPage = () => {
     const targetPage = page ?? currentPage;
     const cardAtPosition = getCardAtPosition(row, col, targetPage);
 
-    // Hay una carta "levantada" para mover (botón Mover o arrastre desde el
-    // grid): esta casilla es el destino. Funciona igual si está vacía
-    // (mueve) o si tiene otra carta (intercambia), y funciona en cualquier
+    // Hay una o varias cartas "levantadas" para mover (botón Mover o
+    // arrastre desde el grid): esta casilla es el destino de la primera.
+    // Una sola carta se mueve o intercambia (si está ocupada); varias se
+    // acomodan en orden a partir de aquí, saltando cualquier casilla ya
+    // ocupada por OTRA carta sin eliminarla. Funciona en cualquier
     // dispositivo porque solo depende de toques/clics, no de drag nativo.
-    if (selectedCardForPlacement && movingFrom) {
+    if (movingCards.length > 0) {
       const to = { page: targetPage, row, column: col };
-      const cardToMove = selectedCardForPlacement;
-      const from = movingFrom;
-      cancelMovingCard();
+      const cardsToMove = movingCards;
+      cancelMovingCards();
 
       if (
-        from.page === to.page &&
-        from.row === to.row &&
-        from.column === to.column
+        cardsToMove.length === 1 &&
+        cardsToMove[0].from.page === to.page &&
+        cardsToMove[0].from.row === to.row &&
+        cardsToMove[0].from.column === to.column
       ) {
         return; // Tocó la misma casilla de origen: cancelar sin hacer nada
       }
 
-      await handleMoveCardWithinFolder(cardToMove, from, to);
+      await handleMoveCardsBatch(cardsToMove, to);
       return;
     }
 
-    // If there's a selected card for placement, place it here
-    if (selectedCardForPlacement && !cardAtPosition) {
-      await addOrderedCardAtPosition(selectedCardForPlacement, {
-        page: targetPage,
-        row,
-        column: col,
-      });
-      setSelectedCardForPlacement(null); // Clear selection after placing
-      return;
-    }
-
-    // If there's a selected card and position is occupied, replace it
-    if (selectedCardForPlacement && cardAtPosition) {
-      const changeId = `${Date.now()}-${Math.random()}`;
-      const existingCard = cardAtPosition.isPending
-        ? cardAtPosition.change
-        : cardAtPosition.existing;
-      const newChange = {
-        id: changeId,
-        type: "change" as const,
-        position: { page: targetPage, row, column: col },
-        card: selectedCardForPlacement,
-        previousCard: existingCard,
-      };
-
-      setPendingChanges((prev) => [
-        ...prev.filter(
-          (c) =>
-            !(
-              c.position.page === targetPage &&
-              c.position.row === row &&
-              c.position.column === col
-            )
-        ),
-        newChange,
-      ]);
-
-      // Auto-save immediately
-      try {
-        // If it's a change, first remove the previous card
-        if (existingCard?.cardId) {
-          await fetch(`/api/lists/${listId}/cards/${existingCard.cardId}`, {
-            method: "DELETE",
-          });
-        }
-
-        // Add the new card
-        const cardToAdd = {
-          cardId: newChange.card.id,
-          page: newChange.position.page,
-          row: newChange.position.row,
-          column: newChange.position.column,
-        };
-
-        const response = await fetch(`/api/lists/${listId}/cards`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify([cardToAdd]),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Error agregando carta: ${errorData.error}`);
-        }
-
-        // Update local state to reflect the save
-        const newExistingCards = { ...existingCards };
-        const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
-        newExistingCards[key] = {
-          card: newChange.card,
-          cardId: newChange.card.id,
-          page: newChange.position.page,
-          row: newChange.position.row,
-          column: newChange.position.column,
-        };
-        setExistingCards(newExistingCards);
-
-        // Remove the processed change from pending changes
-        setPendingChanges((prev) => prev.filter((p) => p.id !== newChange.id));
-      } catch (error) {
-        console.error("Error en auto-guardado:", error);
-        toast.error("Error al guardar automáticamente");
-      }
-
-      setSelectedCardForPlacement(null); // Clear selection after placing
-      return;
-    }
-
-    // 🎴 Backcard Toggle: Si no hay carta seleccionada, manejar backcard
-    if (!selectedCardForPlacement) {
+    // 🎴 Backcard Toggle: sin cartas seleccionadas, manejar backcard
+    {
       const positionKey = `${targetPage}-${row}-${col}`;
 
       // Si la posición está vacía (sin carta real), alternar backcard
@@ -2744,7 +2713,7 @@ const AddCardsPage = () => {
     }
 
     // Mobile: If no selected card and position is empty, open card selection modal
-    if (isMobile && !selectedCardForPlacement && !cardAtPosition) {
+    if (isMobile && !cardAtPosition) {
       setTargetPosition({ page: targetPage, row, column: col });
       setShowMobileCardModal(true);
       return;
@@ -3122,32 +3091,40 @@ const AddCardsPage = () => {
             >
               {showFab && <FAB onClick={handleScrollToTop} />}
 
-              {/* Selected Card Indicator */}
-              {selectedCardForPlacement && !isMobile && (
+              {/* Selected Card(s) Indicator */}
+              {movingCards.length > 0 && !isMobile && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-11 flex-shrink-0">
-                      <LazyImage
-                        src={selectedCardForPlacement.src}
-                        fallbackSrc="/assets/images/backcard.webp"
-                        alt={selectedCardForPlacement.name}
-                        className="w-full rounded border"
-                        priority={true}
-                        size="small"
-                      />
-                    </div>
+                    {movingCards.length === 1 ? (
+                      <div className="w-8 h-11 flex-shrink-0">
+                        <LazyImage
+                          src={movingCards[0].card.src}
+                          fallbackSrc="/assets/images/backcard.webp"
+                          alt={movingCards[0].card.name}
+                          className="w-full rounded border"
+                          priority={true}
+                          size="small"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
+                        {movingCards.length}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-blue-900 truncate">
-                        {selectedCardForPlacement.name}
+                        {movingCards.length === 1
+                          ? movingCards[0].card.name
+                          : `${movingCards.length} cartas seleccionadas`}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {movingFrom
+                        {movingCards.length === 1
                           ? "Moviendo esta carta — toca la casilla destino"
-                          : "Lista para colocar - Click en posición o arrastra"}
+                          : "Toca la casilla inicial: se acomodan en ese orden"}
                       </p>
                     </div>
                     <button
-                      onClick={cancelMovingCard}
+                      onClick={cancelMovingCards}
                       className="p-1 hover:bg-blue-100 rounded-full"
                     >
                       <X className="h-4 w-4 text-blue-600" />
@@ -3241,7 +3218,7 @@ const AddCardsPage = () => {
                                 handleDragStart(e, card, "sidebar")
                               }
                               className={`cursor-pointer transition-all duration-200 relative group ${
-                                selectedCardForPlacement?.id === card.id
+                                movingCardIds.has(card.id)
                                   ? "ring-2 ring-blue-500 bg-blue-50"
                                   : "hover:shadow-md"
                               }`}
@@ -3300,7 +3277,7 @@ const AddCardsPage = () => {
                                   handleDragStart(e, alt, "sidebar")
                                 }
                                 className={`cursor-pointer transition-all duration-200 relative group ${
-                                  selectedCardForPlacement?.id === alt.id
+                                  movingCardIds.has(alt.id)
                                     ? "ring-2 ring-blue-500 bg-blue-50"
                                     : "hover:shadow-md"
                                 }`}
@@ -3380,7 +3357,7 @@ const AddCardsPage = () => {
                               handleDragStart(e, card, "sidebar")
                             }
                             className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg relative group ${
-                              selectedCardForPlacement?.id === card.id
+                              movingCardIds.has(card.id)
                                 ? "ring-2 ring-blue-500 bg-blue-50"
                                 : ""
                             }`}
@@ -3464,7 +3441,7 @@ const AddCardsPage = () => {
                                 handleDragStart(e, alt, "sidebar")
                               }
                               className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg relative group ${
-                                selectedCardForPlacement?.id === alt.id
+                                movingCardIds.has(alt.id)
                                   ? "ring-2 ring-blue-500 bg-blue-50"
                                   : ""
                               }`}
@@ -3786,11 +3763,11 @@ const AddCardsPage = () => {
                         }}
                         onCardDragStart={handleGridCardDragStart}
                         dragOverPosition={dragOverPosition}
-                        selectedCardForPlacement={selectedCardForPlacement}
+                        movingCardIds={movingCardIds}
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
-                        onStartMove={startMovingCard}
+                        onToggleMove={toggleMovingCard}
                         priceField={
                           isAdmin && !showListedMedian ? "marketPrice" : "midPrice"
                         }
@@ -4330,32 +4307,40 @@ const AddCardsPage = () => {
               className="flex-1 overflow-y-auto p-3 min-h-0"
               ref={mobileModalScrollRef}
             >
-              {/* Selected Card Indicator */}
-              {selectedCardForPlacement && (
+              {/* Selected Card(s) Indicator */}
+              {movingCards.length > 0 && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-11 flex-shrink-0">
-                      <LazyImage
-                        src={selectedCardForPlacement.src}
-                        fallbackSrc="/assets/images/backcard.webp"
-                        alt={selectedCardForPlacement.name}
-                        className="w-full rounded border"
-                        priority={true}
-                        size="small"
-                      />
-                    </div>
+                    {movingCards.length === 1 ? (
+                      <div className="w-8 h-11 flex-shrink-0">
+                        <LazyImage
+                          src={movingCards[0].card.src}
+                          fallbackSrc="/assets/images/backcard.webp"
+                          alt={movingCards[0].card.name}
+                          className="w-full rounded border"
+                          priority={true}
+                          size="small"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
+                        {movingCards.length}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-blue-900 truncate">
-                        {selectedCardForPlacement.name}
+                        {movingCards.length === 1
+                          ? movingCards[0].card.name
+                          : `${movingCards.length} cartas seleccionadas`}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {movingFrom
+                        {movingCards.length === 1
                           ? "Moviendo esta carta — toca la casilla destino"
-                          : "Lista para colocar - Toca una posición"}
+                          : "Toca la casilla inicial: se acomodan en ese orden"}
                       </p>
                     </div>
                     <button
-                      onClick={cancelMovingCard}
+                      onClick={cancelMovingCards}
                       className="p-1 hover:bg-blue-100 rounded-full"
                     >
                       <X className="h-4 w-4 text-blue-600" />
@@ -4370,7 +4355,7 @@ const AddCardsPage = () => {
                     <Fragment key={card._id}>
                       <div
                         className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                          selectedCardForPlacement?.id === card.id
+                          movingCardIds.has(card.id)
                             ? "ring-2 ring-blue-500 bg-blue-50"
                             : ""
                         }`}
@@ -4425,7 +4410,7 @@ const AddCardsPage = () => {
                               handleMobileCardPick(card);
                             }}
                             className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                              selectedCardForPlacement?.id === card.id
+                              movingCardIds.has(card.id)
                                 ? "ring-2 ring-blue-500 bg-blue-50"
                                 : ""
                             }`}
@@ -4479,7 +4464,7 @@ const AddCardsPage = () => {
                                 handleMobileCardPick(alt);
                               }}
                               className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                                selectedCardForPlacement?.id === alt.id
+                                movingCardIds.has(alt.id)
                                   ? "ring-2 ring-blue-500 bg-blue-50"
                                   : ""
                               }`}

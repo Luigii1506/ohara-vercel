@@ -46,7 +46,8 @@ interface FolderPageProps {
     position: { page: number; row: number; column: number }
   ) => void;
   dragOverPosition?: { page: number; row: number; column: number } | null;
-  selectedCardForPlacement?: CardWithCollectionData | null;
+  /** IDs de cartas actualmente "levantadas" para mover (selección múltiple). */
+  movingCardIds?: Set<string>;
   canEditPrice?: boolean;
   onEditPrice?: (entry: {
     card: CardWithCollectionData;
@@ -56,7 +57,7 @@ interface FolderPageProps {
     card: CardWithCollectionData;
     listCard: any;
   }) => void;
-  onStartMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   priceField?: "marketPrice" | "midPrice";
   displayCurrency?: string | null;
   exchangeRate?: number | string | null;
@@ -82,11 +83,11 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   onDragHandlers,
   onCardDragStart,
   dragOverPosition,
-  selectedCardForPlacement,
+  movingCardIds,
   canEditPrice,
   onEditPrice,
   onToggleSold,
-  onStartMove,
+  onToggleMove,
   priceField,
   displayCurrency,
   exchangeRate,
@@ -158,11 +159,11 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             onDragHandlers={onDragHandlers}
             onCardDragStart={onCardDragStart}
             dragOverPosition={dragOverPosition}
-            selectedCardForPlacement={selectedCardForPlacement}
+            movingCardIds={movingCardIds}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
-            onStartMove={onStartMove}
+            onToggleMove={onToggleMove}
             priceField={priceField}
             displayCurrency={displayCurrency}
             exchangeRate={exchangeRate}

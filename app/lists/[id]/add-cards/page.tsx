@@ -83,7 +83,6 @@ import SearchFilters from "@/components/home/SearchFilters";
 import DropdownSearch from "@/components/DropdownSearch";
 import FiltersSidebar from "@/components/FiltersSidebar";
 import ViewSwitch from "@/components/ViewSwitch";
-import SquareAltIcon from "@/components/Icons/SquareAltIcon";
 import { Option } from "@/components/MultiSelect";
 import { useRegion } from "@/components/region/RegionProvider";
 import FAB from "@/components/Fab";
@@ -165,6 +164,9 @@ const FolderOptionsMenu = ({
   onExportZip,
   zipLoading,
   onDeleteClick,
+  onRefresh,
+  isRefreshing,
+  pageTools,
   variant = "labeled",
 }: {
   listId: string;
@@ -173,6 +175,16 @@ const FolderOptionsMenu = ({
   onExportZip: () => void;
   zipLoading: boolean;
   onDeleteClick: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  /** Solo para carpetas (isOrdered): ir a una página + insertar página en blanco. */
+  pageTools?: {
+    jumpToPageInput: string;
+    onJumpToPageInputChange: (value: string) => void;
+    onJumpToPage: () => void;
+    onInsertPage: () => void;
+    canInsertPage: boolean;
+  };
   variant?: "labeled" | "icon";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -206,6 +218,21 @@ const FolderOptionsMenu = ({
       },
       hoverClass: "hover:bg-purple-50 hover:text-purple-700",
     },
+    ...(onRefresh
+      ? [
+          {
+            label: isRefreshing ? "Actualizando…" : "Actualizar cartas",
+            icon: isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            ),
+            onClick: onRefresh,
+            hoverClass: "hover:bg-slate-100 hover:text-slate-900",
+            disabled: isRefreshing,
+          },
+        ]
+      : []),
     {
       label: "Exportar CSV",
       icon: <Download className="h-4 w-4" />,
@@ -248,7 +275,7 @@ const FolderOptionsMenu = ({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-52 p-1.5">
+      <PopoverContent align="end" className="w-56 p-1.5">
         {items.map((item) => (
           <div
             key={item.label}
@@ -266,6 +293,49 @@ const FolderOptionsMenu = ({
             <span>{item.label}</span>
           </div>
         ))}
+
+        {pageTools && (
+          <>
+            <div className="border-t border-gray-100 my-1" />
+            <div className="px-3 py-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Ir a la página
+              </label>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={pageTools.jumpToPageInput}
+                  onChange={(e) => pageTools.onJumpToPageInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") pageTools.onJumpToPage();
+                  }}
+                  placeholder="Página #"
+                  inputMode="numeric"
+                  className="h-8 text-xs"
+                />
+                <Button
+                  onClick={pageTools.onJumpToPage}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs shrink-0"
+                >
+                  Ir
+                </Button>
+              </div>
+            </div>
+            {pageTools.canInsertPage && (
+              <div
+                onClick={() => {
+                  pageTools.onInsertPage();
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-700 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                <FilePlus2 className="h-4 w-4" />
+                <span>Insertar página en blanco</span>
+              </div>
+            )}
+          </>
+        )}
 
         <div className="border-t border-gray-100 my-1" />
         <div
@@ -2948,8 +3018,6 @@ const AddCardsPage = () => {
     );
   }
 
-  console.log("cardListFilteredCards", cardListFilteredCards);
-
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 w-full">
       <div className="flex-1 flex overflow-hidden">
@@ -2991,150 +3059,48 @@ const AddCardsPage = () => {
             </div>
 
             <div className="flex p-3 flex-col gap-3 border-b border-[#f5f5f5]">
-              <DropdownSearch
-                search={search}
-                setSearch={setSearch}
-                placeholder="Search..."
-                suggestionsEndpoint="/api/cards/search-suggestions"
-              />
-
-              <div className="flex justify-between items-center gap-2">
-                <div className="flex gap-2 justify-center items-center">
-                  <FiltersButton
-                    totalFilters={totalFilters}
-                    onOpenFilters={() => setIsModalOpen(true)}
-                    isTouchable={
-                      selectedColors.length > 0 ||
-                      selectedRarities.length > 0 ||
-                      selectedCategories.length > 0 ||
-                      selectedCounter !== "" ||
-                      selectedTrigger !== "" ||
-                      selectedEffects.length > 0 ||
-                      selectedTypes.length > 0 ||
-                      selectedSets.length > 0 ||
-                      selectedCosts.length > 0 ||
-                      selectedPower.length > 0 ||
-                      selectedAttributes.length > 0 ||
-                      selectedCodes.length > 0 ||
-                      selectedAltArts.length > 0
-                    }
-                    onClearFilters={() => {
-                      setSelectedColors([]);
-                      setSelectedRarities([]);
-                      setSelectedCategories([]);
-                      setSelectedCounter("");
-                      setSelectedTrigger("");
-                      setSelectedEffects([]);
-                      setSelectedTypes([]);
-                      setSelectedSets([]);
-                      setSelectedCosts([]);
-                      setSelectedPower([]);
-                      setSelectedAttributes([]);
-                      setSelectedCodes([]);
-                      setSelectedAltArts([]);
-                    }}
+              <div className="flex items-center gap-2">
+                <FiltersButton
+                  totalFilters={totalFilters}
+                  onOpenFilters={() => setIsModalOpen(true)}
+                  isTouchable={
+                    selectedColors.length > 0 ||
+                    selectedRarities.length > 0 ||
+                    selectedCategories.length > 0 ||
+                    selectedCounter !== "" ||
+                    selectedTrigger !== "" ||
+                    selectedEffects.length > 0 ||
+                    selectedTypes.length > 0 ||
+                    selectedSets.length > 0 ||
+                    selectedCosts.length > 0 ||
+                    selectedPower.length > 0 ||
+                    selectedAttributes.length > 0 ||
+                    selectedCodes.length > 0 ||
+                    selectedAltArts.length > 0
+                  }
+                  onClearFilters={() => {
+                    setSelectedColors([]);
+                    setSelectedRarities([]);
+                    setSelectedCategories([]);
+                    setSelectedCounter("");
+                    setSelectedTrigger("");
+                    setSelectedEffects([]);
+                    setSelectedTypes([]);
+                    setSelectedSets([]);
+                    setSelectedCosts([]);
+                    setSelectedPower([]);
+                    setSelectedAttributes([]);
+                    setSelectedCodes([]);
+                    setSelectedAltArts([]);
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <DropdownSearch
+                    search={search}
+                    setSearch={setSearch}
+                    placeholder="Search..."
+                    suggestionsEndpoint="/api/cards/search-suggestions"
                   />
-                </div>
-
-                <div className="flex justify-center items-center gap-2">
-                  <div id="refresh" className="flex items-center">
-                    <Button
-                      onClick={handleRefreshCards}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      title="Actualizar cartas"
-                      disabled={isRefreshing}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 ${
-                          isRefreshing ? "animate-spin" : ""
-                        }`}
-                      />
-                    </Button>
-                  </div>
-                  {list?.isOrdered && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          title="Herramientas de página"
-                        >
-                          <Layers className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="center" className="w-64 p-3 space-y-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Ir a la página
-                          </label>
-                          <div className="flex items-center gap-1.5">
-                            <Input
-                              value={jumpToPageInput}
-                              onChange={(e) => setJumpToPageInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleJumpToPage();
-                              }}
-                              placeholder="Página #"
-                              inputMode="numeric"
-                              className="h-8 text-xs"
-                            />
-                            <Button
-                              onClick={handleJumpToPage}
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2 text-xs shrink-0"
-                            >
-                              Ir
-                            </Button>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500">
-                            Útil para mover una carta lejos sin navegar hoja por hoja.
-                          </p>
-                        </div>
-                        {isOwner && (
-                          <>
-                            <div className="border-t border-gray-100" />
-                            <Button
-                              onClick={openInsertPageDialog}
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start gap-2 h-8 text-xs"
-                            >
-                              <FilePlus2 className="h-3.5 w-3.5" />
-                              Insertar página en blanco
-                            </Button>
-                          </>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                  {isAdmin && (
-                    <Button
-                      onClick={() => setShowListedMedian((v) => !v)}
-                      variant={showListedMedian ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
-                      title="Solo admin: alternar entre Listed Median y Market Price"
-                    >
-                      {showListedMedian ? "Listed Median" : "Market Price"}
-                    </Button>
-                  )}
-                  <Button
-                    onClick={() =>
-                      setViewSelected(
-                        viewSelected === "alternate" ? "list" : "alternate"
-                      )
-                    }
-                    variant={viewSelected === "alternate" ? "default" : "outline"}
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    title="Ver variantes alternas"
-                  >
-                    <SquareAltIcon size="16" color="currentColor" />
-                  </Button>
                 </div>
               </div>
             </div>
@@ -3693,16 +3659,38 @@ const AddCardsPage = () => {
                       </div>
                     )}
 
-                    {/* Menú de opciones */}
-                    <FolderOptionsMenu
-                      listId={listId}
-                      router={router}
-                      onExportCsv={exportListToCsv}
-                      onExportZip={downloadImagesZip}
-                      zipLoading={zipLoading}
-                      onDeleteClick={handleDeleteClick}
-                      variant="labeled"
-                    />
+                    {/* Listed Median + Menú de opciones */}
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <Button
+                          onClick={() => setShowListedMedian((v) => !v)}
+                          variant={showListedMedian ? "default" : "outline"}
+                          size="sm"
+                          className="h-9 gap-1.5 px-2.5 text-xs font-semibold"
+                          title="Solo admin: alternar entre Listed Median y Market Price"
+                        >
+                          {showListedMedian ? "Listed Median" : "Market Price"}
+                        </Button>
+                      )}
+                      <FolderOptionsMenu
+                        listId={listId}
+                        router={router}
+                        onExportCsv={exportListToCsv}
+                        onExportZip={downloadImagesZip}
+                        zipLoading={zipLoading}
+                        onDeleteClick={handleDeleteClick}
+                        onRefresh={handleRefreshCards}
+                        isRefreshing={isRefreshing}
+                        pageTools={{
+                          jumpToPageInput,
+                          onJumpToPageInputChange: setJumpToPageInput,
+                          onJumpToPage: handleJumpToPage,
+                          onInsertPage: openInsertPageDialog,
+                          canInsertPage: Boolean(isOwner),
+                        }}
+                        variant="labeled"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -3734,6 +3722,17 @@ const AddCardsPage = () => {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <Button
+                          onClick={() => setShowListedMedian((v) => !v)}
+                          variant={showListedMedian ? "default" : "outline"}
+                          size="sm"
+                          className="h-9 px-2 text-xs font-semibold"
+                          title="Solo admin: alternar entre Listed Median y Market Price"
+                        >
+                          {showListedMedian ? "Listed Median" : "Market Price"}
+                        </Button>
+                      )}
                       <FolderOptionsMenu
                         listId={listId}
                         router={router}
@@ -3741,6 +3740,15 @@ const AddCardsPage = () => {
                         onExportZip={downloadImagesZip}
                         zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
+                        onRefresh={handleRefreshCards}
+                        isRefreshing={isRefreshing}
+                        pageTools={{
+                          jumpToPageInput,
+                          onJumpToPageInputChange: setJumpToPageInput,
+                          onJumpToPage: handleJumpToPage,
+                          onInsertPage: openInsertPageDialog,
+                          canInsertPage: Boolean(isOwner),
+                        }}
                         variant="icon"
                       />
                     </div>
@@ -3881,6 +3889,8 @@ const AddCardsPage = () => {
                         onExportZip={downloadImagesZip}
                         zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
+                        onRefresh={handleRefreshCards}
+                        isRefreshing={isRefreshing}
                         variant="labeled"
                       />
                     </div>
@@ -3917,6 +3927,8 @@ const AddCardsPage = () => {
                           onExportZip={downloadImagesZip}
                           zipLoading={zipLoading}
                           onDeleteClick={handleDeleteClick}
+                          onRefresh={handleRefreshCards}
+                          isRefreshing={isRefreshing}
                           variant="icon"
                         />
                       </div>
@@ -4191,58 +4203,57 @@ const AddCardsPage = () => {
             </Transition>
 
             <div className="p-3 flex flex-col gap-3 border-t border-[#f5f5f5] bg-white">
-              <DropdownSearch
-                search={search}
-                setSearch={setSearch}
-                placeholder="Search..."
-                suggestionsEndpoint="/api/cards/search-suggestions"
-              />
-
-              <div className="flex justify-between items-center gap-2">
-                <div className="flex gap-2 justify-center items-center">
-                  <FiltersButton
-                    totalFilters={totalFilters}
-                    onOpenFilters={() => setIsModalOpen(true)}
-                    isTouchable={
-                      selectedColors.length > 0 ||
-                      selectedRarities.length > 0 ||
-                      selectedCategories.length > 0 ||
-                      selectedCounter !== "" ||
-                      selectedTrigger !== "" ||
-                      selectedEffects.length > 0 ||
-                      selectedTypes.length > 0 ||
-                      selectedSets.length > 0 ||
-                      selectedCosts.length > 0 ||
-                      selectedPower.length > 0 ||
-                      selectedAttributes.length > 0 ||
-                      selectedCodes.length > 0 ||
-                      selectedAltArts.length > 0
-                    }
-                    onClearFilters={() => {
-                      setSelectedColors([]);
-                      setSelectedRarities([]);
-                      setSelectedCategories([]);
-                      setSelectedCounter("");
-                      setSelectedTrigger("");
-                      setSelectedEffects([]);
-                      setSelectedTypes([]);
-                      setSelectedSets([]);
-                      setSelectedCosts([]);
-                      setSelectedPower([]);
-                      setSelectedAttributes([]);
-                      setSelectedCodes([]);
-                      setSelectedAltArts([]);
-                    }}
+              <div className="flex items-center gap-2">
+                <FiltersButton
+                  totalFilters={totalFilters}
+                  onOpenFilters={() => setIsModalOpen(true)}
+                  isTouchable={
+                    selectedColors.length > 0 ||
+                    selectedRarities.length > 0 ||
+                    selectedCategories.length > 0 ||
+                    selectedCounter !== "" ||
+                    selectedTrigger !== "" ||
+                    selectedEffects.length > 0 ||
+                    selectedTypes.length > 0 ||
+                    selectedSets.length > 0 ||
+                    selectedCosts.length > 0 ||
+                    selectedPower.length > 0 ||
+                    selectedAttributes.length > 0 ||
+                    selectedCodes.length > 0 ||
+                    selectedAltArts.length > 0
+                  }
+                  onClearFilters={() => {
+                    setSelectedColors([]);
+                    setSelectedRarities([]);
+                    setSelectedCategories([]);
+                    setSelectedCounter("");
+                    setSelectedTrigger("");
+                    setSelectedEffects([]);
+                    setSelectedTypes([]);
+                    setSelectedSets([]);
+                    setSelectedCosts([]);
+                    setSelectedPower([]);
+                    setSelectedAttributes([]);
+                    setSelectedCodes([]);
+                    setSelectedAltArts([]);
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <DropdownSearch
+                    search={search}
+                    setSearch={setSearch}
+                    placeholder="Search..."
+                    suggestionsEndpoint="/api/cards/search-suggestions"
                   />
                 </div>
+              </div>
 
-                <div className="flex justify-center items-center gap-2">
-                  <ViewSwitch
-                    viewSelected={viewSelected}
-                    setViewSelected={setViewSelected}
-                    isImages={false}
-                  />
-                </div>
+              <div className="flex justify-end items-center gap-2">
+                <ViewSwitch
+                  viewSelected={viewSelected}
+                  setViewSelected={setViewSelected}
+                  isImages={false}
+                />
               </div>
             </div>
 

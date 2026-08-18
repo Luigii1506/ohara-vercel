@@ -83,8 +83,8 @@ import SearchFilters from "@/components/home/SearchFilters";
 import DropdownSearch from "@/components/DropdownSearch";
 import FiltersSidebar from "@/components/FiltersSidebar";
 import ViewSwitch from "@/components/ViewSwitch";
+import SquareAltIcon from "@/components/Icons/SquareAltIcon";
 import { Option } from "@/components/MultiSelect";
-import ClearFiltersButton from "@/components/ClearFiltersButton";
 import { useRegion } from "@/components/region/RegionProvider";
 import FAB from "@/components/Fab";
 import StoreCard from "@/components/StoreCard";
@@ -280,6 +280,57 @@ const FolderOptionsMenu = ({
         </div>
       </PopoverContent>
     </Popover>
+  );
+};
+
+// Botón de filtros: un solo control (ícono + contador) en vez de un botón
+// "Filters" con texto más un botón separado para limpiar. La zona de
+// limpiar solo aparece, pegada al icono, cuando hay filtros activos.
+const FiltersButton = ({
+  totalFilters,
+  onOpenFilters,
+  isTouchable,
+  onClearFilters,
+}: {
+  totalFilters: number;
+  onOpenFilters: () => void;
+  isTouchable: boolean;
+  onClearFilters: () => void;
+}) => {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={onOpenFilters}
+        className={cn(
+          "relative flex items-center justify-center h-9 w-9 transition-colors",
+          totalFilters > 0
+            ? "bg-blue-600 text-white hover:bg-blue-700"
+            : "text-gray-600 hover:bg-gray-50"
+        )}
+        title="Filtros"
+      >
+        <Filter className="h-4 w-4" />
+        {totalFilters > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-blue-600 ring-2 ring-blue-600">
+            {totalFilters}
+          </span>
+        )}
+      </button>
+      {isTouchable && (
+        <>
+          <div className="h-5 w-px bg-gray-200" />
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="flex items-center justify-center h-9 w-9 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Limpiar filtros"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </div>
   );
 };
 
@@ -2949,26 +3000,9 @@ const AddCardsPage = () => {
 
               <div className="flex justify-between items-center gap-2">
                 <div className="flex gap-2 justify-center items-center">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(true)}
-                    className={`
-                  ${
-                    totalFilters > 0
-                      ? "bg-[#2463eb] !text-white"
-                      : "bg-gray-100 !text-black"
-                  }
-                  px-4 py-2 text-black font-bold border rounded-lg
-                    `}
-                  >
-                    Filters
-                    {totalFilters > 0 && (
-                      <Badge className="ml-2 !bg-white !text-[#2463eb] font-bold">
-                        {totalFilters}
-                      </Badge>
-                    )}
-                  </button>
-                  <ClearFiltersButton
+                  <FiltersButton
+                    totalFilters={totalFilters}
+                    onOpenFilters={() => setIsModalOpen(true)}
                     isTouchable={
                       selectedColors.length > 0 ||
                       selectedRarities.length > 0 ||
@@ -2984,7 +3018,7 @@ const AddCardsPage = () => {
                       selectedCodes.length > 0 ||
                       selectedAltArts.length > 0
                     }
-                    clearFilters={() => {
+                    onClearFilters={() => {
                       setSelectedColors([]);
                       setSelectedRarities([]);
                       setSelectedCategories([]);
@@ -2999,7 +3033,6 @@ const AddCardsPage = () => {
                       setSelectedCodes([]);
                       setSelectedAltArts([]);
                     }}
-                    isMobile={true}
                   />
                 </div>
 
@@ -3089,12 +3122,19 @@ const AddCardsPage = () => {
                       {showListedMedian ? "Listed Median" : "Market Price"}
                     </Button>
                   )}
-                  <ViewSwitch
-                    viewSelected={viewSelected}
-                    setViewSelected={setViewSelected}
-                    isText={false}
-                    isImages={false}
-                  />
+                  <Button
+                    onClick={() =>
+                      setViewSelected(
+                        viewSelected === "alternate" ? "list" : "alternate"
+                      )
+                    }
+                    variant={viewSelected === "alternate" ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    title="Ver variantes alternas"
+                  >
+                    <SquareAltIcon size="16" color="currentColor" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -4160,26 +4200,9 @@ const AddCardsPage = () => {
 
               <div className="flex justify-between items-center gap-2">
                 <div className="flex gap-2 justify-center items-center">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(true)}
-                    className={`
-                      ${
-                        totalFilters > 0
-                          ? "bg-[#2463eb] !text-white"
-                          : "bg-gray-100 !text-black"
-                      }
-                      px-4 py-2 text-black font-bold border rounded-lg
-                    `}
-                  >
-                    Filters
-                    {totalFilters > 0 && (
-                      <Badge className="ml-2 !bg-white !text-[#2463eb] font-bold">
-                        {totalFilters}
-                      </Badge>
-                    )}
-                  </button>
-                  <ClearFiltersButton
+                  <FiltersButton
+                    totalFilters={totalFilters}
+                    onOpenFilters={() => setIsModalOpen(true)}
                     isTouchable={
                       selectedColors.length > 0 ||
                       selectedRarities.length > 0 ||
@@ -4195,7 +4218,7 @@ const AddCardsPage = () => {
                       selectedCodes.length > 0 ||
                       selectedAltArts.length > 0
                     }
-                    clearFilters={() => {
+                    onClearFilters={() => {
                       setSelectedColors([]);
                       setSelectedRarities([]);
                       setSelectedCategories([]);
@@ -4210,7 +4233,6 @@ const AddCardsPage = () => {
                       setSelectedCodes([]);
                       setSelectedAltArts([]);
                     }}
-                    isMobile={true}
                   />
                 </div>
 

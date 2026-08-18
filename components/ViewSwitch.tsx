@@ -30,6 +30,7 @@ interface ViewSwitcherProps {
   setViewSelected: (view: ViewType) => void;
   isAlternate?: boolean;
   isText?: boolean;
+  isImages?: boolean;
 }
 
 const VIEW_OPTIONS: ViewOption[] = [
@@ -58,6 +59,7 @@ export default function ViewSwitcher({
   setViewSelected,
   isAlternate = true,
   isText = true,
+  isImages = true,
 }: ViewSwitcherProps) {
   const { t } = useI18n();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -66,6 +68,7 @@ export default function ViewSwitcher({
   const availableOptions = VIEW_OPTIONS.filter((option) => {
     if (option.id === "text" && !isText) return false;
     if (option.id === "alternate" && !isAlternate) return false;
+    if (option.id === "list" && !isImages) return false;
     return true;
   });
 
@@ -159,30 +162,32 @@ export default function ViewSwitcher({
           </TooltipProvider>
         )}
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setViewSelected("list")}
-                className={cn(
-                  "inline-flex items-center justify-center rounded-md p-2.5 text-sm font-medium transition-all",
-                  viewSelected === "list"
-                    ? "bg-blue-600 text-white"
-                    : "hover:bg-gray-100 text-gray-500"
-                )}
-              >
-                <AllIcon
-                  size="22"
-                  color={viewSelected === "list" ? "white" : "gray-500"}
-                />
-                <span className="sr-only">Images view</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Images View</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {isImages && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setViewSelected("list")}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-md p-2.5 text-sm font-medium transition-all",
+                    viewSelected === "list"
+                      ? "bg-blue-600 text-white"
+                      : "hover:bg-gray-100 text-gray-500"
+                  )}
+                >
+                  <AllIcon
+                    size="22"
+                    color={viewSelected === "list" ? "white" : "gray-500"}
+                  />
+                  <span className="sr-only">Images view</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Images View</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       <BaseDrawer

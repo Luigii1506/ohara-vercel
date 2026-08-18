@@ -3093,6 +3093,7 @@ const AddCardsPage = () => {
                     viewSelected={viewSelected}
                     setViewSelected={setViewSelected}
                     isText={false}
+                    isImages={false}
                   />
                 </div>
               </div>
@@ -4217,6 +4218,7 @@ const AddCardsPage = () => {
                   <ViewSwitch
                     viewSelected={viewSelected}
                     setViewSelected={setViewSelected}
+                    isImages={false}
                   />
                 </div>
               </div>

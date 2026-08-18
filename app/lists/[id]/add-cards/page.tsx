@@ -24,7 +24,6 @@ import {
   Save,
   Eye,
   Trash2,
-  Edit3,
   Layout,
   Package,
   AlertCircle,
@@ -52,6 +51,7 @@ import {
   CardsSidebarSkeleton,
 } from "@/components/skeletons";
 import { CardWithCollectionData } from "@/types";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +66,7 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardModal from "@/components/CardModal";
 import DonModal from "@/components/DonModal";
@@ -154,92 +155,131 @@ interface OrderedListChange {
   previousCard?: any;
 }
 
-// Mobile Action Menu Component
-const MobileActionMenu = ({
-  list,
+// Menú "Opciones" de la carpeta/lista: un solo componente reusado en las 4
+// variantes de header (desktop/mobile × carpeta/lista simple) en vez de que
+// cada una repita sus propios botones sueltos.
+const FolderOptionsMenu = ({
   listId,
   router,
+  onExportCsv,
+  onExportZip,
+  zipLoading,
   onDeleteClick,
+  variant = "labeled",
 }: {
-  list: UserList | null;
   listId: string;
   router: any;
+  onExportCsv: () => void;
+  onExportZip: () => void;
+  zipLoading: boolean;
   onDeleteClick: () => void;
+  variant?: "labeled" | "icon";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  const items: Array<{
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    hoverClass: string;
+    disabled?: boolean;
+  }> = [
+    {
+      label: "Ver lista",
+      icon: <Eye className="h-4 w-4" />,
+      onClick: () => router.push(`/lists/${listId}`),
+      hoverClass: "hover:bg-green-50 hover:text-green-700",
+    },
+    {
+      label: "Configurar",
+      icon: <Cog className="h-4 w-4" />,
+      onClick: () => router.push(`/lists/${listId}/edit`),
+      hoverClass: "hover:bg-amber-50 hover:text-amber-700",
+    },
+    {
+      label: "Compartir",
+      icon: <Share2 className="h-4 w-4" />,
+      onClick: () => {
+        const url = window.location.href.replace("/add-cards", "");
+        navigator.clipboard.writeText(url);
+        toast.success("Enlace copiado");
+      },
+      hoverClass: "hover:bg-purple-50 hover:text-purple-700",
+    },
+    {
+      label: "Exportar CSV",
+      icon: <Download className="h-4 w-4" />,
+      onClick: onExportCsv,
+      hoverClass: "hover:bg-blue-50 hover:text-blue-700",
+    },
+    {
+      label: zipLoading ? "Generando ZIP…" : "Imágenes ZIP",
+      icon: zipLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="h-4 w-4" />
+      ),
+      onClick: onExportZip,
+      hoverClass: "hover:bg-blue-50 hover:text-blue-700",
+      disabled: zipLoading,
+    },
+  ];
+
   return (
-    <div className="relative">
-      <Button
-        size="lg"
-        variant="outline"
-        onClick={() => setIsOpen(!isOpen)}
-        className="h-11 px-4 text-black hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 rounded-md transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md font-medium text-base flex items-center gap-2"
-      >
-        Opciones
-        <MoreVertical className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" />
-      </Button>
-
-      {isOpen && (
-        <>
-          {/* Overlay to close menu when clicking outside */}
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        {variant === "icon" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 w-9 p-0 bg-white"
+            title="Opciones"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-11 px-4 bg-white hover:bg-gray-50 font-medium text-base flex items-center gap-2"
+          >
+            Opciones
+            <MoreVertical className="h-5 w-5" />
+          </Button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-52 p-1.5">
+        {items.map((item) => (
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Menu */}
-          <div className="absolute right-0 top-12 z-50 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
-            <div
-              onClick={() => {
-                router.push(`/lists/${listId}`);
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors cursor-pointer"
-            >
-              <Eye className="h-4 w-4" />
-              <span>Ver lista</span>
-            </div>
-
-            <div
-              onClick={() => {
-                router.push(`/lists/${listId}/edit`);
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer"
-            >
-              <Cog className="h-4 w-4" />
-              <span>Configurar</span>
-            </div>
-
-            <div
-              onClick={() => {
-                const url = window.location.href.replace("/add-cards", "");
-                navigator.clipboard.writeText(url);
-                toast.success("Enlace copiado");
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors cursor-pointer"
-            >
-              <Share2 className="h-4 w-4" />
-              <span>Compartir</span>
-            </div>
-
-            <div className="border-t border-gray-100 my-1" />
-            <div
-              onClick={() => {
-                onDeleteClick();
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>Eliminar</span>
-            </div>
+            key={item.label}
+            onClick={() => {
+              if (item.disabled) return;
+              item.onClick();
+              setIsOpen(false);
+            }}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-700 transition-colors cursor-pointer",
+              item.disabled ? "opacity-60 cursor-not-allowed" : item.hoverClass
+            )}
+          >
+            {item.icon}
+            <span>{item.label}</span>
           </div>
-        </>
-      )}
-    </div>
+        ))}
+
+        <div className="border-t border-gray-100 my-1" />
+        <div
+          onClick={() => {
+            onDeleteClick();
+            setIsOpen(false);
+          }}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+        >
+          <Trash2 className="h-4 w-4" />
+          <span>Eliminar</span>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -2981,38 +3021,62 @@ const AddCardsPage = () => {
                     </Button>
                   </div>
                   {list?.isOrdered && (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={jumpToPageInput}
-                        onChange={(e) => setJumpToPageInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleJumpToPage();
-                        }}
-                        placeholder="Página #"
-                        inputMode="numeric"
-                        className="h-8 w-20 text-xs"
-                        title="Ir directo a esa página (útil para mover una carta lejos)"
-                      />
-                      <Button
-                        onClick={handleJumpToPage}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2 text-xs"
-                      >
-                        Ir
-                      </Button>
-                    </div>
-                  )}
-                  {list?.isOrdered && isOwner && (
-                    <Button
-                      onClick={openInsertPageDialog}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      title="Insertar página en blanco"
-                    >
-                      <FilePlus2 className="h-4 w-4" />
-                    </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          title="Herramientas de página"
+                        >
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="center" className="w-64 p-3 space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Ir a la página
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              value={jumpToPageInput}
+                              onChange={(e) => setJumpToPageInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleJumpToPage();
+                              }}
+                              placeholder="Página #"
+                              inputMode="numeric"
+                              className="h-8 text-xs"
+                            />
+                            <Button
+                              onClick={handleJumpToPage}
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs shrink-0"
+                            >
+                              Ir
+                            </Button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Útil para mover una carta lejos sin navegar hoja por hoja.
+                          </p>
+                        </div>
+                        {isOwner && (
+                          <>
+                            <div className="border-t border-gray-100" />
+                            <Button
+                              onClick={openInsertPageDialog}
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-start gap-2 h-8 text-xs"
+                            >
+                              <FilePlus2 className="h-3.5 w-3.5" />
+                              Insertar página en blanco
+                            </Button>
+                          </>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {isAdmin && (
                     <Button
@@ -3588,83 +3652,16 @@ const AddCardsPage = () => {
                       </div>
                     )}
 
-                    {/* Botones de acción */}
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/lists/${listId}`)}
-                        className="flex items-center gap-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        Ver
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/lists/${listId}/edit`)}
-                        className="flex items-center gap-2"
-                      >
-                        <Cog className="h-4 w-4" />
-                        Configurar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const url = window.location.href.replace(
-                            "/add-cards",
-                            ""
-                          );
-                          navigator.clipboard.writeText(url);
-                          toast.success("Enlace copiado al portapapeles");
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Compartir
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={exportListToCsv}
-                        className="flex items-center gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Exportar CSV
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadImagesZip}
-                        disabled={zipLoading}
-                        className="flex items-center gap-2"
-                      >
-                        {zipLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                        Imágenes ZIP
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              "¿Estás seguro de que quieres eliminar esta lista?"
-                            )
-                          ) {
-                            toast.info("Función de eliminar en desarrollo");
-                          }
-                        }}
-                        className="flex items-center gap-2 text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Eliminar
-                      </Button>
-                    </div>
+                    {/* Menú de opciones */}
+                    <FolderOptionsMenu
+                      listId={listId}
+                      router={router}
+                      onExportCsv={exportListToCsv}
+                      onExportZip={downloadImagesZip}
+                      zipLoading={zipLoading}
+                      onDeleteClick={handleDeleteClick}
+                      variant="labeled"
+                    />
                   </div>
                 )}
 
@@ -3696,11 +3693,14 @@ const AddCardsPage = () => {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2">
-                      <MobileActionMenu
-                        list={list}
+                      <FolderOptionsMenu
                         listId={listId}
                         router={router}
+                        onExportCsv={exportListToCsv}
+                        onExportZip={downloadImagesZip}
+                        zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
+                        variant="icon"
                       />
                     </div>
                   </div>
@@ -3832,60 +3832,16 @@ const AddCardsPage = () => {
                         )}
                       </div>
 
-                      {/* Botones de acción */}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/lists/${listId}`)}
-                          className="flex items-center gap-2"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/lists/${listId}/edit`)}
-                          className="flex items-center gap-2"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                          Editar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const url = window.location.href.replace(
-                              "/add-cards",
-                              ""
-                            );
-                            navigator.clipboard.writeText(url);
-                            toast.success("Enlace copiado al portapapeles");
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Share2 className="h-4 w-4" />
-                          Compartir
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                "¿Estás seguro de que quieres eliminar esta lista?"
-                              )
-                            ) {
-                              toast.info("Función de eliminar en desarrollo");
-                            }
-                          }}
-                          className="flex items-center gap-2 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Eliminar
-                        </Button>
-                      </div>
+                      {/* Menú de opciones */}
+                      <FolderOptionsMenu
+                        listId={listId}
+                        router={router}
+                        onExportCsv={exportListToCsv}
+                        onExportZip={downloadImagesZip}
+                        zipLoading={zipLoading}
+                        onDeleteClick={handleDeleteClick}
+                        variant="labeled"
+                      />
                     </div>
                   )}
 
@@ -3912,52 +3868,16 @@ const AddCardsPage = () => {
                           </h1>
                         </div>
 
-                        {/* Botones de acción compactos */}
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => router.push(`/lists/${listId}`)}
-                            className="p-1"
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => router.push(`/lists/${listId}/edit`)}
-                            className="p-1"
-                          >
-                            <Edit3 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const url = window.location.href.replace(
-                                "/add-cards",
-                                ""
-                              );
-                              navigator.clipboard.writeText(url);
-                              toast.success("Enlace copiado");
-                            }}
-                            className="p-1"
-                          >
-                            <Share2 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (confirm("¿Eliminar esta lista?")) {
-                                toast.info("Función de eliminar en desarrollo");
-                              }
-                            }}
-                            className="p-1 text-red-600"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        {/* Menú de opciones */}
+                        <FolderOptionsMenu
+                          listId={listId}
+                          router={router}
+                          onExportCsv={exportListToCsv}
+                          onExportZip={downloadImagesZip}
+                          zipLoading={zipLoading}
+                          onDeleteClick={handleDeleteClick}
+                          variant="icon"
+                        />
                       </div>
 
                       {/* Información de la lista en segunda línea móvil */}

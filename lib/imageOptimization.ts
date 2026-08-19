@@ -66,10 +66,23 @@ export const getOptimizedImageUrl = (
       urlObj.hostname.includes(".r2.dev") ||
       urlObj.hostname.includes(".workers.dev")
     ) {
-      // R2 usa pre-generated sizes con suffix
+      const pathname = urlObj.pathname;
+
+      // Las imágenes de productos (sleeves, etc.) se suben tal cual, sin
+      // variantes pre-generadas por tamaño como sí tienen las de cartas —
+      // se redimensionan al vuelo con el optimizador de imágenes de Next.js
+      // en vez de adivinar un sufijo de archivo que no existe.
+      if (pathname.startsWith("/products/") && config.width) {
+        const params = new URLSearchParams();
+        params.set("url", url);
+        params.set("w", String(config.width));
+        params.set("q", String(config.quality));
+        return `/_next/image?${params.toString()}`;
+      }
+
+      // R2 usa pre-generated sizes con suffix (cartas)
       // Ejemplo: cards/OP01-001-thumb.webp, cards/OP01-001-medium.webp
       const sizeSuffix = getSizeSuffix(size);
-      const pathname = urlObj.pathname;
 
       // Si ya tiene suffix, retornar as-is
       if (pathname.includes(sizeSuffix)) {

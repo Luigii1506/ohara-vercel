@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Fragment, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, Fragment, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
-  Grid3X3,
   List,
   Plus,
   Search,
@@ -19,20 +18,14 @@ import {
   Home,
   ChevronRight as ChevronRightBreadcrumb,
   Minus,
-  RotateCcw,
   RefreshCw,
-  Save,
   Eye,
   Trash2,
-  Layout,
   Package,
   AlertCircle,
   Info,
-  FolderOpen,
-  BookOpen,
   Layers,
   Filter,
-  SortAsc,
   Share2,
   Download,
   Cog,
@@ -1460,6 +1453,24 @@ const AddCardsPage = () => {
     selectedCodes?.length +
     selectedAltArts?.length;
 
+  // Limpia todos los filtros de cartas de una vez (usado por FiltersButton
+  // en el panel de escritorio y dentro del modal de Agregar cartas).
+  const clearAllFilters = () => {
+    setSelectedColors([]);
+    setSelectedRarities([]);
+    setSelectedCategories([]);
+    setSelectedCounter("");
+    setSelectedTrigger("");
+    setSelectedEffects([]);
+    setSelectedTypes([]);
+    setSelectedSets([]);
+    setSelectedCosts([]);
+    setSelectedPower([]);
+    setSelectedAttributes([]);
+    setSelectedCodes([]);
+    setSelectedAltArts([]);
+  };
+
   // Estado actual del backcard en la casilla apuntada por el modal:
   // undefined = no hay backcard, null = reverso genérico (en blanco),
   // string = sleeve temático con esa imagen.
@@ -1668,44 +1679,31 @@ const AddCardsPage = () => {
     );
   };
 
-  // Carga el catálogo de sleeves (productos tipo SLEEVE) la primera vez que
-  // se abre la pestaña "Sleeves" del modal. El catálogo también incluye
-  // "Sleeved Booster Pack" (paquetes que VIENEN con sleeve, no diseños de
-  // sleeve en sí — son fotos del producto sellado) — se excluyen por nombre.
+  // Carga el catálogo de sleeves la primera vez que se abre la pestaña
+  // "Sleeves" del modal. Una sola consulta (el filtrado de "Sleeved Booster
+  // Pack" ya pasa server-side en /api/products/sleeves).
   useEffect(() => {
     if (addModalTab !== "sleeves" || sleeveProducts.length > 0) return;
     let cancelled = false;
     setIsLoadingSleeves(true);
-    (async () => {
-      const collected: Array<{
-        id: number;
-        name: string;
-        imageUrl: string | null;
-      }> = [];
-      try {
-        for (let page = 1; page <= 5; page++) {
-          const res = await fetch(
-            `/api/products?type=SLEEVE&limit=60&archived=false&sort=name&page=${page}`
-          );
-          const data = await res.json();
-          const items = data.items ?? [];
-          for (const p of items) {
-            if (/booster/i.test(p.name)) continue;
-            collected.push({
-              id: p.id,
-              name: p.name,
-              imageUrl: p.imageUrl ?? p.thumbnailUrl ?? null,
-            });
-          }
-          if (items.length < 60) break;
-        }
-        if (!cancelled) setSleeveProducts(collected);
-      } catch (error) {
+    fetch("/api/products/sleeves")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setSleeveProducts(
+          (data.items ?? []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            imageUrl: p.imageUrl ?? p.thumbnailUrl ?? null,
+          }))
+        );
+      })
+      .catch((error) => {
         console.error("Error cargando sleeves:", error);
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setIsLoadingSleeves(false);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
@@ -1752,50 +1750,6 @@ const AddCardsPage = () => {
     }
   };
 
-  // Coloca un sleeve temático (imagen elegida) como reverso en una casilla
-  // vacía — mismo mecanismo que "Reverso de carta" pero con imagen custom.
-  const setSleeveAt = async (
-    position: { page: number; row: number; column: number },
-    imageUrl: string
-  ) => {
-    const positionKey = `${position.page}-${position.row}-${position.column}`;
-    setIsApplyingSleeve(true);
-    try {
-      const response = await fetch(
-        `/api/lists/${listId}/backcards/set-image`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            page: position.page,
-            row: position.row,
-            column: position.column,
-            imageUrl,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setBackcardPositions((prev) => {
-          const next = new Map(prev);
-          next.set(positionKey, imageUrl);
-          return next;
-        });
-        return true;
-      }
-
-      const errorData = await response.json();
-      toast.error(errorData.error || "Error al colocar el sleeve");
-      return false;
-    } catch (error) {
-      console.error("Error al colocar sleeve:", error);
-      toast.error("Error de conexión");
-      return false;
-    } finally {
-      setIsApplyingSleeve(false);
-    }
-  };
-
   // Avanza una posición en orden de lectura (fila por fila, luego página).
   const advancePosition = (
     position: { page: number; row: number; column: number },
@@ -1813,24 +1767,6 @@ const AddCardsPage = () => {
       page++;
     }
     return { page, row, column };
-  };
-
-  // Busca la siguiente casilla libre desde `from` (inclusive), saltando lo
-  // que esté en `blocked`.
-  const findNextFreeSlot = (
-    from: { page: number; row: number; column: number },
-    blocked: Set<string>,
-    maxRows: number,
-    maxColumns: number
-  ) => {
-    let current = from;
-    let guard = 0;
-    while (blocked.has(`${current.page}-${current.row}-${current.column}`)) {
-      current = advancePosition(current, maxRows, maxColumns);
-      guard++;
-      if (guard > 100000) break;
-    }
-    return current;
   };
 
   // Confirma TODO el carrito de una vez, respetando el ORDEN en que se
@@ -1859,11 +1795,6 @@ const AddCardsPage = () => {
         runs.push({ kind: item.kind, items: [item] });
       }
     }
-
-    const blocked = new Set<string>([
-      ...Object.keys(existingCards || {}),
-      ...Array.from(backcardPositions.keys()),
-    ]);
 
     setIsAddingBatch(true);
     setIsApplyingSleeve(true);
@@ -1919,7 +1850,6 @@ const AddCardsPage = () => {
                 column: a.column,
                 quantity: 1,
               };
-              blocked.add(key);
             });
             return next;
           });
@@ -1949,16 +1879,61 @@ const AddCardsPage = () => {
             (i): i is Extract<CartItem, { kind: "sleeve" }> =>
               i.kind === "sleeve"
           );
-          for (const sleeveItem of sleeveItemsInRun) {
-            for (let i = 0; i < sleeveItem.quantity; i++) {
-              cursor = findNextFreeSlot(cursor, blocked, maxRows, maxColumns);
-              const ok = await setSleeveAt(cursor, sleeveItem.imageUrl);
-              if (ok) {
-                blocked.add(`${cursor.page}-${cursor.row}-${cursor.column}`);
-                sleeveCount++;
-              }
-              cursor = advancePosition(cursor, maxRows, maxColumns);
+          const response = await fetch(
+            `/api/lists/${listId}/backcards/set-image-batch`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sleeves: sleeveItemsInRun.map((i) => ({
+                  imageUrl: i.imageUrl,
+                  quantity: i.quantity,
+                })),
+                toPage: cursor.page,
+                toRow: cursor.row,
+                toColumn: cursor.column,
+              }),
             }
+          );
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "Error al colocar los sleeves");
+          }
+
+          const assignments: Array<{
+            imageUrl: string;
+            page: number;
+            row: number;
+            column: number;
+          }> = data.assignments || [];
+          setBackcardPositions((prev) => {
+            const next = new Map(prev);
+            assignments.forEach((a) => {
+              next.set(`${a.page}-${a.row}-${a.column}`, a.imageUrl);
+            });
+            return next;
+          });
+
+          if (list && data.totalPages > (list.totalPages || 1)) {
+            setList((prev: any) =>
+              prev ? { ...prev, totalPages: data.totalPages } : prev
+            );
+          }
+
+          sleeveCount += data.count || 0;
+
+          const lastSleeveAssignment = assignments.reduce(
+            (max: typeof assignments[number] | null, a) => {
+              if (!max) return a;
+              if (a.page !== max.page) return a.page > max.page ? a : max;
+              if (a.row !== max.row) return a.row > max.row ? a : max;
+              return a.column > max.column ? a : max;
+            },
+            null
+          );
+          if (lastSleeveAssignment) {
+            cursor = advancePosition(lastSleeveAssignment, maxRows, maxColumns);
           }
         }
       }
@@ -3514,21 +3489,7 @@ const AddCardsPage = () => {
                     selectedCodes.length > 0 ||
                     selectedAltArts.length > 0
                   }
-                  onClearFilters={() => {
-                    setSelectedColors([]);
-                    setSelectedRarities([]);
-                    setSelectedCategories([]);
-                    setSelectedCounter("");
-                    setSelectedTrigger("");
-                    setSelectedEffects([]);
-                    setSelectedTypes([]);
-                    setSelectedSets([]);
-                    setSelectedCosts([]);
-                    setSelectedPower([]);
-                    setSelectedAttributes([]);
-                    setSelectedCodes([]);
-                    setSelectedAltArts([]);
-                  }}
+                  onClearFilters={clearAllFilters}
                 />
                 <div className="flex-1 min-w-0">
                   <DropdownSearch
@@ -4781,7 +4742,6 @@ const AddCardsPage = () => {
                             alt="Sleeve actual"
                             className="w-full h-full object-cover"
                             size="small"
-                            customOptions={{}}
                           />
                         </div>
                         <p className="flex-1 text-sm text-indigo-900">
@@ -4840,7 +4800,6 @@ const AddCardsPage = () => {
                                     alt={p.name}
                                     className="w-full rounded-md"
                                     size="small"
-                                    customOptions={{}}
                                   />
                                   {qty ? (
                                     <>
@@ -4923,21 +4882,7 @@ const AddCardsPage = () => {
                         selectedCodes.length > 0 ||
                         selectedAltArts.length > 0
                       }
-                      onClearFilters={() => {
-                        setSelectedColors([]);
-                        setSelectedRarities([]);
-                        setSelectedCategories([]);
-                        setSelectedCounter("");
-                        setSelectedTrigger("");
-                        setSelectedEffects([]);
-                        setSelectedTypes([]);
-                        setSelectedSets([]);
-                        setSelectedCosts([]);
-                        setSelectedPower([]);
-                        setSelectedAttributes([]);
-                        setSelectedCodes([]);
-                        setSelectedAltArts([]);
-                      }}
+                      onClearFilters={clearAllFilters}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -5371,7 +5316,6 @@ const AddCardsPage = () => {
                               alt={item.name}
                               className="w-full h-full object-cover"
                               size="small"
-                              customOptions={{}}
                             />
                           </div>
                           <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Check, DollarSign, ExternalLink, Tag, Move } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink, Tag, Move, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -49,6 +49,12 @@ interface CardGridProps {
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
+  /** Quita el backcard (reverso genérico o sleeve) de una casilla, sin abrir el modal. */
+  onRemoveBackcard?: (position: {
+    page: number;
+    row: number;
+    column: number;
+  }) => void;
 }
 
 export const CardGrid: React.FC<CardGridProps> = ({
@@ -71,6 +77,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   priceField = "marketPrice",
   displayCurrency,
   exchangeRate,
+  onRemoveBackcard,
 }) => {
   return (
     <div
@@ -377,10 +384,29 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         alt="Reverso de carta"
                         className="w-full h-full object-cover transition-opacity duration-300 opacity-80 hover:opacity-100"
                         loading="lazy"
-                        src="/assets/images/backcard.webp"
+                        src={cell.backcardImageUrl || "/assets/images/backcard.webp"}
                       />
 
-                      {/* Indicador visual de que es un backcard */}
+                      {isEditing && onRemoveBackcard && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveBackcard({
+                              page: currentPage,
+                              row: actualRow,
+                              column: actualCol,
+                            });
+                          }}
+                          className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg bg-red-500 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          title={
+                            cell.backcardImageUrl
+                              ? "Quitar sleeve"
+                              : "Quitar reverso de carta"
+                          }
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : isEditing ? (

@@ -24,6 +24,11 @@ import {
 } from "@/helpers/constants";
 
 interface FiltersSidebarProps {
+  // "overlay" (default): panel flotante de pantalla completa con backdrop, tal
+  // como se usa hoy en el resto de la app. "inline": columna persistente sin
+  // backdrop ni botón de cerrar, para incrustar dentro de otro layout (ej. el
+  // modal de Agregar cartas).
+  variant?: "overlay" | "inline";
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   search: string;
@@ -66,6 +71,7 @@ interface FiltersSidebarProps {
 const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
   (
     {
+      variant = "overlay",
       isOpen,
       setIsOpen,
       search,
@@ -105,31 +111,40 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
     },
     ref
   ) => {
-    return (
-      <div
-        className="fixed inset-0 flex w-screen items-center justify-center p-4 backdrop-blur-md z-[99999]"
-        ref={ref}
-        onClick={() => setIsOpen(false)}
-      >
-        <div
-          className="fixed inset-y-0 left-0 w-full max-w-[350px] bg-background border-border flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-4 border-b border-border flex items-center justify-between bg-black text-white">
-            <h2 className="text-xl font-semibold">Filters</h2>
-            <button
-              type="button"
-              className="hover:bg-accent hover:text-accent-foreground p-2 rounded-md"
-              onClick={() => setIsOpen(false)}
-            >
-              <X className="h-7 w-7" />
-            </button>
-          </div>
+    const hasActiveFilters =
+      selectedColors.length > 0 ||
+      selectedRarities.length > 0 ||
+      selectedCategories.length > 0 ||
+      selectedCounter !== "" ||
+      selectedTrigger !== "" ||
+      selectedEffects.length > 0 ||
+      selectedTypes.length > 0 ||
+      selectedSets.length > 0 ||
+      selectedCosts.length > 0 ||
+      selectedPower.length > 0 ||
+      selectedAttributes.length > 0 ||
+      selectedCodes.length > 0;
 
-          {/* Contenedor de filtros con scroll */}
-          <div className="overflow-y-auto p-4 flex gap-4 justify-start flex-wrap items-center">
-            <MultiSelect
+    const clearAll = () => {
+      setSelectedColors([]);
+      setSelectedRarities([]);
+      setSelectedCategories([]);
+      setSelectedCounter("");
+      setSelectedTrigger("");
+      setSelectedEffects([]);
+      setSelectedTypes([]);
+      setSelectedSets([]);
+      setSelectedCosts([]);
+      setSelectedPower([]);
+      setSelectedAttributes([]);
+      setSelectedCodes([]);
+      setSelectedBlocks?.([]);
+      setStandardLegalOnly?.(false);
+    };
+
+    const filtersContent = (
+      <>
+        <MultiSelect
               options={setCodesOptions}
               selected={selectedCodes}
               setSelected={setSelectedCodes}
@@ -313,44 +328,72 @@ const FiltersSidebar = forwardRef<HTMLDivElement, FiltersSidebarProps>(
               searchPlaceholder="Search attribute..."
               isSolid={true}
             />
+      </>
+    );
+
+    if (variant === "inline") {
+      return (
+        <div
+          className="flex h-full w-full flex-col bg-white border-r border-slate-200"
+          ref={ref}
+        >
+          <div className="px-3 py-2.5 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+            <h2 className="text-sm font-semibold text-slate-700">Filters</h2>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-600"
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+            {filtersContent}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="fixed inset-0 flex w-screen items-center justify-center p-4 backdrop-blur-md z-[99999]"
+        ref={ref}
+        onClick={() => setIsOpen(false)}
+      >
+        <div
+          className="fixed inset-y-0 left-0 w-full max-w-[350px] bg-background border-border flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="p-4 border-b border-border flex items-center justify-between bg-black text-white">
+            <h2 className="text-xl font-semibold">Filters</h2>
+            <button
+              type="button"
+              className="hover:bg-accent hover:text-accent-foreground p-2 rounded-md"
+              onClick={() => setIsOpen(false)}
+            >
+              <X className="h-7 w-7" />
+            </button>
+          </div>
+
+          {/* Contenedor de filtros con scroll */}
+          <div className="overflow-y-auto p-4 flex gap-4 justify-start flex-wrap items-center">
+            {filtersContent}
           </div>
 
           {/* Footer fijo */}
           <div className="p-4 border-t border-border flex gap-2 flex-col flex-1 justify-end">
             <Button
               className={`w-full ${
-                selectedColors.length > 0 ||
-                selectedRarities.length > 0 ||
-                selectedCategories.length > 0 ||
-                selectedCounter !== "" ||
-                selectedTrigger !== "" ||
-                selectedEffects.length > 0 ||
-                selectedTypes.length > 0 ||
-                selectedSets.length > 0 ||
-                selectedCosts.length > 0 ||
-                selectedPower.length > 0 ||
-                selectedAttributes.length > 0 ||
-                selectedCodes.length > 0
+                hasActiveFilters
                   ? "!bg-[#ef4444] opacity-1 cursor-pointer"
                   : "opacity-[0.5] cursor-not-allowed"
               }`}
               size="lg"
-              onClick={() => {
-                setSelectedColors([]);
-                setSelectedRarities([]);
-                setSelectedCategories([]);
-                setSelectedCounter("");
-                setSelectedTrigger("");
-                setSelectedEffects([]);
-                setSelectedTypes([]);
-                setSelectedSets([]);
-                setSelectedCosts([]);
-                setSelectedPower([]);
-                setSelectedAttributes([]);
-                setSelectedCodes([]);
-                setSelectedBlocks?.([]);
-                setStandardLegalOnly?.(false);
-              }}
+              onClick={clearAll}
             >
               <FilterX className="h-4 w-4" />
               Clear filters

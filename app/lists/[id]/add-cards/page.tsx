@@ -87,7 +87,7 @@ import { Option } from "@/components/MultiSelect";
 import { useRegion } from "@/components/region/RegionProvider";
 import FAB from "@/components/Fab";
 import StoreCard from "@/components/StoreCard";
-import { DON_CATEGORY } from "@/helpers/constants";
+import { DON_CATEGORY, setOptions } from "@/helpers/constants";
 import {
   Tooltip,
   TooltipContent,
@@ -145,6 +145,13 @@ interface SimpleListCard {
   customPrice?: number | string | null;
   customCurrency?: string | null;
 }
+
+// Un ítem del carrito del modal "Agregar cartas": una carta o un sleeve.
+// Es un solo arreglo (no dos separados) para preservar el ORDEN en que el
+// usuario los fue agregando — ese orden es el que se respeta al colocarlos.
+type CartItem =
+  | { kind: "card"; card: CardWithCollectionData; quantity: number }
+  | { kind: "sleeve"; id: number; name: string; imageUrl: string; quantity: number };
 
 interface OrderedListChange {
   id: string;
@@ -571,10 +578,11 @@ const AddCardsPage = () => {
     [movingCards]
   );
 
-  // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard
-  const [backcardPositions, setBackcardPositions] = useState<Set<string>>(
-    new Set()
-  );
+  // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard,
+  // mapeadas a la URL de imagen de sleeve elegida (null = reverso genérico).
+  const [backcardPositions, setBackcardPositions] = useState<
+    Map<string, string | null>
+  >(new Map());
 
   // List/Folder state
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
@@ -600,6 +608,23 @@ const AddCardsPage = () => {
 
   // Mobile card selection modal
   const [showMobileCardModal, setShowMobileCardModal] = useState(false);
+
+  // Carrito del modal "Agregar cartas": cartas y sleeves mezclados, en el
+  // orden en que se fueron agregando. Se acomodan desde `targetPosition` en
+  // ese mismo orden, saltando casillas ocupadas.
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isAddingBatch, setIsAddingBatch] = useState(false);
+  // Pestañas del modal de Agregar cartas: Cartas individuales / Sets / Sleeves.
+  const [addModalTab, setAddModalTab] = useState<"cards" | "sets" | "sleeves">(
+    "cards"
+  );
+  const [setsTabQuery, setSetsTabQuery] = useState("");
+  const [sleevesTabQuery, setSleevesTabQuery] = useState("");
+  const [sleeveProducts, setSleeveProducts] = useState<
+    Array<{ id: number; name: string; imageUrl: string | null }>
+  >([]);
+  const [isLoadingSleeves, setIsLoadingSleeves] = useState(false);
+  const [isApplyingSleeve, setIsApplyingSleeve] = useState(false);
 
   // Mobile price drawer state
   const [priceDrawerOpen, setPriceDrawerOpen] = useState(false);
@@ -1063,6 +1088,7 @@ const AddCardsPage = () => {
             grid[row][col] = {
               card: null as any, // Será null pero con hasBackcard: true
               hasBackcard: true,
+              backcardImageUrl: backcardPositions.get(positionKey) ?? null,
             };
           }
         }
@@ -1359,11 +1385,14 @@ const AddCardsPage = () => {
       const response = await fetch(`/api/lists/${listId}/backcards`);
       if (response.ok) {
         const backcards = await response.json();
-        // Convertir array de backcards a Set de strings
-        const backcardsSet = new Set<string>(
-          backcards.map((b: any) => `${b.page}-${b.row}-${b.column}`)
+        // Convertir array de backcards a Map de posición -> imageUrl (o null)
+        const backcardsMap = new Map<string, string | null>(
+          backcards.map((b: any) => [
+            `${b.page}-${b.row}-${b.column}`,
+            b.imageUrl ?? null,
+          ])
         );
-        setBackcardPositions(backcardsSet);
+        setBackcardPositions(backcardsMap);
       }
     } catch (error) {
       console.error("Error loading backcards:", error);
@@ -1424,6 +1453,24 @@ const AddCardsPage = () => {
     selectedAttributes?.length +
     selectedCodes?.length +
     selectedAltArts?.length;
+
+  // Estado actual del backcard en la casilla apuntada por el modal:
+  // undefined = no hay backcard, null = reverso genérico (en blanco),
+  // string = sleeve temático con esa imagen.
+  const targetBackcardImageUrl = targetPosition
+    ? backcardPositions.get(
+        `${targetPosition.page}-${targetPosition.row}-${targetPosition.column}`
+      )
+    : undefined;
+
+  // Vistas derivadas del carrito unificado, por tipo — el ORDEN real (el que
+  // importa al confirmar) vive únicamente en `cartItems`.
+  const cartCardItems = cartItems.filter(
+    (i): i is Extract<CartItem, { kind: "card" }> => i.kind === "card"
+  );
+  const cartSleeveItems = cartItems.filter(
+    (i): i is Extract<CartItem, { kind: "sleeve" }> => i.kind === "sleeve"
+  );
 
   // Helper functions for price handling
   const getNumericPrice = (value: any) => {
@@ -1525,13 +1572,410 @@ const AddCardsPage = () => {
     setPriceDrawerOpen(true);
   };
 
-  const handleMobileCardPick = async (card: CardWithCollectionData) => {
-    if (targetPosition) {
-      openPriceDrawer(card, { position: targetPosition });
-    } else {
-      await addCardToFirstAvailablePosition(card);
+  // Tocar una carta en el modal de agregar la suma a la selección (carrito)
+  // en vez de colocarla de inmediato — "Agregar N cartas" las acomoda todas
+  // juntas al confirmar.
+  const handleMobileCardPick = (card: CardWithCollectionData) => {
+    setCartItems((prev) => {
+      const idx = prev.findIndex(
+        (i) => i.kind === "card" && i.card.id === card.id
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        const item = next[idx];
+        next[idx] = { ...item, quantity: item.quantity + 1 };
+        return next;
+      }
+      return [...prev, { kind: "card", card, quantity: 1 }];
+    });
+  };
+
+  const updateAddSelectionQuantity = (cardId: string, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((i) =>
+          i.kind === "card" && i.card.id === cardId
+            ? { ...i, quantity: i.quantity + delta }
+            : i
+        )
+        .filter((i) => i.quantity > 0)
+    );
+  };
+
+  const removeFromAddSelection = (cardId: string) => {
+    setCartItems((prev) =>
+      prev.filter((i) => !(i.kind === "card" && i.card.id === cardId))
+    );
+  };
+
+  const clearAddSelection = () => setCartItems([]);
+
+  // Agrega de golpe todas las cartas de un set al carrito (pestaña "Sets"),
+  // sumando cantidad si alguna ya estaba seleccionada.
+  const handleAddAllFromSet = (setCards: CardWithCollectionData[]) => {
+    setCartItems((prev) => {
+      const next = [...prev];
+      for (const card of setCards) {
+        const idx = next.findIndex(
+          (i) => i.kind === "card" && i.card.id === card.id
+        );
+        if (idx >= 0) {
+          const item = next[idx];
+          next[idx] = { ...item, quantity: item.quantity + 1 };
+        } else {
+          next.push({ kind: "card", card, quantity: 1 });
+        }
+      }
+      return next;
+    });
+  };
+
+  // Agrega/incrementa un sleeve en el mismo carrito que las cartas.
+  const handleSleevePick = (sleeve: { id: number; name: string; imageUrl: string }) => {
+    setCartItems((prev) => {
+      const idx = prev.findIndex((i) => i.kind === "sleeve" && i.id === sleeve.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        const item = next[idx];
+        next[idx] = { ...item, quantity: item.quantity + 1 };
+        return next;
+      }
+      return [...prev, { kind: "sleeve", ...sleeve, quantity: 1 }];
+    });
+  };
+
+  const updateStagedSleeveQuantity = (sleeveId: number, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((i) =>
+          i.kind === "sleeve" && i.id === sleeveId
+            ? { ...i, quantity: i.quantity + delta }
+            : i
+        )
+        .filter((i) => i.quantity > 0)
+    );
+  };
+
+  const removeStagedSleeve = (sleeveId: number) => {
+    setCartItems((prev) =>
+      prev.filter((i) => !(i.kind === "sleeve" && i.id === sleeveId))
+    );
+  };
+
+  // Carga el catálogo de sleeves (productos tipo SLEEVE) la primera vez que
+  // se abre la pestaña "Sleeves" del modal. El catálogo también incluye
+  // "Sleeved Booster Pack" (paquetes que VIENEN con sleeve, no diseños de
+  // sleeve en sí — son fotos del producto sellado) — se excluyen por nombre.
+  useEffect(() => {
+    if (addModalTab !== "sleeves" || sleeveProducts.length > 0) return;
+    let cancelled = false;
+    setIsLoadingSleeves(true);
+    (async () => {
+      const collected: Array<{
+        id: number;
+        name: string;
+        imageUrl: string | null;
+      }> = [];
+      try {
+        for (let page = 1; page <= 5; page++) {
+          const res = await fetch(
+            `/api/products?type=SLEEVE&limit=60&archived=false&sort=name&page=${page}`
+          );
+          const data = await res.json();
+          const items = data.items ?? [];
+          for (const p of items) {
+            if (/booster/i.test(p.name)) continue;
+            collected.push({
+              id: p.id,
+              name: p.name,
+              imageUrl: p.imageUrl ?? p.thumbnailUrl ?? null,
+            });
+          }
+          if (items.length < 60) break;
+        }
+        if (!cancelled) setSleeveProducts(collected);
+      } catch (error) {
+        console.error("Error cargando sleeves:", error);
+      } finally {
+        if (!cancelled) setIsLoadingSleeves(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addModalTab, sleeveProducts.length]);
+
+  // Alterna el reverso decorativo de carta en una casilla vacía. Antes esto
+  // pasaba automáticamente al tocar cualquier casilla vacía; ahora vive como
+  // acción explícita dentro del modal de agregar cartas.
+  const toggleBackcardAt = async (position: {
+    page: number;
+    row: number;
+    column: number;
+  }) => {
+    const positionKey = `${position.page}-${position.row}-${position.column}`;
+    try {
+      const response = await fetch(`/api/lists/${listId}/backcards/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: position.page,
+          row: position.row,
+          column: position.column,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setBackcardPositions((prev) => {
+          const next = new Map(prev);
+          if (result.action === "added") {
+            next.set(positionKey, null);
+          } else if (result.action === "removed") {
+            next.delete(positionKey);
+          }
+          return next;
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Error al modificar reverso");
+      }
+    } catch (error) {
+      console.error("Error en toggle de backcard:", error);
+      toast.error("Error de conexión");
     }
-    setShowMobileCardModal(false);
+  };
+
+  // Coloca un sleeve temático (imagen elegida) como reverso en una casilla
+  // vacía — mismo mecanismo que "Reverso de carta" pero con imagen custom.
+  const setSleeveAt = async (
+    position: { page: number; row: number; column: number },
+    imageUrl: string
+  ) => {
+    const positionKey = `${position.page}-${position.row}-${position.column}`;
+    setIsApplyingSleeve(true);
+    try {
+      const response = await fetch(
+        `/api/lists/${listId}/backcards/set-image`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            page: position.page,
+            row: position.row,
+            column: position.column,
+            imageUrl,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setBackcardPositions((prev) => {
+          const next = new Map(prev);
+          next.set(positionKey, imageUrl);
+          return next;
+        });
+        return true;
+      }
+
+      const errorData = await response.json();
+      toast.error(errorData.error || "Error al colocar el sleeve");
+      return false;
+    } catch (error) {
+      console.error("Error al colocar sleeve:", error);
+      toast.error("Error de conexión");
+      return false;
+    } finally {
+      setIsApplyingSleeve(false);
+    }
+  };
+
+  // Avanza una posición en orden de lectura (fila por fila, luego página).
+  const advancePosition = (
+    position: { page: number; row: number; column: number },
+    maxRows: number,
+    maxColumns: number
+  ) => {
+    let { page, row, column } = position;
+    column++;
+    if (column > maxColumns) {
+      column = 1;
+      row++;
+    }
+    if (row > maxRows) {
+      row = 1;
+      page++;
+    }
+    return { page, row, column };
+  };
+
+  // Busca la siguiente casilla libre desde `from` (inclusive), saltando lo
+  // que esté en `blocked`.
+  const findNextFreeSlot = (
+    from: { page: number; row: number; column: number },
+    blocked: Set<string>,
+    maxRows: number,
+    maxColumns: number
+  ) => {
+    let current = from;
+    let guard = 0;
+    while (blocked.has(`${current.page}-${current.row}-${current.column}`)) {
+      current = advancePosition(current, maxRows, maxColumns);
+      guard++;
+      if (guard > 100000) break;
+    }
+    return current;
+  };
+
+  // Confirma TODO el carrito de una vez, respetando el ORDEN en que se
+  // agregaron las cartas y los sleeves (no "primero todas las cartas"): se
+  // agrupa en corridas consecutivas del mismo tipo y se colocan en secuencia,
+  // cada corrida arrancando justo donde terminó la anterior.
+  const handleConfirmCart = async () => {
+    if (!list?.isOrdered || cartItems.length === 0) return;
+
+    const to =
+      targetPosition ??
+      findFirstAvailablePosition(getVisiblePageNumbers()) ?? {
+        page: getMaxUsedPage() + 1,
+        row: 1,
+        column: 1,
+      };
+    const maxRows = list.maxRows || 3;
+    const maxColumns = list.maxColumns || 3;
+
+    const runs: Array<{ kind: CartItem["kind"]; items: CartItem[] }> = [];
+    for (const item of cartItems) {
+      const last = runs[runs.length - 1];
+      if (last && last.kind === item.kind) {
+        last.items.push(item);
+      } else {
+        runs.push({ kind: item.kind, items: [item] });
+      }
+    }
+
+    const blocked = new Set<string>([
+      ...Object.keys(existingCards || {}),
+      ...Array.from(backcardPositions.keys()),
+    ]);
+
+    setIsAddingBatch(true);
+    setIsApplyingSleeve(true);
+    try {
+      let cursor = to;
+      let cardCount = 0;
+      let sleeveCount = 0;
+
+      for (const run of runs) {
+        if (run.kind === "card") {
+          const cardItemsInRun = run.items.filter(
+            (i): i is Extract<CartItem, { kind: "card" }> => i.kind === "card"
+          );
+          const response = await fetch(`/api/lists/${listId}/cards/add-batch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              cards: cardItemsInRun.map((i) => ({
+                cardId: i.card.id,
+                quantity: i.quantity,
+              })),
+              toPage: cursor.page,
+              toRow: cursor.row,
+              toColumn: cursor.column,
+            }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "Error al agregar las cartas");
+          }
+
+          const cardById = new Map(
+            cardItemsInRun.map((i) => [String(i.card.id), i.card])
+          );
+          const assignments: Array<{
+            cardId: number;
+            page: number;
+            row: number;
+            column: number;
+          }> = data.assignments || [];
+          updateExistingCards((prev) => {
+            const next = { ...prev };
+            assignments.forEach((a) => {
+              const cardObj = cardById.get(String(a.cardId));
+              if (!cardObj) return;
+              const key = `${a.page}-${a.row}-${a.column}`;
+              next[key] = {
+                card: cardObj,
+                cardId: a.cardId,
+                page: a.page,
+                row: a.row,
+                column: a.column,
+                quantity: 1,
+              };
+              blocked.add(key);
+            });
+            return next;
+          });
+
+          if (list && data.totalPages > (list.totalPages || 1)) {
+            setList((prev: any) =>
+              prev ? { ...prev, totalPages: data.totalPages } : prev
+            );
+          }
+
+          cardCount += data.count || 0;
+
+          const lastAssignment = assignments.reduce(
+            (max: typeof assignments[number] | null, a) => {
+              if (!max) return a;
+              if (a.page !== max.page) return a.page > max.page ? a : max;
+              if (a.row !== max.row) return a.row > max.row ? a : max;
+              return a.column > max.column ? a : max;
+            },
+            null
+          );
+          if (lastAssignment) {
+            cursor = advancePosition(lastAssignment, maxRows, maxColumns);
+          }
+        } else {
+          const sleeveItemsInRun = run.items.filter(
+            (i): i is Extract<CartItem, { kind: "sleeve" }> =>
+              i.kind === "sleeve"
+          );
+          for (const sleeveItem of sleeveItemsInRun) {
+            for (let i = 0; i < sleeveItem.quantity; i++) {
+              cursor = findNextFreeSlot(cursor, blocked, maxRows, maxColumns);
+              const ok = await setSleeveAt(cursor, sleeveItem.imageUrl);
+              if (ok) {
+                blocked.add(`${cursor.page}-${cursor.row}-${cursor.column}`);
+                sleeveCount++;
+              }
+              cursor = advancePosition(cursor, maxRows, maxColumns);
+            }
+          }
+        }
+      }
+
+      if (cardCount > 0) toast.success(`${cardCount} carta(s) agregada(s)`);
+      if (sleeveCount > 0) {
+        toast.success(
+          `${sleeveCount} sleeve${sleeveCount !== 1 ? "s" : ""} colocado${
+            sleeveCount !== 1 ? "s" : ""
+          }`
+        );
+      }
+
+      clearAddSelection();
+      setShowMobileCardModal(false);
+      setTargetPosition(null);
+    } catch (error: any) {
+      console.error("Error confirmando carrito:", error);
+      toast.error(error.message || "Error al agregar");
+    } finally {
+      setIsAddingBatch(false);
+      setIsApplyingSleeve(false);
+    }
   };
 
   const parsePriceValue = (value: string) => {
@@ -2538,9 +2982,39 @@ const AddCardsPage = () => {
         throw new Error(data.error || "Error al mover las cartas");
       }
 
+      // Reubicar cada carta directo en el estado local (sin refetch: evita
+      // el parpadeo/skeleton de toda la página). Conservamos todos los
+      // campos de cada carta (precio custom, vendida, etc.), solo cambia
+      // su posición.
+      const entryByCardId = new Map<string, any>();
+      updateExistingCards((prev) => {
+        const next = { ...prev };
+        cards.forEach((c) => {
+          const fromKey = `${c.from.page}-${c.from.row}-${c.from.column}`;
+          const entry = next[fromKey];
+          if (entry) entryByCardId.set(String(c.card.id), entry);
+          delete next[fromKey];
+        });
+
+        (data.assignments || []).forEach(
+          (a: { cardId: number; page: number; row: number; column: number }) => {
+            const entry = entryByCardId.get(String(a.cardId));
+            if (!entry) return;
+            const toKey = `${a.page}-${a.row}-${a.column}`;
+            next[toKey] = { ...entry, page: a.page, row: a.row, column: a.column };
+          }
+        );
+
+        return next;
+      });
+
+      if (list && data.totalPages > (list.totalPages || 1)) {
+        setList((prev: any) =>
+          prev ? { ...prev, totalPages: data.totalPages } : prev
+        );
+      }
+
       toast.success(`${cards.length} cartas movidas`);
-      await fetchList();
-      await fetchExistingCards();
     } catch (error: any) {
       console.error("Error moviendo cartas:", error);
       toast.error(error.message || "Error al mover las cartas");
@@ -2593,7 +3067,14 @@ const AddCardsPage = () => {
       toast.success(`Página en blanco insertada como página ${data.insertedPage}`);
       setInsertPageOpen(false);
 
-      await fetchList();
+      // Muchas cartas pueden haber cambiado de página, así que sí hace falta
+      // releer las cartas — pero sin pasar por fetchList (que prende
+      // `loading` y muestra el skeleton de toda la página).
+      if (list) {
+        setList((prev: any) =>
+          prev ? { ...prev, totalPages: data.totalPages } : prev
+        );
+      }
       await fetchExistingCards();
     } catch (error: any) {
       console.error("Error insertando página:", error);
@@ -2820,61 +3301,10 @@ const AddCardsPage = () => {
       return;
     }
 
-    // 🎴 Backcard Toggle: sin cartas seleccionadas, manejar backcard
-    {
-      const positionKey = `${targetPage}-${row}-${col}`;
-
-      // Si la posición está vacía (sin carta real), alternar backcard
-      if (!cardAtPosition) {
-        // Llamada a la API para toggle backcard
-        try {
-          const response = await fetch(
-            `/api/lists/${listId}/backcards/toggle`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                page: targetPage,
-                row: row,
-                column: col,
-              }),
-            }
-          );
-
-          if (response.ok) {
-            const result = await response.json();
-
-            // Actualizar estado local basado en la respuesta de la API
-            setBackcardPositions((prev) => {
-              const newSet = new Set(prev);
-              if (result.action === "added") {
-                newSet.add(positionKey);
-              } else if (result.action === "removed") {
-                newSet.delete(positionKey);
-              }
-              return newSet;
-            });
-          } else {
-            const errorData = await response.json();
-            toast.error(errorData.error || "Error al modificar backcard");
-          }
-        } catch (error) {
-          console.error("Error en toggle de backcard:", error);
-          toast.error("Error de conexión");
-        }
-
-        return; // No continuar con otras acciones
-      }
-
-      // Si hay backcard en esta posición (sin carta real), quitar el backcard al hacer click
-      if (backcardPositions.has(positionKey) && !cardAtPosition) {
-        // Esta lógica ya se maneja en el bloque de arriba
-        return; // No continuar con otras acciones
-      }
-    }
-
-    // Mobile: If no selected card and position is empty, open card selection modal
-    if (isMobile && !cardAtPosition) {
+    // Casilla vacía y sin cartas seleccionadas: abrir el modal de agregar
+    // cartas apuntando a esta posición (en cualquier dispositivo). Alternar
+    // el reverso decorativo se movió a un botón dentro de ese mismo modal.
+    if (!cardAtPosition) {
       setTargetPosition({ page: targetPage, row, column: col });
       setShowMobileCardModal(true);
       return;
@@ -3817,6 +4247,7 @@ const AddCardsPage = () => {
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
                         onToggleMove={toggleMovingCard}
+                        onRemoveBackcard={toggleBackcardAt}
                         priceField={
                           isAdmin && !showListedMedian ? "marketPrice" : "midPrice"
                         }
@@ -4147,18 +4578,37 @@ const AddCardsPage = () => {
             setShowMobileCardModal(open);
             if (!open) {
               setTargetPosition(null); // Clear target position on modal close
+              clearAddSelection();
+              setAddModalTab("cards");
+              setSetsTabQuery("");
             }
           }}
         >
-          <DialogContent className="max-w-[90vw] max-h-[85vh] px-4 flex flex-col rounded-lg">
-            <DialogHeader className="p-4 border-b border-slate-200">
-              <DialogTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Seleccionar Carta
-              </DialogTitle>
+          <DialogContent className="w-full h-full sm:w-[1400px] sm:max-w-[95vw] sm:h-[90vh] sm:max-h-[900px] p-0 flex flex-col rounded-none sm:rounded-lg overflow-hidden">
+            <DialogHeader className="px-5 py-3 border-b border-slate-200 flex-shrink-0">
+              <div className="flex items-center justify-between gap-2 pr-6">
+                <DialogTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Agregar cartas
+                </DialogTitle>
+                {targetPosition && typeof targetBackcardImageUrl === "string" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await toggleBackcardAt(targetPosition);
+                      setShowMobileCardModal(false);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-600"
+                    title="Quitar el sleeve colocado en esta casilla"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Quitar sleeve
+                  </button>
+                )}
+              </div>
             </DialogHeader>
 
-            {/* FiltersSidebar Modal */}
+            {/* FiltersSidebar overlay: solo en mobile, disparado por FiltersButton (en desktop los filtros viven en la columna izquierda persistente) */}
             <Transition
               show={isModalOpen}
               enter="transition transform duration-300"
@@ -4202,67 +4652,402 @@ const AddCardsPage = () => {
               />
             </Transition>
 
-            <div className="p-3 flex flex-col gap-3 border-t border-[#f5f5f5] bg-white">
-              <div className="flex items-center gap-2">
-                <FiltersButton
-                  totalFilters={totalFilters}
-                  onOpenFilters={() => setIsModalOpen(true)}
-                  isTouchable={
-                    selectedColors.length > 0 ||
-                    selectedRarities.length > 0 ||
-                    selectedCategories.length > 0 ||
-                    selectedCounter !== "" ||
-                    selectedTrigger !== "" ||
-                    selectedEffects.length > 0 ||
-                    selectedTypes.length > 0 ||
-                    selectedSets.length > 0 ||
-                    selectedCosts.length > 0 ||
-                    selectedPower.length > 0 ||
-                    selectedAttributes.length > 0 ||
-                    selectedCodes.length > 0 ||
-                    selectedAltArts.length > 0
-                  }
-                  onClearFilters={() => {
-                    setSelectedColors([]);
-                    setSelectedRarities([]);
-                    setSelectedCategories([]);
-                    setSelectedCounter("");
-                    setSelectedTrigger("");
-                    setSelectedEffects([]);
-                    setSelectedTypes([]);
-                    setSelectedSets([]);
-                    setSelectedCosts([]);
-                    setSelectedPower([]);
-                    setSelectedAttributes([]);
-                    setSelectedCodes([]);
-                    setSelectedAltArts([]);
-                  }}
-                />
-                <div className="flex-1 min-w-0">
-                  <DropdownSearch
-                    search={search}
-                    setSearch={setSearch}
-                    placeholder="Search..."
-                    suggestionsEndpoint="/api/cards/search-suggestions"
-                  />
+            {/* Body: filtros (columna izquierda, solo desktop) + grid (centro) + carrito "Seleccionadas" (columna derecha, solo desktop) */}
+            <div className="flex flex-1 min-h-0">
+              <div className="hidden sm:flex w-64 flex-shrink-0 min-h-0 flex-col">
+                <div className="flex border-b border-slate-200 bg-white flex-shrink-0">
+                  {(
+                    [
+                      { key: "cards", label: "Cartas" },
+                      { key: "sets", label: "Sets" },
+                      { key: "sleeves", label: "Sleeves" },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setAddModalTab(tab.key)}
+                      className={`flex-1 px-2 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                        addModalTab === tab.key
+                          ? "border-indigo-500 text-indigo-600"
+                          : "border-transparent text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1 min-h-0 flex">
+                  {addModalTab === "cards" && (
+                    <FiltersSidebar
+                      variant="inline"
+                      isOpen={isModalOpen}
+                      setIsOpen={setIsModalOpen}
+                      search={search}
+                      setSearch={setSearch}
+                      selectedColors={selectedColors}
+                      setSelectedColors={setSelectedColors}
+                      selectedRarities={selectedRarities}
+                      setSelectedRarities={setSelectedRarities}
+                      selectedCategories={selectedCategories}
+                      setSelectedCategories={setSelectedCategories}
+                      selectedCounter={selectedCounter}
+                      setSelectedCounter={setSelectedCounter}
+                      selectedTrigger={selectedTrigger}
+                      setSelectedTrigger={setSelectedTrigger}
+                      selectedEffects={selectedEffects}
+                      setSelectedEffects={setSelectedEffects}
+                      selectedTypes={selectedTypes}
+                      setSelectedTypes={setSelectedTypes}
+                      selectedSets={selectedSets}
+                      setSelectedSets={setSelectedSets}
+                      selectedCosts={selectedCosts}
+                      setSelectedCosts={setSelectedCosts}
+                      selectedPower={selectedPower}
+                      setSelectedPower={setSelectedPower}
+                      selectedAttributes={selectedAttributes}
+                      setSelectedAttributes={setSelectedAttributes}
+                      selectedAltArts={selectedAltArts}
+                      setSelectedAltArts={setSelectedAltArts}
+                      selectedCodes={selectedCodes}
+                      setSelectedCodes={setSelectedCodes}
+                    />
+                  )}
+                  {addModalTab === "sets" && (
+                    <div className="flex h-full w-full flex-col bg-white border-r border-slate-200">
+                      <div className="px-3 py-2.5 border-b border-slate-200 flex-shrink-0">
+                        <input
+                          type="text"
+                          value={setsTabQuery}
+                          onChange={(e) => setSetsTabQuery(e.target.value)}
+                          placeholder="Buscar set..."
+                          className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+                        {setOptions
+                          .filter((opt) =>
+                            opt.label
+                              .toLowerCase()
+                              .includes(setsTabQuery.toLowerCase())
+                          )
+                          .map((opt) => {
+                            const isActive =
+                              selectedSets.length === 1 &&
+                              selectedSets[0] === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedSets(isActive ? [] : [opt.value])
+                                }
+                                className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                  isActive
+                                    ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-300"
+                                    : "text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                  {addModalTab === "sleeves" && (
+                    <div className="flex h-full w-full flex-col bg-white border-r border-slate-200">
+                      <div className="px-3 py-2.5 border-b border-slate-200 flex-shrink-0">
+                        <input
+                          type="text"
+                          value={sleevesTabQuery}
+                          onChange={(e) => setSleevesTabQuery(e.target.value)}
+                          placeholder="Buscar sleeve..."
+                          className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-3 text-xs text-slate-400">
+                        Elige un reverso temático para colocarlo en la casilla
+                        seleccionada.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
+              <div className="flex-1 flex flex-col min-h-0">
+                {addModalTab === "sleeves" ? (
+                  <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                    {typeof targetBackcardImageUrl === "string" && (
+                      <div className="mb-3 flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                        <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded">
+                          <LazyImage
+                            src={targetBackcardImageUrl}
+                            fallbackSrc="/assets/images/backcard.webp"
+                            alt="Sleeve actual"
+                            className="w-full h-full object-cover"
+                            size="small"
+                            customOptions={{}}
+                          />
+                        </div>
+                        <p className="flex-1 text-sm text-indigo-900">
+                          Esta casilla ya tiene un sleeve colocado.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-shrink-0 gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          disabled={isApplyingSleeve || !targetPosition}
+                          onClick={async () => {
+                            if (!targetPosition) return;
+                            await toggleBackcardAt(targetPosition);
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Quitar
+                        </Button>
+                      </div>
+                    )}
+                    {isLoadingSleeves ? (
+                      <div className="flex items-center justify-center h-full gap-2 text-sm text-slate-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cargando sleeves...
+                      </div>
+                    ) : sleeveProducts.length === 0 ? (
+                      <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                        No hay sleeves disponibles
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                        {sleeveProducts
+                          .filter((p) =>
+                            p.name
+                              .toLowerCase()
+                              .includes(sleevesTabQuery.toLowerCase())
+                          )
+                          .map((p) => {
+                            const qty = cartSleeveItems.find((s) => s.id === p.id)
+                              ?.quantity;
+                            const canAdd = Boolean(targetPosition && p.imageUrl);
+                            return (
+                              <div
+                                key={p.id}
+                                className={cn(
+                                  "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                                  qty
+                                    ? "border-indigo-500 ring-1 ring-indigo-500"
+                                    : "border-slate-200 hover:border-slate-300"
+                                )}
+                              >
+                                <div className="relative p-1.5">
+                                  <LazyImage
+                                    src={p.imageUrl ?? "/assets/images/backcard.webp"}
+                                    fallbackSrc="/assets/images/backcard.webp"
+                                    alt={p.name}
+                                    className="w-full rounded-md"
+                                    size="small"
+                                    customOptions={{}}
+                                  />
+                                  {qty ? (
+                                    <>
+                                      <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                      <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                        {qty}
+                                      </div>
+                                    </>
+                                  ) : null}
+                                </div>
+                                <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                  <p className="text-xs font-medium text-zinc-700 truncate">
+                                    {p.name}
+                                  </p>
+                                  {qty ? (
+                                    <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                      <button
+                                        onClick={() =>
+                                          updateStagedSleeveQuantity(p.id, -1)
+                                        }
+                                        className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                      >
+                                        <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                      </button>
+                                      <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                        {qty}
+                                      </span>
+                                      <button
+                                        onClick={() =>
+                                          updateStagedSleeveQuantity(p.id, 1)
+                                        }
+                                        className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                      >
+                                        <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      disabled={!canAdd}
+                                      onClick={() =>
+                                        canAdd &&
+                                        handleSleevePick({
+                                          id: p.id,
+                                          name: p.name,
+                                          imageUrl: p.imageUrl!,
+                                        })
+                                      }
+                                      className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors disabled:opacity-50"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                      Agregar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                <div className="px-4 py-3 border-b border-[#f5f5f5] bg-white flex items-center gap-2 flex-shrink-0">
+                  <div className="sm:hidden">
+                    <FiltersButton
+                      totalFilters={totalFilters}
+                      onOpenFilters={() => setIsModalOpen(true)}
+                      isTouchable={
+                        selectedColors.length > 0 ||
+                        selectedRarities.length > 0 ||
+                        selectedCategories.length > 0 ||
+                        selectedCounter !== "" ||
+                        selectedTrigger !== "" ||
+                        selectedEffects.length > 0 ||
+                        selectedTypes.length > 0 ||
+                        selectedSets.length > 0 ||
+                        selectedCosts.length > 0 ||
+                        selectedPower.length > 0 ||
+                        selectedAttributes.length > 0 ||
+                        selectedCodes.length > 0 ||
+                        selectedAltArts.length > 0
+                      }
+                      onClearFilters={() => {
+                        setSelectedColors([]);
+                        setSelectedRarities([]);
+                        setSelectedCategories([]);
+                        setSelectedCounter("");
+                        setSelectedTrigger("");
+                        setSelectedEffects([]);
+                        setSelectedTypes([]);
+                        setSelectedSets([]);
+                        setSelectedCosts([]);
+                        setSelectedPower([]);
+                        setSelectedAttributes([]);
+                        setSelectedCodes([]);
+                        setSelectedAltArts([]);
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <DropdownSearch
+                      search={search}
+                      setSearch={setSearch}
+                      placeholder="Search..."
+                      suggestionsEndpoint="/api/cards/search-suggestions"
+                    />
+                  </div>
+                  <ViewSwitch
+                    viewSelected={viewSelected}
+                    setViewSelected={setViewSelected}
+                    isImages={false}
+                  />
+                </div>
 
-              <div className="flex justify-end items-center gap-2">
-                <ViewSwitch
-                  viewSelected={viewSelected}
-                  setViewSelected={setViewSelected}
-                  isImages={false}
-                />
-              </div>
-            </div>
+                {addModalTab === "sets" && selectedSets.length > 0 && (
+                  <div className="px-4 py-2 border-b border-[#f5f5f5] bg-indigo-50 flex items-center justify-between flex-shrink-0 gap-2">
+                    <p className="text-sm text-indigo-900 min-w-0 truncate">
+                      <span className="font-semibold">
+                        {setOptions.find((o) => o.value === selectedSets[0])
+                          ?.label ?? selectedSets[0]}
+                      </span>
+                      {" — "}
+                      {allFilteredCards.length} carta
+                      {allFilteredCards.length !== 1 ? "s" : ""}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="flex-shrink-0"
+                      disabled={allFilteredCards.length === 0}
+                      onClick={() => handleAddAllFromSet(allFilteredCards)}
+                    >
+                      Agregar todas
+                    </Button>
+                  </div>
+                )}
 
-            {/* Content area */}
-            <div
-              className="flex-1 overflow-y-auto p-3 min-h-0"
-              ref={mobileModalScrollRef}
-            >
-              {/* Selected Card(s) Indicator */}
+                {/* Content area */}
+                <div
+                  className="flex-1 overflow-y-auto p-4 min-h-0"
+                  ref={mobileModalScrollRef}
+                >
+                  {/* Carrito inline: solo en mobile, en desktop vive en la columna derecha */}
+                  {cartCardItems.length > 0 && (
+                    <div className="sm:hidden mb-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-indigo-900">
+                          Seleccionadas (
+                          {cartCardItems.reduce((sum, s) => sum + s.quantity, 0)})
+                        </p>
+                        <button
+                          onClick={clearAddSelection}
+                          className="text-xs font-medium text-indigo-600 hover:underline"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {cartCardItems.map((s) => (
+                          <div
+                            key={s.card.id}
+                            className="flex items-center gap-2 bg-white rounded-md p-1.5 border border-indigo-100"
+                          >
+                            <div className="w-6 h-8 flex-shrink-0">
+                              <LazyImage
+                                src={s.card.src}
+                                fallbackSrc="/assets/images/backcard.webp"
+                                alt={s.card.name}
+                                className="w-full rounded"
+                                size="small"
+                              />
+                            </div>
+                            <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">
+                              {s.card.name}
+                            </span>
+                            <button
+                              onClick={() => updateAddSelectionQuantity(s.card.id, -1)}
+                              className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <span className="w-5 text-center text-xs font-semibold">
+                              {s.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateAddSelectionQuantity(s.card.id, 1)}
+                              className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => removeFromAddSelection(s.card.id)}
+                              className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Card(s) Indicator */}
               {movingCards.length > 0 && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
@@ -4304,171 +5089,404 @@ const AddCardsPage = () => {
                 </div>
               )}
 
-              {viewSelected === "text" && (
-                <div className="grid gap-3 grid-cols-1 justify-items-center">
-                  {cardListFilteredCards?.map((card) => (
-                    <Fragment key={card._id}>
-                      <div
-                        className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                          movingCardIds.has(card.id)
-                            ? "ring-2 ring-blue-500 bg-blue-50"
-                            : ""
-                        }`}
-                        onClick={() => {
-                          handleMobileCardPick(card);
-                        }}
-                      >
-                        <div onClick={(e) => e.stopPropagation()}>
-                    <StoreCard
-                      card={card}
-                      searchTerm={search}
-                      viewSelected={viewSelected}
-                      selectedRarities={selectedRarities}
-                      selectedSets={selectedSets}
-                      setSelectedCard={setSelectedCard}
-                      setBaseCard={setBaseCard}
-                            setAlternatesCards={setAlternatesCards}
-                            setIsOpen={setIsOpen}
-                            onClick={() => {
-                              handleMobileCardPick(card);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
-              )}
 
-              {viewSelected === "list" && (
-                <div className="grid gap-3 grid-cols-2 justify-items-center">
-                  {cardListFilteredCards?.map((card) => {
-                    const baseMatches = baseCardMatches(
-                      card,
-                      selectedSets,
-                      selectedAltArts
-                    );
-                    const filteredAlts = getFilteredAlternates(
-                      card,
-                      selectedSets,
-                      selectedAltArts
-                    );
-
-                    if (!baseMatches && filteredAlts.length === 0)
-                      return null;
-
-                    return (
-                      <Fragment key={card._id}>
-                        {baseMatches && (
+                  {addModalTab === "sets" && selectedSets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-sm text-slate-400 gap-2 py-16">
+                      <Package className="h-8 w-8 text-slate-300" />
+                      Elige un set a la izquierda para ver sus cartas
+                    </div>
+                  ) : (
+                    <>
+                  {viewSelected === "text" && (
+                    <div className="grid gap-3 grid-cols-1 justify-items-center">
+                      {cardListFilteredCards?.map((card) => (
+                        <Fragment key={card._id}>
                           <div
-                            onClick={() => {
-                              handleMobileCardPick(card);
-                            }}
                             className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                              movingCardIds.has(card.id)
-                                ? "ring-2 ring-blue-500 bg-blue-50"
+                              cartCardItems.some((s) => s.card.id === card.id)
+                                ? "ring-2 ring-indigo-500"
                                 : ""
                             }`}
+                            onClick={() => {
+                              handleMobileCardPick(card);
+                            }}
                           >
-                            <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
-                              <LazyImage
-                                src={card.src}
-                                fallbackSrc="/assets/images/backcard.webp"
-                                alt={card.name}
-                                className="w-full"
-                                size="small"
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <StoreCard
+                                card={card}
+                                searchTerm={search}
+                                viewSelected={viewSelected}
+                                selectedRarities={selectedRarities}
+                                selectedSets={selectedSets}
+                                setSelectedCard={setSelectedCard}
+                                setBaseCard={setBaseCard}
+                                setAlternatesCards={setAlternatesCards}
+                                setIsOpen={setIsOpen}
+                                onClick={() => {
+                                  handleMobileCardPick(card);
+                                }}
                               />
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex justify-center items-center w-full flex-col">
-                                      <span
-                                        className={`${oswald.className} text-xs font-bold mt-2`}
-                                      >
-                                        {highlightText(card?.code, search)}
-                                      </span>
-                                      <span className="text-center text-xs line-clamp-1">
-                                        {highlightText(
-                                          card?.sets?.[0]?.set?.title ||
-                                            "Sin set",
-                                          search
-                                        )}
-                                      </span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>
-                                      {highlightText(
-                                        card?.sets?.[0]?.set?.title ||
-                                          "Sin set",
-                                        search
-                                      )}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
                             </div>
                           </div>
-                        )}
+                        </Fragment>
+                      ))}
+                    </div>
+                  )}
 
-                        {filteredAlts.length > 0 &&
-                          filteredAlts.map((alt) => (
-                            <div
-                              key={alt._id}
-                              onClick={() => {
-                                handleMobileCardPick(alt);
-                              }}
-                              className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg ${
-                                movingCardIds.has(alt.id)
-                                  ? "ring-2 ring-blue-500 bg-blue-50"
-                                  : ""
-                              }`}
-                            >
-                              <div className="border rounded-lg shadow p-3 bg-white justify-center items-center flex flex-col">
-                                <LazyImage
-                                  src={alt.src}
-                                  fallbackSrc="/assets/images/backcard.webp"
-                                  alt={alt.alias}
-                                  className="w-full"
-                                  size="small"
-                                />
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className="flex justify-center items-center w-full flex-col">
-                                        <span
-                                          className={`${oswald.className} text-xs font-bold mt-2`}
+                  {viewSelected === "list" && (
+                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                      {cardListFilteredCards?.map((card) => {
+                        const baseMatches = baseCardMatches(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
+                        const filteredAlts = getFilteredAlternates(
+                          card,
+                          selectedSets,
+                          selectedAltArts
+                        );
+
+                        if (!baseMatches && filteredAlts.length === 0)
+                          return null;
+
+                        return (
+                          <Fragment key={card._id}>
+                            {baseMatches &&
+                              (() => {
+                                const qty = cartCardItems.find(
+                                  (s) => s.card.id === card.id
+                                )?.quantity;
+                                return (
+                                  <div
+                                    className={cn(
+                                      "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                                      qty
+                                        ? "border-indigo-500 ring-1 ring-indigo-500"
+                                        : "border-slate-200 hover:border-slate-300"
+                                    )}
+                                  >
+                                    <div
+                                      className="relative p-1.5 cursor-pointer"
+                                      onClick={() => handleMobileCardPick(card)}
+                                    >
+                                      <LazyImage
+                                        src={card.src}
+                                        fallbackSrc="/assets/images/backcard.webp"
+                                        alt={card.name}
+                                        className="w-full rounded-md"
+                                        size="small"
+                                      />
+                                      {qty ? (
+                                        <>
+                                          <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                          <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                            {qty}
+                                          </div>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                    <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                      <div className="min-w-0">
+                                        <p
+                                          className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
                                         >
                                           {highlightText(card?.code, search)}
-                                        </span>
-                                        <span className="text-center text-xs line-clamp-1">
+                                        </p>
+                                        <p className="text-[10px] text-zinc-500 truncate">
                                           {highlightText(
-                                            alt?.sets?.[0]?.set?.title ||
+                                            card?.sets?.[0]?.set?.title ||
                                               "Sin set",
                                             search
                                           )}
-                                        </span>
+                                        </p>
                                       </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>
-                                        {alt?.sets?.[0]?.set?.title ||
-                                          "Sin set"}
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          ))}
-                      </Fragment>
-                    );
-                  })}
+                                      {qty ? (
+                                        <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                          <button
+                                            onClick={() =>
+                                              updateAddSelectionQuantity(
+                                                card.id,
+                                                -1
+                                              )
+                                            }
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                          <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                            {qty}
+                                          </span>
+                                          <button
+                                            onClick={() =>
+                                              updateAddSelectionQuantity(
+                                                card.id,
+                                                1
+                                              )
+                                            }
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleMobileCardPick(card)}
+                                          className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          Agregar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                            {filteredAlts.length > 0 &&
+                              filteredAlts.map((alt) => {
+                                const altQty = cartCardItems.find(
+                                  (s) => s.card.id === alt.id
+                                )?.quantity;
+                                return (
+                                  <div
+                                    key={alt._id}
+                                    className={cn(
+                                      "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                                      altQty
+                                        ? "border-indigo-500 ring-1 ring-indigo-500"
+                                        : "border-slate-200 hover:border-slate-300"
+                                    )}
+                                  >
+                                    <div
+                                      className="relative p-1.5 cursor-pointer"
+                                      onClick={() => handleMobileCardPick(alt)}
+                                    >
+                                      <LazyImage
+                                        src={alt.src}
+                                        fallbackSrc="/assets/images/backcard.webp"
+                                        alt={alt.alias}
+                                        className="w-full rounded-md"
+                                        size="small"
+                                      />
+                                      {altQty ? (
+                                        <>
+                                          <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                          <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                            {altQty}
+                                          </div>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                    <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                      <div className="min-w-0">
+                                        <p
+                                          className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
+                                        >
+                                          {highlightText(card?.code, search)}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-500 truncate">
+                                          {alt?.sets?.[0]?.set?.title || "Sin set"}
+                                        </p>
+                                      </div>
+                                      {altQty ? (
+                                        <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                          <button
+                                            onClick={() =>
+                                              updateAddSelectionQuantity(alt.id, -1)
+                                            }
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                          <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                            {altQty}
+                                          </span>
+                                          <button
+                                            onClick={() =>
+                                              updateAddSelectionQuantity(alt.id, 1)
+                                            }
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleMobileCardPick(alt)}
+                                          className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          Agregar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  )}
+                    </>
+                  )}
                 </div>
-              )}
+                  </>
+                )}
+              </div>
+
+              {/* Columna derecha: carrito "Seleccionadas" (solo desktop) — cartas y sleeves juntos, persiste al cambiar de pestaña */}
+              <div className="hidden sm:flex w-72 flex-shrink-0 border-l border-slate-200 flex-col min-h-0">
+                <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Seleccionadas (
+                    {cartCardItems.reduce((sum, s) => sum + s.quantity, 0) +
+                      cartSleeveItems.reduce((sum, s) => sum + s.quantity, 0)}
+                    )
+                  </p>
+                  {(cartCardItems.length > 0 || cartSleeveItems.length > 0) && (
+                    <button
+                      onClick={clearAddSelection}
+                      className="text-xs font-medium text-indigo-600 hover:underline"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                  {cartCardItems.length === 0 && cartSleeveItems.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center px-4 py-10">
+                      <Package className="h-8 w-8 text-zinc-300 mb-2" />
+                      <p className="text-xs text-zinc-400">
+                        Las cartas o los sleeves que elijas aparecerán aquí
+                      </p>
+                    </div>
+                  ) : (
+                    cartItems.map((item) =>
+                      item.kind === "sleeve" ? (
+                        <div
+                          key={`sleeve-${item.id}`}
+                          className="flex items-center gap-2 bg-white rounded-md p-1.5 border border-indigo-200"
+                        >
+                          <div className="w-8 h-11 flex-shrink-0 overflow-hidden rounded">
+                            <LazyImage
+                              src={item.imageUrl}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              size="small"
+                              customOptions={{}}
+                            />
+                          </div>
+                          <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">
+                            {item.name}
+                          </span>
+                          <button
+                            onClick={() => updateStagedSleeveQuantity(item.id, -1)}
+                            className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="w-5 text-center text-xs font-semibold">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateStagedSleeveQuantity(item.id, 1)}
+                            className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => removeStagedSleeve(item.id)}
+                            className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          key={item.card.id}
+                          className="flex items-center gap-2 bg-white rounded-md p-1.5 border border-zinc-200"
+                        >
+                          <div className="w-8 h-11 flex-shrink-0">
+                            <LazyImage
+                              src={item.card.src}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={item.card.name}
+                              className="w-full rounded"
+                              size="small"
+                            />
+                          </div>
+                          <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">
+                            {item.card.name}
+                          </span>
+                          <button
+                            onClick={() =>
+                              updateAddSelectionQuantity(item.card.id, -1)
+                            }
+                            className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="w-5 text-center text-xs font-semibold">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() =>
+                              updateAddSelectionQuantity(item.card.id, 1)
+                            }
+                            className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => removeFromAddSelection(item.card.id)}
+                            className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Mobile filters - moved to bottom */}
+            {(cartCardItems.length > 0 || cartSleeveItems.length > 0) && (
+              <div className="border-t border-slate-200 p-3 bg-white flex justify-end flex-shrink-0">
+                <Button
+                  onClick={handleConfirmCart}
+                  disabled={isAddingBatch || isApplyingSleeve}
+                  className="gap-2"
+                >
+                  {isAddingBatch || isApplyingSleeve ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {(() => {
+                    const cardQty = cartCardItems.reduce(
+                      (sum, s) => sum + s.quantity,
+                      0
+                    );
+                    const sleeveQty = cartSleeveItems.reduce(
+                      (sum, s) => sum + s.quantity,
+                      0
+                    );
+                    const parts = [];
+                    if (cardQty > 0)
+                      parts.push(`${cardQty} carta${cardQty !== 1 ? "s" : ""}`);
+                    if (sleeveQty > 0)
+                      parts.push(
+                        `${sleeveQty} sleeve${sleeveQty !== 1 ? "s" : ""}`
+                      );
+                    return `Agregar ${parts.join(" y ")}`;
+                  })()}
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}

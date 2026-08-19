@@ -61,6 +61,11 @@ interface FolderPageProps {
   priceField?: "marketPrice" | "midPrice";
   displayCurrency?: string | null;
   exchangeRate?: number | string | null;
+  onRemoveBackcard?: (position: {
+    page: number;
+    row: number;
+    column: number;
+  }) => void;
 }
 
 export const FolderPage: React.FC<FolderPageProps> = ({
@@ -91,6 +96,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   priceField,
   displayCurrency,
   exchangeRate,
+  onRemoveBackcard,
 }) => {
   return (
     <div
@@ -167,6 +173,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             priceField={priceField}
             displayCurrency={displayCurrency}
             exchangeRate={exchangeRate}
+            onRemoveBackcard={onRemoveBackcard}
           />
         )}
       </div>

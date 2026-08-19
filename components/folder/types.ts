@@ -28,6 +28,7 @@ export interface GridCard {
   existing?: any;
   quantity?: number;
   hasBackcard?: boolean; // Indica si esta posición tiene una imagen de backcard
+  backcardImageUrl?: string | null; // Imagen de sleeve elegida (null = reverso genérico)
 }
 
 export interface FolderPageContent {

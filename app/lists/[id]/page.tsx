@@ -233,9 +233,9 @@ const ListDetailPage = () => {
   const [selectedCard, setSelectedCard] =
     useState<CardWithCollectionData | null>(null);
   const [showLargeImage, setShowLargeImage] = useState(false);
-  const [backcardPositions, setBackcardPositions] = useState<Set<string>>(
-    new Set()
-  );
+  const [backcardPositions, setBackcardPositions] = useState<
+    Map<string, string | null>
+  >(new Map());
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(
@@ -290,6 +290,7 @@ const ListDetailPage = () => {
               grid[row][col] = {
                 card: null as any,
                 hasBackcard: true,
+                backcardImageUrl: backcardPositions.get(positionKey) ?? null,
               };
             }
           }
@@ -335,10 +336,13 @@ const ListDetailPage = () => {
         const response = await fetch(`/api/lists/${list.id}/backcards`);
         if (response.ok) {
           const backcards = await response.json();
-          const backcardsSet = new Set<string>(
-            backcards.map((b: any) => `${b.page}-${b.row}-${b.column}`)
+          const backcardsMap = new Map<string, string | null>(
+            backcards.map((b: any) => [
+              `${b.page}-${b.row}-${b.column}`,
+              b.imageUrl ?? null,
+            ])
           );
-          setBackcardPositions(backcardsSet);
+          setBackcardPositions(backcardsMap);
         }
       } catch (error) {
         console.error("Error loading backcards:", error);

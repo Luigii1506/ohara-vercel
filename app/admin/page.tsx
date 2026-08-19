@@ -24,6 +24,7 @@ import {
   BellRing,
   Activity,
   Sparkles,
+  Receipt,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -219,6 +220,13 @@ export default function AdminDashboard() {
           label: "User Management",
           icon: Users,
           description: "Manage user accounts and permissions",
+        },
+        {
+          href: "/admin/buylist",
+          label: "Buylist",
+          icon: Receipt,
+          description:
+            "Captura compras, snapshots de precio y totales operativos",
         },
         {
           href: "/admin/create-decks",

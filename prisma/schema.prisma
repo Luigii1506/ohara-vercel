@@ -68,6 +68,7 @@ model Card {
   opponentGameLogs      GameLog[]           @relation("OpponentLeader")
   GameLogCard           GameLogCard[]
   userListCards         UserListCard[]
+  buylistItems          BuylistItem[]
   collectionCards       CollectionCard[]
   alternateCards        Card[]              @relation("CardAlternates") // Las alternativas de esta carta base
   eventCards            EventCard[]
@@ -444,6 +445,7 @@ model User {
   lists              UserList[]
   announcementEvents AnnouncementEvent[]
   collection         Collection?
+  buylistSessions    BuylistSession[]
 }
 
 model Account {
@@ -572,6 +574,68 @@ model UserListBackcard {
 
   @@unique([listId, page, row, column], name: "unique_backcard_position")
   @@index([listId])
+}
+
+enum BuylistSessionStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum BuylistSourceType {
+  SINGLES
+  BINDER
+  MIXED
+}
+
+model BuylistSession {
+  id             Int                  @id @default(autoincrement())
+  userId         Int
+  title          String
+  customerName   String?
+  sourceType     BuylistSourceType    @default(MIXED)
+  status         BuylistSessionStatus @default(DRAFT)
+  currency       String               @default("USD")
+  notes          String?              @db.Text
+  totalItems     Int                  @default(0)
+  totalQuantity  Int                  @default(0)
+  totalPaid      Decimal              @default(0)
+  totalMarket    Decimal              @default(0)
+  totalMedian    Decimal              @default(0)
+  totalMarket70  Decimal              @default(0)
+  totalMarket80  Decimal              @default(0)
+  totalMedian70  Decimal              @default(0)
+  totalMedian80  Decimal              @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items          BuylistItem[]
+
+  @@index([userId, status, updatedAt])
+}
+
+model BuylistItem {
+  id                  Int            @id @default(autoincrement())
+  sessionId           Int
+  cardId              Int
+  quantity            Int            @default(1)
+  condition           String?
+  purchasePrice       Decimal        @default(0)
+  purchaseCurrency    String         @default("USD")
+  marketPriceSnapshot Decimal?
+  midPriceSnapshot    Decimal?
+  market70Snapshot    Decimal?
+  market80Snapshot    Decimal?
+  median70Snapshot    Decimal?
+  median80Snapshot    Decimal?
+  notes               String?        @db.Text
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  session             BuylistSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  card                Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([cardId])
 }
 
 model Collection {

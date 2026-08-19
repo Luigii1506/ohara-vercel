@@ -5,6 +5,8 @@ import {
 } from "@/lib/cards/query";
 import prisma from "@/lib/prisma";
 import type { Card, Prisma } from "@prisma/client";
+import { getCollectionOrderKey } from "@/lib/cards/sort";
+import type { CardWithCollectionData } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -367,6 +369,23 @@ export async function POST(req: NextRequest) {
 
       newCard = await prisma.card.create({
         data: newCardData,
+      });
+    }
+
+    const computedCollectionOrder = getCollectionOrderKey({
+      id: newCard.id,
+      code: newCard.code,
+      category: newCard.category,
+      baseCardId: newCard.baseCardId,
+      order: newCard.order,
+      setCode: newCard.setCode,
+      collectionOrder: "",
+    } as unknown as CardWithCollectionData);
+
+    if (computedCollectionOrder && computedCollectionOrder.length) {
+      newCard = await prisma.card.update({
+        where: { id: newCard.id },
+        data: { collectionOrder: computedCollectionOrder },
       });
     }
 

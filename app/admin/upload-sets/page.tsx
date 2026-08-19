@@ -278,6 +278,7 @@ const UploadSets = () => {
           // Las otras regiones (JP/CN/KR/FR) se cargan con los scripts scrape-*.
           region: "US",
           alias: "",
+          order: card.order || "0",
           // Idempotencia: si la carta ya existe, el backend la omite
           // (no crea duplicado) y solo la vincula al set si faltara.
           skipIfExists: true,

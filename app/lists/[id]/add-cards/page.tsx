@@ -82,6 +82,7 @@ import { convertForListDisplay } from "@/lib/lists/currency";
 import SearchFilters from "@/components/home/SearchFilters";
 import DropdownSearch from "@/components/DropdownSearch";
 import FiltersSidebar from "@/components/FiltersSidebar";
+import MobileFiltersDrawer from "@/components/deckbuilder/MobileFiltersDrawer";
 import ViewSwitch from "@/components/ViewSwitch";
 import { Option } from "@/components/MultiSelect";
 import { useRegion } from "@/components/region/RegionProvider";
@@ -680,6 +681,11 @@ const AddCardsPage = () => {
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Estado independiente para el drawer de filtros en mobile DENTRO del
+  // modal de Agregar cartas — antes compartía isModalOpen con el overlay de
+  // filtros del panel de escritorio, así que abrir uno abría el otro.
+  const [showAddCardsFiltersDrawer, setShowAddCardsFiltersDrawer] =
+    useState(false);
   const [viewSelected, setViewSelected] = useState<
     "grid" | "list" | "alternate" | "text"
   >("list");
@@ -4581,6 +4587,7 @@ const AddCardsPage = () => {
               clearAddSelection();
               setAddModalTab("cards");
               setSetsTabQuery("");
+              setShowAddCardsFiltersDrawer(false);
             }
           }}
         >
@@ -4608,49 +4615,37 @@ const AddCardsPage = () => {
               </div>
             </DialogHeader>
 
-            {/* FiltersSidebar overlay: solo en mobile, disparado por FiltersButton (en desktop los filtros viven en la columna izquierda persistente) */}
-            <Transition
-              show={isModalOpen}
-              enter="transition transform duration-300"
-              enterFrom="-translate-x-full"
-              enterTo="translate-x-0"
-              leave="transition transform duration-200"
-              leaveFrom="translate-x-0"
-              leaveTo="-translate-x-full"
-            >
-              <FiltersSidebar
-                isOpen={isModalOpen}
-                setIsOpen={setIsModalOpen}
-                search={search}
-                setSearch={setSearch}
-                selectedColors={selectedColors}
-                setSelectedColors={setSelectedColors}
-                selectedRarities={selectedRarities}
-                setSelectedRarities={setSelectedRarities}
-                selectedCategories={selectedCategories}
-                setSelectedCategories={setSelectedCategories}
-                selectedCounter={selectedCounter}
-                setSelectedCounter={setSelectedCounter}
-                selectedTrigger={selectedTrigger}
-                setSelectedTrigger={setSelectedTrigger}
-                selectedEffects={selectedEffects}
-                setSelectedEffects={setSelectedEffects}
-                selectedTypes={selectedTypes}
-                setSelectedTypes={setSelectedTypes}
-                selectedSets={selectedSets}
-                setSelectedSets={setSelectedSets}
-                selectedCosts={selectedCosts}
-                setSelectedCosts={setSelectedCosts}
-                selectedPower={selectedPower}
-                setSelectedPower={setSelectedPower}
-                selectedAttributes={selectedAttributes}
-                setSelectedAttributes={setSelectedAttributes}
-                selectedAltArts={selectedAltArts}
-                setSelectedAltArts={setSelectedAltArts}
-                selectedCodes={selectedCodes}
-                setSelectedCodes={setSelectedCodes}
-              />
-            </Transition>
+            {/* Filtros en mobile: bottom sheet con pastillas (mismo componente que Card List/Collection/Deck Builder), en desktop viven en la columna izquierda persistente */}
+            <MobileFiltersDrawer
+              isOpen={showAddCardsFiltersDrawer}
+              onClose={() => setShowAddCardsFiltersDrawer(false)}
+              selectedColors={selectedColors}
+              setSelectedColors={setSelectedColors}
+              selectedRarities={selectedRarities}
+              setSelectedRarities={setSelectedRarities}
+              selectedCategories={selectedCategories}
+              setSelectedCategories={setSelectedCategories}
+              selectedCounter={selectedCounter}
+              setSelectedCounter={setSelectedCounter}
+              selectedTrigger={selectedTrigger}
+              setSelectedTrigger={setSelectedTrigger}
+              selectedEffects={selectedEffects}
+              setSelectedEffects={setSelectedEffects}
+              selectedTypes={selectedTypes}
+              setSelectedTypes={setSelectedTypes}
+              selectedSets={selectedSets}
+              setSelectedSets={setSelectedSets}
+              selectedCosts={selectedCosts}
+              setSelectedCosts={setSelectedCosts}
+              selectedPower={selectedPower}
+              setSelectedPower={setSelectedPower}
+              selectedAttributes={selectedAttributes}
+              setSelectedAttributes={setSelectedAttributes}
+              selectedAltArts={selectedAltArts}
+              setSelectedAltArts={setSelectedAltArts}
+              selectedCodes={selectedCodes}
+              setSelectedCodes={setSelectedCodes}
+            />
 
             {/* Body: filtros (columna izquierda, solo desktop) + grid (centro) + carrito "Seleccionadas" (columna derecha, solo desktop) */}
             <div className="flex flex-1 min-h-0">
@@ -4817,7 +4812,7 @@ const AddCardsPage = () => {
                         No hay sleeves disponibles
                       </div>
                     ) : (
-                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                      <div className="grid gap-3 grid-cols-3 sm:grid-cols-3 lg:grid-cols-5">
                         {sleeveProducts
                           .filter((p) =>
                             p.name
@@ -4912,7 +4907,7 @@ const AddCardsPage = () => {
                   <div className="sm:hidden">
                     <FiltersButton
                       totalFilters={totalFilters}
-                      onOpenFilters={() => setIsModalOpen(true)}
+                      onOpenFilters={() => setShowAddCardsFiltersDrawer(true)}
                       isTouchable={
                         selectedColors.length > 0 ||
                         selectedRarities.length > 0 ||
@@ -5134,7 +5129,7 @@ const AddCardsPage = () => {
                   )}
 
                   {viewSelected === "list" && (
-                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="grid gap-1.5 grid-cols-3 sm:grid-cols-3 lg:grid-cols-5">
                       {cardListFilteredCards?.map((card) => {
                         const baseMatches = baseCardMatches(
                           card,
@@ -5187,7 +5182,7 @@ const AddCardsPage = () => {
                                       ) : null}
                                     </div>
                                     <div className="px-2 pb-2 flex flex-col gap-1.5">
-                                      <div className="min-w-0">
+                                      <div className="min-w-0 flex flex-col">
                                         <p
                                           className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
                                         >
@@ -5279,7 +5274,7 @@ const AddCardsPage = () => {
                                       ) : null}
                                     </div>
                                     <div className="px-2 pb-2 flex flex-col gap-1.5">
-                                      <div className="min-w-0">
+                                      <div className="min-w-0 flex flex-col">
                                         <p
                                           className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
                                         >

@@ -56,6 +56,7 @@ model Card {
   colors                CardColor[]
   conditions            CardCondition[]
   effects               CardEffect[]
+  localizations         CardLocalization[]
   priceLogs             CardPriceLog[]
   rulings               CardRuling[]
   sets                  CardSet[]
@@ -316,6 +317,54 @@ model CardText {
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
+}
+
+enum CardLocalizationContentType {
+  NAME
+  TRIGGER
+  EFFECT
+  TEXT
+}
+
+enum CardLocalizationStatus {
+  DRAFT
+  REVIEWED
+  APPROVED
+  NEEDS_REVIEW
+}
+
+enum CardLocalizationSource {
+  GLOSSARY
+  AI
+  HUMAN
+  IMPORTED
+}
+
+model CardLocalization {
+  id                Int                         @id @default(autoincrement())
+  cardId            Int
+  language          String
+  contentType       CardLocalizationContentType
+  sourceKey         String
+  sourceRecordId    Int?
+  sourceOrder       Int                         @default(0)
+  sourceText        String                      @db.Text
+  translatedText    String                      @db.Text
+  sourceHash        String?
+  glossaryVersion   String?
+  translationSource CardLocalizationSource      @default(GLOSSARY)
+  status            CardLocalizationStatus      @default(DRAFT)
+  notes             String?                     @db.Text
+  reviewedAt        DateTime?
+  approvedAt        DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  card              Card                        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, language, sourceKey])
+  @@index([cardId, language])
+  @@index([language, status])
+  @@index([sourceRecordId])
 }
 
 enum TournamentStatus {
@@ -617,7 +666,8 @@ model BuylistSession {
 model BuylistItem {
   id                  Int            @id @default(autoincrement())
   sessionId           Int
-  cardId              Int
+  cardId              Int?
+  productId           Int?
   quantity            Int            @default(1)
   condition           String?
   purchasePrice       Decimal        @default(0)
@@ -632,10 +682,12 @@ model BuylistItem {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   session             BuylistSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  card                Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card                Card?          @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  product             Product?       @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
   @@index([cardId])
+  @@index([productId])
 }
 
 model Collection {
@@ -814,6 +866,7 @@ model Product {
   cards             ProductCard[]
   relatedProducts   ProductLink[]  @relation("ProductLinkSource")
   relatedToProducts ProductLink[]  @relation("ProductLinkTarget")
+  buylistItems      BuylistItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

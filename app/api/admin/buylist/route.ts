@@ -48,6 +48,18 @@ export async function GET(_request: NextRequest) {
                 },
               },
             },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+                thumbnailUrl: true,
+                productType: true,
+                marketPrice: true,
+                lowPrice: true,
+                priceCurrency: true,
+              },
+            },
           },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },

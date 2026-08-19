@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 const db = prisma as any;
 
 type NormalizedBuylistItem = {
-  cardId: number;
+  cardId: number | null;
+  productId: number | null;
   quantity: number;
   condition: string | null;
   purchasePrice: number;
@@ -103,7 +104,18 @@ export async function PATCH(
     const normalizedItems = items
       .map(
         (item: any): NormalizedBuylistItem => ({
-        cardId: Number(item?.cardId),
+        cardId:
+          item?.cardId !== null &&
+          item?.cardId !== undefined &&
+          Number.isInteger(Number(item.cardId))
+            ? Number(item.cardId)
+            : null,
+        productId:
+          item?.productId !== null &&
+          item?.productId !== undefined &&
+          Number.isInteger(Number(item.productId))
+            ? Number(item.productId)
+            : null,
         quantity: Math.max(1, Math.trunc(toNumber(item?.quantity))),
         condition:
           typeof item?.condition === "string" && item.condition.trim()
@@ -127,7 +139,11 @@ export async function PATCH(
             : null,
         })
       )
-      .filter((item: any) => Number.isInteger(item.cardId) && item.cardId > 0);
+      .filter(
+        (item: NormalizedBuylistItem) =>
+          (item.cardId !== null && item.cardId > 0) ||
+          (item.productId !== null && item.productId > 0)
+      );
 
     const totals = normalizedItems.reduce(
       (acc: BuylistTotals, item: NormalizedBuylistItem) => {
@@ -209,6 +225,18 @@ export async function PATCH(
                     take: 1,
                     include: { set: { select: { title: true } } },
                   },
+                },
+              },
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  imageUrl: true,
+                  thumbnailUrl: true,
+                  productType: true,
+                  marketPrice: true,
+                  lowPrice: true,
+                  priceCurrency: true,
                 },
               },
             },

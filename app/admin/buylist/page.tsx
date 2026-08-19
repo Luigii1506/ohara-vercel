@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Oswald } from "next/font/google";
 import {
   Loader2,
   Minus,
+  Package,
   Plus,
   RefreshCw,
-  Search,
   ShoppingBag,
   Trash2,
   X,
@@ -39,6 +40,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CardWithCollectionData } from "@/types";
+import { cn } from "@/lib/utils";
+import { useAllCards } from "@/hooks/useCards";
+import { useCardStore } from "@/store/cardStore";
+import type { CardsFilters } from "@/lib/cards/types";
+import DropdownSearch from "@/components/DropdownSearch";
+import FiltersSidebar from "@/components/FiltersSidebar";
+import LazyImage from "@/components/LazyImage";
+import { setOptions } from "@/helpers/constants";
+import { highlightText } from "@/helpers/functions";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
+import {
+  matchesCardCode,
+  baseCardMatches,
+  getFilteredAlternates,
+  cardMatchesActiveFilters,
+} from "@/lib/cardFilters";
+
+const oswald = Oswald({
+  weight: ["200", "300", "400", "500", "600", "700"],
+  subsets: ["latin"],
+});
+
+const NO_COUNTER_LABEL = "No counter";
+const NO_TRIGGER_LABEL = "No trigger";
 
 type CardSearchItem = {
   id: number;
@@ -55,10 +81,33 @@ type CardSearchItem = {
   sets?: Array<{ set: { title: string } }>;
 };
 
+type ProductSearchItem = {
+  id: number;
+  name: string;
+  imageUrl: string | null;
+  thumbnailUrl: string | null;
+  productType: string;
+  marketPrice?: number | string | null;
+  lowPrice?: number | string | null;
+  priceCurrency?: string | null;
+};
+
+type BuylistPick =
+  | { kind: "card"; card: CardSearchItem; quantity: number }
+  | { kind: "product"; product: ProductSearchItem; quantity: number };
+
+// Carrito interno del modal — mezcla cartas (catálogo completo, mismo store
+// que /lists/[id]/add-cards) y productos (boosters, sleeves, playmats...).
+type CartEntry =
+  | { kind: "card"; card: CardWithCollectionData; quantity: number }
+  | { kind: "product"; product: ProductSearchItem; quantity: number };
+
 type BuylistItemDraft = {
   localId: string;
-  cardId: number;
-  card: CardSearchItem;
+  cardId: number | null;
+  productId: number | null;
+  card: CardSearchItem | null;
+  product: ProductSearchItem | null;
   quantity: number;
   condition: string;
   purchasePrice: number;
@@ -93,7 +142,8 @@ type BuylistSession = {
   createdAt?: string;
   items: Array<{
     id: number;
-    cardId: number;
+    cardId: number | null;
+    productId: number | null;
     quantity: number;
     condition: string | null;
     purchasePrice: number | string;
@@ -105,7 +155,8 @@ type BuylistSession = {
     median70Snapshot: number | string | null;
     median80Snapshot: number | string | null;
     notes: string | null;
-    card: CardSearchItem;
+    card: CardSearchItem | null;
+    product: ProductSearchItem | null;
   }>;
 };
 
@@ -129,18 +180,62 @@ const formatCurrency = (value: number, currency: string) =>
     maximumFractionDigits: 2,
   }).format(value || 0);
 
-const buildDraftItem = (card: CardSearchItem, currency: string): BuylistItemDraft => {
-  const market = roundCurrency(toNumber(card.marketPrice));
-  const median = roundCurrency(toNumber(card.midPrice));
+const toCardSearchItem = (card: CardWithCollectionData): CardSearchItem => ({
+  id: Number(card.id),
+  name: card.name,
+  code: card.code,
+  src: card.src,
+  rarity: card.rarity ?? null,
+  setCode: card.setCode,
+  region: card.region ?? null,
+  marketPrice: card.marketPrice ?? null,
+  midPrice: card.midPrice ?? null,
+  priceCurrency: card.priceCurrency ?? null,
+  alternateArt: card.alternateArt ?? null,
+  sets: card.sets?.map((entry) => ({ set: { title: entry.set.title } })) ?? [],
+});
 
+const buildDraftItem = (
+  pick: BuylistPick,
+  currency: string
+): BuylistItemDraft => {
+  if (pick.kind === "card") {
+    const { card, quantity } = pick;
+    const market = roundCurrency(toNumber(card.marketPrice));
+    const median = roundCurrency(toNumber(card.midPrice));
+    return {
+      localId: `card-${card.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      cardId: card.id,
+      productId: null,
+      card,
+      product: null,
+      quantity,
+      condition: "NM",
+      purchasePrice: percentValue(median || market, 0.8),
+      purchaseCurrency: card.priceCurrency || currency,
+      marketPriceSnapshot: market,
+      midPriceSnapshot: median,
+      market70Snapshot: percentValue(market, 0.7),
+      market80Snapshot: percentValue(market, 0.8),
+      median70Snapshot: percentValue(median, 0.7),
+      median80Snapshot: percentValue(median, 0.8),
+      notes: "",
+    };
+  }
+
+  const { product, quantity } = pick;
+  const market = roundCurrency(toNumber(product.marketPrice));
+  const median = roundCurrency(toNumber(product.lowPrice ?? product.marketPrice));
   return {
-    localId: `${card.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    cardId: card.id,
-    card,
-    quantity: 1,
+    localId: `product-${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    cardId: null,
+    productId: product.id,
+    card: null,
+    product,
+    quantity,
     condition: "NM",
     purchasePrice: percentValue(median || market, 0.8),
-    purchaseCurrency: card.priceCurrency || currency,
+    purchaseCurrency: product.priceCurrency || currency,
     marketPriceSnapshot: market,
     midPriceSnapshot: median,
     market70Snapshot: percentValue(market, 0.7),
@@ -158,7 +253,9 @@ const hydrateDraftItems = (
   return session.items.map((item) => ({
     localId: `saved-${item.id}`,
     cardId: item.cardId,
+    productId: item.productId,
     card: item.card,
+    product: item.product,
     quantity: item.quantity,
     condition: item.condition || "NM",
     purchasePrice: roundCurrency(toNumber(item.purchasePrice)),
@@ -171,6 +268,26 @@ const hydrateDraftItems = (
     median80Snapshot: roundCurrency(toNumber(item.median80Snapshot)),
     notes: item.notes || "",
   }));
+};
+
+const getItemDisplay = (item: BuylistItemDraft) => {
+  if (item.card) {
+    return {
+      src: item.card.src,
+      name: item.card.name,
+      code: item.card.code,
+      subtitle: item.card.sets?.[0]?.set?.title || item.card.setCode,
+    };
+  }
+  if (item.product) {
+    return {
+      src: item.product.imageUrl || item.product.thumbnailUrl || "",
+      name: item.product.name,
+      code: item.product.productType,
+      subtitle: "Producto",
+    };
+  }
+  return { src: "", name: "Item desconocido", code: "", subtitle: "" };
 };
 
 export default function AdminBuylistPage() {
@@ -265,18 +382,13 @@ export default function AdminBuylistPage() {
     );
   }, [draftItems]);
 
-  // Confirmación del modal "Agregar cartas": agrega cada carta elegida como
-  // su propia línea (con la cantidad acumulada en el modal), sin tocar las
-  // líneas que ya estaban en el draft.
-  const addCardsToDraft = (
-    picks: Array<{ card: CardSearchItem; quantity: number }>
-  ) => {
+  // Confirmación del modal "Agregar cartas": agrega cada carta/producto
+  // elegido como su propia línea (con la cantidad acumulada en el modal),
+  // sin tocar las líneas que ya estaban en el draft.
+  const addCardsToDraft = (picks: BuylistPick[]) => {
     setDraftItems((prev) => [
       ...prev,
-      ...picks.map((pick) => ({
-        ...buildDraftItem(pick.card, draftCurrency),
-        quantity: pick.quantity,
-      })),
+      ...picks.map((pick) => buildDraftItem(pick, draftCurrency)),
     ]);
   };
 
@@ -332,6 +444,7 @@ export default function AdminBuylistPage() {
           status: draftStatus,
           items: draftItems.map((item) => ({
             cardId: item.cardId,
+            productId: item.productId,
             quantity: item.quantity,
             condition: item.condition,
             purchasePrice: item.purchasePrice,
@@ -575,24 +688,26 @@ export default function AdminBuylistPage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        draftItems.map((item) => (
+                        draftItems.map((item) => {
+                          const display = getItemDisplay(item);
+                          return (
                           <TableRow key={item.localId}>
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <img
-                                  src={item.card.src}
-                                  alt={item.card.name}
+                                  src={display.src}
+                                  alt={display.name}
                                   className="h-16 w-12 rounded border object-cover"
                                 />
                                 <div className="flex min-w-0 flex-col gap-0.5">
                                   <p className="truncate font-medium">
-                                    {item.card.name}
+                                    {display.name}
                                   </p>
                                   <p className="truncate text-xs text-muted-foreground">
-                                    {item.card.code}
+                                    {display.code}
                                   </p>
                                   <p className="truncate text-xs text-muted-foreground">
-                                    {item.card.sets?.[0]?.set?.title || item.card.setCode}
+                                    {display.subtitle}
                                   </p>
                                 </div>
                               </div>
@@ -685,7 +800,8 @@ export default function AdminBuylistPage() {
                               </Button>
                             </TableCell>
                           </TableRow>
-                        ))
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>
@@ -719,12 +835,12 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Modal de "Agregar cartas" — mismo patrón que el carrito del modal de
-// Agregar cartas en /lists/[id]/add-cards: búsqueda por botón explícito (no
-// en vivo mientras se escribe), selección acumulable con +/- por carta, y
-// un solo confirmar que agrega todo de golpe. Vive con su propio estado
-// (búsqueda + carrito) para que crear/cambiar de sesión de compra no lo
-// afecte para nada.
+// Modal de "Agregar cartas" — clon estructural del modal de Agregar cartas
+// de /lists/[id]/add-cards: misma columna de Filtros (FiltersSidebar
+// variant="inline"), mismo catálogo completo cacheado (useAllCards +
+// useCardStore), mismos tiles de carta, mismo DropdownSearch, y pestañas
+// Cartas / Sets / Productos (Productos = el equivalente de Sleeves aquí,
+// pero con el catálogo general de productos en vez de solo sleeves).
 function AddCardsModal({
   open,
   onClose,
@@ -734,219 +850,843 @@ function AddCardsModal({
   open: boolean;
   onClose: () => void;
   currency: string;
-  onConfirm: (picks: Array<{ card: CardSearchItem; quantity: number }>) => void;
+  onConfirm: (picks: BuylistPick[]) => void;
 }) {
-  const [searchInput, setSearchInput] = useState("");
-  const [results, setResults] = useState<CardSearchItem[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [cart, setCart] = useState<
-    Array<{ card: CardSearchItem; quantity: number }>
-  >([]);
+  const [addModalTab, setAddModalTab] = useState<"cards" | "sets" | "products">(
+    "cards"
+  );
+  const [search, setSearch] = useState("");
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedSets, setSelectedSets] = useState<string[]>([]);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedCosts, setSelectedCosts] = useState<string[]>([]);
+  const [selectedPower, setSelectedPower] = useState<string[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedCounter, setSelectedCounter] = useState("");
+  const [selectedTrigger, setSelectedTrigger] = useState("");
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  const [selectedAltArts, setSelectedAltArts] = useState<string[]>([]);
+  const [setsTabQuery, setSetsTabQuery] = useState("");
+  const [productsTabQuery, setProductsTabQuery] = useState("");
+  const [debouncedProductsQuery, setDebouncedProductsQuery] = useState("");
+  const [products, setProducts] = useState<ProductSearchItem[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [cart, setCart] = useState<CartEntry[]>([]);
 
   useEffect(() => {
-    if (!open) {
-      setSearchInput("");
-      setResults([]);
-      setSearching(false);
-      setHasSearched(false);
-      setCart([]);
-    }
+    if (open) return;
+    setAddModalTab("cards");
+    setSearch("");
+    setSelectedColors([]);
+    setSelectedSets([]);
+    setSelectedRarities([]);
+    setSelectedCosts([]);
+    setSelectedPower([]);
+    setSelectedAttributes([]);
+    setSelectedCategories([]);
+    setSelectedEffects([]);
+    setSelectedTypes([]);
+    setSelectedCounter("");
+    setSelectedTrigger("");
+    setSelectedCodes([]);
+    setSelectedAltArts([]);
+    setSetsTabQuery("");
+    setProductsTabQuery("");
+    setProducts([]);
+    setCart([]);
   }, [open]);
 
-  const runSearch = async () => {
-    const term = searchInput.trim();
-    if (term.length < 2) {
-      setResults([]);
-      setHasSearched(true);
+  // Catálogo completo de cartas — mismo store/hook global que
+  // /lists/[id]/add-cards (useAllCards + useCardStore, cacheado en IndexedDB
+  // vía TanStack Query), así los filtros son instantáneos sin ir al server.
+  const cachedCards = useCardStore((state) => state.allCards);
+  const setAllCards = useCardStore((state) => state.setAllCards);
+  const setIsFullyLoaded = useCardStore((state) => state.setIsFullyLoaded);
+  const allCardsSignatureRef = useRef<string | null>(null);
+
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const hasActiveSearch = debouncedSearch.trim().length > 0;
+  const fullQueryFilters = useMemo<CardsFilters>(
+    () => ({ search: hasActiveSearch ? debouncedSearch.trim() : undefined }),
+    [debouncedSearch, hasActiveSearch]
+  );
+
+  const { data: allCardsData, isFetching: isFetchingAllCards } = useAllCards(
+    fullQueryFilters,
+    {
+      includeRelations: true,
+      includeAlternates: true,
+      includeCounts: false,
+      enabled: open,
+    }
+  );
+
+  useEffect(() => {
+    if (!open || hasActiveSearch || !allCardsData) return;
+
+    if (!allCardsData.length) {
+      if (allCardsSignatureRef.current !== "empty") {
+        allCardsSignatureRef.current = "empty";
+        setAllCards([]);
+      }
       return;
     }
-    setSearching(true);
-    try {
-      const params = new URLSearchParams({
-        search: term,
-        limit: "24",
-        includeAlternates: "false",
-        includeCounts: "false",
-      });
-      const response = await fetch(`/api/cards/full?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to search cards");
-      const data = await response.json();
-      setResults((data.items ?? []) as CardSearchItem[]);
-    } catch (error) {
-      console.error(error);
-      setResults([]);
-    } finally {
-      setSearching(false);
-      setHasSearched(true);
-    }
-  };
 
-  const pickCard = (card: CardSearchItem) => {
+    const first = allCardsData[0];
+    const last = allCardsData[allCardsData.length - 1];
+    const signature = `${allCardsData.length}-${first?.id ?? ""}-${last?.id ?? ""}`;
+    if (allCardsSignatureRef.current !== signature) {
+      allCardsSignatureRef.current = signature;
+      setAllCards(allCardsData);
+    }
+    if (!isFetchingAllCards) setIsFullyLoaded(true);
+  }, [open, hasActiveSearch, allCardsData, isFetchingAllCards, setAllCards, setIsFullyLoaded]);
+
+  const cards = hasActiveSearch
+    ? allCardsData ?? []
+    : cachedCards.length > 0
+      ? cachedCards
+      : allCardsData ?? [];
+
+  const allFilteredCards = useMemo(() => {
+    if (!cards || cards.length === 0) return [];
+
+    return cards
+      .filter((card) => {
+        const matchesWithAlternates = (
+          predicate: (target: CardWithCollectionData) => boolean
+        ) =>
+          predicate(card) ||
+          (card.alternates ?? []).some((alt) => predicate(alt));
+
+        const matchesSearch =
+          cardMatchesActiveFilters(card, {
+            search,
+            selectedSets,
+            selectedCodes,
+            selectedAltArts,
+          }) ||
+          (card.alternates ?? []).some((alt) =>
+            cardMatchesActiveFilters(alt, {
+              search,
+              selectedSets,
+              selectedCodes,
+              selectedAltArts,
+            })
+          ) ||
+          matchesCardCode(card.code, search) ||
+          (card.alternates ?? []).some((alt) => matchesCardCode(alt.code, search));
+
+        const matchesColors =
+          selectedColors.length === 0 ||
+          matchesWithAlternates((target) =>
+            target.colors.some((col) =>
+              selectedColors.includes(col.color.toLowerCase())
+            )
+          );
+
+        const baseMatches = baseCardMatches(card, selectedSets, []);
+        const altMatches = getFilteredAlternates(card, selectedSets, []).length > 0;
+        const matchesSets = selectedSets.length === 0 ? true : baseMatches || altMatches;
+
+        const matchesAltArts =
+          selectedAltArts.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedAltArts.includes(target.alternateArt ?? "")
+          );
+
+        const matchesTypes =
+          selectedTypes.length === 0 ||
+          matchesWithAlternates((target) =>
+            target.types.some((type) => selectedTypes.includes(type.type))
+          );
+
+        const matchesEffects =
+          selectedEffects.length === 0 ||
+          matchesWithAlternates((target) =>
+            (target.effects ?? []).some((effect) =>
+              selectedEffects.includes(effect.effect)
+            )
+          );
+
+        const matchesRarities =
+          selectedRarities.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedRarities.includes(target.rarity || "")
+          );
+
+        const matchesCategories =
+          selectedCategories.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedCategories.includes(target.category || "")
+          );
+
+        const matchesCounter =
+          selectedCounter === "" ||
+          matchesWithAlternates((target) =>
+            selectedCounter === NO_COUNTER_LABEL
+              ? !target.counter
+              : (target.counter?.toString() ?? "") === selectedCounter
+          );
+
+        const matchesTrigger =
+          selectedTrigger === "" ||
+          matchesWithAlternates((target) =>
+            selectedTrigger === NO_TRIGGER_LABEL
+              ? !target.triggerCard
+              : (target.triggerCard ?? "") === selectedTrigger
+          );
+
+        const matchesCosts =
+          selectedCosts.length === 0 ||
+          matchesWithAlternates((target) => selectedCosts.includes(target.cost || ""));
+
+        const matchesPower =
+          selectedPower.length === 0 ||
+          matchesWithAlternates((target) => selectedPower.includes(target.power || ""));
+
+        const matchesAttributes =
+          selectedAttributes.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedAttributes.includes(target.attribute || "")
+          );
+
+        const matchesCodes =
+          selectedCodes.length === 0 ||
+          matchesWithAlternates((target) =>
+            selectedCodes.some((code) => target.code.includes(code))
+          );
+
+        return (
+          matchesSearch &&
+          matchesColors &&
+          matchesSets &&
+          matchesAltArts &&
+          matchesRarities &&
+          matchesTypes &&
+          matchesCategories &&
+          matchesCounter &&
+          matchesTrigger &&
+          matchesEffects &&
+          matchesCosts &&
+          matchesPower &&
+          matchesAttributes &&
+          matchesCodes
+        );
+      })
+      .sort(sortByCollectionOrder);
+  }, [
+    cards,
+    search,
+    selectedColors,
+    selectedSets,
+    selectedTypes,
+    selectedEffects,
+    selectedRarities,
+    selectedCategories,
+    selectedCounter,
+    selectedTrigger,
+    selectedCosts,
+    selectedPower,
+    selectedAttributes,
+    selectedCodes,
+    selectedAltArts,
+  ]);
+
+  const VISIBLE_CAP = 120;
+  const visibleCards = allFilteredCards.slice(0, VISIBLE_CAP);
+
+  // Pestaña "Productos": búsqueda server-side (debounced) sobre el catálogo
+  // general de productos — boosters, sleeves, playmats, etc.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProductsQuery(productsTabQuery), 250);
+    return () => clearTimeout(t);
+  }, [productsTabQuery]);
+
+  useEffect(() => {
+    if (addModalTab !== "products" || !open) return;
+    let cancelled = false;
+    setIsLoadingProducts(true);
+    const params = new URLSearchParams({ limit: "60", archived: "false" });
+    if (debouncedProductsQuery.trim()) {
+      params.set("search", debouncedProductsQuery.trim());
+    }
+    fetch(`/api/products?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setProducts((data.items ?? []) as ProductSearchItem[]);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) setProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingProducts(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [addModalTab, open, debouncedProductsQuery]);
+
+  const pickCard = (card: CardWithCollectionData) => {
     setCart((prev) => {
-      const idx = prev.findIndex((entry) => entry.card.id === card.id);
+      const idx = prev.findIndex((e) => e.kind === "card" && e.card.id === card.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+        const entry = next[idx];
+        next[idx] = { ...entry, quantity: entry.quantity + 1 };
         return next;
       }
-      return [...prev, { card, quantity: 1 }];
+      return [...prev, { kind: "card", card, quantity: 1 }];
     });
   };
 
-  const updateQuantity = (cardId: number, delta: number) => {
+  const updateCardQuantity = (cardId: CardWithCollectionData["id"], delta: number) => {
     setCart((prev) =>
       prev
-        .map((entry) =>
-          entry.card.id === cardId
-            ? { ...entry, quantity: entry.quantity + delta }
-            : entry
+        .map((e) =>
+          e.kind === "card" && e.card.id === cardId
+            ? { ...e, quantity: e.quantity + delta }
+            : e
         )
-        .filter((entry) => entry.quantity > 0)
+        .filter((e) => e.quantity > 0)
     );
   };
 
-  const removeFromCart = (cardId: number) => {
-    setCart((prev) => prev.filter((entry) => entry.card.id !== cardId));
+  const removeCard = (cardId: CardWithCollectionData["id"]) => {
+    setCart((prev) => prev.filter((e) => !(e.kind === "card" && e.card.id === cardId)));
   };
 
-  const totalQuantity = cart.reduce((sum, entry) => sum + entry.quantity, 0);
+  const handleAddAllFromSet = (setCards: CardWithCollectionData[]) => {
+    setCart((prev) => {
+      const next = [...prev];
+      for (const card of setCards) {
+        const idx = next.findIndex((e) => e.kind === "card" && e.card.id === card.id);
+        if (idx >= 0) {
+          const entry = next[idx];
+          next[idx] = { ...entry, quantity: entry.quantity + 1 };
+        } else {
+          next.push({ kind: "card", card, quantity: 1 });
+        }
+      }
+      return next;
+    });
+  };
+
+  const pickProduct = (product: ProductSearchItem) => {
+    setCart((prev) => {
+      const idx = prev.findIndex((e) => e.kind === "product" && e.product.id === product.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        const entry = next[idx];
+        next[idx] = { ...entry, quantity: entry.quantity + 1 };
+        return next;
+      }
+      return [...prev, { kind: "product", product, quantity: 1 }];
+    });
+  };
+
+  const updateProductQuantity = (productId: number, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((e) =>
+          e.kind === "product" && e.product.id === productId
+            ? { ...e, quantity: e.quantity + delta }
+            : e
+        )
+        .filter((e) => e.quantity > 0)
+    );
+  };
+
+  const removeProduct = (productId: number) => {
+    setCart((prev) =>
+      prev.filter((e) => !(e.kind === "product" && e.product.id === productId))
+    );
+  };
+
+  const cartCardEntries = useMemo(
+    () => cart.filter((e): e is Extract<CartEntry, { kind: "card" }> => e.kind === "card"),
+    [cart]
+  );
+  const cartProductEntries = useMemo(
+    () =>
+      cart.filter((e): e is Extract<CartEntry, { kind: "product" }> => e.kind === "product"),
+    [cart]
+  );
+  const totalQuantity = cart.reduce((sum, e) => sum + e.quantity, 0);
 
   const handleConfirm = () => {
     if (cart.length === 0) return;
-    onConfirm(cart);
+    const picks: BuylistPick[] = cart.map((entry) =>
+      entry.kind === "card"
+        ? { kind: "card" as const, quantity: entry.quantity, card: toCardSearchItem(entry.card) }
+        : { kind: "product" as const, quantity: entry.quantity, product: entry.product }
+    );
+    onConfirm(picks);
     onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex h-full w-full flex-col overflow-hidden p-0 sm:h-[85vh] sm:max-h-[800px] sm:w-[1100px] sm:max-w-[95vw]">
+      <DialogContent className="flex h-full w-full flex-col overflow-hidden p-0 sm:h-[85vh] sm:max-h-[800px] sm:w-[1200px] sm:max-w-[95vw]">
         <DialogHeader className="flex-shrink-0 border-b px-5 py-3">
           <DialogTitle>Agregar cartas</DialogTitle>
         </DialogHeader>
+
+        <div className="flex border-b border-slate-200 bg-white flex-shrink-0">
+          {(
+            [
+              { key: "cards", label: "Cartas" },
+              { key: "sets", label: "Sets" },
+              { key: "products", label: "Productos" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setAddModalTab(tab.key)}
+              className={`flex-1 px-2 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                addModalTab === tab.key
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex flex-shrink-0 items-center gap-2 border-b px-4 py-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void runSearch();
-                    }
-                  }}
-                  placeholder="Busca por código, nombre o set..."
-                />
+          <div className="hidden sm:flex w-64 flex-shrink-0 min-h-0 flex-col">
+            {addModalTab === "cards" && (
+              <FiltersSidebar
+                variant="inline"
+                isOpen={false}
+                setIsOpen={() => {}}
+                search={search}
+                setSearch={setSearch}
+                selectedColors={selectedColors}
+                setSelectedColors={setSelectedColors}
+                selectedRarities={selectedRarities}
+                setSelectedRarities={setSelectedRarities}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                selectedCounter={selectedCounter}
+                setSelectedCounter={setSelectedCounter}
+                selectedTrigger={selectedTrigger}
+                setSelectedTrigger={setSelectedTrigger}
+                selectedEffects={selectedEffects}
+                setSelectedEffects={setSelectedEffects}
+                selectedTypes={selectedTypes}
+                setSelectedTypes={setSelectedTypes}
+                selectedSets={selectedSets}
+                setSelectedSets={setSelectedSets}
+                selectedCosts={selectedCosts}
+                setSelectedCosts={setSelectedCosts}
+                selectedPower={selectedPower}
+                setSelectedPower={setSelectedPower}
+                selectedAttributes={selectedAttributes}
+                setSelectedAttributes={setSelectedAttributes}
+                selectedAltArts={selectedAltArts}
+                setSelectedAltArts={setSelectedAltArts}
+                selectedCodes={selectedCodes}
+                setSelectedCodes={setSelectedCodes}
+              />
+            )}
+            {addModalTab === "sets" && (
+              <div className="flex h-full w-full flex-col bg-white border-r border-slate-200">
+                <div className="px-3 py-2.5 border-b border-slate-200 flex-shrink-0">
+                  <input
+                    type="text"
+                    value={setsTabQuery}
+                    onChange={(e) => setSetsTabQuery(e.target.value)}
+                    placeholder="Buscar set..."
+                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  />
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+                  {setOptions
+                    .filter((opt) =>
+                      opt.label.toLowerCase().includes(setsTabQuery.toLowerCase())
+                    )
+                    .map((opt) => {
+                      const isActive =
+                        selectedSets.length === 1 && selectedSets[0] === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setSelectedSets(isActive ? [] : [opt.value])}
+                          className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                            isActive
+                              ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-300"
+                              : "text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                </div>
               </div>
-              <Button onClick={() => void runSearch()} disabled={searching}>
-                {searching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-                <span className="ml-2 hidden sm:inline">Buscar</span>
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {searching ? (
-                <div className="text-sm text-muted-foreground">
-                  Buscando cartas...
+            )}
+            {addModalTab === "products" && (
+              <div className="flex h-full w-full flex-col bg-white border-r border-slate-200">
+                <div className="px-3 py-2.5 border-b border-slate-200 flex-shrink-0">
+                  <input
+                    type="text"
+                    value={productsTabQuery}
+                    onChange={(e) => setProductsTabQuery(e.target.value)}
+                    placeholder="Buscar producto..."
+                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  />
                 </div>
-              ) : results.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-                  {results.map((card) => {
-                    const inCart = cart.find((entry) => entry.card.id === card.id);
-                    return (
-                      <div
-                        key={card.id}
-                        className="flex flex-col gap-2 rounded-lg border p-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={card.src}
-                            alt={card.name}
-                            className="h-16 w-12 flex-shrink-0 rounded border object-cover"
-                          />
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            <p className="truncate text-sm font-medium">
-                              {card.name}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {card.code}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {card.sets?.[0]?.set?.title || card.setCode}
-                            </p>
-                            <p className="truncate text-xs font-medium text-emerald-700">
-                              Mkt {formatCurrency(toNumber(card.marketPrice), currency)}
-                            </p>
-                            <p className="truncate text-xs font-medium text-emerald-700">
-                              Mid {formatCurrency(toNumber(card.midPrice), currency)}
-                            </p>
-                          </div>
-                        </div>
-                        {inCart ? (
-                          <div className="flex items-stretch overflow-hidden rounded-md border">
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(card.id, -1)}
-                              className="flex flex-1 items-center justify-center py-1.5 hover:bg-muted"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <span className="flex min-w-[2rem] items-center justify-center text-xs font-semibold">
-                              {inCart.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(card.id, 1)}
-                              className="flex flex-1 items-center justify-center py-1.5 hover:bg-muted"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            className="gap-1.5"
-                            onClick={() => pickCard(card)}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Agregar
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="flex-1 overflow-y-auto p-3 text-xs text-slate-400">
+                  Busca boosters, sleeves, playmats y otros productos para
+                  agregarlos como l&iacute;nea de compra.
                 </div>
-              ) : hasSearched ? (
-                <div className="text-sm text-muted-foreground">
-                  No hubo resultados para esa búsqueda.
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  Escribe un código, nombre o set y presiona Buscar.
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="hidden min-h-0 w-72 flex-shrink-0 flex-col border-l sm:flex">
-            <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3">
-              <p className="text-sm font-semibold">
+          <div className="flex-1 flex flex-col min-h-0">
+            {addModalTab === "products" ? (
+              <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                {isLoadingProducts ? (
+                  <div className="flex items-center justify-center h-full gap-2 text-sm text-slate-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando productos...
+                  </div>
+                ) : products.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                    No hay productos disponibles
+                  </div>
+                ) : (
+                  <div className="grid gap-3 grid-cols-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {products.map((p) => {
+                      const qty = cartProductEntries.find((e) => e.product.id === p.id)?.quantity;
+                      return (
+                        <div
+                          key={p.id}
+                          className={cn(
+                            "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                            qty
+                              ? "border-indigo-500 ring-1 ring-indigo-500"
+                              : "border-slate-200 hover:border-slate-300"
+                          )}
+                        >
+                          <div className="relative p-1.5">
+                            <LazyImage
+                              src={p.imageUrl ?? p.thumbnailUrl ?? "/assets/images/backcard.webp"}
+                              fallbackSrc="/assets/images/backcard.webp"
+                              alt={p.name}
+                              className="w-full rounded-md"
+                              size="small"
+                            />
+                            {qty ? (
+                              <>
+                                <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                  {qty}
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                          <div className="px-2 pb-2 flex flex-col gap-1.5">
+                            <p className="text-xs font-medium text-zinc-700 truncate">{p.name}</p>
+                            <p className="text-[10px] text-zinc-500 truncate">
+                              {formatCurrency(toNumber(p.marketPrice), p.priceCurrency || currency)}
+                            </p>
+                            {qty ? (
+                              <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                <button
+                                  onClick={() => updateProductQuantity(p.id, -1)}
+                                  className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                >
+                                  <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                </button>
+                                <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                  {qty}
+                                </span>
+                                <button
+                                  onClick={() => updateProductQuantity(p.id, 1)}
+                                  className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                >
+                                  <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => pickProduct(p)}
+                                className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Agregar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="px-4 py-3 border-b border-[#f5f5f5] bg-white flex items-center gap-2 flex-shrink-0">
+                  <div className="flex-1 min-w-0">
+                    <DropdownSearch
+                      search={search}
+                      setSearch={setSearch}
+                      placeholder="Busca por código, nombre o set..."
+                      suggestionsEndpoint="/api/cards/search-suggestions"
+                    />
+                  </div>
+                </div>
+
+                {addModalTab === "sets" && selectedSets.length > 0 && (
+                  <div className="px-4 py-2 border-b border-[#f5f5f5] bg-indigo-50 flex items-center justify-between flex-shrink-0 gap-2">
+                    <p className="text-sm text-indigo-900 min-w-0 truncate">
+                      <span className="font-semibold">
+                        {setOptions.find((o) => o.value === selectedSets[0])?.label ??
+                          selectedSets[0]}
+                      </span>
+                      {" — "}
+                      {allFilteredCards.length} carta
+                      {allFilteredCards.length !== 1 ? "s" : ""}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="flex-shrink-0"
+                      disabled={allFilteredCards.length === 0}
+                      onClick={() => handleAddAllFromSet(allFilteredCards)}
+                    >
+                      Agregar todas
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                  {addModalTab === "sets" && selectedSets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-sm text-slate-400 gap-2 py-16">
+                      <Package className="h-8 w-8 text-slate-300" />
+                      Elige un set a la izquierda para ver sus cartas
+                    </div>
+                  ) : visibleCards.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                      {isFetchingAllCards
+                        ? "Cargando cartas..."
+                        : "No hubo resultados para esa búsqueda."}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-1.5 grid-cols-3 sm:grid-cols-3 lg:grid-cols-5">
+                        {visibleCards.map((card) => {
+                          const baseMatches = baseCardMatches(
+                            card,
+                            selectedSets,
+                            selectedAltArts
+                          );
+                          const filteredAlts = getFilteredAlternates(
+                            card,
+                            selectedSets,
+                            selectedAltArts
+                          );
+                          if (!baseMatches && filteredAlts.length === 0) return null;
+
+                          return (
+                            <Fragment key={card._id}>
+                              {baseMatches &&
+                                (() => {
+                                  const qty = cartCardEntries.find(
+                                    (e) => e.card.id === card.id
+                                  )?.quantity;
+                                  return (
+                                    <div
+                                      className={cn(
+                                        "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                                        qty
+                                          ? "border-indigo-500 ring-1 ring-indigo-500"
+                                          : "border-slate-200 hover:border-slate-300"
+                                      )}
+                                    >
+                                      <div
+                                        className="relative p-1.5 cursor-pointer"
+                                        onClick={() => pickCard(card)}
+                                      >
+                                        <LazyImage
+                                          src={card.src}
+                                          fallbackSrc="/assets/images/backcard.webp"
+                                          alt={card.name}
+                                          className="w-full rounded-md"
+                                          size="small"
+                                        />
+                                        {qty ? (
+                                          <>
+                                            <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                            <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                              {qty}
+                                            </div>
+                                          </>
+                                        ) : null}
+                                      </div>
+                                      <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                        <div className="min-w-0 flex flex-col">
+                                          <p
+                                            className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
+                                          >
+                                            {highlightText(card.code, search)}
+                                          </p>
+                                          <p className="text-[10px] text-zinc-500 truncate">
+                                            {highlightText(
+                                              card.sets?.[0]?.set?.title || "Sin set",
+                                              search
+                                            )}
+                                          </p>
+                                        </div>
+                                        {qty ? (
+                                          <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                            <button
+                                              onClick={() => updateCardQuantity(card.id, -1)}
+                                              className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                            >
+                                              <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                            </button>
+                                            <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                              {qty}
+                                            </span>
+                                            <button
+                                              onClick={() => updateCardQuantity(card.id, 1)}
+                                              className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                            >
+                                              <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => pickCard(card)}
+                                            className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                                          >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Agregar
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
+                              {filteredAlts.map((alt) => {
+                                const altQty = cartCardEntries.find(
+                                  (e) => e.card.id === alt.id
+                                )?.quantity;
+                                return (
+                                  <div
+                                    key={alt._id}
+                                    className={cn(
+                                      "w-full rounded-lg border overflow-hidden bg-white transition-colors",
+                                      altQty
+                                        ? "border-indigo-500 ring-1 ring-indigo-500"
+                                        : "border-slate-200 hover:border-slate-300"
+                                    )}
+                                  >
+                                    <div
+                                      className="relative p-1.5 cursor-pointer"
+                                      onClick={() => pickCard(alt)}
+                                    >
+                                      <LazyImage
+                                        src={alt.src}
+                                        fallbackSrc="/assets/images/backcard.webp"
+                                        alt={alt.alias}
+                                        className="w-full rounded-md"
+                                        size="small"
+                                      />
+                                      {altQty ? (
+                                        <>
+                                          <div className="absolute inset-1.5 bg-black/30 rounded-md pointer-events-none" />
+                                          <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[11px] font-bold min-w-[1.375rem] h-[1.375rem] px-1 rounded-full shadow flex items-center justify-center">
+                                            {altQty}
+                                          </div>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                    <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                      <div className="min-w-0 flex flex-col">
+                                        <p
+                                          className={`${oswald.className} text-xs font-bold text-zinc-800 truncate`}
+                                        >
+                                          {highlightText(card.code, search)}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-500 truncate">
+                                          {alt.sets?.[0]?.set?.title || "Sin set"}
+                                        </p>
+                                      </div>
+                                      {altQty ? (
+                                        <div className="flex items-stretch rounded-md overflow-hidden border border-zinc-300">
+                                          <button
+                                            onClick={() => updateCardQuantity(alt.id, -1)}
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Minus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                          <span className="flex items-center justify-center min-w-[1.75rem] text-xs font-semibold text-zinc-800">
+                                            {altQty}
+                                          </span>
+                                          <button
+                                            onClick={() => updateCardQuantity(alt.id, 1)}
+                                            className="flex-1 flex items-center justify-center py-1.5 hover:bg-zinc-100 transition-colors"
+                                          >
+                                            <Plus className="h-3.5 w-3.5 text-zinc-600" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => pickCard(alt)}
+                                          className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          Agregar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </Fragment>
+                          );
+                        })}
+                      </div>
+                      {allFilteredCards.length > VISIBLE_CAP && (
+                        <p className="mt-3 text-center text-xs text-slate-400">
+                          Mostrando {VISIBLE_CAP} de {allFilteredCards.length} — refina la
+                          búsqueda o los filtros para ver más.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="hidden sm:flex w-72 flex-shrink-0 border-l border-slate-200 flex-col min-h-0">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+              <p className="text-sm font-semibold text-zinc-900">
                 Seleccionadas ({totalQuantity})
               </p>
               {cart.length > 0 && (
                 <button
-                  type="button"
                   onClick={() => setCart([])}
-                  className="text-xs font-medium text-blue-600 hover:underline"
+                  className="text-xs font-medium text-indigo-600 hover:underline"
                 >
                   Limpiar
                 </button>
@@ -954,50 +1694,64 @@ function AddCardsModal({
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
               {cart.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-xs text-muted-foreground">
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-400">
                   <ShoppingBag className="h-8 w-8 opacity-30" />
-                  Las cartas que elijas aparecerán aquí
+                  Las cartas y productos que elijas aparecerán aquí
                 </div>
               ) : (
-                cart.map((entry) => (
-                  <div
-                    key={entry.card.id}
-                    className="flex items-center gap-2 rounded-md border p-1.5"
-                  >
-                    <img
-                      src={entry.card.src}
-                      alt={entry.card.name}
-                      className="h-11 w-8 flex-shrink-0 rounded object-cover"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                      {entry.card.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(entry.card.id, -1)}
-                      className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-muted/70"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-5 text-center text-xs font-semibold">
-                      {entry.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(entry.card.id, 1)}
-                      className="flex h-6 w-6 items-center justify-center rounded bg-muted hover:bg-muted/70"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(entry.card.id)}
-                      className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-red-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
+                cart.map((entry) => {
+                  const isCard = entry.kind === "card";
+                  const key = isCard ? `card-${entry.card.id}` : `product-${entry.product.id}`;
+                  const src = isCard
+                    ? entry.card.src
+                    : entry.product.imageUrl ?? entry.product.thumbnailUrl ?? "";
+                  const name = isCard ? entry.card.name : entry.product.name;
+                  return (
+                    <div key={key} className="flex items-center gap-2 rounded-md border p-1.5">
+                      <div className="h-11 w-8 flex-shrink-0">
+                        <LazyImage
+                          src={src || "/assets/images/backcard.webp"}
+                          fallbackSrc="/assets/images/backcard.webp"
+                          alt={name}
+                          className="w-full h-full rounded object-cover"
+                          size="small"
+                        />
+                      </div>
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
+                      <button
+                        onClick={() =>
+                          isCard
+                            ? updateCardQuantity(entry.card.id, -1)
+                            : updateProductQuantity(entry.product.id, -1)
+                        }
+                        className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 hover:bg-zinc-200"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-semibold">
+                        {entry.quantity}
+                      </span>
+                      <button
+                        onClick={() =>
+                          isCard
+                            ? updateCardQuantity(entry.card.id, 1)
+                            : updateProductQuantity(entry.product.id, 1)
+                        }
+                        className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 hover:bg-zinc-200"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          isCard ? removeCard(entry.card.id) : removeProduct(entry.product.id)
+                        }
+                        className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 hover:text-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1007,7 +1761,7 @@ function AddCardsModal({
           <div className="flex flex-shrink-0 justify-end border-t bg-white p-3">
             <Button onClick={handleConfirm} className="gap-2">
               <Plus className="h-4 w-4" />
-              Agregar {totalQuantity} carta{totalQuantity !== 1 ? "s" : ""}
+              Agregar {totalQuantity} item{totalQuantity !== 1 ? "s" : ""}
             </Button>
           </div>
         )}

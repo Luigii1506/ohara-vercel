@@ -21,6 +21,7 @@ export const setCodes = [
   "EB03",
   "EB04",
   "PRB01",
+  
   "PRB02",
 ];
 
@@ -68,6 +69,12 @@ export const standarDecks = [
   "ST28",
   "ST29",
   "ST30",
+  "ST31",
+  "ST32",
+  "ST33",
+  "ST34",
+  "ST35",
+  "ST36",
   "PROMO",
 ];
 
@@ -135,6 +142,10 @@ export const setOptions = [
   {
     value: "OP16",
     label: "OP16 The Time of Battle",
+  },
+  {
+    value: "OP17",
+    label: "OP17 The World's Strongest Warriors",
   },
   {
     value: "EB01",
@@ -276,6 +287,31 @@ export const setOptions = [
     value: "ST30",
     label: "ST30 EX Luffy & Ace",
   },
+{
+    value: "ST31",
+    label: "ST31 RED Monkey.D.Luffy",
+  },
+  {
+    value: "ST32",
+    label: "ST32 GREEN Roronoa Zoro",
+  },
+  {
+    value: "ST33",
+    label: "ST33 BLUE Kuzan",
+  },
+  {
+    value: "ST34",
+    label: "ST34 PURPLE Charlotte Katakuri",
+  },
+  {
+    value: "ST35",
+    label: "ST35 RED/BLACK Sabo",
+  },
+  {
+    value: "ST36",
+    label: "ST36 YELLOW Eustass Captain Kid",
+  },
+  
 ];
 
 export const setCodesOptions = [
@@ -296,6 +332,7 @@ export const setCodesOptions = [
   { value: "OP14", label: "OP14" },
   { value: "OP15", label: "OP15" },
   { value: "OP16", label: "OP16" },
+  { value: "OP17", label: "OP17" },
   { value: "EB01", label: "EB01" },
   { value: "EB02", label: "EB02" },
   { value: "EB03", label: "EB03" },
@@ -333,7 +370,12 @@ export const setCodesOptions = [
   { value: "ST28", label: "ST28" },
   { value: "ST29", label: "ST29" },
   { value: "ST30", label: "ST30" },
-
+  { value: "ST31", label: "ST31" },
+  { value: "ST32", label: "ST32" },
+  { value: "ST33", label: "ST33" },
+  { value: "ST34", label: "ST34" },
+  { value: "ST35", label: "ST35" },
+  { value: "ST36", label: "ST36" },
 ];
 
 export const setCodeMetadata = setCodesOptions.reduce((acc, option) => {

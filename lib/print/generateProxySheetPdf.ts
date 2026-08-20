@@ -802,7 +802,7 @@ function drawLabelChip(
 
 function drawTriggerSection(ctx: CanvasRenderingContext2D, text: string) {
   const sectionX = 44;
-  const sectionY = 892;
+  const sectionY = 866;
   const sectionWidth = 656;
   const sectionHeight = 92;
   const labelX = sectionX;

@@ -70,6 +70,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
       }));
 
   const displayTrigger = getLocalizedText("triggerCard", card?.triggerCard);
+  const triggerLabel = showSpanishText ? "Activador" : t("cardDetails.trigger");
 
   return (
     <Card className="w-full max-w-2xl mx-auto border rounded-lg shadow  py-4 h-full">
@@ -249,7 +250,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
                   clipPath: "polygon(0 0, 100% 0%, 80% 100%, 0% 100%)",
                 }}
               >
-                {t("cardDetails.trigger")}
+                {triggerLabel}
               </div>
               <div className="relative bg-black w-full text-white  flex flex-row justify-start items-start">
                 <p className="text-[13px] leading-[16px] font-[200]  px-2 py-3 text-white">

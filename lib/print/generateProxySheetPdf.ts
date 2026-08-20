@@ -678,6 +678,12 @@ function drawSpanishOverlay(
   overlay: PrintOverlayData,
   fallbackName: string
 ) {
+  const translatedTextBox = {
+    x: 46,
+    y: 620,
+    width: 652,
+    height: 232,
+  };
   const translatedName = pickOverlayText(
     overlay.localizedName,
     overlay.sourceName,
@@ -726,20 +732,20 @@ function drawSpanishOverlay(
 
   if (hasTranslatedText) {
     drawRoundedTextBox(ctx, {
-      x: 46,
-      y: 620,
-      width: 652,
-      height: 232,
+      x: translatedTextBox.x,
+      y: translatedTextBox.y,
+      width: translatedTextBox.width,
+      height: translatedTextBox.height,
       radius: 22,
       fill: "rgba(255, 255, 255, 0.95)",
       stroke: "rgba(15, 23, 42, 0.18)",
-      paddingX: 24,
-      paddingTop: 24,
+      paddingX: 14,
+      paddingTop: 14,
       text: translatedText,
       fontFamily: 'Arial, sans-serif',
-      initialFontSize: 26,
-      minFontSize: 16,
-      lineHeight: 1.22,
+      initialFontSize: 24,
+      minFontSize: 14,
+      lineHeight: 1.16,
       color: "#0f172a",
       maxLines: 8,
       highlightConditions: overlay.localizedConditions ?? [],
@@ -748,7 +754,7 @@ function drawSpanishOverlay(
   }
 
   if (hasTranslatedTrigger) {
-    drawTriggerSection(ctx, translatedTrigger);
+    drawTriggerSection(ctx, translatedTrigger, translatedTextBox);
   }
 }
 
@@ -800,59 +806,191 @@ function drawLabelChip(
   ctx.restore();
 }
 
-function drawTriggerSection(ctx: CanvasRenderingContext2D, text: string) {
-  const sectionX = 44;
-  const sectionY = 866;
-  const sectionWidth = 656;
-  const sectionHeight = 92;
-  const labelX = sectionX;
-  const labelY = sectionY - 26;
-  const labelWidth = 148;
-  const labelHeight = 28;
+function drawTriggerSection(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  anchor: { x: number; y: number; width: number; height: number }
+) {
+  const contentPaddingX = 10;
+  const contentPaddingTop = 7;
+  const contentPaddingBottom = 8;
+  const labelWidth = 138;
+  const labelHeight = 26;
+  const sectionX = anchor.x;
+  const sectionWidth = anchor.width;
+  const labelInsetX = 8;
+  const labelInsetY = 6;
+  const contentStartX = sectionX + labelInsetX + labelWidth + 8;
+  const contentWidth = sectionWidth - contentPaddingX * 2;
+  const firstLineWidth =
+    sectionX + sectionWidth - contentPaddingX - contentStartX;
+  const followingLineX = sectionX + contentPaddingX;
+  const followingLineWidth = contentWidth;
+  const layout = fitTriggerTextBlock(ctx, text, {
+    firstLineWidth,
+    followingLineWidth,
+    initialFontSize: 21,
+    minFontSize: 14,
+    lineHeight: 1.08,
+    maxLines: 3,
+  });
+  const contentHeight = layout.lines.length * layout.fontSize * 1.08;
+  const sectionHeight = Math.max(
+    labelHeight + 12,
+    contentPaddingTop + contentHeight + contentPaddingBottom
+  );
+  const sectionY = anchor.y + anchor.height - sectionHeight;
+  const labelX = sectionX + labelInsetX;
+  const labelY = sectionY + labelInsetY;
+  const contentStartY = sectionY + contentPaddingTop;
 
   ctx.save();
+
+  ctx.fillStyle = "#000000";
+  roundRect(ctx, sectionX, sectionY, sectionWidth, sectionHeight, 10);
+  ctx.fill();
 
   drawPolygon(ctx, [
     [labelX, labelY],
     [labelX + labelWidth, labelY],
-    [labelX + labelWidth * 0.8, labelY + labelHeight],
+    [labelX + labelWidth * 0.82, labelY + labelHeight],
     [labelX, labelY + labelHeight],
   ]);
   ctx.fillStyle = "#fae92e";
   ctx.fill();
 
-  ctx.font = "800 20px Arial, sans-serif";
+  ctx.font = "800 19px Arial, sans-serif";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   ctx.fillStyle = "#000000";
   ctx.fillText("Trigger", labelX + 12, labelY + labelHeight / 2 + 1);
 
-  ctx.fillStyle = "#000000";
-  roundRect(ctx, sectionX, sectionY, sectionWidth, sectionHeight, 0);
-  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
 
-  drawRoundedTextBox(ctx, {
-    x: sectionX + 10,
-    y: sectionY + 10,
-    width: sectionWidth - 20,
-    height: sectionHeight - 20,
-    radius: 0,
-    fill: "rgba(0, 0, 0, 0)",
-    stroke: "rgba(0, 0, 0, 0)",
-    paddingX: 6,
-    paddingTop: 8,
-    text,
-    fontFamily: 'Arial, sans-serif',
-    initialFontSize: 22,
-    minFontSize: 15,
-    lineHeight: 1.08,
-    color: "#ffffff",
-    maxLines: 3,
-    highlightConditions: [],
-    baseFontWeight: "500",
-  });
+  let currentY = contentStartY;
+  for (let index = 0; index < layout.lines.length; index += 1) {
+    const line = layout.lines[index];
+    const lineX = index === 0 ? contentStartX : followingLineX;
+    drawStyledLine(
+      ctx,
+      { segments: parseStyledSegments(line, []) },
+      lineX,
+      currentY,
+      layout.fontSize,
+      "#ffffff",
+      "500"
+    );
+    currentY += layout.fontSize * 1.08;
+  }
 
   ctx.restore();
+}
+
+function fitTriggerTextBlock(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  {
+    firstLineWidth,
+    followingLineWidth,
+    initialFontSize,
+    minFontSize,
+    lineHeight,
+    maxLines,
+  }: {
+    firstLineWidth: number;
+    followingLineWidth: number;
+    initialFontSize: number;
+    minFontSize: number;
+    lineHeight: number;
+    maxLines: number;
+  }
+) {
+  for (let fontSize = initialFontSize; fontSize >= minFontSize; fontSize -= 1) {
+    ctx.font = `500 ${fontSize}px Arial, sans-serif`;
+    const lines = wrapTriggerText(
+      ctx,
+      text,
+      firstLineWidth,
+      followingLineWidth,
+      maxLines,
+      false
+    );
+    if (lines.length <= maxLines) {
+      return { lines, fontSize };
+    }
+  }
+
+  ctx.font = `500 ${minFontSize}px Arial, sans-serif`;
+  return {
+    lines: wrapTriggerText(
+      ctx,
+      text,
+      firstLineWidth,
+      followingLineWidth,
+      maxLines,
+      true
+    ),
+    fontSize: minFontSize,
+  };
+}
+
+function wrapTriggerText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  firstLineWidth: number,
+  followingLineWidth: number,
+  maxLines: number,
+  forceEllipsis: boolean
+) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const lineIndex = lines.length;
+    const maxWidth = lineIndex === 0 ? firstLineWidth : followingLineWidth;
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      currentLine = candidate;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      lines.push(word);
+      currentLine = "";
+    }
+
+    if (lines.length >= maxLines) {
+      break;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  if (lines.length === 0) {
+    return [""];
+  }
+
+  if (forceEllipsis || words.length > 0) {
+    const joined = lines.join(" ").trim();
+    if (joined !== text.trim()) {
+      return applyEllipsisToLastLine(
+        ctx,
+        lines.slice(0, maxLines),
+        followingLineWidth
+      );
+    }
+  }
+
+  return lines.slice(0, maxLines);
 }
 
 function drawRoundedTextBox(

@@ -83,8 +83,6 @@ export async function generateProxySheetPdf(
   options: GenerateProxySheetPdfOptions = {}
 ): Promise<void> {
   const language = options.language ?? "en";
-  const isMobileViewport =
-    typeof window !== "undefined" && window.innerWidth < 768;
   const expandedCards = cards.flatMap((card) =>
     Array(card.quantity).fill(card)
   );
@@ -128,11 +126,10 @@ export async function generateProxySheetPdf(
     }
   };
 
-  const printModal = isMobileViewport ? null : document.createElement("div");
+  const printModal = document.createElement("div");
 
-  if (printModal) {
-    printModal.className = "print-modal";
-    printModal.innerHTML = `
+  printModal.className = "print-modal";
+  printModal.innerHTML = `
       <style>
         .print-modal {
           position: fixed;
@@ -145,7 +142,7 @@ export async function generateProxySheetPdf(
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 20px;
+          padding: 12px;
         }
 
         .print-modal-content {
@@ -157,6 +154,27 @@ export async function generateProxySheetPdf(
           display: flex;
           flex-direction: column;
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 767px) {
+          .print-modal {
+            padding: 0;
+          }
+
+          .print-modal-content {
+            max-width: none;
+            max-height: none;
+            height: 100vh;
+            border-radius: 0;
+          }
+
+          .print-preview-container {
+            padding: 8px;
+          }
+
+          .print-preview-iframe {
+            height: calc(100vh - 140px);
+          }
         }
 
         .print-modal-header {
@@ -296,47 +314,35 @@ export async function generateProxySheetPdf(
       </div>
     `;
 
-    document.body.appendChild(printModal);
+  document.body.appendChild(printModal);
 
-    const closeModal = () => {
-      printModal.remove();
-      document.removeEventListener("keydown", handleEsc);
-    };
+  const closeModal = () => {
+    printModal.remove();
+    document.removeEventListener("keydown", handleEsc);
+  };
 
-    const closeBtn = document.getElementById("close-modal-btn");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", closeModal);
-    }
-
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeModal();
-      }
-    };
-    document.addEventListener("keydown", handleEsc);
-
-    printModal.addEventListener("click", (e) => {
-      if (e.target === printModal) {
-        closeModal();
-      }
-    });
+  const closeBtn = document.getElementById("close-modal-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", closeModal);
   }
+
+  const handleEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      closeModal();
+    }
+  };
+  document.addEventListener("keydown", handleEsc);
+
+  printModal.addEventListener("click", (e) => {
+    if (e.target === printModal) {
+      closeModal();
+    }
+  });
 
   await generatePDFContent(printModal);
 
   async function generatePDFContent(modal: HTMLDivElement | null) {
     try {
-      const script = document.createElement("script");
-      script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      document.head.appendChild(script);
-
-      await new Promise<void>((resolve) => {
-        script.onload = () => resolve();
-      });
-
-      const { jsPDF } = (window as any).jspdf;
-
       const loadingProgress = modal
         ? (modal.querySelector(".loading-progress") as HTMLElement)
         : null;
@@ -375,153 +381,27 @@ export async function generateProxySheetPdf(
       await Promise.all(loadPromises);
 
       if (loadingProgress) {
-        loadingProgress.textContent = "Creating PDF...";
+        loadingProgress.textContent = "Building print preview...";
       }
-
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [210, 297],
-        compress: false,
-      });
-
-      const cardWidth = 62;
-      const cardHeight = 87;
-      const gap = 1;
-      const startX = 11;
-      const startY = 10;
 
       const cardsPerPage = 9;
-      const pages = [];
+      const pages: Array<Array<string | null>> = [];
       for (let i = 0; i < expandedCards.length; i += cardsPerPage) {
-        pages.push(expandedCards.slice(i, i + cardsPerPage));
-      }
-
-      const drawPlaceholder = (
-        x: number,
-        y: number,
-        card: PrintableCard,
-        globalIndex: number
-      ) => {
-        pdf.setFillColor(245, 245, 245);
-        pdf.rect(x, y, cardWidth, cardHeight, "F");
-        pdf.setDrawColor(200, 200, 200);
-        pdf.setLineWidth(0.5);
-        pdf.rect(x, y, cardWidth, cardHeight, "S");
-
-        pdf.setFontSize(10);
-        pdf.setTextColor(100, 100, 100);
-        const text = card.name || `Card ${globalIndex + 1}`;
-        const lines = pdf.splitTextToSize(text, cardWidth - 10);
-        pdf.text(
-          lines,
-          x + cardWidth / 2,
-          y + cardHeight / 2 - lines.length * 2,
-          { align: "center" }
-        );
-
-        if (card.code) {
-          pdf.setFontSize(8);
-          pdf.setTextColor(150, 150, 150);
-          pdf.text(card.code, x + cardWidth / 2, y + cardHeight / 2 + 10, {
-            align: "center",
-          });
+        const pageImages: Array<string | null> = [];
+        for (let j = 0; j < cardsPerPage; j += 1) {
+          pageImages.push(imageCache.get(i + j) ?? null);
         }
-
-        pdf.setFontSize(7);
-        pdf.setTextColor(200, 100, 100);
-        pdf.text(
-          "Error loading image",
-          x + cardWidth / 2,
-          y + cardHeight - 5,
-          { align: "center" }
-        );
-      };
-
-      for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-        if (pageIndex > 0) {
-          pdf.addPage();
-        }
-
-        if (loadingProgress) {
-          loadingProgress.textContent = `Generating page ${
-            pageIndex + 1
-          } of ${pages.length}`;
-        }
-
-        const pageCards = pages[pageIndex];
-
-        for (let i = 0; i < pageCards.length; i++) {
-          const card = pageCards[i];
-          const globalIndex = pageIndex * cardsPerPage + i;
-          const row = Math.floor(i / 3);
-          const col = i % 3;
-
-          const x = startX + col * (cardWidth + gap);
-          const y = startY + row * (cardHeight + gap);
-
-          const imgData = imageCache.get(globalIndex);
-
-          if (imgData && imgData !== "error") {
-            try {
-              pdf.addImage(
-                imgData,
-                "JPEG",
-                x,
-                y,
-                cardWidth,
-                cardHeight,
-                `card_${pageIndex}_${i}`,
-                "NONE"
-              );
-            } catch (error) {
-              console.error(`Error adding image to PDF:`, error);
-              drawPlaceholder(x, y, card, globalIndex);
-            }
-          } else {
-            drawPlaceholder(x, y, card, globalIndex);
-          }
-        }
-
-        await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        pages.push(pageImages);
       }
 
       if (loadingProgress) {
-        loadingProgress.textContent = "Finalizing PDF...";
+        loadingProgress.textContent = "Preparing print frame...";
       }
 
-      const pdfBlob = pdf.output("blob");
-      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printHtml = buildPrintHtml(pages);
 
       if (!modal) {
-        if (navigator.share && typeof File !== "undefined") {
-          try {
-            const file = new File([pdfBlob], "ohara-proxies.pdf", {
-              type: "application/pdf",
-            });
-            await navigator.share({
-              files: [file],
-              title: "Proxy PDF",
-            });
-            return;
-          } catch (error) {
-            console.warn("Share failed, opening PDF instead.", error);
-          }
-        }
-
-        const downloadLink = document.createElement("a");
-        downloadLink.href = pdfUrl;
-        downloadLink.download = "ohara-proxies.pdf";
-        downloadLink.target = "_blank";
-        downloadLink.rel = "noopener noreferrer";
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        downloadLink.remove();
-
-        if (!document.hidden) {
-          window.location.href = pdfUrl;
-        }
-        return;
+        throw new Error("Print modal is not available");
       }
 
       const previewContainer = modal.querySelector(
@@ -531,21 +411,31 @@ export async function generateProxySheetPdf(
       if (previewContainer) {
         previewContainer.innerHTML = `
             <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-              <iframe id="pdf-preview" class="print-preview-iframe" src="${pdfUrl}"></iframe>
+              <iframe id="pdf-preview" class="print-preview-iframe"></iframe>
             </div>
           `;
       }
 
+      const iframe = document.getElementById("pdf-preview") as HTMLIFrameElement | null;
       const printBtn = document.getElementById(
         "print-btn"
       ) as HTMLButtonElement;
+
+      if (!iframe) {
+        throw new Error("Preview frame could not be created");
+      }
+
+      iframe.srcdoc = printHtml;
+
+      await new Promise<void>((resolve) => {
+        iframe.onload = () => resolve();
+      });
+
       if (printBtn) {
         printBtn.disabled = false;
         printBtn.onclick = () => {
-          const iframe = document.getElementById(
-            "pdf-preview"
-          ) as HTMLIFrameElement;
-          if (iframe && iframe.contentWindow) {
+          if (iframe.contentWindow) {
+            iframe.contentWindow.focus();
             iframe.contentWindow.print();
           }
         };
@@ -571,6 +461,144 @@ export async function generateProxySheetPdf(
       }
     }
   }
+}
+
+function buildPrintHtml(pages: Array<Array<string | null>>) {
+  const pagesMarkup = pages
+    .map((page) => {
+      const cardsMarkup = page
+        .map((imageSrc) => {
+          if (!imageSrc || imageSrc === "error") {
+            return `<div class="card-slot card-slot-empty"></div>`;
+          }
+
+          return `
+            <div class="card-slot">
+              <img src="${imageSrc}" alt="Proxy card" />
+            </div>
+          `;
+        })
+        .join("");
+
+      return `<section class="print-page">${cardsMarkup}</section>`;
+    })
+    .join("");
+
+  return `
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Ohara Proxy Print</title>
+        <style>
+          :root {
+            --page-width: 210mm;
+            --page-height: 297mm;
+            --page-padding-top: 10mm;
+            --page-padding-right: 11mm;
+            --page-padding-bottom: 10mm;
+            --page-padding-left: 11mm;
+            --card-width: 62mm;
+            --card-height: 87mm;
+            --card-gap: 1mm;
+          }
+
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          html,
+          body {
+            margin: 0;
+            padding: 0;
+            background: #dbe1ea;
+            font-family: Arial, sans-serif;
+          }
+
+          body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0 24px;
+          }
+
+          .print-page {
+            width: var(--page-width);
+            height: var(--page-height);
+            padding:
+              var(--page-padding-top)
+              var(--page-padding-right)
+              var(--page-padding-bottom)
+              var(--page-padding-left);
+            background: white;
+            display: grid;
+            grid-template-columns: repeat(3, var(--card-width));
+            grid-auto-rows: var(--card-height);
+            gap: var(--card-gap);
+            align-content: start;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+            overflow: hidden;
+            page-break-after: always;
+            break-after: page;
+          }
+
+          .print-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+
+          .card-slot {
+            width: var(--card-width);
+            height: var(--card-height);
+            overflow: hidden;
+            background: white;
+          }
+
+          .card-slot img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .card-slot-empty {
+            border: none;
+            background: transparent;
+          }
+
+          @media print {
+            html,
+            body {
+              width: var(--page-width);
+              background: white;
+            }
+
+            body {
+              gap: 0;
+              padding: 0;
+            }
+
+            .print-page {
+              margin: 0;
+              box-shadow: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${pagesMarkup}
+      </body>
+    </html>
+  `;
 }
 
 async function fetchPrintOverlayData(

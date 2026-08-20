@@ -147,6 +147,15 @@ const applyItalics = (input, keyPrefix) => {
 // -----------------------------
 // 5. Función para aplicar condiciones (bold)
 // -----------------------------
+// Distintas fuentes (scraper original, traducción ES) no siempre usan el
+// mismo caracter de guion (p.ej. "DON!! -6" vs "DON!! −6" con signo menos),
+// así que se normalizan todas las variantes de guion antes de armar el regex
+// para que el match no dependa del caracter exacto guardado en `condition`.
+const DASH_CHARS = "\\-\u2010\u2011\u2012\u2013\u2014\u2212";
+const DASH_CLASS = `[${DASH_CHARS}]`;
+const normalizeDashesForRegex = (escaped) =>
+  escaped.replace(new RegExp(DASH_CLASS, "g"), DASH_CLASS);
+
 const applyConditions = (text, conditions, keyPrefix) => {
   if (!conditions || conditions.length === 0) return [text];
   const conditionStrings = conditions
@@ -154,14 +163,17 @@ const applyConditions = (text, conditions, keyPrefix) => {
     .filter(Boolean);
   if (conditionStrings.length === 0) return [text];
 
-  const pattern = conditionStrings.map((cs) => escapeRegExp(cs)).join("|");
+  const pattern = conditionStrings
+    .map((cs) => normalizeDashesForRegex(escapeRegExp(cs)))
+    .join("|");
   const regex = new RegExp(`(${pattern})`, "gi");
   const parts = text.split(regex);
 
+  // Con un único grupo de captura, `split` alterna texto/match/texto/match...,
+  // así que las posiciones impares son siempre el match real (evita comparar
+  // strings, que fallaría si el guion normalizado no es idéntico byte a byte).
   return parts.map((part, idx) => {
-    const isCondition = conditionStrings.some(
-      (cs) => cs.toLowerCase() === part.toLowerCase()
-    );
+    const isCondition = idx % 2 === 1;
     if (isCondition) {
       return (
         <span key={`${keyPrefix}-cond-${idx}`} style={{ fontWeight: "bold" }}>
@@ -213,9 +225,46 @@ export const highlightText = (
   conditions = [],
   cardDatabase = {}
 ) => {
-  // Expresión regular para detectar tokens especiales
-  const tokenRegex =
-    /(\[Rush\]|\[Your Turn\]|\[DON!! x1\]|\[DON!! x2\]|\[Activate: Main\]|\[Once Per Turn\]|\[Blocker\]|\[On Play\]|\[When Attacking\]|\[Opponent's Turn\]|\[Main\]|\[Counter\]|\[Banish\]|\[Double Attack\]|\[On K.O.\]|\[End of Your Turn\]|\[On Block\]|\[Trigger\]|\[On Your Opponent's Attack\])/gi;
+  // Cada palabra de glosario (bracket-token) tiene su versión EN y su
+  // traducción ES real (tal como la produce el traductor en
+  // lib/cards/localization/translator.ts), mapeadas a la misma categoría
+  // visual — así el estilo no depende del idioma que se esté mostrando.
+  const GLOSSARY_TOKENS = [
+    { en: "Rush", es: "Prisa", category: "diamond" },
+    { en: "Blocker", es: "Bloqueador", category: "diamond" },
+    { en: "Banish", es: "Desterrar", category: "diamond" },
+    { en: "Double Attack", es: "Ataque doble", category: "diamond" },
+    { en: "Your Turn", es: "Tu turno", category: "badge" },
+    { en: "Activate: Main", es: "Activar: Principal", category: "badge" },
+    { en: "On Play", es: "Al jugar", category: "badge" },
+    { en: "When Attacking", es: "Al atacar", category: "badge" },
+    { en: "Opponent's Turn", es: "Turno de tu oponente", category: "badge" },
+    { en: "Main", es: "Principal", category: "badge" },
+    { en: "On K.O.", es: "Al ser K.O.", category: "badge" },
+    { en: "End of Your Turn", es: "Al final de tu turno", category: "badge" },
+    { en: "On Block", es: "Al bloquear", category: "badge" },
+    {
+      en: "On Your Opponent's Attack",
+      es: "Cuando tu oponente ataque",
+      category: "badge",
+    },
+    { en: "DON!! x1", es: "DON!! ×1", category: "don" },
+    { en: "DON!! x2", es: "DON!! ×2", category: "don" },
+    { en: "Once Per Turn", es: "Una vez por turno", category: "once" },
+    { en: "Counter", es: "Contraataque", category: "counter" },
+    { en: "Trigger", es: "Activador", category: "trigger" },
+  ];
+  const tokenCategoryByLabel = new Map();
+  GLOSSARY_TOKENS.forEach(({ en, es, category }) => {
+    tokenCategoryByLabel.set(`[${en}]`.toLowerCase(), category);
+    tokenCategoryByLabel.set(`[${es}]`.toLowerCase(), category);
+  });
+  const tokenRegex = new RegExp(
+    `(${GLOSSARY_TOKENS.flatMap(({ en, es }) => [en, es])
+      .map((label) => `\\[${escapeRegExp(label)}\\]`)
+      .join("|")})`,
+    "gi"
+  );
   const parts = text?.split(tokenRegex);
   const result = [];
 
@@ -231,50 +280,32 @@ export const highlightText = (
       };
 
       let tokenContent = part.replace("[", "").replace("]", "");
+      const category = tokenCategoryByLabel.get(part.toLowerCase());
 
-      if (
-        part.toLowerCase() === "[rush]" ||
-        part.toLowerCase() === "[blocker]" ||
-        part.toLowerCase() === "[banish]" ||
-        part.toLowerCase() === "[double attack]"
-      ) {
+      if (category === "diamond") {
         tokenStyle.backgroundColor = "#e57223";
         tokenStyle.padding = "0px 8px";
         tokenStyle.display = "inline-block";
         tokenStyle.textAlign = "center";
         tokenStyle.clipPath =
           "polygon(10% 0%, 90% 0%, 100% 50%, 90% 100%, 10% 100%, 0% 50%)";
-      } else if (
-        part.toLowerCase() === "[your turn]" ||
-        part.toLowerCase() === "[activate: main]" ||
-        part.toLowerCase() === "[on play]" ||
-        part.toLowerCase() === "[when attacking]" ||
-        part.toLowerCase() === "[opponent's turn]" ||
-        part.toLowerCase() === "[main]" ||
-        part.toLowerCase() === "[on k.o.]" ||
-        part.toLowerCase() === "[end of your turn]" ||
-        part.toLowerCase() === "[on block]" ||
-        part.toLowerCase() === "[on your opponent's attack]"
-      ) {
+      } else if (category === "badge") {
         tokenStyle.backgroundColor = "#047699";
         tokenStyle.borderRadius = "0.25rem";
         tokenStyle.paddingLeft = "4px";
         tokenStyle.paddingRight = "4px";
-      } else if (
-        part.toLowerCase() === "[don!! x1]" ||
-        part.toLowerCase() === "[don!! x2]"
-      ) {
+      } else if (category === "don") {
         tokenStyle.backgroundColor = "#000000";
         tokenStyle.paddingLeft = "4px";
         tokenStyle.paddingRight = "4px";
         tokenStyle.clipPath =
           "polygon(10% 0%, 90% 0%, 100% 20%, 100% 80%, 90% 100%, 10% 100%, 0% 80%, 0% 20%)";
-      } else if (part.toLowerCase() === "[once per turn]") {
+      } else if (category === "once") {
         tokenStyle.backgroundColor = "#ed4469";
         tokenStyle.borderRadius = "0.5rem";
         tokenStyle.paddingLeft = "4px";
         tokenStyle.paddingRight = "4px";
-      } else if (part.toLowerCase() === "[counter]") {
+      } else if (category === "counter") {
         tokenStyle.backgroundColor = "#c20819";
         tokenStyle.borderRadius = "0.25rem";
         tokenStyle.paddingLeft = "1px";
@@ -292,7 +323,7 @@ export const highlightText = (
             {tokenContent}
           </>
         );
-      } else if (part.toLowerCase() === "[trigger]") {
+      } else if (category === "trigger") {
         tokenStyle.backgroundColor = "#fee849";
         tokenStyle.clipPath = "polygon(0 0, 100% 0%, 80% 100%, 0% 100%)";
         tokenStyle.paddingLeft = "4px";

@@ -10,6 +10,9 @@ const cardFamilyInclude = {
   conditions: true,
   texts: true,
   rulings: true,
+  localizations: {
+    where: { language: "es" },
+  },
   sets: {
     include: {
       set: true,

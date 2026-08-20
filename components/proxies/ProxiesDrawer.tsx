@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/tooltip";
 import ProxyCardPreviewDrawer from "./ProxyCardPreviewDrawer";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import PrintLanguageToggle from "@/components/print-queue/PrintLanguageToggle";
+import { usePrintQueueStore } from "@/store/printQueueStore";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -45,6 +47,10 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
     useState<CardWithCollectionData | null>(null);
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const printLanguage = usePrintQueueStore((state) => state.printLanguage);
+  const setPrintLanguage = usePrintQueueStore(
+    (state) => state.setPrintLanguage
+  );
 
   const totalCards = proxies.reduce((total, card) => total + card.quantity, 0);
 
@@ -154,6 +160,11 @@ const ProxiesDrawer: React.FC<ProxiesDrawerProps> = ({
                 </div>
               </div>
             </div>
+            <PrintLanguageToggle
+              value={printLanguage}
+              onChange={setPrintLanguage}
+              className="mt-3"
+            />
           </div>
 
           {/* Scrollable Content */}

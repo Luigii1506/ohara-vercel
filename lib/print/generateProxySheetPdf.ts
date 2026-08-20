@@ -1,15 +1,88 @@
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
+import { PrintLanguage } from "@/store/printQueueStore";
 
 export interface PrintableCard {
+  cardId: string | number;
   src: string;
   name: string;
   code: string;
   quantity: number;
 }
 
+interface GenerateProxySheetPdfOptions {
+  language?: PrintLanguage;
+}
+
+interface PrintOverlayData {
+  cardId: number;
+  sourceName: string | null;
+  localizedName: string | null;
+  sourceTrigger: string | null;
+  localizedTrigger: string | null;
+  sourceText: string | null;
+  localizedText: string | null;
+  sourceConditions?: string[];
+  localizedConditions?: string[];
+}
+
+type OverlayLookup = Map<number, PrintOverlayData>;
+
+type GlossaryTokenCategory =
+  | "diamond"
+  | "badge"
+  | "don"
+  | "once"
+  | "counter"
+  | "trigger";
+
+const GLOSSARY_TOKENS: Array<{
+  en: string;
+  es: string;
+  category: GlossaryTokenCategory;
+}> = [
+  { en: "Rush", es: "Prisa", category: "diamond" },
+  { en: "Blocker", es: "Bloqueador", category: "diamond" },
+  { en: "Banish", es: "Desterrar", category: "diamond" },
+  { en: "Double Attack", es: "Ataque doble", category: "diamond" },
+  { en: "Your Turn", es: "Tu turno", category: "badge" },
+  { en: "Activate: Main", es: "Activar: Principal", category: "badge" },
+  { en: "On Play", es: "Al jugar", category: "badge" },
+  { en: "When Attacking", es: "Al atacar", category: "badge" },
+  { en: "Opponent's Turn", es: "Turno de tu oponente", category: "badge" },
+  { en: "Main", es: "Principal", category: "badge" },
+  { en: "On K.O.", es: "Al ser K.O.", category: "badge" },
+  { en: "End of Your Turn", es: "Al final de tu turno", category: "badge" },
+  { en: "On Block", es: "Al bloquear", category: "badge" },
+  {
+    en: "On Your Opponent's Attack",
+    es: "Cuando tu oponente ataque",
+    category: "badge",
+  },
+  { en: "DON!! x1", es: "DON!! ×1", category: "don" },
+  { en: "DON!! x2", es: "DON!! ×2", category: "don" },
+  { en: "Once Per Turn", es: "Una vez por turno", category: "once" },
+  { en: "Counter", es: "Contraataque", category: "counter" },
+  { en: "Trigger", es: "Activador", category: "trigger" },
+];
+
+const TOKEN_CATEGORY_BY_LABEL = new Map<string, GlossaryTokenCategory>();
+for (const token of GLOSSARY_TOKENS) {
+  TOKEN_CATEGORY_BY_LABEL.set(`[${token.en}]`.toLowerCase(), token.category);
+  TOKEN_CATEGORY_BY_LABEL.set(`[${token.es}]`.toLowerCase(), token.category);
+}
+
+const TOKEN_REGEX = new RegExp(
+  `(${GLOSSARY_TOKENS.flatMap(({ en, es }) => [en, es])
+    .map((label) => `\\[${escapeRegExp(label)}\\]`)
+    .join("|")})`,
+  "gi"
+);
+
 export async function generateProxySheetPdf(
-  cards: PrintableCard[]
+  cards: PrintableCard[],
+  options: GenerateProxySheetPdfOptions = {}
 ): Promise<void> {
+  const language = options.language ?? "en";
   const isMobileViewport =
     typeof window !== "undefined" && window.innerWidth < 768;
   const expandedCards = cards.flatMap((card) =>
@@ -20,6 +93,9 @@ export async function generateProxySheetPdf(
     alert("No cards in the proxy list to print");
     return;
   }
+
+  const overlayLookup =
+    language === "es" ? await fetchPrintOverlayData(cards, language) : null;
 
   const getProxiedImageUrl = (originalUrl: string): string => {
     const problematicDomains = [
@@ -276,8 +352,13 @@ export async function generateProxySheetPdf(
         const card = expandedCards[i];
         const optimizedUrl = getOptimizedImageUrl(card.src, "large");
         const proxiedUrl = getProxiedImageUrl(optimizedUrl);
+        const overlayData = overlayLookup?.get(normalizeCardId(card.cardId)) ?? null;
 
-        const promise = loadImageWithProxy(proxiedUrl)
+        const promise = loadImageWithOverlay(proxiedUrl, {
+          language,
+          cardName: card.name,
+          overlay: overlayData,
+        })
           .then((imgData: string) => {
             imageCache.set(i, imgData);
             if (loadingProgress) {
@@ -319,7 +400,7 @@ export async function generateProxySheetPdf(
       const drawPlaceholder = (
         x: number,
         y: number,
-        card: any,
+        card: PrintableCard,
         globalIndex: number
       ) => {
         pdf.setFillColor(245, 245, 245);
@@ -490,49 +571,959 @@ export async function generateProxySheetPdf(
       }
     }
   }
+}
 
-  async function loadImageWithProxy(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
+async function fetchPrintOverlayData(
+  cards: PrintableCard[],
+  language: PrintLanguage
+): Promise<OverlayLookup> {
+  const ids = Array.from(
+    new Set(
+      cards
+        .map((card) => normalizeCardId(card.cardId))
+        .filter((cardId) => Number.isFinite(cardId) && cardId > 0)
+    )
+  );
 
-      if (!url.startsWith("/api/proxy-image")) {
-        img.crossOrigin = "anonymous";
-      }
+  if (ids.length === 0) {
+    return new Map();
+  }
 
-      const timeout = setTimeout(() => {
-        img.src = "";
-        reject(new Error("Timeout loading image"));
-      }, 15000);
+  const response = await fetch("/api/cards/print-data", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ids, language }),
+  });
 
-      img.onload = function () {
-        clearTimeout(timeout);
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 744;
-          canvas.height = 1044;
+  if (!response.ok) {
+    throw new Error(`Could not load print translations (${response.status})`);
+  }
 
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const data = (await response.json()) as { cards?: PrintOverlayData[] };
 
-            resolve(canvas.toDataURL("image/jpeg", 0.9));
-          } else {
-            reject(new Error("Could not get canvas context"));
-          }
-        } catch (error) {
-          clearTimeout(timeout);
-          reject(error);
+  return new Map(
+    (data.cards ?? []).map((card) => [normalizeCardId(card.cardId), card])
+  );
+}
+
+function normalizeCardId(cardId: string | number) {
+  return typeof cardId === "number" ? cardId : Number(cardId);
+}
+
+async function loadImageWithOverlay(
+  url: string,
+  {
+    language,
+    cardName,
+    overlay,
+  }: {
+    language: PrintLanguage;
+    cardName: string;
+    overlay: PrintOverlayData | null;
+  }
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    if (!url.startsWith("/api/proxy-image")) {
+      img.crossOrigin = "anonymous";
+    }
+
+    const timeout = setTimeout(() => {
+      img.src = "";
+      reject(new Error("Timeout loading image"));
+    }, 15000);
+
+    img.onload = function () {
+      clearTimeout(timeout);
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 744;
+        canvas.height = 1044;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Could not get canvas context"));
+          return;
         }
-      };
 
-      img.onerror = function () {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        if (language !== "en" && overlay) {
+          drawSpanishOverlay(ctx, overlay, cardName);
+        }
+
+        resolve(canvas.toDataURL("image/jpeg", 0.9));
+      } catch (error) {
         clearTimeout(timeout);
-        reject(new Error("Error loading image"));
-      };
+        reject(error);
+      }
+    };
 
-      img.src = url;
+    img.onerror = function () {
+      clearTimeout(timeout);
+      reject(new Error("Error loading image"));
+    };
+
+    img.src = url;
+  });
+}
+
+function drawSpanishOverlay(
+  ctx: CanvasRenderingContext2D,
+  overlay: PrintOverlayData,
+  fallbackName: string
+) {
+  const translatedName = pickOverlayText(
+    overlay.localizedName,
+    overlay.sourceName,
+    fallbackName
+  );
+  const translatedText = pickOverlayText(overlay.localizedText, overlay.sourceText);
+  const translatedTrigger = pickOverlayText(
+    overlay.localizedTrigger,
+    overlay.sourceTrigger
+  );
+
+  const hasTranslatedName = hasMeaningfulTranslation(
+    translatedName,
+    overlay.sourceName ?? fallbackName
+  );
+  const hasTranslatedText = hasMeaningfulTranslation(
+    translatedText,
+    overlay.sourceText
+  );
+  const hasTranslatedTrigger = hasMeaningfulTranslation(
+    translatedTrigger,
+    overlay.sourceTrigger
+  );
+
+  if (hasTranslatedName) {
+    drawLabelChip(ctx, "ESP", 48, 38, 88, 42);
+    drawRoundedTextBox(ctx, {
+      x: 146,
+      y: 38,
+      width: 548,
+      height: 50,
+      radius: 18,
+      fill: "rgba(255, 248, 241, 0.94)",
+      stroke: "rgba(194, 65, 12, 0.38)",
+      paddingX: 20,
+      paddingTop: 15,
+      text: translatedName,
+      fontFamily: '"Arial Black", Arial, sans-serif',
+      initialFontSize: 26,
+      minFontSize: 18,
+      lineHeight: 1.1,
+      color: "#7c2d12",
+      maxLines: 1,
     });
   }
+
+  if (hasTranslatedText) {
+    drawRoundedTextBox(ctx, {
+      x: 46,
+      y: 620,
+      width: 652,
+      height: 232,
+      radius: 22,
+      fill: "rgba(255, 255, 255, 0.95)",
+      stroke: "rgba(15, 23, 42, 0.18)",
+      paddingX: 24,
+      paddingTop: 24,
+      text: translatedText,
+      fontFamily: 'Arial, sans-serif',
+      initialFontSize: 26,
+      minFontSize: 16,
+      lineHeight: 1.22,
+      color: "#0f172a",
+      maxLines: 8,
+      highlightConditions: overlay.localizedConditions ?? [],
+      baseFontWeight: "500",
+    });
+  }
+
+  if (hasTranslatedTrigger) {
+    drawTriggerSection(ctx, translatedTrigger);
+  }
+}
+
+function pickOverlayText(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return "";
+}
+
+function hasMeaningfulTranslation(
+  translated: string,
+  source: string | null | undefined
+) {
+  const normalizedTranslated = normalizeOverlayText(translated);
+  if (!normalizedTranslated) {
+    return false;
+  }
+
+  const normalizedSource = normalizeOverlayText(source ?? "");
+  return !normalizedSource || normalizedTranslated !== normalizedSource;
+}
+
+function normalizeOverlayText(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function drawLabelChip(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  ctx.save();
+  roundRect(ctx, x, y, width, height, 16);
+  ctx.fillStyle = "rgba(124, 58, 237, 0.95)";
+  ctx.fill();
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(text, x + width / 2, y + height / 2 + 1);
+  ctx.restore();
+}
+
+function drawTriggerSection(ctx: CanvasRenderingContext2D, text: string) {
+  const sectionX = 44;
+  const sectionY = 892;
+  const sectionWidth = 656;
+  const sectionHeight = 92;
+  const labelX = sectionX;
+  const labelY = sectionY - 26;
+  const labelWidth = 148;
+  const labelHeight = 28;
+
+  ctx.save();
+
+  drawPolygon(ctx, [
+    [labelX, labelY],
+    [labelX + labelWidth, labelY],
+    [labelX + labelWidth * 0.8, labelY + labelHeight],
+    [labelX, labelY + labelHeight],
+  ]);
+  ctx.fillStyle = "#fae92e";
+  ctx.fill();
+
+  ctx.font = "800 20px Arial, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#000000";
+  ctx.fillText("Trigger", labelX + 12, labelY + labelHeight / 2 + 1);
+
+  ctx.fillStyle = "#000000";
+  roundRect(ctx, sectionX, sectionY, sectionWidth, sectionHeight, 0);
+  ctx.fill();
+
+  drawRoundedTextBox(ctx, {
+    x: sectionX + 10,
+    y: sectionY + 10,
+    width: sectionWidth - 20,
+    height: sectionHeight - 20,
+    radius: 0,
+    fill: "rgba(0, 0, 0, 0)",
+    stroke: "rgba(0, 0, 0, 0)",
+    paddingX: 6,
+    paddingTop: 8,
+    text,
+    fontFamily: 'Arial, sans-serif',
+    initialFontSize: 22,
+    minFontSize: 15,
+    lineHeight: 1.08,
+    color: "#ffffff",
+    maxLines: 3,
+    highlightConditions: [],
+    baseFontWeight: "500",
+  });
+
+  ctx.restore();
+}
+
+function drawRoundedTextBox(
+  ctx: CanvasRenderingContext2D,
+  {
+    x,
+    y,
+    width,
+    height,
+    radius,
+    fill,
+    stroke,
+    paddingX,
+    paddingTop,
+    text,
+    fontFamily,
+    initialFontSize,
+    minFontSize,
+    lineHeight,
+    color,
+    maxLines,
+    highlightConditions = [],
+    baseFontWeight = "700",
+  }: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    radius: number;
+    fill: string;
+    stroke: string;
+    paddingX: number;
+    paddingTop: number;
+    text: string;
+    fontFamily: string;
+    initialFontSize: number;
+    minFontSize: number;
+    lineHeight: number;
+    color: string;
+    maxLines: number;
+    highlightConditions?: string[];
+    baseFontWeight?: string;
+  }
+) {
+  ctx.save();
+  roundRect(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const layout = fitTextBlock(ctx, text, {
+    fontFamily,
+    maxWidth: width - paddingX * 2,
+    maxHeight: height - paddingTop * 2,
+    initialFontSize,
+    minFontSize,
+    lineHeight,
+    maxLines,
+    highlightConditions,
+    baseFontWeight,
+  });
+
+  ctx.fillStyle = color;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+
+  let currentY = y + paddingTop;
+  for (const line of layout.lines) {
+    if (line.segments) {
+      drawStyledLine(
+        ctx,
+        line,
+        x + paddingX,
+        currentY,
+        layout.fontSize,
+        color,
+        baseFontWeight
+      );
+    } else {
+      ctx.font = `${baseFontWeight} ${layout.fontSize}px ${fontFamily}`;
+      ctx.fillText(line.text ?? "", x + paddingX, currentY);
+    }
+    currentY += layout.fontSize * lineHeight;
+  }
+
+  ctx.restore();
+}
+
+function fitTextBlock(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  {
+    fontFamily,
+    maxWidth,
+    maxHeight,
+    initialFontSize,
+    minFontSize,
+    lineHeight,
+    maxLines,
+    highlightConditions,
+    baseFontWeight,
+  }: {
+    fontFamily: string;
+    maxWidth: number;
+    maxHeight: number;
+    initialFontSize: number;
+    minFontSize: number;
+    lineHeight: number;
+    maxLines: number;
+    highlightConditions: string[];
+    baseFontWeight: string;
+  }
+) {
+  for (let fontSize = initialFontSize; fontSize >= minFontSize; fontSize -= 1) {
+    const lines = wrapStyledText(
+      ctx,
+      text,
+      maxWidth,
+      maxLines,
+      fontSize,
+      false,
+      highlightConditions,
+      baseFontWeight
+    );
+    const blockHeight = lines.length * fontSize * lineHeight;
+
+    if (lines.length <= maxLines && blockHeight <= maxHeight) {
+      return { lines, fontSize, fontWeight: baseFontWeight };
+    }
+  }
+
+  ctx.font = `700 ${minFontSize}px ${fontFamily}`;
+  return {
+    lines: wrapStyledText(
+      ctx,
+      text,
+      maxWidth,
+      maxLines,
+      minFontSize,
+      true,
+      highlightConditions,
+      baseFontWeight
+    ),
+    fontSize: minFontSize,
+    fontWeight: baseFontWeight,
+  };
+}
+
+function wrapCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+  forceEllipsis = false
+) {
+  const paragraphs = text
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  const lines: string[] = [];
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/);
+    let currentLine = "";
+
+    for (const word of words) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        currentLine = candidate;
+        continue;
+      }
+
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+
+      currentLine = word;
+
+      if (lines.length >= maxLines) {
+        break;
+      }
+    }
+
+    if (currentLine && lines.length < maxLines) {
+      lines.push(currentLine);
+    }
+
+    if (lines.length >= maxLines) {
+      break;
+    }
+  }
+
+  if (lines.length === 0) {
+    return [""];
+  }
+
+  if (forceEllipsis || paragraphs.length > maxLines || lines.length > maxLines) {
+    return applyEllipsisToLastLine(ctx, lines.slice(0, maxLines), maxWidth);
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+function applyEllipsisToLastLine(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+  maxWidth: number
+) {
+  if (lines.length === 0) {
+    return lines;
+  }
+
+  const result = [...lines];
+  let lastLine = result[result.length - 1].trim();
+
+  while (lastLine && ctx.measureText(`${lastLine}...`).width > maxWidth) {
+    lastLine = lastLine.slice(0, -1).trim();
+  }
+
+  result[result.length - 1] = lastLine ? `${lastLine}...` : "...";
+  return result;
+}
+
+function wrapStyledText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+  fontSize: number,
+  forceEllipsis: boolean,
+  highlightConditions: string[],
+  baseFontWeight: string
+) {
+  const parsed = parseStyledSegments(text, highlightConditions);
+  if (parsed.length === 0) {
+    return [{ text: "" }];
+  }
+
+  const lines: Array<{
+    segments?: StyledSegment[];
+    text?: string;
+  }> = [];
+  let currentLine: StyledSegment[] = [];
+  let currentWidth = 0;
+
+  for (const segment of parsed) {
+    const parts =
+      segment.type === "token"
+        ? [segment]
+        : splitTextSegment(segment.text).map((part) => ({
+            type: "text" as const,
+            text: part,
+            bold: segment.bold,
+          }));
+
+    for (const part of parts) {
+      if (part.type === "text" && part.text === "\n") {
+        lines.push({ segments: currentLine });
+        currentLine = [];
+        currentWidth = 0;
+        if (lines.length >= maxLines) break;
+        continue;
+      }
+
+      const metrics = measureStyledSegment(ctx, part, fontSize, baseFontWeight);
+      const width = metrics.advanceWidth;
+      const isLineEmpty = currentLine.length === 0;
+
+      if (!isLineEmpty && currentWidth + width > maxWidth) {
+        lines.push({ segments: currentLine });
+        currentLine = [];
+        currentWidth = 0;
+        if (lines.length >= maxLines) break;
+      }
+
+      if (lines.length >= maxLines) break;
+
+      if (part.type === "text" && part.text === " " && currentLine.length === 0) {
+        continue;
+      }
+
+      currentLine.push(part);
+      currentWidth += width;
+    }
+
+    if (lines.length >= maxLines) break;
+  }
+
+  if (lines.length < maxLines && currentLine.length > 0) {
+    lines.push({ segments: currentLine });
+  }
+
+  if (lines.length === 0) {
+    return [{ text: "" }];
+  }
+
+  if (forceEllipsis) {
+    applyStyledEllipsis(ctx, lines, maxWidth, fontSize, baseFontWeight);
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+type StyledSegment =
+  | { type: "text"; text: string; bold?: boolean; italic?: boolean }
+  | { type: "token"; text: string; category: GlossaryTokenCategory };
+
+function parseStyledSegments(
+  text: string,
+  highlightConditions: string[]
+): StyledSegment[] {
+  const parts = text.split(TOKEN_REGEX);
+  const segments: StyledSegment[] = [];
+
+  for (const part of parts) {
+    if (!part) continue;
+    const category = TOKEN_CATEGORY_BY_LABEL.get(part.toLowerCase());
+    if (category) {
+      segments.push({
+        type: "token",
+        text: part,
+        category,
+      });
+    } else {
+      segments.push(...applyBoldConditionsToText(part, highlightConditions));
+    }
+  }
+
+  return segments;
+}
+
+function splitTextSegment(text: string) {
+  return text.split(/(\n|\s+)/).filter((part) => part.length > 0);
+}
+
+function measureStyledSegment(
+  ctx: CanvasRenderingContext2D,
+  segment: StyledSegment,
+  fontSize: number,
+  baseFontWeight: string
+) {
+  if (segment.type === "text") {
+    const fontStyle = segment.italic ? "italic " : "";
+    ctx.font = `${fontStyle}${segment.bold ? "800" : baseFontWeight} ${fontSize}px Arial, sans-serif`;
+    return {
+      advanceWidth: ctx.measureText(segment.text).width,
+    };
+  }
+
+  const label = segment.text.slice(1, -1);
+  const style = getTokenStyle(segment.category, fontSize);
+  ctx.font = `${style.fontWeight} ${style.fontSize}px Arial, sans-serif`;
+
+  const textWidth = ctx.measureText(label).width;
+  const iconWidth = style.withCounterBolt ? fontSize * 0.7 : 0;
+  const gapWidth = style.withCounterBolt ? fontSize * 0.18 : 0;
+
+  return {
+    advanceWidth:
+      textWidth + iconWidth + gapWidth + style.paddingLeft + style.paddingRight,
+  };
+}
+
+function drawStyledLine(
+  ctx: CanvasRenderingContext2D,
+  line: { segments?: StyledSegment[]; text?: string },
+  x: number,
+  y: number,
+  fontSize: number,
+  defaultColor: string,
+  baseFontWeight: string
+) {
+  let cursorX = x;
+  const previousBaseline = ctx.textBaseline;
+
+  for (const segment of line.segments ?? []) {
+    if (segment.type === "text") {
+      const fontStyle = segment.italic ? "italic " : "";
+      ctx.font = `${fontStyle}${segment.bold ? "800" : baseFontWeight} ${fontSize}px Arial, sans-serif`;
+      ctx.fillStyle = defaultColor;
+      ctx.textBaseline = "top";
+      ctx.fillText(segment.text, cursorX, y);
+      cursorX += ctx.measureText(segment.text).width;
+      continue;
+    }
+
+    const label = segment.text.slice(1, -1);
+    const style = getTokenStyle(segment.category, fontSize);
+    ctx.font = `${style.fontWeight} ${style.fontSize}px Arial, sans-serif`;
+
+    const textWidth = ctx.measureText(label).width;
+    const iconWidth = style.withCounterBolt ? fontSize * 0.7 : 0;
+    const gapWidth = style.withCounterBolt ? fontSize * 0.18 : 0;
+    const chipWidth =
+      textWidth + iconWidth + gapWidth + style.paddingLeft + style.paddingRight;
+    const chipHeight = style.height;
+    const chipY = y;
+
+    drawTokenShape(ctx, segment.category, cursorX, chipY, chipWidth, chipHeight, style);
+
+    let textX = cursorX + style.paddingLeft;
+    if (style.withCounterBolt) {
+      drawCounterBolt(ctx, textX, chipY + chipHeight / 2, fontSize * 0.58);
+      textX += iconWidth + gapWidth;
+    }
+
+    ctx.fillStyle = style.textColor;
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, textX, chipY + chipHeight / 2);
+    cursorX += chipWidth;
+  }
+
+  ctx.textBaseline = previousBaseline;
+}
+
+function getTokenStyle(category: GlossaryTokenCategory, fontSize: number) {
+  const base = {
+    fontSize: Math.max(14, fontSize * 0.72),
+    fontWeight: "700",
+    paddingLeft: 8,
+    paddingRight: 8,
+    height: Math.max(22, fontSize * 1.04),
+    textColor: "#ffffff",
+    fillColor: "#047699",
+    radius: 6,
+    withCounterBolt: false,
+  };
+
+  switch (category) {
+    case "diamond":
+      return { ...base, fillColor: "#e57223", radius: 0 };
+    case "badge":
+      return { ...base, fillColor: "#047699" };
+    case "don":
+      return { ...base, fillColor: "#000000", radius: 0 };
+    case "once":
+      return { ...base, fillColor: "#ed4469", radius: 12 };
+    case "counter":
+      return {
+        ...base,
+        fillColor: "#c20819",
+        paddingLeft: 7,
+        paddingRight: 8,
+        withCounterBolt: true,
+      };
+    case "trigger":
+      return {
+        ...base,
+        fillColor: "#fee849",
+        textColor: "#000000",
+        fontWeight: "800",
+        paddingLeft: 8,
+        paddingRight: 14,
+        radius: 0,
+      };
+  }
+}
+
+function drawTokenShape(
+  ctx: CanvasRenderingContext2D,
+  category: GlossaryTokenCategory,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  style: ReturnType<typeof getTokenStyle>
+) {
+  ctx.save();
+  ctx.fillStyle = style.fillColor;
+
+  if (category === "diamond") {
+    drawPolygon(ctx, [
+      [x + width * 0.1, y],
+      [x + width * 0.9, y],
+      [x + width, y + height / 2],
+      [x + width * 0.9, y + height],
+      [x + width * 0.1, y + height],
+      [x, y + height / 2],
+    ]);
+    ctx.fill();
+  } else if (category === "don") {
+    drawPolygon(ctx, [
+      [x + width * 0.1, y],
+      [x + width * 0.9, y],
+      [x + width, y + height * 0.2],
+      [x + width, y + height * 0.8],
+      [x + width * 0.9, y + height],
+      [x + width * 0.1, y + height],
+      [x, y + height * 0.8],
+      [x, y + height * 0.2],
+    ]);
+    ctx.fill();
+  } else if (category === "trigger") {
+    drawPolygon(ctx, [
+      [x, y],
+      [x + width, y],
+      [x + width * 0.8, y + height],
+      [x, y + height],
+    ]);
+    ctx.fill();
+  } else {
+    roundRect(ctx, x, y, width, height, style.radius);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawPolygon(
+  ctx: CanvasRenderingContext2D,
+  points: Array<[number, number]>
+) {
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index][0], points[index][1]);
+  }
+  ctx.closePath();
+}
+
+function drawCounterBolt(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  centerY: number,
+  size: number
+) {
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  drawPolygon(ctx, [
+    [x + size * 0.45, centerY - size * 0.95],
+    [x + size * 0.95, centerY - size * 0.15],
+    [x + size * 0.62, centerY - size * 0.15],
+    [x + size, centerY + size * 0.95],
+    [x + size * 0.12, centerY + size * 0.08],
+    [x + size * 0.45, centerY + size * 0.08],
+  ]);
+  ctx.fill();
+  ctx.restore();
+}
+
+function applyStyledEllipsis(
+  ctx: CanvasRenderingContext2D,
+  lines: Array<{ segments?: StyledSegment[]; text?: string }>,
+  maxWidth: number,
+  fontSize: number,
+  baseFontWeight: string
+) {
+  const lastLine = lines[lines.length - 1];
+  const segments = [...(lastLine.segments ?? [])];
+  const ellipsisSegment: StyledSegment = { type: "text", text: "..." };
+
+  while (segments.length > 0) {
+    const candidate = [...segments, ellipsisSegment];
+    const width = candidate.reduce(
+      (total, segment) =>
+        total +
+        measureStyledSegment(ctx, segment, fontSize, baseFontWeight)
+          .advanceWidth,
+      0
+    );
+
+    if (width <= maxWidth) {
+      lastLine.segments = candidate;
+      return;
+    }
+
+    const tail = segments[segments.length - 1];
+    if (tail.type === "text" && tail.text.length > 1 && tail.text.trim() !== "") {
+      tail.text = tail.text.slice(0, -1);
+      continue;
+    }
+
+    segments.pop();
+  }
+
+  lastLine.segments = [ellipsisSegment];
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const DASH_CHARS = "\\-\u2010\u2011\u2012\u2013\u2014\u2212";
+const DASH_CLASS = `[${DASH_CHARS}]`;
+
+function normalizeDashesForRegex(value: string) {
+  return value.replace(new RegExp(DASH_CLASS, "g"), DASH_CLASS);
+}
+
+function applyBoldConditionsToText(
+  text: string,
+  conditions: string[]
+): StyledSegment[] {
+  if (!text || conditions.length === 0) {
+    return applyItalicStylingToSegments([{ type: "text", text }]);
+  }
+
+  const pattern = conditions
+    .map((condition) => condition.trim())
+    .filter(Boolean)
+    .map((condition) => normalizeDashesForRegex(escapeRegExp(condition)))
+    .join("|");
+
+  if (!pattern) {
+    return applyItalicStylingToSegments([{ type: "text", text }]);
+  }
+
+  const regex = new RegExp(`(${pattern})`, "gi");
+  const parts = text.split(regex);
+
+  return applyItalicStylingToSegments(
+    parts
+      .filter((part) => part.length > 0)
+      .map((part, index) => ({
+        type: "text" as const,
+        text: part,
+        bold: index % 2 === 1,
+      }))
+  );
+}
+
+function applyItalicStylingToSegments(
+  segments: StyledSegment[]
+): StyledSegment[] {
+  const result: StyledSegment[] = [];
+
+  for (const segment of segments) {
+    if (segment.type !== "text") {
+      result.push(segment);
+      continue;
+    }
+
+    const parts = segment.text.split(/(\([^)]+\))/g).filter((part) => part.length > 0);
+    for (const part of parts) {
+      const isParenthesized = /^\([^)]+\)$/.test(part);
+      const contentInside = part.slice(1, -1);
+      const shouldItalicize =
+        isParenthesized && /\w+\s+\w+/.test(contentInside);
+
+      result.push({
+        type: "text",
+        text: part,
+        bold: segment.bold,
+        italic: shouldItalicize || segment.italic,
+      });
+    }
+  }
+
+  return result;
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }

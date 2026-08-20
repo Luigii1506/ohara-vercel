@@ -8,6 +8,7 @@ import BaseDrawer from "@/components/ui/BaseDrawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePrintQueueStore } from "@/store/printQueueStore";
 import { generateProxySheetPdf } from "@/lib/print/generateProxySheetPdf";
+import PrintLanguageToggle from "./PrintLanguageToggle";
 
 interface PrintQueueDrawerProps {
   isOpen: boolean;
@@ -23,12 +24,19 @@ const PrintQueueDrawer: React.FC<PrintQueueDrawerProps> = ({
   const updateQuantity = usePrintQueueStore((state) => state.updateQuantity);
   const removeCard = usePrintQueueStore((state) => state.removeCard);
   const clearQueue = usePrintQueueStore((state) => state.clearQueue);
+  const printLanguage = usePrintQueueStore((state) => state.printLanguage);
+  const setPrintLanguage = usePrintQueueStore(
+    (state) => state.setPrintLanguage
+  );
 
   const totalCards = items.reduce((total, item) => total + item.quantity, 0);
 
   const handlePrintNow = () => {
     onClose();
-    setTimeout(() => generateProxySheetPdf(items), 350);
+    setTimeout(
+      () => generateProxySheetPdf(items, { language: printLanguage }),
+      350
+    );
   };
 
   const content = (
@@ -77,6 +85,11 @@ const PrintQueueDrawer: React.FC<PrintQueueDrawerProps> = ({
             </span>
           </div>
         </div>
+        <PrintLanguageToggle
+          value={printLanguage}
+          onChange={setPrintLanguage}
+          className="mt-3"
+        />
       </div>
 
       {/* Scrollable Content */}

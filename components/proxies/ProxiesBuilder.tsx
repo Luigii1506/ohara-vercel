@@ -55,6 +55,8 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { useRegion } from "@/components/region/RegionProvider";
 import { DEFAULT_REGION } from "@/lib/regions";
+import { usePrintQueueStore } from "@/store/printQueueStore";
+import PrintLanguageToggle from "@/components/print-queue/PrintLanguageToggle";
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -74,6 +76,10 @@ const ProxiesBuilder = ({
   const { region } = useRegion();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const printLanguage = usePrintQueueStore((state) => state.printLanguage);
+  const setPrintLanguage = usePrintQueueStore(
+    (state) => state.setPrintLanguage
+  );
 
   const [proxies, setProxies] = useState<DeckCard[]>([]);
   const [search, setSearch] = useState("");
@@ -456,7 +462,7 @@ const ProxiesBuilder = ({
 
   // Generate PDF handler
   const handleProxies = () => {
-    generateProxySheetPdf(proxies);
+    generateProxySheetPdf(proxies, { language: printLanguage });
   };
 
   // Filtered cards - server handles filtering AND sorting via sortBy parameter
@@ -914,7 +920,11 @@ const ProxiesBuilder = ({
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <PrintLanguageToggle
+                value={printLanguage}
+                onChange={setPrintLanguage}
+              />
               <button
                 onClick={() => setProxies([])}
                 disabled={proxies.length === 0}

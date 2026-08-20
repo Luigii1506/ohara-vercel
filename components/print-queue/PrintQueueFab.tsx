@@ -9,6 +9,7 @@ import PrintQueueDrawer from "./PrintQueueDrawer";
 const PrintQueueFab = () => {
   const items = usePrintQueueStore((state) => state.items);
   const clearQueue = usePrintQueueStore((state) => state.clearQueue);
+  const printLanguage = usePrintQueueStore((state) => state.printLanguage);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,7 +46,7 @@ const PrintQueueFab = () => {
             <button
               onClick={() => {
                 setIsMenuOpen(false);
-                generateProxySheetPdf(items);
+                generateProxySheetPdf(items, { language: printLanguage });
               }}
               className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-purple-50 transition-colors"
             >

@@ -11,8 +11,12 @@ export interface PrintQueueItem {
   quantity: number;
 }
 
+export type PrintLanguage = "en" | "es";
+
 interface PrintQueueState {
   items: PrintQueueItem[];
+  printLanguage: PrintLanguage;
+  setPrintLanguage: (language: PrintLanguage) => void;
   addCard: (card: CardWithCollectionData) => void;
   removeCard: (cardId: string) => void;
   updateQuantity: (cardId: string, quantity: number) => void;
@@ -23,6 +27,8 @@ export const usePrintQueueStore = create<PrintQueueState>()(
   persist(
     (set, get) => ({
       items: [],
+      printLanguage: "en",
+      setPrintLanguage: (printLanguage) => set({ printLanguage }),
       addCard: (card: CardWithCollectionData) => {
         const existingItem = get().items.find((i) => i.cardId === card.id);
         if (existingItem) {

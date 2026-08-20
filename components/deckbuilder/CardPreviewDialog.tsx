@@ -10,18 +10,22 @@ import {
   Layers,
   Check,
   Loader2,
+  Printer,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import { toast } from "react-toastify";
 import { CardWithCollectionData } from "@/types";
 import { Oswald } from "next/font/google";
 import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import CardDetails from "@/components/CardDetails";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
+import { usePrintQueueStore } from "@/store/printQueueStore";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { MessageKey } from "@/components/i18n/messages";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import type { PriceField } from "@/components/PriceFieldToggle";
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -61,6 +65,7 @@ interface CardPreviewDialogProps {
   canAdd?: boolean;
   canRemove?: boolean;
   isLeaderSelection?: boolean;
+  priceField?: PriceField;
 }
 
 const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
@@ -69,8 +74,10 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
   card,
   baseCard,
   currentQuantity = 0,
+  priceField = "marketPrice",
 }) => {
   const { t } = useI18n();
+  const addToPrintQueue = usePrintQueueStore((state) => state.addCard);
   const [showLargeImage, setShowLargeImage] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50 });
@@ -213,10 +220,16 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
 
   if (!altCard || !infoCard) return null;
 
-  const priceValue = getNumericPrice(displayedCard.marketPrice);
+  const priceValue = getNumericPrice(
+    priceField === "midPrice" ? displayedCard.midPrice : displayedCard.marketPrice
+  );
   const lowValue = getNumericPrice(displayedCard.lowPrice);
   const midValue = getNumericPrice(displayedCard.midPrice);
   const highValue = getNumericPrice(displayedCard.highPrice);
+  const selectedPriceLabel =
+    priceField === "midPrice"
+      ? t("cardPreview.priceMid")
+      : t("cardPreview.priceMarket");
   const tcgUrl =
     displayedCard?.tcgUrl && displayedCard.tcgUrl !== ""
       ? displayedCard.tcgUrl
@@ -235,6 +248,11 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
     0,
     tabs.findIndex((tab) => tab.id === activeTab)
   );
+
+  const handleAddToPrintQueue = () => {
+    addToPrintQueue(displayedCard);
+    toast.success("Carta añadida a la cola de impresión");
+  };
 
   return (
     <>
@@ -417,6 +435,20 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
             </p>
           )}
 
+          <div className="flex justify-center px-4 pb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddToPrintQueue();
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow transition-colors hover:bg-purple-500"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Imprimir</span>
+            </button>
+          </div>
+
           {/* Tabs */}
           <Tabs
             value={activeTab}
@@ -461,7 +493,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 <>
                   <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 text-center">
                     <p className="block text-[11px] font-bold uppercase tracking-wide text-emerald-700/70">
-                      {t("cardPreview.priceMarket")}
+                      {selectedPriceLabel}
                     </p>
                     <p className="mt-1 block text-3xl font-black text-emerald-700">
                       {formatCurrency(priceValue, displayedCard.priceCurrency)}
@@ -477,14 +509,16 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                     )}
                   </div>
 
-                  <PriceHistoryCard
-                    history={priceHistory}
-                    loading={historyLoading}
-                    range={historyRange}
-                    onRangeChange={setHistoryRange}
-                    currency={displayedCard.priceCurrency}
-                    t={t}
-                  />
+                  {priceField === "marketPrice" && (
+                    <PriceHistoryCard
+                      history={priceHistory}
+                      loading={historyLoading}
+                      range={historyRange}
+                      onRangeChange={setHistoryRange}
+                      currency={displayedCard.priceCurrency}
+                      t={t}
+                    />
+                  )}
 
                   {(lowValue || midValue || highValue) && (
                     <div className="grid grid-cols-3 gap-2">
@@ -573,7 +607,9 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {variants.map((variant, idx) => {
                     const isSelected = variant.id === displayedCard.id;
-                    const vPrice = getNumericPrice(variant.marketPrice);
+                    const vPrice = getNumericPrice(
+                      priceField === "midPrice" ? variant.midPrice : variant.marketPrice
+                    );
                     const label =
                       idx === 0
                         ? t("cardPreview.variantsBase")

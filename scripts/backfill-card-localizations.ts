@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import {
   buildCardLocalizationDrafts,
   buildCardLocalizationDraftsWithTranslations,
@@ -15,6 +17,93 @@ type CliOptions = {
   startCardId: number | null;
   onlyMissingAi: boolean;
 };
+
+type PendingCardRow = {
+  id: number;
+};
+
+const OP_SET_CODES = Array.from({ length: 17 }, (_, index) =>
+  `OP${String(index + 1).padStart(2, "0")}`
+);
+const ST_SET_CODES = Array.from({ length: 36 }, (_, index) =>
+  `ST${String(index + 1).padStart(2, "0")}`
+);
+function buildPriorityCaseSql() {
+  return Prisma.sql`
+    CASE
+      WHEN c."setCode" IN (${Prisma.join(OP_SET_CODES)}) THEN 0
+      WHEN c."setCode" IN (${Prisma.join(ST_SET_CODES)}) THEN 1
+      ELSE 2
+    END
+  `;
+}
+
+async function fetchPendingCardIds(options: CliOptions, take: number) {
+  const priorityPhaseSql = buildPriorityCaseSql();
+
+  if (options.cardId) {
+    return [{ id: options.cardId }];
+  }
+
+  if (options.mode === "ai" && options.onlyMissingAi) {
+    return prisma.$queryRaw<PendingCardRow[]>(Prisma.sql`
+      SELECT c.id
+      FROM "Card" c
+      WHERE c."baseCardId" IS NULL
+        AND c.region = 'US'
+        AND (
+          (
+            c."triggerCard" IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "CardLocalization" cl
+              WHERE cl."cardId" = c.id
+                AND cl.language = ${options.language}
+                AND cl."translationSource" = 'AI'
+                AND cl."sourceKey" = 'triggerCard'
+            )
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM "CardText" t
+            WHERE t."cardId" = c.id
+              AND NOT EXISTS (
+                SELECT 1
+                FROM "CardLocalization" cl
+                WHERE cl."cardId" = c.id
+                  AND cl.language = ${options.language}
+                  AND cl."translationSource" = 'AI'
+                  AND cl."sourceKey" = ('text:' || t.id::text)
+              )
+          )
+        )
+      ORDER BY
+        ${priorityPhaseSql},
+        c."setCode" ASC,
+        c.code ASC,
+        c.id ASC
+      LIMIT ${take}
+    `);
+  }
+
+  return prisma.$queryRaw<PendingCardRow[]>(Prisma.sql`
+    SELECT c.id
+    FROM "Card" c
+    WHERE c."baseCardId" IS NULL
+      AND c.region = 'US'
+      AND (
+        c."triggerCard" IS NOT NULL
+        OR EXISTS (SELECT 1 FROM "CardEffect" e WHERE e."cardId" = c.id)
+        OR EXISTS (SELECT 1 FROM "CardText" t WHERE t."cardId" = c.id)
+      )
+    ORDER BY
+      ${priorityPhaseSql},
+      c."setCode" ASC,
+      c.code ASC,
+      c.id ASC
+    LIMIT ${take}
+  `);
+}
 
 function parseArgs(): CliOptions {
   const options: CliOptions = {
@@ -53,6 +142,7 @@ function parseArgs(): CliOptions {
 
 async function main() {
   const options = parseArgs();
+  const startedAt = Date.now();
   let processedCards = 0;
   let generatedDrafts = 0;
   let writtenDrafts = 0;
@@ -64,14 +154,17 @@ async function main() {
 
   try {
     while (true) {
+      const pendingCardIds = await fetchPendingCardIds(
+        options,
+        options.cardId ? 1 : 100
+      );
+      if (pendingCardIds.length === 0) break;
+
       const cards = await prisma.card.findMany({
         where: {
-          ...(options.cardId ? { id: options.cardId } : { id: { gt: cursorId } }),
-          OR: [
-            { triggerCard: { not: null } },
-            { effects: { some: {} } },
-            { texts: { some: {} } },
-          ],
+          id: {
+            in: pendingCardIds.map((row) => row.id),
+          },
         },
         include: {
           effects: { orderBy: { id: "asc" } },
@@ -81,13 +174,20 @@ async function main() {
             orderBy: [{ sourceOrder: "asc" }, { id: "asc" }],
           },
         },
-        orderBy: { id: "asc" },
-        take: options.cardId ? 1 : 100,
       });
 
       if (cards.length === 0) break;
 
-      for (const card of cards) {
+      const orderedCards = pendingCardIds
+        .map((row) => cards.find((card) => card.id === row.id))
+        .filter((card): card is NonNullable<typeof card> => Boolean(card));
+
+      for (const card of orderedCards) {
+        const cardStartedAt = Date.now();
+        console.log(
+          `[backfill-card-localizations] start cardId=${card.id} setCode=${card.setCode} code=${card.code} mode=${options.mode} processed=${processedCards + 1}${options.limit ? `/${options.limit}` : ""}`
+        );
+
         const drafts =
           options.mode === "ai"
             ? await buildCardLocalizationDraftsWithTranslations(
@@ -148,6 +248,10 @@ async function main() {
             writtenDrafts += toWrite.length;
           }
         }
+
+        console.log(
+          `[backfill-card-localizations] done cardId=${card.id} generated=${drafts.length} writtenTotal=${writtenDrafts} cardMs=${Date.now() - cardStartedAt} totalMs=${Date.now() - startedAt}`
+        );
 
         cursorId = card.id;
 

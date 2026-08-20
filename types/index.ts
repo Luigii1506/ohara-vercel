@@ -64,6 +64,17 @@ export type CardData = {
   priceUpdatedAt?: string | Date | null;
   rulings?: CardRuling[]; // <-- Aquí agregamos los rulings
   baseCardId?: number | null;
+  localizations?: {
+    id?: number;
+    language: string;
+    contentType: "NAME" | "TRIGGER" | "EFFECT" | "TEXT";
+    sourceKey: string;
+    sourceRecordId?: number | null;
+    sourceOrder?: number;
+    translatedText: string;
+    status?: string;
+    translationSource?: string;
+  }[];
 };
 
 // Interfaces para tipar el deck

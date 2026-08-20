@@ -7,6 +7,7 @@ import NavBar from "@/components/NavBar";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import AnnouncementGate from "@/components/announcements/AnnouncementGate";
 import { RegionProvider } from "@/components/region/RegionProvider";
+import PrintQueueFab from "@/components/print-queue/PrintQueueFab";
 
 export default function ClientLayout({
   children,
@@ -43,6 +44,7 @@ export default function ClientLayout({
             </section>
           </section>
         </main>
+        <PrintQueueFab />
       </I18nProvider>
     </RegionProvider>
   );

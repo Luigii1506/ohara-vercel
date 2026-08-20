@@ -11,18 +11,23 @@ import {
 } from "@/lib/cards/localization/glossary";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
 
 type TranslationMode = "glossary" | "ai";
+type TranslationProvider = "deepseek" | "gemini";
 
 type CacheEntry = {
   translatedText: string;
   sourceText: string;
   language: string;
   mode: TranslationMode;
+  provider: TranslationProvider;
+  model: string;
   timestamp: number;
 };
 
 export class CardTextTranslationService {
+  private readonly provider: TranslationProvider;
   private readonly apiKey: string | null;
   private readonly model: string;
   private readonly cachePath: string;
@@ -35,18 +40,18 @@ export class CardTextTranslationService {
   private lastRequestAt = 0;
 
   constructor(config?: {
+    provider?: TranslationProvider;
     apiKey?: string | null;
     model?: string;
     cachePath?: string;
     minIntervalMs?: number;
     maxRetries?: number;
   }) {
-    this.apiKey =
-      config?.apiKey ??
-      process.env.GOOGLE_GENAI_API_KEY ??
-      process.env.GEMINI_API_KEY ??
-      null;
-    this.model = config?.model ?? DEFAULT_MODEL;
+    this.provider =
+      config?.provider ??
+      (process.env.DEEPSEEK_API_KEY ? "deepseek" : "gemini");
+    this.apiKey = this.resolveApiKey(config?.apiKey);
+    this.model = config?.model ?? this.resolveDefaultModel();
     this.cachePath =
       config?.cachePath ??
       path.join(process.cwd(), ".cache", "card-localization-translations.json");
@@ -99,6 +104,8 @@ export class CardTextTranslationService {
       sourceText: trimmed,
       language,
       mode,
+      provider: this.provider,
+      model: this.model,
       timestamp: Date.now(),
     });
     this.cacheDirty = true;
@@ -144,7 +151,7 @@ export class CardTextTranslationService {
   ) {
     return crypto
       .createHash("sha256")
-      .update(`${language}::${mode}::${sourceText}`)
+      .update(`${this.provider}::${this.model}::${language}::${mode}::${sourceText}`)
       .digest("hex");
   }
 
@@ -173,27 +180,24 @@ export class CardTextTranslationService {
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
         await this.waitForRateLimitWindow();
-        const client = await this.ensureClient();
-        const response = await client.models.generateContent({
-          model: this.model,
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-        });
+        const translated =
+          this.provider === "deepseek"
+            ? await this.performDeepSeekTranslation(prompt)
+            : await this.performGeminiTranslation(prompt);
         this.lastRequestAt = Date.now();
-
-        const translated = response.text?.trim();
         if (!translated) {
           return glossaryTranslation;
         }
 
         return translated;
       } catch (error) {
-        if (!this.isRetryableQuotaError(error) || attempt >= this.maxRetries) {
+        if (!this.isRetryableError(error) || attempt >= this.maxRetries) {
           throw error;
         }
 
         const retryDelayMs = this.getRetryDelayMs(error, attempt);
         console.warn(
-          `[card-localization] Gemini quota hit. Retrying in ${retryDelayMs}ms (attempt ${attempt + 1}/${this.maxRetries}).`
+          `[card-localization] ${this.provider} retry in ${retryDelayMs}ms (attempt ${attempt + 1}/${this.maxRetries}).`
         );
         await this.sleep(retryDelayMs);
       }
@@ -214,18 +218,86 @@ export class CardTextTranslationService {
     return this.client;
   }
 
+  private resolveApiKey(explicitApiKey?: string | null) {
+    if (explicitApiKey) return explicitApiKey;
+
+    if (this.provider === "deepseek") {
+      return process.env.DEEPSEEK_API_KEY ?? null;
+    }
+
+    return (
+      process.env.GOOGLE_GENAI_API_KEY ??
+      process.env.GEMINI_API_KEY ??
+      null
+    );
+  }
+
+  private resolveDefaultModel() {
+    if (this.provider === "deepseek") {
+      return DEFAULT_DEEPSEEK_MODEL;
+    }
+
+    return DEFAULT_MODEL;
+  }
+
+  private async performGeminiTranslation(prompt: string) {
+    const client = await this.ensureClient();
+    const response = await client.models.generateContent({
+      model: this.model,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+
+    return response.text?.trim() || "";
+  }
+
+  private async performDeepSeekTranslation(prompt: string) {
+    if (!this.apiKey) {
+      throw new Error("DEEPSEEK_API_KEY is not configured.");
+    }
+
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: "user", content: prompt }],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text();
+      const error = new Error(bodyText);
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
+    };
+
+    return payload.choices?.[0]?.message?.content?.trim() || "";
+  }
+
   private async waitForRateLimitWindow() {
     const elapsed = Date.now() - this.lastRequestAt;
     if (elapsed >= this.minIntervalMs) return;
     await this.sleep(this.minIntervalMs - elapsed);
   }
 
-  private isRetryableQuotaError(error: unknown) {
+  private isRetryableError(error: unknown) {
     return (
       typeof error === "object" &&
       error !== null &&
       "status" in error &&
-      (error as { status?: number }).status === 429
+      [429, 500, 503].includes((error as { status?: number }).status ?? 0)
     );
   }
 

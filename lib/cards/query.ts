@@ -760,6 +760,20 @@ const buildAlternateSelect = (includeRelations: boolean) => ({
     colors: { select: { id: true, color: true } },
     effects: { select: { id: true, effect: true } },
     texts: { select: { id: true, text: true } },
+    localizations: {
+      where: { language: "es" },
+      select: {
+        id: true,
+        language: true,
+        contentType: true,
+        sourceKey: true,
+        sourceRecordId: true,
+        sourceOrder: true,
+        translatedText: true,
+        status: true,
+        translationSource: true,
+      },
+    },
     sets: {
       select: {
         set: {
@@ -793,6 +807,20 @@ const buildInclude = (
     include.effects = { select: { id: true, effect: true } };
     include.conditions = { select: { id: true, condition: true } };
     include.texts = { select: { id: true, text: true } };
+    include.localizations = {
+      where: { language: "es" },
+      select: {
+        id: true,
+        language: true,
+        contentType: true,
+        sourceKey: true,
+        sourceRecordId: true,
+        sourceOrder: true,
+        translatedText: true,
+        status: true,
+        translationSource: true,
+      },
+    };
     include.sets = {
       select: {
         set: {
@@ -926,6 +954,20 @@ const fetchCardsPageByPrice = async (
         effects: { select: { id: true, effect: true } },
         conditions: { select: { id: true, condition: true } },
         texts: { select: { id: true, text: true } },
+        localizations: {
+          where: { language: "es" },
+          select: {
+            id: true,
+            language: true,
+            contentType: true,
+            sourceKey: true,
+            sourceRecordId: true,
+            sourceOrder: true,
+            translatedText: true,
+            status: true,
+            translationSource: true,
+          },
+        },
         sets: {
           select: {
             set: {
@@ -1061,6 +1103,20 @@ const fetchCardsPageWithAlternates = async (
         effects: { select: { id: true, effect: true } },
         conditions: { select: { id: true, condition: true } },
         texts: { select: { id: true, text: true } },
+        localizations: {
+          where: { language: "es" },
+          select: {
+            id: true,
+            language: true,
+            contentType: true,
+            sourceKey: true,
+            sourceRecordId: true,
+            sourceOrder: true,
+            translatedText: true,
+            status: true,
+            translationSource: true,
+          },
+        },
         sets: {
           select: {
             set: {
@@ -1281,6 +1337,20 @@ export const fetchAllCardsFromDb = async (
           effects: { select: { id: true, effect: true } },
           conditions: { select: { id: true, condition: true } },
           texts: { select: { id: true, text: true } },
+          localizations: {
+            where: { language: "es" },
+            select: {
+              id: true,
+              language: true,
+              contentType: true,
+              sourceKey: true,
+              sourceRecordId: true,
+              sourceOrder: true,
+              translatedText: true,
+              status: true,
+              translationSource: true,
+            },
+          },
           sets: {
             select: {
               set: {
@@ -1630,7 +1700,8 @@ export const countCardsByFilters = async (
 /** Suma el marketPrice de las cartas que matchean el filtro (mismo where que
  *  el conteo). Devuelve el total en USD y cuántas tienen precio. */
 export const sumCardsValueByFilters = async (
-  filters: CardsFilters
+  filters: CardsFilters,
+  priceField: "marketPrice" | "midPrice" = "marketPrice"
 ): Promise<{ value: number; withPrice: number }> => {
   const { enrichedFilters, forceEmpty } =
     await enrichFiltersWithResolvedSearchSet(filters);
@@ -1644,12 +1715,23 @@ export const sumCardsValueByFilters = async (
 
   const agg = await prisma.card.aggregate({
     where,
-    _sum: { marketPrice: true },
-    _count: { marketPrice: true },
+    _sum: {
+      marketPrice: true,
+      midPrice: true,
+    },
+    _count: {
+      marketPrice: true,
+      midPrice: true,
+    },
   });
 
   return {
-    value: Number(agg._sum.marketPrice ?? 0),
-    withPrice: agg._count.marketPrice ?? 0,
+    value: Number(
+      priceField === "midPrice" ? agg._sum.midPrice ?? 0 : agg._sum.marketPrice ?? 0
+    ),
+    withPrice:
+      priceField === "midPrice"
+        ? agg._count.midPrice ?? 0
+        : agg._count.marketPrice ?? 0,
   };
 };

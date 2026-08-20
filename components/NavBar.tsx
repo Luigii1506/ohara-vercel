@@ -37,6 +37,7 @@ import {
   RefreshCw,
   Trophy,
   Globe,
+  Languages,
   MapPin,
   MoreHorizontal,
   List,
@@ -158,6 +159,7 @@ const NavBar = () => {
         { href: "/admin/dons", label: "Admin Don!!", icon: Shield, description: "Gestiona Don base y alternos" },
         { href: "/admin/region-alternates", label: "Region Alternates", icon: Images, description: "Sync alternateArt from US cards" },
         { href: "/admin/card-groups", label: "Card Groups", icon: Layers, description: "Agrupa cartas por region" },
+        { href: "/admin/card-localizations", label: "Card Localizations", icon: Languages, description: "Revisa y aprueba traducciones por carta" },
       ],
     },
     {

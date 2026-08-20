@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Oswald } from "next/font/google";
 import BaseCardsToggle from "@/components/BaseCardsToggle";
+import PriceFieldToggle, { type PriceField } from "@/components/PriceFieldToggle";
 import FAB from "@/components/Fab";
 import type { CardsFilters, CardsPage } from "@/lib/cards/types";
 import {
@@ -106,10 +107,22 @@ const getNumericPriceStatic = (value: any) => {
   return Number.isFinite(numberValue) ? numberValue : null;
 };
 
-const getCardPriceValueStatic = (card: CardWithCollectionData) => {
+const getCardPriceValueStatic = (
+  card: CardWithCollectionData,
+  priceField: PriceField
+) => {
+  const ownPrice =
+    priceField === "midPrice"
+      ? getNumericPriceStatic(card.midPrice)
+      : getNumericPriceStatic(card.marketPrice);
+  const firstAltPrice =
+    priceField === "midPrice"
+      ? getNumericPriceStatic(card.alternates?.[0]?.midPrice)
+      : getNumericPriceStatic(card.alternates?.[0]?.marketPrice);
+
   return (
-    getNumericPriceStatic(card.marketPrice) ??
-    getNumericPriceStatic(card.alternates?.[0]?.marketPrice) ??
+    ownPrice ??
+    firstAltPrice ??
     null
   );
 };
@@ -160,11 +173,13 @@ const PriceTag = React.memo(
   ({
     card,
     className = "",
+    priceField,
   }: {
     card: CardWithCollectionData;
     className?: string;
+    priceField: PriceField;
   }) => {
-    const priceValue = getCardPriceValueStatic(card);
+    const priceValue = getCardPriceValueStatic(card, priceField);
     if (priceValue === null) {
       return (
         <div
@@ -203,6 +218,7 @@ const CardListClient = ({
   const { t } = useI18n();
   const { region, setRegion } = useRegion();
   const { showCollectionToast, showToast } = useToast();
+  const [priceField, setPriceField] = useState<PriceField>("marketPrice");
   const sortOptions = useMemo<SortOption[]>(
     () => [
       {
@@ -471,6 +487,20 @@ const CardListClient = ({
   const modalFamilyRequestRef = useRef(0);
 
   const { data: session, status } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  useEffect(() => {
+    if (!isAdmin || typeof window === "undefined") return;
+    const storedValue = window.localStorage.getItem("card-list-price-field");
+    if (storedValue === "marketPrice" || storedValue === "midPrice") {
+      setPriceField(storedValue);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || typeof window === "undefined") return;
+    window.localStorage.setItem("card-list-price-field", priceField);
+  }, [isAdmin, priceField]);
 
   // Collection state - tracks which cards are in user's collection with quantities
   const [collectionCardIds, setCollectionCardIds] = useState<Map<string, number>>(new Map());
@@ -855,7 +885,7 @@ const CardListClient = ({
     status !== "loading" && !isCollectionSummaryLoading;
 
   const { data: countData, isFetching: isCounting } = useCardsCount(filters);
-  const { data: valueData } = useCardsValue(filters);
+  const { data: valueData } = useCardsValue(filters, { priceField });
 
   useEffect(() => {
     if (
@@ -959,7 +989,10 @@ const CardListClient = ({
   }, [cards, initialData, matchesInitialFilters]);
 
   // Usar las funciones estáticas definidas fuera del componente
-  const getCardPriceValue = getCardPriceValueStatic;
+  const getCardPriceValue = useCallback(
+    (card: CardWithCollectionData) => getCardPriceValueStatic(card, priceField),
+    [priceField]
+  );
   const formatCurrency = formatCurrencyStatic;
 
   const filteredCards = useMemo(() => {
@@ -1610,6 +1643,12 @@ const CardListClient = ({
                 isActive={showOnlyBaseCards}
                 onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
               />
+              {isAdmin && (
+                <PriceFieldToggle
+                  value={priceField}
+                  onChange={setPriceField}
+                />
+              )}
             </div>
 
             <div className="flex-1 flex justify-end">
@@ -1952,6 +1991,14 @@ const CardListClient = ({
               onToggle={() => setShowOnlyBaseCards(!showOnlyBaseCards)}
             />
           </div>
+          {isAdmin && (
+            <div className="hidden md:block">
+              <PriceFieldToggle
+                value={priceField}
+                onChange={setPriceField}
+              />
+            </div>
+          )}
           {isDesktop &&
             <MultiSelect
               options={sortOptionsForSelect}
@@ -2354,7 +2401,11 @@ const CardListClient = ({
                                     </p>
                                   ))}
                                 </div>
-                                <PriceTag card={card} className="mt-2" />
+                                <PriceTag
+                                  card={card}
+                                  className="mt-2"
+                                  priceField={priceField}
+                                />
                               </CardContent>
                             </Card>
                           )}
@@ -2399,7 +2450,11 @@ const CardListClient = ({
                                     </p>
                                   ))}
                                 </div>
-                                <PriceTag card={alt} className="mt-2" />
+                                <PriceTag
+                                  card={alt}
+                                  className="mt-2"
+                                  priceField={priceField}
+                                />
                               </CardContent>
                             </Card>
                           ))}
@@ -2424,6 +2479,7 @@ const CardListClient = ({
         canAdd={false}
         canRemove={false}
         isLeaderSelection={false}
+        priceField={priceField}
       />
 
       {/* Modales... */}
@@ -2555,6 +2611,7 @@ const CardListClient = ({
                         showLargeImage={showLargeImage}
                         onNavigatePrevious={handleNavigatePrevious}
                         onNavigateNext={handleNavigateNext}
+                        priceField={priceField}
                       />
                     )
                   ) : null}

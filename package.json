@@ -41,7 +41,8 @@
     "tournaments:sync:limitless": "ts-node --project tsconfig.scripts.json scripts/scrape-limitless-tournaments.ts",
     "tournaments:test:onepiecegg": "ts-node --project tsconfig.scripts.json scripts/scrape-onepiece-gg-tournaments.ts",
     "cards:update-order": "ts-node --project tsconfig.scripts.json scripts/update-collection-order.ts",
-    "sets:delete-empty": "tsx scripts/delete-empty-sets.ts"
+    "sets:delete-empty": "tsx scripts/delete-empty-sets.ts",
+    "cards:localize:ai:prod": "tsx scripts/run-prod-card-localizations-ai.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",

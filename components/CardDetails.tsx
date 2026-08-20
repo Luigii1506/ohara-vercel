@@ -1,9 +1,18 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import { CardWithCollectionData } from "@/types";
 import { highlightText, getColors } from "@/helpers/functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import SpecialIcon from "@/components/Icons/SpecialIcon";
 import RangedIcons from "@/components/Icons/RangedIcons";
 import WisdomIcons from "@/components/Icons/WisdomIcons";
@@ -25,10 +34,42 @@ const CardDetails: React.FC<CardInfoProps> = ({
   isTextOnly = true,
 }) => {
   const { t } = useI18n();
+  const [showSpanishText, setShowSpanishText] = useState(false);
   // Use texts if available, otherwise fallback to effects
   const hasTexts = (card?.texts?.length ?? 0) > 0;
   const hasEffects = (card?.effects?.length ?? 0) > 0;
   const hasEffectContent = hasTexts || hasEffects;
+  const localizations = card?.localizations ?? [];
+  const hasSpanishText =
+    localizations.some((entry) => entry.contentType === "TEXT") ||
+    localizations.some((entry) => entry.contentType === "TRIGGER");
+
+  const getLocalizedText = (
+    sourceKey: string,
+    fallbackValue: string | null | undefined
+  ) => {
+    if (!showSpanishText) return fallbackValue ?? "";
+    return (
+      localizations.find((entry) => entry.sourceKey === sourceKey)?.translatedText ??
+      fallbackValue ??
+      ""
+    );
+  };
+
+  const displayTexts = hasTexts
+    ? card?.texts?.map((text, index) => ({
+        key: `text:${index}`,
+        value: getLocalizedText(`text:${(text as { id?: number }).id ?? index}`, text.text),
+      }))
+    : card?.effects?.map((effect, index) => ({
+        key: `effect:${index}`,
+        value: getLocalizedText(
+          `effect:${(effect as { id?: number }).id ?? index}`,
+          effect.effect
+        ),
+      }));
+
+  const displayTrigger = getLocalizedText("triggerCard", card?.triggerCard);
 
   return (
     <Card className="w-full max-w-2xl mx-auto border rounded-lg shadow  py-4 h-full">
@@ -154,30 +195,46 @@ const CardDetails: React.FC<CardInfoProps> = ({
 
           {hasEffectContent && (
             <div className="relative">
-              <h3 className="text-sm font-semibold mb-2">
-                {t("cardDetails.effect")}
-              </h3>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">
+                  {t("cardDetails.effect")}
+                </h3>
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          EN
+                        </span>
+                        <Switch
+                          checked={showSpanishText}
+                          onCheckedChange={setShowSpanishText}
+                          disabled={!hasSpanishText}
+                          aria-label="Toggle Spanish card text"
+                        />
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          ES
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {hasSpanishText
+                        ? "Cambiar entre texto original y traduccion en espanol"
+                        : "Esta carta aun no tiene traduccion en espanol"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="space-y-1 text-[13px] text-black font-[200]">
-                {/* Prefer texts, fallback to effects */}
-                {hasTexts
-                  ? card?.texts?.map((text, index) => (
-                      <p key={index} className="text-justify whitespace-pre-line">
-                        {highlightText(
-                          text.text.replace(/\\n/g, "\n"),
-                          searchTerm,
-                          card?.conditions
-                        )}
-                      </p>
-                    ))
-                  : card?.effects?.map((effect, index) => (
-                      <p key={index} className="text-justify whitespace-pre-line">
-                        {highlightText(
-                          effect.effect.replace(/\\n/g, "\n"),
-                          searchTerm,
-                          card?.conditions
-                        )}
-                      </p>
-                    ))}
+                {displayTexts?.map((entry) => (
+                  <p key={entry.key} className="text-justify whitespace-pre-line">
+                    {highlightText(
+                      entry.value.replace(/\\n/g, "\n"),
+                      searchTerm,
+                      card?.conditions
+                    )}
+                  </p>
+                ))}
               </div>
             </div>
           )}
@@ -198,7 +255,7 @@ const CardDetails: React.FC<CardInfoProps> = ({
                 <p className="text-[13px] leading-[16px] font-[200]  px-2 py-3 text-white">
                   <span>
                     {highlightText(
-                      card?.triggerCard,
+                      displayTrigger,
                       searchTerm,
                       card?.conditions
                     )}

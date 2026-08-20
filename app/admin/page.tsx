@@ -25,6 +25,7 @@ import {
   Activity,
   Sparkles,
   Receipt,
+  Languages,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -135,6 +136,12 @@ export default function AdminDashboard() {
           label: "Auditor de catálogo",
           icon: Shield,
           description: "Corrige alt-arts mal clasificados vs TCGplayer",
+        },
+        {
+          href: "/admin/card-localizations",
+          label: "Card Localizations",
+          icon: Languages,
+          description: "Revisa y aprueba traducciones por carta e idioma",
         },
       ],
     },

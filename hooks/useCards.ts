@@ -437,10 +437,13 @@ export const useCardsCount = (
 };
 
 const fetchCardsValue = async (
-  filters: CardsFilters
+  filters: CardsFilters,
+  priceField: "marketPrice" | "midPrice" = "marketPrice"
 ): Promise<{ value: number; withPrice: number }> => {
   const queryString = buildQueryString({ filters });
-  const url = queryString ? `/api/cards/value?${queryString}` : "/api/cards/value";
+  const url = queryString
+    ? `/api/cards/value?${queryString}&priceField=${priceField}`
+    : `/api/cards/value?priceField=${priceField}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error("Error al calcular el valor");
   const data = await res.json();
@@ -453,12 +456,16 @@ const fetchCardsValue = async (
 /** Valor total (suma de marketPrice) de las cartas filtradas. */
 export const useCardsValue = (
   filters: CardsFilters,
-  options?: { enabled?: boolean }
+  options?: {
+    enabled?: boolean;
+    priceField?: "marketPrice" | "midPrice";
+  }
 ) => {
   const serializedFilters = serializeFiltersForKey(filters);
+  const priceField = options?.priceField ?? "marketPrice";
   return useQuery({
-    queryKey: ["cards-value", serializedFilters],
-    queryFn: () => fetchCardsValue(filters),
+    queryKey: ["cards-value", serializedFilters, priceField],
+    queryFn: () => fetchCardsValue(filters, priceField),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     enabled: options?.enabled ?? true,

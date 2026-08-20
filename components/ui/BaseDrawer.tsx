@@ -5,6 +5,22 @@ import { useEffect, useState, ReactNode, useCallback, useRef } from "react";
 // Global counter to track open drawers/modals
 let openDrawerCount = 0;
 
+// Tailwind's JIT scanner only picks up complete literal class names, so
+// `desktopMaxWidth` can't be interpolated directly into a "md:" prefixed
+// class at runtime (e.g. `md:${desktopMaxWidth}`) — the resulting string
+// never appears verbatim in source, so the utility never gets generated.
+// This map keeps every "md:max-w-*" variant we support written out in full.
+const DESKTOP_MAX_WIDTH_CLASSES: Record<string, string> = {
+  "max-w-sm": "md:max-w-sm",
+  "max-w-md": "md:max-w-md",
+  "max-w-lg": "md:max-w-lg",
+  "max-w-xl": "md:max-w-xl",
+  "max-w-2xl": "md:max-w-2xl",
+  "max-w-3xl": "md:max-w-3xl",
+  "max-w-4xl": "md:max-w-4xl",
+  "max-w-5xl": "md:max-w-5xl",
+};
+
 export const lockBodyScroll = () => {
   openDrawerCount++;
   if (openDrawerCount === 1) {
@@ -305,6 +321,8 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
 
   // Desktop modal variant (centered with scale animation)
   if (desktopModal) {
+    const desktopMaxWidthClass =
+      DESKTOP_MAX_WIDTH_CLASSES[desktopMaxWidth] ?? "md:max-w-4xl";
     return (
       <>
         {/* Backdrop */}
@@ -326,7 +344,7 @@ const BaseDrawer: React.FC<BaseDrawerProps> = ({
               fullScreenMobile ? "h-full" : "rounded-t-3xl border border-slate-200"
             } ${
               isDragging ? "transition-none" : "transition-all duration-300"
-            } ease-out md:max-h-[85vh] md:${desktopMaxWidth} md:rounded-3xl md:border md:border-slate-200 ${
+            } ease-out md:max-h-[85vh] ${desktopMaxWidthClass} md:rounded-3xl md:border md:border-slate-200 ${
               isVisible
                 ? "translate-y-0 md:translate-y-0 md:scale-100 md:opacity-100"
                 : "translate-y-full md:translate-y-0 md:scale-95 md:opacity-0"

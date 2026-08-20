@@ -12,7 +12,12 @@ export async function GET(req: NextRequest) {
   try {
     const params = req.nextUrl.searchParams;
     const filters = buildFiltersFromSearchParams(params);
-    const { value, withPrice } = await sumCardsValueByFilters(filters);
+    const priceField =
+      params.get("priceField") === "midPrice" ? "midPrice" : "marketPrice";
+    const { value, withPrice } = await sumCardsValueByFilters(
+      filters,
+      priceField
+    );
     return NextResponse.json({ value, withPrice }, { status: 200 });
   } catch (error) {
     console.error("Error summing cards value:", error);

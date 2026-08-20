@@ -1,6 +1,7 @@
 import { rarityFormatter } from "@/helpers/formatters";
-import { ShoppingCart, X } from "lucide-react";
+import { Printer, ShoppingCart, X } from "lucide-react";
 import React, { useEffect, useRef } from "react";
+import { toast } from "react-toastify";
 import { CardWithCollectionData } from "@/types";
 import { isOfficialVariantToken } from "@/lib/cards/officialVariant";
 import CardsVariations from "@/components/CardVariations";
@@ -13,7 +14,9 @@ import CardRulings from "./CardRulings";
 import Link from "next/link";
 
 import { useCartStore, CartItem } from "@/store/cartStore";
+import { usePrintQueueStore } from "@/store/printQueueStore";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
+import type { PriceField } from "@/components/PriceFieldToggle";
 
 /**
  * Abre TCGplayer usando Universal Links (iOS) / App Links (Android)
@@ -81,6 +84,7 @@ interface CardModalProps {
   showLargeImage?: boolean;
   onNavigatePrevious?: () => void;
   onNavigateNext?: () => void;
+  priceField?: PriceField;
 }
 
 const oswald = Oswald({
@@ -99,6 +103,7 @@ const CardModal: React.FC<CardModalProps> = ({
   showLargeImage,
   onNavigatePrevious,
   onNavigateNext,
+  priceField = "marketPrice",
 }) => {
   const [baseSelected, setBaseSelected] = React.useState<boolean | undefined>(
     false
@@ -122,6 +127,15 @@ const CardModal: React.FC<CardModalProps> = ({
     addItem(newItem);
   };
 
+  const addToPrintQueue = usePrintQueueStore((state) => state.addCard);
+
+  const handleAddToPrintQueue = () => {
+    const cardToPrint = selectedCard ?? baseCard;
+    if (!cardToPrint) return;
+    addToPrintQueue(cardToPrint);
+    toast.success("Carta añadida a la cola de impresión");
+  };
+
   const [indexSelected, setIndexSelected] = React.useState(0);
   const [isTouchable, setIsTouchable] = React.useState(false);
 
@@ -139,8 +153,12 @@ const CardModal: React.FC<CardModalProps> = ({
   const selectedSetTitle = resolveSetTitle(selectedCard ?? baseCard);
 
   console.log("selectedSetTitle", selectedSetTitle);
+  const selectedPriceLabel =
+    priceField === "midPrice" ? "Listed median" : "Market price";
   const formattedMarketPrice = formatPriceValue(
-    activeCardForPricing?.marketPrice ?? null,
+    (priceField === "midPrice"
+      ? activeCardForPricing?.midPrice
+      : activeCardForPricing?.marketPrice) ?? null,
     activeCardForPricing?.priceCurrency ?? "USD"
   );
   const formattedPriceUpdatedAt = formatUpdatedTimestamp(
@@ -155,7 +173,7 @@ const CardModal: React.FC<CardModalProps> = ({
           className={`w-full rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 via-white to-blue-50 px-4 py-3 text-center shadow-sm ${className} min-h-[120px] flex flex-col justify-center`}
         >
           <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-            Market price
+            {selectedPriceLabel}
           </p>
           <p className="text-2xl font-bold text-gray-900 my-1">
             {formattedMarketPrice}
@@ -173,7 +191,7 @@ const CardModal: React.FC<CardModalProps> = ({
           className={`w-full rounded-2xl border border-gray-200 bg-gradient-to-b from-gray-50 via-white to-gray-50 px-4 py-3 text-center shadow-sm ${className} min-h-[120px] flex flex-col justify-center`}
         >
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
-            Market price
+            {selectedPriceLabel}
           </p>
           <p className="text-sm font-medium text-gray-500 my-1">
             No sales data available
@@ -411,6 +429,17 @@ const CardModal: React.FC<CardModalProps> = ({
                         <span>View on TCGplayer</span>
                       </button>
                     )}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToPrintQueue();
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600 text-white text-xs font-semibold shadow hover:bg-purple-500 transition-colors mt-2 cursor-pointer"
+                    >
+                      <Printer className="h-4 w-4" />
+                      <span>Imprimir</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -469,6 +498,17 @@ const CardModal: React.FC<CardModalProps> = ({
                       <span className="text-xs">View on TCGplayer</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddToPrintQueue();
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600 text-white text-xs font-semibold shadow hover:bg-purple-500 transition-colors cursor-pointer"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span className="text-xs">Imprimir</span>
+                  </button>
                 </div>
               </div>
 

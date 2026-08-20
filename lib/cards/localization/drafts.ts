@@ -125,22 +125,23 @@ export async function buildCardLocalizationDraftsWithTranslations(
   mode: "glossary" | "ai"
 ): Promise<CardLocalizationDraft[]> {
   const drafts = buildCardLocalizationDrafts(card, language);
+  const translatedDrafts: CardLocalizationDraft[] = [];
 
-  return Promise.all(
-    drafts.map(async (draft) => {
-      const prefersAi =
-        mode === "ai" && (draft.contentType === "TEXT" || draft.contentType === "TRIGGER");
-      const translation = await translator.translateText(
-        draft.sourceText,
-        language,
-        prefersAi ? "ai" : "glossary"
-      );
+  for (const draft of drafts) {
+    const prefersAi =
+      mode === "ai" && (draft.contentType === "TEXT" || draft.contentType === "TRIGGER");
+    const translation = await translator.translateText(
+      draft.sourceText,
+      language,
+      prefersAi ? "ai" : "glossary"
+    );
 
-      return {
-        ...draft,
-        translatedText: translation.translatedText,
-        translationSource: translation.translationSource,
-      };
-    })
-  );
+    translatedDrafts.push({
+      ...draft,
+      translatedText: translation.translatedText,
+      translationSource: translation.translationSource,
+    });
+  }
+
+  return translatedDrafts;
 }

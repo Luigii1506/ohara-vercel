@@ -143,6 +143,12 @@ export default function AdminDashboard() {
           icon: Languages,
           description: "Revisa y aprueba traducciones por carta e idioma",
         },
+        {
+          href: "/admin/master-sets",
+          label: "Master Sets",
+          icon: Users,
+          description: "Relaciona personajes con cartas para master sets",
+        },
       ],
     },
     {

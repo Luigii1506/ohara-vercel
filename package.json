@@ -38,6 +38,8 @@
     "sync:limitless-catalog-feed": "tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-catalog-feed.ts",
     "sync:limitless-set-membership": "tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-set-membership.ts",
     "sync:limitless-review-queue": "tsx --tsconfig tsconfig.scripts.json scripts/sync-limitless-review-queue.ts",
+    "sync:cameos:google-sheet": "tsx scripts/sync-cameo-google-sheet.ts",
+    "sync:master-sets:names": "tsx scripts/sync-master-set-name-links.ts",
     "tournaments:sync:limitless": "ts-node --project tsconfig.scripts.json scripts/scrape-limitless-tournaments.ts",
     "tournaments:test:onepiecegg": "ts-node --project tsconfig.scripts.json scripts/scrape-onepiece-gg-tournaments.ts",
     "cards:update-order": "ts-node --project tsconfig.scripts.json scripts/update-collection-order.ts",

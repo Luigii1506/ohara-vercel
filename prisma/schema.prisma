@@ -77,6 +77,8 @@ model Card {
   productCards          ProductCard[]
   baseGroupLinks        CardGroupLink[]
   variantGroupLinks     CardVariantLink[]
+  characterLinks        CardCharacterLink[]
+  cameoSourceEntries    CharacterCameoSourceEntry[] @relation("MatchedCameoCard")
   sources               CardSource[]
   priceStat             CardPriceStat?
 
@@ -84,6 +86,127 @@ model Card {
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
   @@index([code, region, isFirstEdition]) // Índice para cartas base por region
   @@index([collectionOrder])
+}
+
+enum CharacterLinkRelationType {
+  MENTIONED_IN_NAME
+  MENTIONED_IN_TEXT
+  MENTIONED_IN_TRIGGER
+  DEPICTED_IN_ART
+  THEME_OF_CARD
+}
+
+enum CharacterLinkSource {
+  AUTO
+  MANUAL
+  GOOGLE_SHEET
+  REVIEWED
+}
+
+enum CharacterSourceSheetType {
+  META
+  CHARACTER
+}
+
+enum CharacterSourceEntryStatus {
+  PENDING
+  MATCHED
+  UNMATCHED
+  IGNORED
+}
+
+model CharacterEntity {
+  id          Int                 @id @default(autoincrement())
+  slug        String              @unique
+  name        String
+  description String?             @db.Text
+  aliases     String[]
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  links       CardCharacterLink[]
+  sourceSheets CharacterSourceSheet[]
+  sourceEntries CharacterCameoSourceEntry[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model CharacterSourceSheet {
+  id            Int                      @id @default(autoincrement())
+  characterId   Int?
+  spreadsheetId String
+  gid           String
+  sheetName     String
+  sheetType     CharacterSourceSheetType @default(CHARACTER)
+  sourceUrl     String?
+  isActive      Boolean                  @default(true)
+  lastSyncedAt  DateTime?
+  lastRowCount  Int?
+  syncNotes     String?                  @db.Text
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  character     CharacterEntity?         @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  entries       CharacterCameoSourceEntry[]
+  links         CardCharacterLink[]
+
+  @@unique([spreadsheetId, gid])
+  @@index([characterId])
+  @@index([sheetType, isActive])
+}
+
+model CharacterCameoSourceEntry {
+  id             Int                        @id @default(autoincrement())
+  sheetId         Int
+  characterId     Int?
+  rowNumber       Int
+  sourceCardName  String
+  sourceCardType  String?
+  sourceCardCode  String?
+  sourceVariant   String?
+  specialSet      String?
+  relationType    CharacterLinkRelationType @default(DEPICTED_IN_ART)
+  matchedCardId   Int?
+  status          CharacterSourceEntryStatus @default(PENDING)
+  isActive        Boolean                   @default(true)
+  notes           String?                   @db.Text
+  rawData         Json?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  sheet           CharacterSourceSheet      @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  character       CharacterEntity?          @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  matchedCard     Card?                     @relation("MatchedCameoCard", fields: [matchedCardId], references: [id], onDelete: SetNull)
+  links           CardCharacterLink[]
+
+  @@unique([sheetId, rowNumber])
+  @@index([characterId])
+  @@index([matchedCardId])
+  @@index([status, isActive])
+  @@index([sourceCardCode])
+}
+
+model CardCharacterLink {
+  id           Int                       @id @default(autoincrement())
+  cardId       Int
+  characterId  Int
+  relationType CharacterLinkRelationType
+  source       CharacterLinkSource       @default(AUTO)
+  sourceSheetId Int?
+  sourceEntryId Int?
+  notes        String?                   @db.Text
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  card         Card                      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  character    CharacterEntity           @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  sourceSheet  CharacterSourceSheet?     @relation(fields: [sourceSheetId], references: [id], onDelete: SetNull)
+  sourceEntry  CharacterCameoSourceEntry? @relation(fields: [sourceEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([cardId, characterId, relationType], name: "unique_card_character_relation")
+  @@index([characterId, relationType])
+  @@index([cardId])
+  @@index([source])
+  @@index([sourceSheetId])
+  @@index([sourceEntryId])
 }
 
 model CardGroup {

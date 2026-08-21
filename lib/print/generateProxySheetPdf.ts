@@ -1378,7 +1378,10 @@ function splitTextSegment(text: string) {
 
 function getRestedIconMetrics(fontSize: number) {
   const diameter = fontSize * 0.85;
-  const gap = fontSize * 0.12;
+  // El texto original ya trae su propio espacio antes/después de "//n"
+  // (queda como segmento de texto normal al partir con RESTED_ICON_REGEX);
+  // sumar aquí un gap adicional duplicaba la separación visual.
+  const gap = 0;
   return { diameter, gap };
 }
 
@@ -1668,23 +1671,26 @@ function normalizeDashesForRegex(value: string) {
   return value.replace(new RegExp(DASH_CLASS, "g"), DASH_CLASS);
 }
 
+// "DON!! -N" siempre va en negritas en el proxy, sin depender de si el
+// scraper llegó a guardar esa condición para esta carta puntual (el dato de
+// `conditions` puede venir vacío para este patrón por como se extrae del sitio
+// oficial, pero el texto igual debe resaltarse en la impresión).
+const DON_COST_PATTERN = `DON!!\\s*${DASH_CLASS}\\s*\\d+`;
+
 function applyBoldConditionsToText(
   text: string,
   conditions: string[]
 ): StyledSegment[] {
-  if (!text || conditions.length === 0) {
+  if (!text) {
     return applyItalicStylingToSegments([{ type: "text", text }]);
   }
 
-  const pattern = conditions
+  const conditionPatterns = conditions
     .map((condition) => condition.trim())
     .filter(Boolean)
-    .map((condition) => normalizeDashesForRegex(escapeRegExp(condition)))
-    .join("|");
+    .map((condition) => normalizeDashesForRegex(escapeRegExp(condition)));
 
-  if (!pattern) {
-    return applyItalicStylingToSegments([{ type: "text", text }]);
-  }
+  const pattern = [DON_COST_PATTERN, ...conditionPatterns].join("|");
 
   const regex = new RegExp(`(${pattern})`, "gi");
   const parts = text.split(regex);

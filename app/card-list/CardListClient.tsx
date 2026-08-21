@@ -394,6 +394,11 @@ const CardListClient = ({
   const [search, setSearch] = useState(
     searchParams.get("search") ?? initialFilters.search ?? ""
   );
+  const [selectedSearchSetId, setSelectedSearchSetId] = useState<number | null>(
+    searchParams.get("searchSetId")
+      ? Number.parseInt(searchParams.get("searchSetId") as string, 10)
+      : initialFilters.searchSetId ?? null
+  );
   const [showSearchTips, setShowSearchTips] = useState(false);
   const [showSearchHelp, setShowSearchHelp] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -635,6 +640,7 @@ const CardListClient = ({
 
   const handleSearchExample = useCallback(
     (value: string) => {
+      setSelectedSearchSetId(null);
       setSearch(value);
       setShowSearchHelp(false);
       setShowSearchTips(false);
@@ -740,6 +746,7 @@ const CardListClient = ({
 
     return {
       search: search.trim() || undefined,
+      searchSetId: selectedSearchSetId ?? undefined,
       sets: selectedSets.length > 0 ? selectedSets : undefined,
       setCodes: selectedCodes.length > 0 ? selectedCodes : undefined,
       colors: selectedColors.length > 0 ? selectedColors : undefined,
@@ -772,6 +779,7 @@ const CardListClient = ({
     };
   }, [
     search,
+    selectedSearchSetId,
     selectedCodes,
     selectedSets,
     selectedColors,
@@ -796,6 +804,25 @@ const CardListClient = ({
     () => serializeFiltersForKey(filters),
     [filters]
   );
+
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSelectedSearchSetId((current) => {
+      if (current === null) return current;
+      return value.trim() === search.trim() ? current : null;
+    });
+  }, [search]);
+
+  const handleSearchSuggestionSelect = useCallback(
+    (suggestionId: number | string) => {
+      const numericId =
+        typeof suggestionId === "number"
+          ? suggestionId
+          : Number.parseInt(String(suggestionId), 10);
+      setSelectedSearchSetId(Number.isInteger(numericId) ? numericId : null);
+    },
+    []
+  );
+
   const initialFiltersSignatureRef = useRef<string | null>(null);
   if (initialFiltersSignatureRef.current === null) {
     initialFiltersSignatureRef.current = filtersSignature;
@@ -997,6 +1024,7 @@ const CardListClient = ({
 
   const filteredCards = useMemo(() => {
     if (!dataSource?.length) return [];
+    const clientSearch = selectedSearchSetId ? "" : search;
 
     const normalizedCards = dataSource.map((card) => {
       let nextCard = card;
@@ -1004,7 +1032,7 @@ const CardListClient = ({
       if (card.alternates?.length) {
         const filteredByActiveSearch = card.alternates.filter((alt) =>
           cardMatchesActiveFilters(alt, {
-            search,
+            search: clientSearch,
             selectedSets,
             selectedCodes,
             selectedAltArts,
@@ -1030,7 +1058,7 @@ const CardListClient = ({
       return nextCard;
     }).filter((card) => {
       const baseMatches = cardMatchesActiveFilters(card, {
-        search,
+        search: clientSearch,
         selectedSets,
         selectedCodes,
         selectedAltArts,
@@ -1075,6 +1103,7 @@ const CardListClient = ({
     isPriceSort,
     showOnlyBaseCards,
     search,
+    selectedSearchSetId,
     selectedSets,
     selectedCodes,
     selectedAltArts,
@@ -1226,6 +1255,7 @@ const CardListClient = ({
 
     let globalIndex = 0;
     const cardsToProcess = filteredCards.slice(0, visibleCount);
+    const clientSearch = selectedSearchSetId ? "" : search;
 
     cardsToProcess.forEach((card, index) => {
       const filteredAlts = showOnlyBaseCards
@@ -1233,7 +1263,7 @@ const CardListClient = ({
         : card.alternates ?? [];
 
       const isBaseMatch = cardMatchesActiveFilters(card, {
-        search,
+        search: clientSearch,
         selectedSets,
         selectedCodes,
         selectedAltArts,
@@ -1264,7 +1294,10 @@ const CardListClient = ({
     filteredCards,
     visibleCount,
     showOnlyBaseCards,
+    search,
+    selectedSearchSetId,
     selectedSets,
+    selectedCodes,
     selectedAltArts,
   ]);
 
@@ -1517,6 +1550,8 @@ const CardListClient = ({
             standardLegalOnly={standardLegalOnly}
             setStandardLegalOnly={setStandardLegalOnly}
             searchInputRef={desktopSearchRef}
+            onSearchSuggestionSelect={handleSearchSuggestionSelect}
+            onSearchInputChange={handleSearchInputChange}
           />
         </div>
 
@@ -1531,6 +1566,10 @@ const CardListClient = ({
                   "cardList.search.placeholderPrefix"
                 )} ${dynamicPlaceholder}`}
                 suggestionsEndpoint="/api/cards/search-suggestions"
+                onSuggestionSelect={(suggestion) =>
+                  handleSearchSuggestionSelect(suggestion.id)
+                }
+                onSearchInputChange={handleSearchInputChange}
               />
             </div>
             <button

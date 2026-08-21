@@ -130,6 +130,9 @@ const buildQueryString = (
   if (filters.search) {
     searchParams.set("search", filters.search);
   }
+  if (typeof filters.searchSetId === "number") {
+    searchParams.set("searchSetId", String(filters.searchSetId));
+  }
 
   const entries: Array<[keyof CardsFilters, string]> = [
     ["sets", "sets"],
@@ -232,6 +235,9 @@ const buildFullQueryString = (params: FetchAllCardsClientParams): string => {
 
   if (filters.search) {
     searchParams.set("search", filters.search);
+  }
+  if (typeof filters.searchSetId === "number") {
+    searchParams.set("searchSetId", String(filters.searchSetId));
   }
 
   const entries: Array<[keyof CardsFilters, string]> = [

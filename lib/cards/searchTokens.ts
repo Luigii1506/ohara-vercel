@@ -14,6 +14,26 @@ export type SearchTokens = {
   illustratorTokens: string[];
 };
 
+// True when every word in the search was classified into a structured
+// signal (color, trigger, rarity, etc.) rather than left as free text —
+// e.g. "trigger amarillo" has none of these words in textTokens because
+// both were recognized (trigger + color), even though textTokens is empty.
+// Callers must not fall back to a naive literal/English-text match in that
+// case, since the recognized value (e.g. "amarillo" -> color "yellow") may
+// never appear literally in the underlying (English) card data.
+export const hasStructuredSearchSignals = (parsed: SearchTokens) =>
+  parsed.colors.length > 0 ||
+  parsed.rarities.length > 0 ||
+  parsed.categories.length > 0 ||
+  parsed.altArts.length > 0 ||
+  parsed.triggers.length > 0 ||
+  parsed.costs.length > 0 ||
+  parsed.powers.length > 0 ||
+  parsed.codeTokens.length > 0 ||
+  parsed.exactCodeTokens.length > 0 ||
+  parsed.codeSuffixTokens.length > 0 ||
+  parsed.illustratorTokens.length > 0;
+
 const SEARCH_COLOR_MAP: Record<string, string> = {
   red: "red",
   rojo: "red",

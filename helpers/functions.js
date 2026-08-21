@@ -339,9 +339,12 @@ export const highlightText = (
         </span>
       );
     } else {
-      // Para el resto del texto, buscamos los marcadores "//1" y "//4"
+      // Para el resto del texto, buscamos los marcadores "//1".."//10".
+      // "//10" va primero: con alternancia, el regex prueba las opciones en
+      // orden y se queda con la primera que matchea — si "//1" fuera antes,
+      // "//10" se cortaría en "//1" + un "0" suelto como texto literal.
       const svgRegex =
-        /(\/\/1|\/\/4|\/\/2|\/\/3|\/\/5|\/\/6|\/\/7|\/\/8|\/\/9|\/\/10)/g;
+        /(\/\/10|\/\/1|\/\/4|\/\/2|\/\/3|\/\/5|\/\/6|\/\/7|\/\/8|\/\/9)/g;
       const svgParts = part.split(svgRegex);
 
       svgParts.forEach((svgPart, svgIndex) => {

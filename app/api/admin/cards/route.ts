@@ -3,6 +3,7 @@ import {
   buildFiltersFromSearchParams,
   fetchCardsPageFromDb,
 } from "@/lib/cards/query";
+import { invalidateSearchableSetsCache } from "@/lib/cards/setSearch";
 import prisma from "@/lib/prisma";
 import type { Card, Prisma } from "@prisma/client";
 import { getCollectionOrderKey } from "@/lib/cards/sort";
@@ -123,6 +124,13 @@ export async function POST(req: NextRequest) {
     // Identidad de carta: code + (arte base vs alternativo) + región.
     // La región es tolerante a null/"" para no duplicar bases sin región.
     // ──────────────────────────────────────────────────────────────
+    const normalizedSetIds =
+      Array.isArray(setIds) && setIds.length
+        ? setIds
+            .map((setId: number | string) => Number(setId))
+            .filter((setId: number) => Number.isInteger(setId))
+        : [];
+
     if (skipIfExists && code) {
       const normalizedAlt =
         typeof alternateArt === "string" && alternateArt.trim()
@@ -135,6 +143,20 @@ export async function POST(req: NextRequest) {
           ? { alternateArt: { equals: normalizedAlt, mode: "insensitive" } }
           : { baseCardId: null }),
       };
+
+      // Para cartas alternas/promocionales, el mismo code puede existir en
+      // sets distintos y debe crear un registro independiente por set.
+      // Solo omitir si ya existe dentro del set destino actual.
+      if (normalizedAlt && normalizedSetIds.length > 0) {
+        existingWhere.sets = {
+          some: {
+            setId: {
+              in: normalizedSetIds,
+            },
+          },
+        };
+      }
+
       if (normalizedRegion) {
         existingWhere.OR = [
           { region: normalizedRegion },
@@ -149,20 +171,18 @@ export async function POST(req: NextRequest) {
       });
 
       if (existingCard) {
-        if (Array.isArray(setIds) && setIds.length) {
-          const setIdNums = setIds
-            .map((s: number | string) => Number(s))
-            .filter((n: number) => Number.isInteger(n));
+        if (normalizedSetIds.length > 0) {
           const existingLinks = await prisma.cardSet.findMany({
-            where: { cardId: existingCard.id, setId: { in: setIdNums } },
+            where: { cardId: existingCard.id, setId: { in: normalizedSetIds } },
             select: { setId: true },
           });
           const have = new Set(existingLinks.map((l) => l.setId));
-          const toCreate = setIdNums
+          const toCreate = normalizedSetIds
             .filter((id: number) => !have.has(id))
             .map((setId: number) => ({ cardId: existingCard.id, setId }));
           if (toCreate.length) {
             await prisma.cardSet.createMany({ data: toCreate });
+            invalidateSearchableSetsCache();
           }
         }
 
@@ -390,17 +410,15 @@ export async function POST(req: NextRequest) {
     }
 
     // En ambos casos, se usan los setIds enviados en el body para crear las relaciones en CardSet
-    if (setIds && Array.isArray(setIds)) {
-      const setRelations = setIds
-        .map((setId: number | string) => ({
-          cardId: newCard.id,
-          setId: Number(setId),
-        }))
-        .filter((relation) => !Number.isNaN(relation.setId));
-
+    if (normalizedSetIds.length > 0) {
+      const setRelations = normalizedSetIds.map((setId) => ({
+        cardId: newCard.id,
+        setId,
+      }));
       await prisma.cardSet.createMany({
         data: setRelations,
       });
+      invalidateSearchableSetsCache();
     }
 
     // Se consulta la carta recién creada junto con sus relaciones para devolverla

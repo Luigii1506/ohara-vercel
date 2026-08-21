@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ interface DropdownSearchProps {
   isInputClear?: boolean;
   setIsInputClear?: (value: boolean) => void;
   suggestionsEndpoint?: string;
+  onSuggestionSelect?: (suggestion: SearchSuggestion) => void;
+  onSearchInputChange?: (value: string) => void;
 }
 
 export type DropdownSearchHandle = {
@@ -37,6 +40,8 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
       isInputClear,
       setIsInputClear,
       suggestionsEndpoint,
+      onSuggestionSelect,
+      onSearchInputChange,
     }: DropdownSearchProps,
     ref
   ) {
@@ -45,7 +50,15 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
   const [isSuggestionsOpen, setIsSuggestionsOpen] = React.useState(false);
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = React.useState(false);
+  const [portalReady, setPortalReady] = React.useState(false);
+  const [floatingStyle, setFloatingStyle] = React.useState<React.CSSProperties>({
+    top: 0,
+    left: 0,
+    minWidth: 0,
+    maxWidth: 0,
+  });
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const requestIdRef = React.useRef(0);
 
   const applySearch = React.useCallback(
@@ -65,22 +78,24 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
     (suggestion: SearchSuggestion) => {
       setInputValue(suggestion.value);
       applySearch(suggestion.value);
+      onSuggestionSelect?.(suggestion);
       setSuggestions([]);
       setHighlightedIndex(-1);
       setIsSuggestionsOpen(false);
       inputRef.current?.focus();
     },
-    [applySearch]
+    [applySearch, onSuggestionSelect]
   );
 
   const handleClear = React.useCallback(() => {
     requestIdRef.current += 1;
     setInputValue("");
     setSearch("");
+    onSearchInputChange?.("");
     setSuggestions([]);
     setHighlightedIndex(-1);
     setIsSuggestionsOpen(false);
-  }, [setSearch]);
+  }, [onSearchInputChange, setSearch]);
 
   React.useImperativeHandle(
     ref,
@@ -159,6 +174,10 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
   }, [search]);
 
   React.useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  React.useEffect(() => {
     if (!suggestionsEndpoint) return;
 
     const query = inputValue.trim();
@@ -210,10 +229,108 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
     return () => window.clearTimeout(timeout);
   }, [inputValue, suggestionsEndpoint]);
 
+  const updateFloatingPosition = React.useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const rect = wrapper.getBoundingClientRect();
+    const viewportPadding = 16;
+    const preferredWidth = Math.max(rect.width, 420);
+    const maxWidth = Math.max(
+      rect.width,
+      window.innerWidth - viewportPadding * 2
+    );
+    const nextWidth = Math.min(preferredWidth, maxWidth);
+    const maxLeft = window.innerWidth - viewportPadding - nextWidth;
+    const nextLeft = Math.min(
+      Math.max(rect.left, viewportPadding),
+      Math.max(viewportPadding, maxLeft)
+    );
+
+    setFloatingStyle({
+      top: rect.bottom + 8,
+      left: nextLeft,
+      minWidth: rect.width,
+      maxWidth: maxWidth,
+      width: nextWidth,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!isSuggestionsOpen && !(isLoadingSuggestions && inputValue.trim().length >= 2)) {
+      return;
+    }
+
+    updateFloatingPosition();
+
+    const handleViewportChange = () => updateFloatingPosition();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [
+    inputValue,
+    isLoadingSuggestions,
+    isSuggestionsOpen,
+    updateFloatingPosition,
+  ]);
+
+  const suggestionsDropdown =
+    suggestionsEndpoint && isSuggestionsOpen && suggestions.length > 0 ? (
+      <div
+        className="fixed z-[100000] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        style={floatingStyle}
+      >
+        <div className="border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Set Names
+        </div>
+        <div className="max-h-72 overflow-y-auto py-1">
+          {suggestions.map((suggestion, index) => {
+            const isActive = index === highlightedIndex;
+            return (
+              <button
+                key={suggestion.id}
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  handleSuggestionSelect(suggestion);
+                }}
+                className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
+                  isActive
+                    ? "bg-blue-50 text-slate-900"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span className="block text-sm font-medium leading-5 whitespace-normal break-words">
+                  {suggestion.label ?? suggestion.value}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
+  const loadingDropdown =
+    suggestionsEndpoint &&
+    isLoadingSuggestions &&
+    inputValue.trim().length >= 2 &&
+    suggestions.length === 0 ? (
+      <div
+        className="fixed z-[100000] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-lg"
+        style={floatingStyle}
+      >
+        Searching set names...
+      </div>
+    ) : null;
+
   return (
     <div className="flex w-full max-w-4xl rounded-lg bg-white border border-gray-200 shadow-sm">
       <div className="relative flex-1 flex items-center gap-2 p-1">
-        <div className="relative flex-1">
+        <div ref={wrapperRef} className="relative flex-1">
           <Input
             ref={inputRef}
             className="h-10 border-0 pl-4 pr-10 w-full focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -221,7 +338,9 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
             type="text"
             value={inputValue}
             onChange={(e) => {
-              setInputValue(e.target.value);
+              const nextValue = e.target.value;
+              setInputValue(nextValue);
+              onSearchInputChange?.(nextValue);
               setHighlightedIndex(-1);
             }}
             onKeyDown={handleKeyDown}
@@ -250,45 +369,6 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
               <span className="sr-only">Limpiar búsqueda</span>
             </Button>
           )}
-
-          {suggestionsEndpoint && isSuggestionsOpen && suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[120] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-              <div className="border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Set Names
-              </div>
-              <div className="max-h-72 overflow-y-auto py-1">
-                {suggestions.map((suggestion, index) => {
-                  const isActive = index === highlightedIndex;
-                  return (
-                    <button
-                      key={suggestion.id}
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        handleSuggestionSelect(suggestion);
-                      }}
-                      className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
-                        isActive ? "bg-blue-50 text-slate-900" : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {suggestion.label ?? suggestion.value}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {suggestionsEndpoint &&
-            isLoadingSuggestions &&
-            inputValue.trim().length >= 2 &&
-            suggestions.length === 0 && (
-              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[120] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-lg">
-                Searching set names...
-              </div>
-            )}
         </div>
         <Button
           type="button"
@@ -300,6 +380,15 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
           <span className="hidden sm:inline">Buscar</span>
         </Button>
       </div>
+      {portalReady && typeof document !== "undefined"
+        ? createPortal(
+            <>
+              {suggestionsDropdown}
+              {loadingDropdown}
+            </>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

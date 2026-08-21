@@ -133,16 +133,6 @@ export default async function MasterSetDetailPage({
                     {detail.character.description}
                   </p>
                 ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {detail.character.aliases.map((alias) => (
-                    <span
-                      key={alias}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-                    >
-                      {alias}
-                    </span>
-                  ))}
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

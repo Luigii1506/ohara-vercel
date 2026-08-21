@@ -78,6 +78,12 @@ const TOKEN_REGEX = new RegExp(
   "gi"
 );
 
+// "//N" marks a "rest N DON!! cards" reminder icon (a circled number), never
+// literal text — it must never reach the printed sheet as raw "//N". "//10"
+// is listed before "//1" so the alternation doesn't stop at the "//1" prefix
+// and leave a stray "0" behind.
+const RESTED_ICON_REGEX = /(\/\/10|\/\/1|\/\/2|\/\/3|\/\/4|\/\/5|\/\/6|\/\/7|\/\/8|\/\/9)/g;
+
 export async function generateProxySheetPdf(
   cards: PrintableCard[],
   options: GenerateProxySheetPdfOptions = {}
@@ -1269,7 +1275,7 @@ function wrapStyledText(
 
   for (const segment of parsed) {
     const parts =
-      segment.type === "token"
+      segment.type === "token" || segment.type === "restedIcon"
         ? [segment]
         : splitTextSegment(segment.text).map((part) => ({
             type: "text" as const,
@@ -1327,7 +1333,8 @@ function wrapStyledText(
 
 type StyledSegment =
   | { type: "text"; text: string; bold?: boolean; italic?: boolean }
-  | { type: "token"; text: string; category: GlossaryTokenCategory };
+  | { type: "token"; text: string; category: GlossaryTokenCategory }
+  | { type: "restedIcon"; count: number };
 
 function parseStyledSegments(
   text: string,
@@ -1345,8 +1352,20 @@ function parseStyledSegments(
         text: part,
         category,
       });
-    } else {
-      segments.push(...applyBoldConditionsToText(part, highlightConditions));
+      continue;
+    }
+
+    const restedParts = part.split(RESTED_ICON_REGEX);
+    for (const restedPart of restedParts) {
+      if (!restedPart) continue;
+      const restedMatch = /^\/\/(\d{1,2})$/.exec(restedPart);
+      if (restedMatch) {
+        segments.push({ type: "restedIcon", count: Number(restedMatch[1]) });
+      } else {
+        segments.push(
+          ...applyBoldConditionsToText(restedPart, highlightConditions)
+        );
+      }
     }
   }
 
@@ -1355,6 +1374,12 @@ function parseStyledSegments(
 
 function splitTextSegment(text: string) {
   return text.split(/(\n|\s+)/).filter((part) => part.length > 0);
+}
+
+function getRestedIconMetrics(fontSize: number) {
+  const diameter = fontSize * 0.85;
+  const gap = fontSize * 0.12;
+  return { diameter, gap };
 }
 
 function measureStyledSegment(
@@ -1368,6 +1393,13 @@ function measureStyledSegment(
     ctx.font = `${fontStyle}${segment.bold ? "800" : baseFontWeight} ${fontSize}px Arial, sans-serif`;
     return {
       advanceWidth: ctx.measureText(segment.text).width,
+    };
+  }
+
+  if (segment.type === "restedIcon") {
+    const { diameter, gap } = getRestedIconMetrics(fontSize);
+    return {
+      advanceWidth: diameter + gap,
     };
   }
 
@@ -1405,6 +1437,31 @@ function drawStyledLine(
       ctx.textBaseline = "top";
       ctx.fillText(segment.text, cursorX, y);
       cursorX += ctx.measureText(segment.text).width;
+      continue;
+    }
+
+    if (segment.type === "restedIcon") {
+      const { diameter, gap } = getRestedIconMetrics(fontSize);
+      const radius = diameter / 2;
+      const centerX = cursorX + radius;
+      const centerY = y + fontSize * 0.5;
+      const lineWidth = Math.max(1, fontSize * 0.09);
+
+      ctx.save();
+      ctx.strokeStyle = defaultColor;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius - lineWidth / 2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = defaultColor;
+      ctx.font = `800 ${fontSize * 0.6}px Arial, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(segment.count), centerX, centerY + fontSize * 0.02);
+      ctx.restore();
+
+      cursorX += diameter + gap;
       continue;
     }
 

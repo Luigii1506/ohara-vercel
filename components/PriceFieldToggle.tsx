@@ -32,16 +32,13 @@ export default function PriceFieldToggle({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 h-[42px] text-xs font-medium text-slate-700 shadow-sm",
+              "inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 h-[42px] text-xs font-medium text-slate-700 shadow-sm",
               className
             )}
           >
             <BadgeDollarSign className="h-4 w-4 text-slate-500" />
             <span
-              className={cn(
-                "hidden sm:inline",
-                !isMedian && "font-semibold text-slate-900"
-              )}
+              className={cn(!isMedian && "font-semibold text-slate-900")}
             >
               Market
             </span>
@@ -53,10 +50,7 @@ export default function PriceFieldToggle({
               aria-label="Cambiar entre Market Price y Listed Median"
             />
             <span
-              className={cn(
-                "hidden sm:inline",
-                isMedian && "font-semibold text-slate-900"
-              )}
+              className={cn(isMedian && "font-semibold text-slate-900")}
             >
               Median
             </span>

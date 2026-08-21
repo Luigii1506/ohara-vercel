@@ -8,7 +8,7 @@ import type {
 } from "./types";
 import type { CardWithCollectionData } from "@/types";
 import { DEFAULT_REGION } from "@/lib/regions";
-import { parseSearchTokens } from "./searchTokens";
+import { parseSearchTokens, hasStructuredSearchSignals } from "./searchTokens";
 import {
   resolveSearchSetMatch,
   shouldForceEmptyForUnresolvedSetSearch,
@@ -159,6 +159,9 @@ export const buildFiltersFromSearchParams = (
 
   return {
     search: params.get("search") ?? undefined,
+    searchSetId: params.get("searchSetId")
+      ? Number.parseInt(params.get("searchSetId") as string, 10)
+      : undefined,
     sets: splitParam(params.get("sets")),
     setCodes: normalizeSetCodesParam(params.get("codes")),
     colors: splitParam(params.get("colors")),
@@ -208,19 +211,6 @@ const buildContainsAllCondition = (
 };
 
 type SearchScope = "broad" | "name-first";
-
-const hasStructuredSearchSignals = (parsed: ReturnType<typeof parseSearchTokens>) =>
-  parsed.colors.length > 0 ||
-  parsed.rarities.length > 0 ||
-  parsed.categories.length > 0 ||
-  parsed.altArts.length > 0 ||
-  parsed.triggers.length > 0 ||
-  parsed.costs.length > 0 ||
-  parsed.powers.length > 0 ||
-  parsed.codeTokens.length > 0 ||
-  parsed.exactCodeTokens.length > 0 ||
-  parsed.codeSuffixTokens.length > 0 ||
-  parsed.illustratorTokens.length > 0;
 
 const hasSpecificStructuredSearch = (filters: CardsFilters) => {
   if (!filters.search) return false;
@@ -302,6 +292,19 @@ const hasAltArtSearch = (filters: CardsFilters) => {
 };
 
 const enrichFiltersWithResolvedSearchSet = async (filters: CardsFilters) => {
+  if (typeof filters.searchSetId === "number" && Number.isInteger(filters.searchSetId)) {
+    return {
+      resolvedSearchSet: { ids: [filters.searchSetId], exclusive: true },
+      enrichedFilters: {
+        ...filters,
+        searchSetIds: [filters.searchSetId],
+        searchSetOnly: true,
+        searchSetAnyRegion: true,
+      },
+      forceEmpty: false,
+    };
+  }
+
   const resolvedSearchSet = await resolveSearchSetMatch(filters.search);
   const forceEmpty =
     !resolvedSearchSet &&

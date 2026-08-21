@@ -1,5 +1,5 @@
 import { CardWithCollectionData } from "@/types";
-import { parseSearchTokens } from "@/lib/cards/searchTokens";
+import { parseSearchTokens, hasStructuredSearchSignals } from "@/lib/cards/searchTokens";
 
 const normalizeSearchWords = (value: string) =>
   value
@@ -187,7 +187,14 @@ export const cardMatchesActiveFilters = (
   if (parsed.textTokens.length > 0) {
     const matchesTextTokens = parsed.textTokens.every((token) => includesToken(token));
     if (!matchesTextTokens) return false;
-  } else {
+  } else if (!hasStructuredSearchSignals(parsed)) {
+    // Only fall back to a naive literal match when nothing was recognized
+    // at all. If every word was classified as a structured signal (color,
+    // trigger, rarity...), the server already filtered on that correctly —
+    // re-checking the raw (possibly non-English) words against English card
+    // text here would wrongly reject valid matches (e.g. "azul"/"amarillo"
+    // never appear literally on an English card, even though its color
+    // field is correctly "blue"/"yellow").
     const compact = normalizedSearch.replace(/[^a-z0-9]+/g, " ").trim();
     if (compact && !searchableValues.some((value) => matchesPhraseToken(value, compact))) {
       const words = compact.split(/\s+/).filter(Boolean);

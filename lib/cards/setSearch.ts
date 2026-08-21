@@ -67,6 +67,46 @@ let searchableSetsCache:
 
 const SEARCHABLE_SETS_TTL_MS = 60 * 60 * 1000;
 
+export const invalidateSearchableSetsCache = () => {
+  searchableSetsCache = null;
+};
+
+async function loadSearchableSetsFromDb(): Promise<SearchableSet[]> {
+  const data = await prisma.set.findMany({
+    where: {
+      cards: {
+        some: {
+          card: {
+            region: "US",
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      code: true,
+      cards: {
+        where: {
+          card: {
+            region: "US",
+          },
+        },
+        select: {
+          cardId: true,
+        },
+      },
+    },
+  });
+
+  return data.map((set) => ({
+    id: set.id,
+    title: set.title,
+    code: set.code,
+    cardsCount: set.cards.length,
+  }));
+}
+
 export const normalizeSetSearchText = (value: string) =>
   value
     .toLowerCase()
@@ -139,74 +179,34 @@ export const setTokensMatch = (queryToken: string, titleToken: string) => {
   return false;
 };
 
-export async function getSearchableSets(): Promise<SearchableSet[]> {
+export async function getSearchableSets(
+  forceRefresh: boolean = false
+): Promise<SearchableSet[]> {
   if (
+    !forceRefresh &&
     searchableSetsCache &&
     Date.now() - searchableSetsCache.at < SEARCHABLE_SETS_TTL_MS
   ) {
     return searchableSetsCache.data;
   }
 
-  const data = await prisma.set.findMany({
-    where: {
-      cards: {
-        some: {
-          card: {
-            region: "US",
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      title: true,
-      code: true,
-      cards: {
-        where: {
-          card: {
-            region: "US",
-          },
-        },
-        select: {
-          cardId: true,
-        },
-      },
-    },
-  });
-
-  const normalizedData = data.map((set) => ({
-    id: set.id,
-    title: set.title,
-    code: set.code,
-    cardsCount: set.cards.length,
-  }));
+  const normalizedData = await loadSearchableSetsFromDb();
 
   searchableSetsCache = { at: Date.now(), data: normalizedData };
   return normalizedData;
 }
 
-export async function rankSetSearchSuggestions(
-  search?: string,
-  limit: number = 8
-): Promise<SetSearchSuggestion[]> {
-  const rawSearch = search?.trim();
-  if (!rawSearch) return [];
-
-  const normalizedQuery = normalizeSetSearchText(rawSearch);
-  if (!normalizedQuery) return [];
-
-  const queryTokens = tokenizeSetSearchText(normalizedQuery);
-  if (!queryTokens.length) return [];
-
-  const significantTokens = queryTokens.filter(
-    (token) => !SET_SEARCH_STOPWORDS.has(token)
-  );
-  const numericTokens = significantTokens.filter((token) => /^\d+$/.test(token));
-  const wordTokens = significantTokens.filter((token) => !/^\d+$/.test(token));
-  const hasSetIntent = queryTokens.some((token) => SET_SEARCH_MARKERS.has(token));
-
-  const sets = await getSearchableSets();
-  const ranked = sets
+function rankSuggestionsAgainstSets(
+  sets: SearchableSet[],
+  normalizedQuery: string,
+  queryTokens: string[],
+  significantTokens: string[],
+  numericTokens: string[],
+  wordTokens: string[],
+  hasSetIntent: boolean,
+  limit: number
+): SetSearchSuggestion[] {
+  return sets
     .map((set) => {
       const normalizedTitle = normalizeSetSearchText(set.title);
       const titleTokens = tokenizeSetSearchText(set.title);
@@ -274,8 +274,55 @@ export async function rankSetSearchSuggestions(
         a.normalizedTitle.localeCompare(b.normalizedTitle)
     )
     .slice(0, Math.min(Math.max(limit, 1), 12));
+}
 
-  return ranked;
+export async function rankSetSearchSuggestions(
+  search?: string,
+  limit: number = 8
+): Promise<SetSearchSuggestion[]> {
+  const rawSearch = search?.trim();
+  if (!rawSearch) return [];
+
+  const normalizedQuery = normalizeSetSearchText(rawSearch);
+  if (!normalizedQuery) return [];
+
+  const queryTokens = tokenizeSetSearchText(normalizedQuery);
+  if (!queryTokens.length) return [];
+
+  const significantTokens = queryTokens.filter(
+    (token) => !SET_SEARCH_STOPWORDS.has(token)
+  );
+  const numericTokens = significantTokens.filter((token) => /^\d+$/.test(token));
+  const wordTokens = significantTokens.filter((token) => !/^\d+$/.test(token));
+  const hasSetIntent = queryTokens.some((token) => SET_SEARCH_MARKERS.has(token));
+
+  const ranked = rankSuggestionsAgainstSets(
+    await getSearchableSets(),
+    normalizedQuery,
+    queryTokens,
+    significantTokens,
+    numericTokens,
+    wordTokens,
+    hasSetIntent,
+    limit
+  );
+
+  if (ranked.length > 0) {
+    return ranked;
+  }
+
+  const refreshedRanked = rankSuggestionsAgainstSets(
+    await getSearchableSets(true),
+    normalizedQuery,
+    queryTokens,
+    significantTokens,
+    numericTokens,
+    wordTokens,
+    hasSetIntent,
+    limit
+  );
+
+  return refreshedRanked;
 }
 
 export async function resolveSearchSetMatch(

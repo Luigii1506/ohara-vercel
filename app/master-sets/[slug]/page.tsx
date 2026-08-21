@@ -10,6 +10,7 @@ import {
   getMasterSetRelationTypeLabel,
 } from "@/lib/master-sets/query";
 import MasterSetCardsClient from "./MasterSetCardsClient";
+import MasterSetDetailFilters from "./MasterSetDetailFilters";
 
 type PageProps = {
   params: { slug: string };
@@ -39,7 +40,6 @@ export default async function MasterSetDetailPage({
       })
     : null;
 
-  const onlyMissing = readString(searchParams.view) === "missing";
   const region = readString(searchParams.region) || "US";
   const relationType = readString(searchParams.relationType) || "all";
   const priceField =
@@ -58,30 +58,25 @@ export default async function MasterSetDetailPage({
     notFound();
   }
 
-  const cards = onlyMissing
-    ? detail.cards.filter((card) => !card.owned)
-    : detail.cards;
+  const cards = detail.cards;
 
-  const buildHref = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams();
-    if (onlyMissing) params.set("view", "missing");
-    if (region !== "US") params.set("region", region);
-    if (relationType !== "all") params.set("relationType", relationType);
-    if (priceField !== "marketPrice") params.set("priceField", priceField);
+  const regionOptions = [
+    ...REGION_OPTIONS.map((item) => ({
+      value: item,
+      label: `Region ${item}`,
+    })),
+    { value: "all", label: "Todas las regiones" },
+  ];
 
-    for (const [key, value] of Object.entries(overrides)) {
-      if (!value) params.delete(key);
-      else params.set(key, value);
-    }
-
-    const query = params.toString();
-    return query
-      ? `/master-sets/${detail.character.slug}?${query}`
-      : `/master-sets/${detail.character.slug}`;
-  };
+  const relationTypeOptions = [
+    { value: "all", label: "Todas las relaciones" },
+    ...detail.availableRelationTypes.map((item) => ({
+      value: item,
+      label: getMasterSetRelationTypeLabel(item),
+    })),
+  ];
 
   const activeFilterCount = [
-    onlyMissing,
     region !== "US",
     relationType !== "all",
     priceField !== "marketPrice",
@@ -135,19 +130,6 @@ export default async function MasterSetDetailPage({
                       {alias}
                     </span>
                   ))}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
-                    Region: {region}
-                  </span>
-                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                    Precio: {priceField === "midPrice" ? "Listed Median" : "Market Price"}
-                  </span>
-                  {relationType !== "all" ? (
-                    <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                      {getMasterSetRelationTypeLabel(relationType)}
-                    </span>
-                  ) : null}
                 </div>
               </div>
 
@@ -221,106 +203,13 @@ export default async function MasterSetDetailPage({
           </div>
 
           <div className="px-4 py-4 md:px-6">
-            <div className="grid gap-3 xl:grid-cols-[auto_auto_220px_260px_220px] xl:items-center">
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={buildHref({ view: "" })}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold md:text-sm ${
-                    !onlyMissing
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  }`}
-                >
-                  Show all
-                </Link>
-                <Link
-                  href={buildHref({ view: "missing" })}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold md:text-sm ${
-                    onlyMissing
-                      ? "bg-rose-600 text-white border-rose-600"
-                      : "bg-rose-50 text-rose-700 border-rose-200"
-                  }`}
-                >
-                  Missing only
-                </Link>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={buildHref({ priceField: "marketPrice" })}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold md:text-sm ${
-                    priceField === "marketPrice"
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Market Price
-                </Link>
-                <Link
-                  href={buildHref({ priceField: "midPrice" })}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold md:text-sm ${
-                    priceField === "midPrice"
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Listed Median
-                </Link>
-              </div>
-
-              <form action={`/master-sets/${detail.character.slug}`} className="contents">
-                <select
-                  name="region"
-                  defaultValue={region}
-                  className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none"
-                >
-                  {REGION_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      Region {item}
-                    </option>
-                  ))}
-                  <option value="all">Todas las regiones</option>
-                </select>
-                <select
-                  name="relationType"
-                  defaultValue={relationType}
-                  className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none"
-                >
-                  <option value="all">Todas las relaciones</option>
-                  {detail.availableRelationTypes.map((item) => (
-                    <option key={item} value={item}>
-                      {getMasterSetRelationTypeLabel(item)}
-                    </option>
-                  ))}
-                </select>
-                <input type="hidden" name="priceField" value={priceField} />
-                {onlyMissing ? <input type="hidden" name="view" value="missing" /> : null}
-                <button
-                  type="submit"
-                  className="h-10 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white"
-                >
-                  Apply filters
-                </button>
-              </form>
-            </div>
-
-            {(region !== "US" || relationType !== "all" || priceField !== "marketPrice") && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {region !== "US" ? (
-                  <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
-                    Region: {region}
-                  </span>
-                ) : null}
-                {relationType !== "all" ? (
-                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                    {getMasterSetRelationTypeLabel(relationType)}
-                  </span>
-                ) : null}
-                <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                  Price: {priceField === "midPrice" ? "Listed Median" : "Market Price"}
-                </span>
-              </div>
-            )}
+            <MasterSetDetailFilters
+              region={region}
+              relationType={relationType}
+              priceField={priceField}
+              regionOptions={regionOptions}
+              relationTypeOptions={relationTypeOptions}
+            />
 
             <div className="mt-4 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -368,7 +257,11 @@ export default async function MasterSetDetailPage({
             </p>
           </div>
 
-          <MasterSetCardsClient cards={cards} priceField={priceField} />
+          <MasterSetCardsClient
+            cards={cards}
+            priceField={priceField}
+            characterName={detail.character.name}
+          />
         </section>
       </div>
     </main>

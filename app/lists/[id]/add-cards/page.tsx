@@ -2372,7 +2372,7 @@ const AddCardsPage = () => {
           matchesWithAlternates((target) =>
             selectedTrigger === NO_TRIGGER_LABEL
               ? !target.triggerCard
-              : (target.triggerCard ?? "") === selectedTrigger
+              : Boolean(target.triggerCard)
           );
 
         const matchesCosts =

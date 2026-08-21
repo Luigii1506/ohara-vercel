@@ -473,9 +473,11 @@ const buildWhere = (
                 })
               );
             } else {
+              // Same fix as the dropdown filter below: "Trigger" here is
+              // always the SEARCH_TRIGGER_MAP label, not real card text.
               andConditions.push(
                 withAlternates({
-                  triggerCard: { contains: trigger },
+                  triggerCard: { not: null, notIn: [""] },
                 })
               );
             }
@@ -695,9 +697,12 @@ const buildWhere = (
         })
       );
     } else {
+      // "Trigger" is a UI label, not real card text — triggerCard stores the
+      // actual trigger effect (free text), so "has a trigger" means non-null
+      // (and non-empty), never an exact/contains match against the label.
       andConditions.push(
         withAlternates({
-          triggerCard: filters.trigger,
+          triggerCard: { not: null, notIn: [""] },
         })
       );
     }
@@ -1525,7 +1530,9 @@ export const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput =
             if (trigger === "No trigger") {
               andConditions.push({ triggerCard: null });
             } else {
-              andConditions.push({ triggerCard: { contains: trigger } });
+              // "Trigger" is the SEARCH_TRIGGER_MAP label, not real card
+              // text — "has a trigger" means non-null/non-empty triggerCard.
+              andConditions.push({ triggerCard: { not: null, notIn: [""] } });
             }
           });
         }
@@ -1651,7 +1658,9 @@ export const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput =
     if (filters.trigger === "No trigger") {
       andConditions.push({ triggerCard: null });
     } else {
-      andConditions.push({ triggerCard: filters.trigger });
+      // Same fix as buildWhere above: "Trigger" is a UI label, not real
+      // card text — has-a-trigger means non-null/non-empty triggerCard.
+      andConditions.push({ triggerCard: { not: null, notIn: [""] } });
     }
   }
 

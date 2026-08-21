@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { RECONCILE_REGIONS } from "@/lib/services/catalogReconcile";
+import { getTcgCatalogHealth } from "@/lib/services/tcgCatalogHealth";
 
 /**
  * GET /api/admin/catalog-gaps
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
         ? [{ code: "asc" as const }]
         : [{ setCode: "asc" as const }, { code: "asc" as const }];
 
-    const [rows, total] = await Promise.all([
+    const [rows, total, health] = await Promise.all([
       prisma.catalogGap.findMany({
         where,
         orderBy,
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
         take: pageSize,
       }),
       prisma.catalogGap.count({ where }),
+      getTcgCatalogHealth(),
     ]);
 
     // ---- Estadísticas globales (independientes de los filtros) ----
@@ -126,6 +128,7 @@ export async function GET(req: NextRequest) {
         bySet,
         lastRun: lastRun?.lastSeenAt ?? null,
         regions: RECONCILE_REGIONS,
+        health,
       },
     });
   } catch (error: any) {

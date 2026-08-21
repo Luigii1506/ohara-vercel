@@ -89,6 +89,19 @@ type SyncSummary = {
   totalOrphaned: number;
   totalRemoved: number;
   lastCatalogSyncAt?: string | null;
+  health?: SyncHealth;
+};
+
+type SyncHealth = {
+  status: "healthy" | "warning" | "stale";
+  lastCatalogSyncAt: string | null;
+  lastGapRunAt: string | null;
+  catalogAgeHours: number | null;
+  gapAgeHours: number | null;
+  gapLagHours: number | null;
+  catalogItemCount: number;
+  openGapCount: number;
+  issues: string[];
 };
 
 type SyncResponse = {
@@ -150,6 +163,13 @@ const buildTcgplayerUrl = (productId: number, url?: string | null) => {
     return url;
   }
   return `https://www.tcgplayer.com/product/${productId}`;
+};
+
+const formatAge = (hours?: number | null) => {
+  if (hours == null) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 24) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} d`;
 };
 
 const AdminTcgSyncPage = () => {
@@ -380,6 +400,53 @@ const AdminTcgSyncPage = () => {
           value={response?.summary.totalRemoved ?? 0}
         />
       </div>
+
+      {response?.summary.health ? (
+        <UICard
+          className={cn(
+            "border",
+            response.summary.health.status === "healthy"
+              ? "border-emerald-200 bg-emerald-50/70"
+              : response.summary.health.status === "warning"
+                ? "border-amber-200 bg-amber-50/70"
+                : "border-rose-200 bg-rose-50/70"
+          )}
+        >
+          <CardHeader>
+            <CardTitle className="text-base">Salud del pipeline</CardTitle>
+            <CardDescription>
+              Sync del mirror cada 6 horas y reconcile 20 minutos después.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex flex-wrap gap-4">
+              <span>
+                Mirror: {formatDateTime(response.summary.health.lastCatalogSyncAt)} · hace{" "}
+                {formatAge(response.summary.health.catalogAgeHours)}
+              </span>
+              <span>
+                Reconcile: {formatDateTime(response.summary.health.lastGapRunAt)} · hace{" "}
+                {formatAge(response.summary.health.gapAgeHours)}
+              </span>
+              {response.summary.health.gapLagHours != null &&
+              response.summary.health.gapLagHours > 0 ? (
+                <span>Lag: {formatAge(response.summary.health.gapLagHours)}</span>
+              ) : null}
+            </div>
+            {response.summary.health.issues.length > 0 ? (
+              <div className="space-y-1 text-sm">
+                {response.summary.health.issues.map((issue) => (
+                  <p key={issue}>{issue}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-emerald-700">
+                El mirror local y la reconciliación están frescos.
+              </p>
+            )}
+          </CardContent>
+        </UICard>
+      ) : null}
 
       <UICard>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

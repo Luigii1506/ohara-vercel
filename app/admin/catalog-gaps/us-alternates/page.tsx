@@ -13,6 +13,9 @@ import {
   X,
   Plus,
   Undo2,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
 } from "lucide-react";
 
 type Row = {
@@ -48,6 +51,19 @@ type Stats = {
   codesAffected: number;
   bySet: { setCode: string; count: number }[];
   byRarity: { rarity: string; count: number }[];
+  health?: SyncHealth;
+};
+
+type SyncHealth = {
+  status: "healthy" | "warning" | "stale";
+  lastCatalogSyncAt: string | null;
+  lastGapRunAt: string | null;
+  catalogAgeHours: number | null;
+  gapAgeHours: number | null;
+  gapLagHours: number | null;
+  catalogItemCount: number;
+  openGapCount: number;
+  issues: string[];
 };
 
 type CompareSetOption = {
@@ -106,6 +122,23 @@ function useDebounced<T>(value: T, ms: number) {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatAge(hours?: number | null) {
+  if (hours == null) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 24) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} d`;
 }
 
 export default function UsAlternatesPage() {
@@ -387,6 +420,67 @@ export default function UsAlternatesPage() {
           para US y no está en tu catálogo: <strong>cartas nuevas</strong> que no
           tienes y <strong>alt-arts</strong> de cartas que sí tienes.
         </p>
+
+        {stats?.health && (
+          <div
+            className={`mt-4 rounded-2xl border px-4 py-3 ${
+              stats.health.status === "healthy"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100"
+                : stats.health.status === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+                  : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-100"
+            }`}
+          >
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="pt-0.5">
+                {stats.health.status === "healthy" ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-semibold">
+                    {stats.health.status === "healthy"
+                      ? "Mirror y reconciliación al día"
+                      : stats.health.status === "warning"
+                        ? "Cobertura con retraso leve"
+                        : "Cobertura desactualizada"}
+                  </div>
+                  <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide dark:bg-slate-900/40">
+                    {stats.health.catalogItemCount.toLocaleString()} productos
+                  </span>
+                  <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide dark:bg-slate-900/40">
+                    {stats.health.openGapCount.toLocaleString()} gaps abiertos
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Mirror: {formatDateTime(stats.health.lastCatalogSyncAt)} · hace{" "}
+                    {formatAge(stats.health.catalogAgeHours)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Reconcile: {formatDateTime(stats.health.lastGapRunAt)} · hace{" "}
+                    {formatAge(stats.health.gapAgeHours)}
+                  </span>
+                  {stats.health.gapLagHours != null && stats.health.gapLagHours > 0 && (
+                    <span>Lag entre sync y reconcile: {formatAge(stats.health.gapLagHours)}</span>
+                  )}
+                </div>
+                {stats.health.issues.length > 0 && (
+                  <div className="mt-2 space-y-1 text-xs">
+                    {stats.health.issues.map((issue) => (
+                      <div key={issue}>{issue}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filtro rápido por tipo */}
         <div className="mt-5 flex flex-wrap gap-2">

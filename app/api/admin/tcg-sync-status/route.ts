@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getTcgCatalogHealth } from "@/lib/services/tcgCatalogHealth";
 
 const ALLOWED_VIEWS = [
   "missing",
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
       productStatus: { not: "removed" },
     };
 
-    const [activeCatalogIds, removedCount, latestSync, totalCards, totalSealed] =
+    const [activeCatalogIds, removedCount, latestSync, totalCards, totalSealed, health] =
       await Promise.all([
         prisma.tcgCatalogProduct.findMany({
           where: baseActiveWhere,
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
             isSealed: true,
           },
         }),
+        getTcgCatalogHealth(),
       ]);
 
     const catalogIdSet = new Set(activeCatalogIds.map((entry) => entry.productId));
@@ -138,6 +140,7 @@ export async function GET(req: NextRequest) {
       totalCards,
       totalSealed,
       lastCatalogSyncAt: latestSync._max.lastSyncedAt,
+      health,
     };
 
     const searchFilters: Prisma.TcgCatalogProductWhereInput[] = [];

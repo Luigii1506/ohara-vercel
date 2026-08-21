@@ -7,6 +7,7 @@ import {
   buildCardIdentityKey,
   variantSlug,
 } from "@/lib/services/tcgplayerCardData";
+import { getTcgCatalogHealth } from "@/lib/services/tcgCatalogHealth";
 
 /**
  * GET /api/admin/catalog-gaps/us-alternates
@@ -41,12 +42,14 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
     const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") ?? "60") || 60));
 
-    // 1) Nuestras cartas US por código (base + alternas). null = US.
-    const ourRows = await prisma.card.groupBy({
-      by: ["code"],
-      where: { OR: [{ region: "US" }, { region: null }] },
-      _count: { _all: true },
-    });
+    const [ourRows, health] = await Promise.all([
+      prisma.card.groupBy({
+        by: ["code"],
+        where: { OR: [{ region: "US" }, { region: null }] },
+        _count: { _all: true },
+      }),
+      getTcgCatalogHealth(),
+    ]);
     const ourCount = new Map<string, number>();
     for (const r of ourRows) if (r.code) ourCount.set(r.code.toUpperCase(), r._count._all);
 
@@ -344,7 +347,19 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      stats: { totalCandidates, likelyMissing, corroborated, fromEvents, newCards, altArts, reviewed: reviewedCount, codesAffected, bySet, byRarity },
+      stats: {
+        totalCandidates,
+        likelyMissing,
+        corroborated,
+        fromEvents,
+        newCards,
+        altArts,
+        reviewed: reviewedCount,
+        codesAffected,
+        bySet,
+        byRarity,
+        health,
+      },
     });
   } catch (error: any) {
     console.error("[us-alternates] GET failed:", error);

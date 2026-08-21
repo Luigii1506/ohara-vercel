@@ -13,6 +13,10 @@ export async function GET(
   try {
     const searchParams = request.nextUrl.searchParams;
     const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const user = session?.user?.email
       ? await prisma.user.findUnique({
           where: { email: session.user.email },

@@ -4,6 +4,11 @@ import { getToken } from "next-auth/jwt";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isMasterSetsPage =
+    pathname === "/master-sets" || pathname.startsWith("/master-sets/");
+  const isMasterSetsApi =
+    pathname === "/api/master-sets" || pathname.startsWith("/api/master-sets/");
 
   // Permitir rutas públicas y archivos estáticos
   if (
@@ -14,8 +19,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Proteger todas las rutas que estén dentro de /admin
-  if (!pathname.startsWith("/admin")) {
+  // Solo interceptar rutas protegidas
+  if (!isAdminRoute && !isMasterSetsPage && !isMasterSetsApi) {
     return NextResponse.next();
   }
 
@@ -25,20 +30,28 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Si no hay token o no se encontró email, redirige a login
+  // Si no hay token o no se encontró email, redirige a login o responde 401 en API
   if (!token || !token.email) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    if (isMasterSetsApi) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const loginUrl = new URL("/login", request.url);
+    if (isMasterSetsPage) {
+      const callbackUrl = `${pathname}${request.nextUrl.search}`;
+      loginUrl.searchParams.set("callbackUrl", callbackUrl);
+    }
+    return NextResponse.redirect(loginUrl);
   }
 
   // Para todas las rutas de /admin, solo permitir ADMIN
-  if (token.role !== "ADMIN") {
+  if (isAdminRoute && token.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
   return NextResponse.next();
 }
 
-// Aplicar el middleware a todas las rutas que comiencen con /admin
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/master-sets/:path*", "/api/master-sets/:path*"],
 };

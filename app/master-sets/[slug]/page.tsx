@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { prisma } from "@/lib/prisma";
@@ -33,6 +33,18 @@ export default async function MasterSetDetailPage({
   searchParams,
 }: PageProps) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams)) {
+      const current = Array.isArray(value) ? value[0] : value;
+      if (current) query.set(key, current);
+    }
+    const callbackUrl = query.toString()
+      ? `/master-sets/${params.slug}?${query.toString()}`
+      : `/master-sets/${params.slug}`;
+    redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+  }
+
   const user = session?.user?.email
     ? await prisma.user.findUnique({
         where: { email: session.user.email },

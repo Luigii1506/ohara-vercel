@@ -6,6 +6,7 @@ import {
   getMasterSetSourceLabel as sourceLabel,
   getMasterSetVariantLabel as variantLabel,
 } from "@/lib/master-sets/presentation";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 type VariantMode = "base" | "all";
@@ -80,6 +81,11 @@ export type MasterSetBrowseOptions = {
   sources: string[];
 };
 
+export type MasterSetSummariesPage = {
+  items: MasterSetSummary[];
+  nextCursor: number | null;
+};
+
 function toNumber(value: unknown) {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
@@ -142,6 +148,52 @@ async function getOwnedCardIndex(
   const bases = new Set<number>();
 
   for (const item of collection?.cards ?? []) {
+    exact.add(item.cardId);
+    bases.add(item.card.baseCardId ?? item.cardId);
+  }
+
+  return { exact, bases };
+}
+
+async function getOwnedCardIndexForCards(
+  userId: number | null | undefined,
+  cards: Array<{ id: number; baseCardId: number | null }>,
+  variantMode: VariantMode
+): Promise<{ exact: Set<number>; bases: Set<number> }> {
+  if (!userId || cards.length === 0) {
+    return { exact: new Set(), bases: new Set() };
+  }
+
+  const exactIds = Array.from(new Set(cards.map((card) => card.id)));
+  const baseIds = Array.from(
+    new Set(cards.map((card) => card.baseCardId ?? card.id))
+  );
+
+  const collectionCards = await prisma.collectionCard.findMany({
+    where: {
+      collection: { userId },
+      OR: variantMode === "all"
+        ? [{ cardId: { in: exactIds } }]
+        : [
+            { cardId: { in: exactIds } },
+            { cardId: { in: baseIds } },
+            { card: { baseCardId: { in: baseIds } } },
+          ],
+    },
+    select: {
+      cardId: true,
+      card: {
+        select: {
+          baseCardId: true,
+        },
+      },
+    },
+  });
+
+  const exact = new Set<number>();
+  const bases = new Set<number>();
+
+  for (const item of collectionCards) {
     exact.add(item.cardId);
     bases.add(item.card.baseCardId ?? item.cardId);
   }
@@ -293,22 +345,26 @@ function applyCardFilters(
   });
 }
 
+function buildCharacterSearchWhere(search?: string) {
+  return {
+    isActive: true,
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { slug: { contains: search, mode: "insensitive" as const } },
+            { aliases: { has: search } },
+          ],
+        }
+      : {}),
+  };
+}
+
 async function getCharacterRecords(search?: string) {
   const characterEntityClient = (prisma as any).characterEntity;
 
   return characterEntityClient.findMany({
-    where: {
-      isActive: true,
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { slug: { contains: search, mode: "insensitive" } },
-              { aliases: { has: search } },
-            ],
-          }
-        : {}),
-    },
+    where: buildCharacterSearchWhere(search),
     orderBy: { name: "asc" },
     include: {
       links: {
@@ -335,7 +391,50 @@ async function getCharacterRecords(search?: string) {
   });
 }
 
-export async function getMasterSetBrowseOptions(): Promise<MasterSetBrowseOptions> {
+async function getCharacterRecordsPage(options: {
+  search?: string;
+  cursor?: number | null;
+  take: number;
+}) {
+  const characterEntityClient = (prisma as any).characterEntity;
+
+  return characterEntityClient.findMany({
+    where: buildCharacterSearchWhere(options.search),
+    orderBy: [{ id: "asc" }],
+    take: options.take,
+    ...(options.cursor
+      ? {
+          skip: 1,
+          cursor: { id: options.cursor },
+        }
+      : {}),
+    include: {
+      links: {
+        include: {
+          card: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              src: true,
+              category: true,
+              setCode: true,
+              region: true,
+              rarity: true,
+              marketPrice: true,
+              midPrice: true,
+              baseCardId: true,
+              alternateArt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+const getCachedMasterSetBrowseOptions = unstable_cache(
+  async (): Promise<MasterSetBrowseOptions> => {
   const rows = await prisma.cardCharacterLink.findMany({
     select: {
       relationType: true,
@@ -369,6 +468,15 @@ export async function getMasterSetBrowseOptions(): Promise<MasterSetBrowseOption
     relationTypes: Array.from(relationTypes).sort((a, b) => a.localeCompare(b)),
     sources: Array.from(sources).sort((a, b) => a.localeCompare(b)),
   };
+  },
+  ["master-set-browse-options"],
+  {
+    revalidate: 60 * 60,
+  }
+);
+
+export async function getMasterSetBrowseOptions(): Promise<MasterSetBrowseOptions> {
+  return getCachedMasterSetBrowseOptions();
 }
 
 export async function getMasterSetSummaries(options?: {
@@ -440,6 +548,132 @@ export async function getMasterSetSummaries(options?: {
   return summaries.filter((summary) => summary.totalCards > 0);
 }
 
+export async function getMasterSetSummariesPage(options?: {
+  userId?: number | null;
+  search?: string;
+  variantMode?: VariantMode;
+  region?: RegionMode;
+  relationType?: RelationFilterMode;
+  source?: SourceFilterMode;
+  setCode?: SetFilterMode;
+  cursor?: number | null;
+  limit?: number;
+}): Promise<MasterSetSummariesPage> {
+  const variantMode = options?.variantMode ?? "base";
+  const region = options?.region ?? "all";
+  const limit = Math.max(1, Math.min(options?.limit ?? 24, 60));
+  const items: MasterSetSummary[] = [];
+  let cursor = options?.cursor ?? null;
+  let nextCursor: number | null = null;
+  let exhausted = false;
+
+  while (items.length < limit && !exhausted) {
+    const characters = await getCharacterRecordsPage({
+      search: options?.search,
+      cursor,
+      take: limit + 1,
+    });
+
+    const hasMore = characters.length > limit;
+    const pageCharacters = hasMore ? characters.slice(0, limit) : characters;
+    nextCursor = hasMore
+      ? (pageCharacters[pageCharacters.length - 1]?.id ?? null)
+      : null;
+    exhausted = !hasMore;
+    cursor = nextCursor;
+
+    if (pageCharacters.length === 0) {
+      break;
+    }
+
+    const prepared: Array<{ character: any; cards: RawLinkedCard[] }> =
+      pageCharacters.map((character: any) => {
+      const rawCards = buildRawLinkedCards(character.links, region);
+      const filteredCards = applyCardFilters(rawCards, {
+        relationType: options?.relationType,
+        source: options?.source,
+        setCode: options?.setCode,
+      });
+      const cards = dedupeCardsByMode(filteredCards, variantMode);
+
+      return {
+        character,
+        cards,
+      };
+    });
+
+    const scopedOwnedIndex = await getOwnedCardIndexForCards(
+      options?.userId,
+      prepared.flatMap((item) =>
+        item.cards.map((card) => ({
+          id: card.id,
+          baseCardId: card.baseCardId,
+        }))
+      ),
+      variantMode
+    );
+
+    for (const { character, cards } of prepared) {
+      const totalCards = cards.length;
+      if (totalCards === 0) continue;
+
+      const ownedCards = cards.filter((card) =>
+        computeOwned(card, variantMode, scopedOwnedIndex)
+      ).length;
+      const missingCards = Math.max(0, totalCards - ownedCards);
+      const completionPercent =
+        totalCards > 0 ? Math.round((ownedCards / totalCards) * 100) : 0;
+      const totalMarketValue = cards.reduce(
+        (sum, card) => sum + (toNumber(card.marketPrice) ?? 0),
+        0
+      );
+      const averageMarketPrice =
+        totalCards > 0 ? totalMarketValue / totalCards : 0;
+      const totalMidValue = cards.reduce(
+        (sum, card) => sum + (toNumber(card.midPrice) ?? 0),
+        0
+      );
+      const averageMidPrice = totalCards > 0 ? totalMidValue / totalCards : 0;
+
+      items.push({
+        id: character.id,
+        slug: character.slug,
+        name: character.name,
+        description: character.description,
+        aliases: Array.isArray(character.aliases) ? character.aliases : [],
+        totalCards,
+        ownedCards,
+        missingCards,
+        completionPercent,
+        totalMarketValue,
+        averageMarketPrice,
+        totalMidValue,
+        averageMidPrice,
+        relationTypes: Array.from(
+          new Set(cards.flatMap((card) => card.relationTypes))
+        ),
+        sources: Array.from(new Set(cards.flatMap((card) => card.sources))),
+        setCodes: Array.from(
+          new Set(
+            cards
+              .map((card) => card.setCode)
+              .filter((value): value is string => Boolean(value))
+          )
+        ).sort((a, b) => a.localeCompare(b)),
+      });
+
+      if (items.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  return {
+    items: items.slice(0, limit),
+    nextCursor,
+  };
+}
+
 export async function getMasterSetDetail(
   slug: string,
   options?: {
@@ -453,7 +687,6 @@ export async function getMasterSetDetail(
 ): Promise<MasterSetDetail | null> {
   const variantMode = options?.variantMode ?? "base";
   const region = options?.region ?? "all";
-  const ownedIndex = await getOwnedCardIndex(options?.userId);
   const characterEntityClient = (prisma as any).characterEntity;
 
   const character = await characterEntityClient.findUnique({
@@ -516,13 +749,26 @@ export async function getMasterSetDetail(
       marketPrice: toNumber(card.marketPrice),
       midPrice: toNumber(card.midPrice),
       baseCardId: card.baseCardId,
-      owned: computeOwned(card, variantMode, ownedIndex),
+      owned: false,
       relationTypes: card.relationTypes,
       sources: card.sources,
       alternateArt: card.alternateArt,
       variantCategory: classifyCardVariantCategory(card.alternateArt),
     }))
     .sort((left, right) => left.code.localeCompare(right.code));
+
+  const ownedIndex = await getOwnedCardIndexForCards(
+    options?.userId,
+    cards.map((card) => ({
+      id: card.id,
+      baseCardId: card.baseCardId,
+    })),
+    variantMode
+  );
+
+  for (const card of cards) {
+    card.owned = computeOwned(card, variantMode, ownedIndex);
+  }
 
   const ownedCards = cards.filter((card) => card.owned).length;
   const totalCards = cards.length;

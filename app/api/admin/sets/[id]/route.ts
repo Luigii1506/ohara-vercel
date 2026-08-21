@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { mergeSetAliases, normalizeSetTitle } from "@/lib/sets/normalization";
 
 // GET - Obtener un set por ID
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -33,10 +34,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     try {
         const body = await req.json();
-        const { image, title, code, version, releaseDate, isOpen } = body;
+        const { image, code, version, releaseDate, isOpen } = body;
+        const title = typeof body?.title === "string" ? body.title.trim() : undefined;
+        const targetId = parseInt(id);
+
+        const existingSet = await prisma.set.findUnique({
+            where: { id: targetId },
+            select: { id: true, title: true, aliasesJson: true },
+        });
+
+        if (!existingSet) {
+            return NextResponse.json({ error: "Set no encontrado" }, { status: 404 });
+        }
+
+        if (title && normalizeSetTitle(title) !== normalizeSetTitle(existingSet.title)) {
+            const allSets = await prisma.set.findMany({
+                select: { id: true, title: true },
+            });
+
+            const duplicate = allSets.find(
+                (set) =>
+                    set.id !== targetId &&
+                    normalizeSetTitle(set.title) === normalizeSetTitle(title)
+            );
+
+            if (duplicate) {
+                return NextResponse.json(
+                    {
+                        error: "Ya existe un set equivalente con ese nombre",
+                        existingSetId: duplicate.id,
+                        existingSetTitle: duplicate.title,
+                    },
+                    { status: 409 }
+                );
+            }
+        }
 
         const updatedSet = await prisma.set.update({
-            where: { id: parseInt(id) },
+            where: { id: targetId },
             data: {
                 image,
                 title,
@@ -44,6 +79,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 version,
                 releaseDate: releaseDate ? new Date(releaseDate) : undefined, // Validar fecha
                 isOpen,
+                aliasesJson: title
+                    ? mergeSetAliases(existingSet.aliasesJson, [existingSet.title, title])
+                    : undefined,
             },
         });
 

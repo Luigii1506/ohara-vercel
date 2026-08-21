@@ -2,21 +2,87 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { mergeSetAliases, normalizeSetTitle } from "@/lib/sets/normalization";
 
 // CREATE - POST
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { image, title, code, version, releaseDate, isOpen } = body;
+    const rawTitle = typeof body?.title === "string" ? body.title.trim() : "";
+    const normalizedTitle = normalizeSetTitle(rawTitle);
+    const image = typeof body?.image === "string" ? body.image : body?.image;
+    const code = typeof body?.code === "string" ? body.code.trim() : body?.code;
+    const version =
+      typeof body?.version === "string" ? body.version.trim() : body?.version;
+    const isOpen = body?.isOpen ?? false;
+    const parsedReleaseDate = body?.releaseDate ? new Date(body.releaseDate) : null;
+
+    if (!rawTitle) {
+      return NextResponse.json(
+        { error: "Set title is required" },
+        { status: 400 }
+      );
+    }
+
+    const existingSets = await prisma.set.findMany({
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        version: true,
+        aliasesJson: true,
+        image: true,
+        releaseDate: true,
+        isOpen: true,
+      },
+    });
+
+    const existingSet = existingSets.find(
+      (set) => normalizeSetTitle(set.title) === normalizedTitle
+    );
+
+    if (existingSet) {
+      const aliases = mergeSetAliases(existingSet.aliasesJson, [
+        existingSet.title,
+        rawTitle,
+      ]);
+
+      const updatedSet = await prisma.set.update({
+        where: { id: existingSet.id },
+        data: {
+          aliasesJson: aliases.length > 0 ? aliases : undefined,
+          image: image || existingSet.image,
+          code:
+            typeof code === "string" && code.length > 0
+              ? code
+              : existingSet.code,
+          version:
+            typeof version === "string" && version.length > 0
+              ? version
+              : existingSet.version,
+          releaseDate:
+            parsedReleaseDate && !Number.isNaN(parsedReleaseDate.getTime())
+              ? parsedReleaseDate
+              : existingSet.releaseDate,
+          isOpen,
+        },
+      });
+
+      return NextResponse.json(updatedSet, { status: 200 });
+    }
 
     const newSet = await prisma.set.create({
       data: {
         image,
-        title,
+        title: rawTitle,
         code,
         version,
-        releaseDate: new Date(releaseDate), // Aseguramos que sea Date
-        isOpen: isOpen ?? false,
+        releaseDate:
+          parsedReleaseDate && !Number.isNaN(parsedReleaseDate.getTime())
+            ? parsedReleaseDate
+            : new Date(),
+        isOpen,
+        aliasesJson: [rawTitle],
       },
     });
 

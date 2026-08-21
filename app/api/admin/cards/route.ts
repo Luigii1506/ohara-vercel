@@ -11,6 +11,22 @@ import type { CardWithCollectionData } from "@/types";
 
 export const dynamic = "force-dynamic";
 
+const normalizeImageFingerprint = (value?: string | null) => {
+  if (!value) return null;
+
+  const normalized = value.trim();
+  if (!normalized) return null;
+
+  try {
+    const url = new URL(normalized);
+    const lastSegment = url.pathname.split("/").pop() ?? "";
+    return lastSegment.toLowerCase();
+  } catch {
+    const lastSegment = normalized.split("/").pop() ?? normalized;
+    return lastSegment.toLowerCase();
+  }
+};
+
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
@@ -167,30 +183,55 @@ export async function POST(req: NextRequest) {
 
       const existingCard = await prisma.card.findFirst({
         where: existingWhere,
-        select: { id: true },
+        select: {
+          id: true,
+          src: true,
+          imageKey: true,
+        },
       });
 
       if (existingCard) {
-        if (normalizedSetIds.length > 0) {
-          const existingLinks = await prisma.cardSet.findMany({
-            where: { cardId: existingCard.id, setId: { in: normalizedSetIds } },
-            select: { setId: true },
-          });
-          const have = new Set(existingLinks.map((l) => l.setId));
-          const toCreate = normalizedSetIds
-            .filter((id: number) => !have.has(id))
-            .map((setId: number) => ({ cardId: existingCard.id, setId }));
-          if (toCreate.length) {
-            await prisma.cardSet.createMany({ data: toCreate });
-            invalidateSearchableSetsCache();
-          }
-        }
+        const incomingImageFingerprint =
+          normalizeImageFingerprint(imageKey) ??
+          normalizeImageFingerprint(src);
+        const existingImageFingerprint =
+          normalizeImageFingerprint(existingCard.imageKey) ??
+          normalizeImageFingerprint(existingCard.src);
 
-        return NextResponse.json({
-          skipped: true,
-          reason: "Card already exists",
-          cardId: existingCard.id,
-        });
+        // Si una carta quedó ligada por error al set destino pero la imagen no
+        // coincide con la carga actual, no la tratamos como duplicado real.
+        if (
+          normalizedAlt &&
+          normalizedSetIds.length > 0 &&
+          incomingImageFingerprint &&
+          existingImageFingerprint &&
+          incomingImageFingerprint !== existingImageFingerprint
+        ) {
+          console.warn(
+            `[admin/cards] ignoring existing set-linked alternate due to image mismatch code=${code} existingCardId=${existingCard.id} incoming=${incomingImageFingerprint} existing=${existingImageFingerprint}`
+          );
+        } else {
+          if (normalizedSetIds.length > 0) {
+            const existingLinks = await prisma.cardSet.findMany({
+              where: { cardId: existingCard.id, setId: { in: normalizedSetIds } },
+              select: { setId: true },
+            });
+            const have = new Set(existingLinks.map((l) => l.setId));
+            const toCreate = normalizedSetIds
+              .filter((id: number) => !have.has(id))
+              .map((setId: number) => ({ cardId: existingCard.id, setId }));
+            if (toCreate.length) {
+              await prisma.cardSet.createMany({ data: toCreate });
+              invalidateSearchableSetsCache();
+            }
+          }
+
+          return NextResponse.json({
+            skipped: true,
+            reason: "Card already exists",
+            cardId: existingCard.id,
+          });
+        }
       }
     }
 

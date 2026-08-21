@@ -2,19 +2,14 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-const slugifyCode = (title: string) =>
-  title
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24);
+import { mergeSetAliases, normalizeSetTitle } from "@/lib/sets/normalization";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const rawTitle = body?.title;
     const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+    const normalizedTitle = normalizeSetTitle(title);
 
     if (!title) {
       return NextResponse.json(
@@ -31,6 +26,38 @@ export async function POST(req: NextRequest) {
 
     const code = rawCode || "";
 
+    const existingSets = await prisma.set.findMany({
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        version: true,
+        image: true,
+        aliasesJson: true,
+      },
+    });
+
+    const existingSet = existingSets.find(
+      (set) => normalizeSetTitle(set.title) === normalizedTitle
+    );
+
+    if (existingSet) {
+      const updatedSet = await prisma.set.update({
+        where: { id: existingSet.id },
+        data: {
+          aliasesJson: mergeSetAliases(existingSet.aliasesJson, [
+            existingSet.title,
+            title,
+          ]),
+          image: image || existingSet.image,
+          code: code || existingSet.code,
+          version: rawVersion || existingSet.version,
+        },
+      });
+
+      return NextResponse.json(updatedSet, { status: 200 });
+    }
+
     const newSet = await prisma.set.create({
       data: {
         title,
@@ -39,6 +66,7 @@ export async function POST(req: NextRequest) {
         version: rawVersion || null,
         releaseDate: new Date(),
         isOpen: false,
+        aliasesJson: [title],
       },
     });
 

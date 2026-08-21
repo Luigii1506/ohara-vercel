@@ -1,13 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "@/lib/prisma";
 import sharp from "sharp";
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1400;
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
 type VisionRecognition = {
   code: string | null;
@@ -36,18 +36,56 @@ type CardCandidate = {
 };
 
 function getApiKey() {
-  return process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY || null;
+  return process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || null;
 }
 
-function cleanJsonBlock(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("```")) return trimmed;
+const RECOGNITION_TOOL_NAME = "report_card_identification";
 
-  return trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
-}
+const recognitionTool = {
+  name: RECOGNITION_TOOL_NAME,
+  description: "Report the identified One Piece Card Game card fields.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      code: {
+        type: ["string", "null"],
+        description:
+          "Card code like OP01-001, ST10-003, EB02-045, P-001. Null if not legible.",
+      },
+      name: {
+        type: ["string", "null"],
+        description: "Printed card name.",
+      },
+      setCode: {
+        type: ["string", "null"],
+        description: "Set code like OP01, ST10, EB02, PRB01, P.",
+      },
+      rarity: {
+        type: ["string", "null"],
+      },
+      region: {
+        type: ["string", "null"],
+        description:
+          "One of US, JP, CN, KR, TH, FR when inferable from language or print style.",
+      },
+      language: {
+        type: ["string", "null"],
+        description: "ISO-like lowercase code such as en, ja, zh-Hans, ko, th, fr.",
+      },
+      confidence: {
+        type: "number",
+        description:
+          "Overall confidence between 0 and 1 that this identification is correct.",
+      },
+      notes: {
+        type: ["string", "null"],
+        description:
+          "Brief note about uncertainty, glare, blur, or partial occlusion. Null if none.",
+      },
+    },
+    required: ["confidence"],
+  },
+};
 
 function normalizeCode(value: string | null | undefined) {
   if (!value) return null;
@@ -124,6 +162,17 @@ async function preprocessImage(buffer: Buffer) {
   };
 }
 
+function isSupportedImageMediaType(
+  value: string
+): value is "image/jpeg" | "image/png" | "image/gif" | "image/webp" {
+  return (
+    value === "image/jpeg" ||
+    value === "image/png" ||
+    value === "image/gif" ||
+    value === "image/webp"
+  );
+}
+
 async function recognizeCardFromImage(
   imageBuffer: Buffer,
   mimeType: string
@@ -131,50 +180,55 @@ async function recognizeCardFromImage(
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error(
-      "GOOGLE_GENAI_API_KEY is not configured. Add it before using the scanner."
+      "ANTHROPIC_API_KEY is not configured. Add it before using the scanner."
     );
   }
 
-  const client = new GoogleGenAI({ apiKey });
+  if (!isSupportedImageMediaType(mimeType)) {
+    throw new Error(`Unsupported image type for Claude vision: ${mimeType}`);
+  }
+
+  const client = new Anthropic({ apiKey });
   const prompt = [
     "You are identifying a single One Piece Card Game trading card from one image.",
-    "Extract visible printed fields from the card, prioritizing the exact card code.",
-    "Return only valid JSON with this exact schema:",
-    '{ "code": string|null, "name": string|null, "setCode": string|null, "rarity": string|null, "region": string|null, "language": string|null, "confidence": number, "notes": string|null }',
-    "Rules:",
-    "- confidence must be between 0 and 1.",
-    "- code should look like OP01-001, ST10-003, EB02-045, P-001 when visible.",
-    "- setCode should look like OP01, ST10, EB02, PRB01, P.",
-    "- region should be one of US, JP, CN, KR, TH, FR when inferable.",
-    "- language should be ISO-like lowercase such as en, ja, zh-Hans, ko, th, fr when inferable.",
-    "- If uncertain, set the field to null and explain briefly in notes.",
-    "- Do not include markdown fences or extra commentary.",
+    "Read the small printed code carefully — it is tiny text usually in a bottom corner, formatted like OP01-001, ST10-003, EB02-045, or P-001.",
+    "The image may have foil/holo glare, blur, or partial occlusion. Use whatever text and art is legible instead of guessing, and lower confidence accordingly rather than inventing a plausible-looking value.",
+    "If a field is not legible, return null for it.",
+    "confidence reflects how sure you are of the overall identification, from 0 (no idea) to 1 (fully legible and certain) — use notes to briefly explain what made the read difficult, if anything.",
+    "Call the report_card_identification tool with your findings — that is the only way to respond.",
   ].join("\n");
 
-  const response = await client.models.generateContent({
+  const response = await client.messages.create({
     model: DEFAULT_MODEL,
-    contents: [
+    max_tokens: 1024,
+    messages: [
       {
         role: "user",
-        parts: [
-          { text: prompt },
+        content: [
+          { type: "text", text: prompt },
           {
-            inlineData: {
-              mimeType,
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mimeType,
               data: imageBuffer.toString("base64"),
             },
           },
         ],
       },
     ],
+    tools: [recognitionTool],
+    tool_choice: { type: "tool", name: RECOGNITION_TOOL_NAME },
   });
 
-  const raw = response.text?.trim();
-  if (!raw) {
-    throw new Error("Gemini returned an empty response.");
+  const toolUseBlock = response.content.find(
+    (block) => block.type === "tool_use"
+  );
+  if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+    throw new Error("Claude no devolvió una identificación estructurada.");
   }
 
-  const parsed = JSON.parse(cleanJsonBlock(raw)) as Partial<VisionRecognition>;
+  const parsed = toolUseBlock.input as Partial<VisionRecognition>;
 
   return {
     code: normalizeCode(parsed.code) ?? null,

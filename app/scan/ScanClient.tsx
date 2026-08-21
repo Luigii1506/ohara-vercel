@@ -59,6 +59,24 @@ type ScanResponse = {
 };
 
 const CARD_RATIO = 63 / 88;
+// Fracción del frame de video usada TANTO para el marco visual como para el
+// recorte real que se analiza — un solo número, para que lo que el usuario
+// ve sea exactamente lo que se analiza.
+const FRAME_CAPTURE_RATIO = 0.82;
+
+// Loop de auto-detección: cada cuánto se muestrea el video para medir
+// "quietud", cuánto tiempo debe estar quieto antes de intentar, y el tiempo
+// mínimo entre intentos a la API (control de costo — no hay rate limiting
+// en el proyecto, así que este cooldown es el único freno real).
+const STABILITY_SAMPLE_MS = 200;
+const STABILITY_DIFF_THRESHOLD = 0.035;
+const STABLE_DURATION_MS = 600;
+const CAPTURE_COOLDOWN_MS = 1500;
+const DOWNSAMPLE_SIZE = 48;
+const AUTO_MATCH_CONFIDENCE_THRESHOLD = 0.65;
+const MAX_CONSECUTIVE_FAILURES_BEFORE_HINT = 6;
+
+type AutoScanStatus = "searching" | "holding-steady" | "analyzing";
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -68,6 +86,14 @@ export default function ScanClient() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const stabilityCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const previousFrameRef = useRef<Uint8ClampedArray | null>(null);
+  const stableSinceRef = useRef<number | null>(null);
+  const lastAttemptAtRef = useRef(0);
+  const consecutiveFailuresRef = useRef(0);
+  const hasCaptureRef = useRef(false);
+  const isScanningRef = useRef(false);
+  const startCameraGenerationRef = useRef(0);
 
   const [isStartingCamera, setIsStartingCamera] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -79,6 +105,9 @@ export default function ScanClient() {
   const [cameraFacing, setCameraFacing] = useState<"environment" | "user">(
     "environment"
   );
+  const [autoScanStatus, setAutoScanStatus] =
+    useState<AutoScanStatus>("searching");
+  const [scanHint, setScanHint] = useState<string | null>(null);
 
   const stopStream = useCallback(() => {
     const stream = streamRef.current;
@@ -88,6 +117,12 @@ export default function ScanClient() {
   }, []);
 
   const startCamera = useCallback(async () => {
+    // React puede invocar este efecto dos veces al montar (StrictMode en
+    // desarrollo) o si cameraFacing cambia rápido — sin esto, la llamada
+    // vieja puede resolver/fallar DESPUÉS de la nueva y pisar su estado
+    // (p.ej. un AbortError del play() interrumpido dejando cameraError
+    // encendido aunque la cámara ya esté funcionando bien).
+    const generation = ++startCameraGenerationRef.current;
     setIsStartingCamera(true);
     setCameraError(null);
 
@@ -97,11 +132,21 @@ export default function ScanClient() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: cameraFacing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          // "ideal" más alto para que el navegador use la mayor resolución
+          // que el sensor soporte — el código impreso de una carta es texto
+          // diminuto y 1080p suele quedarse corto para leerlo bien.
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
         },
         audio: false,
       });
+
+      if (generation !== startCameraGenerationRef.current) {
+        // Esta llamada quedó obsoleta mientras esperábamos el permiso —
+        // hay una más nueva en curso, así que no debe tocar el estado.
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
 
       streamRef.current = stream;
       const video = videoRef.current;
@@ -110,12 +155,15 @@ export default function ScanClient() {
         await video.play();
       }
     } catch (error) {
+      if (generation !== startCameraGenerationRef.current) return;
       console.error("Error opening camera:", error);
       setCameraError(
         "No se pudo abrir la cámara. Revisa permisos o usa la opción de subir foto."
       );
     } finally {
-      setIsStartingCamera(false);
+      if (generation === startCameraGenerationRef.current) {
+        setIsStartingCamera(false);
+      }
     }
   }, [cameraFacing, stopStream]);
 
@@ -142,48 +190,36 @@ export default function ScanClient() {
       URL.revokeObjectURL(capturedUrl);
     }
     setCapturedUrl(null);
+    // Reanudar el auto-scan desde cero: el frame recién descartado no debe
+    // contar como "estable" contra el próximo.
+    stableSinceRef.current = null;
+    previousFrameRef.current = null;
+    consecutiveFailuresRef.current = 0;
+    setScanHint(null);
   }, [capturedUrl]);
 
-  const scanBlob = useCallback(async (blob: Blob) => {
-    setIsScanning(true);
-    setScanError(null);
-    setResult(null);
+  useEffect(() => {
+    hasCaptureRef.current = Boolean(capturedUrl);
+  }, [capturedUrl]);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", blob, "scan-card.jpg");
+  useEffect(() => {
+    isScanningRef.current = isScanning;
+  }, [isScanning]);
 
-      const response = await fetch("/api/scan/identify", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "No se pudo escanear la carta.");
-      }
-
-      setResult(data as ScanResponse);
-    } catch (error: any) {
-      setScanError(error?.message || "No se pudo escanear la carta.");
-    } finally {
-      setIsScanning(false);
-    }
-  }, []);
-
-  const captureFrame = useCallback(async () => {
+  // Recorta el frame actual del video a la misma región (y proporción) que
+  // muestra el marco en pantalla, y lo devuelve como Blob JPEG. Pura: no
+  // toca estado de React, la usan tanto la captura manual como el auto-loop.
+  const captureCropBlob = useCallback(async (): Promise<Blob | null> => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      setScanError("La cámara todavía no está lista.");
-      return;
+      return null;
     }
 
-    const cropScale = 0.82;
-    let cropHeight = Math.floor(video.videoHeight * cropScale);
+    let cropHeight = Math.floor(video.videoHeight * FRAME_CAPTURE_RATIO);
     let cropWidth = Math.floor(cropHeight * CARD_RATIO);
 
-    if (cropWidth > Math.floor(video.videoWidth * cropScale)) {
-      cropWidth = Math.floor(video.videoWidth * cropScale);
+    if (cropWidth > Math.floor(video.videoWidth * FRAME_CAPTURE_RATIO)) {
+      cropWidth = Math.floor(video.videoWidth * FRAME_CAPTURE_RATIO);
       cropHeight = Math.floor(cropWidth / CARD_RATIO);
     }
 
@@ -194,10 +230,7 @@ export default function ScanClient() {
     canvas.width = cropWidth;
     canvas.height = cropHeight;
     const context = canvas.getContext("2d");
-    if (!context) {
-      setScanError("No se pudo preparar la captura.");
-      return;
-    }
+    if (!context) return null;
 
     context.drawImage(
       video,
@@ -211,12 +244,57 @@ export default function ScanClient() {
       cropHeight
     );
 
-    const blob = await new Promise<Blob | null>((resolve) =>
+    return new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.92)
     );
+  }, []);
 
+  // Llama al endpoint y devuelve la respuesta parseada, o lanza con un
+  // mensaje legible — sin efectos secundarios sobre el estado de React.
+  const requestScan = useCallback(async (blob: Blob): Promise<ScanResponse> => {
+    const formData = new FormData();
+    formData.append("file", blob, "scan-card.jpg");
+
+    const response = await fetch("/api/scan/identify", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo escanear la carta.");
+    }
+
+    return data as ScanResponse;
+  }, []);
+
+  // Escaneo manual (botón "Capturar ahora" / reintentar / subir foto):
+  // siempre congela y muestra lo que responda la API, sea buena o mala la
+  // confianza — el usuario pidió explícitamente ver ese resultado.
+  const scanBlob = useCallback(
+    async (blob: Blob) => {
+      setIsScanning(true);
+      setScanError(null);
+      setResult(null);
+
+      try {
+        const data = await requestScan(blob);
+        setResult(data);
+        consecutiveFailuresRef.current = 0;
+        setScanHint(null);
+      } catch (error: any) {
+        setScanError(error?.message || "No se pudo escanear la carta.");
+      } finally {
+        setIsScanning(false);
+      }
+    },
+    [requestScan]
+  );
+
+  const runManualCapture = useCallback(async () => {
+    const blob = await captureCropBlob();
     if (!blob) {
-      setScanError("No se pudo generar la imagen de captura.");
+      setScanError("La cámara todavía no está lista.");
       return;
     }
 
@@ -225,7 +303,117 @@ export default function ScanClient() {
     setCapturedBlob(blob);
     setCapturedUrl(objectUrl);
     await scanBlob(blob);
-  }, [resetCapture, scanBlob]);
+  }, [captureCropBlob, resetCapture, scanBlob]);
+
+  // Intento del auto-loop: solo congela la pantalla si encuentra una
+  // coincidencia de buena confianza. Si no, descarta el intento en
+  // silencio y el loop sigue buscando — evita parpadeo en cada intento
+  // fallido mientras el usuario todavía está acomodando la carta.
+  const runAutoAttempt = useCallback(async () => {
+    if (isScanningRef.current || hasCaptureRef.current) return;
+
+    const blob = await captureCropBlob();
+    if (!blob) return;
+
+    setIsScanning(true);
+    try {
+      const data = await requestScan(blob);
+      const goodMatch =
+        data.bestCandidate &&
+        data.bestCandidate.confidence >= AUTO_MATCH_CONFIDENCE_THRESHOLD;
+
+      if (goodMatch) {
+        consecutiveFailuresRef.current = 0;
+        setScanHint(null);
+        const objectUrl = URL.createObjectURL(blob);
+        setCapturedBlob(blob);
+        setCapturedUrl(objectUrl);
+        setResult(data);
+      } else {
+        consecutiveFailuresRef.current += 1;
+        if (
+          consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES_BEFORE_HINT
+        ) {
+          setScanHint(
+            "No pudimos identificar la carta. Ajusta la luz o el encuadre, o usa \"Subir foto\"."
+          );
+        }
+      }
+    } catch (error: any) {
+      consecutiveFailuresRef.current += 1;
+      if (
+        consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES_BEFORE_HINT
+      ) {
+        setScanHint(
+          error?.message ||
+            "No pudimos identificar la carta. Ajusta la luz o el encuadre."
+        );
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  }, [captureCropBlob, requestScan]);
+
+  // Muestrea el video cada STABILITY_SAMPLE_MS para detectar cuándo está
+  // "quieto" (poca diferencia frame a frame) — solo entonces vale la pena
+  // gastar una llamada a la API. Referencialmente estable (deps vacías) para
+  // no reiniciar el interval en cada cambio de estado; lee hasCaptureRef /
+  // isScanningRef en vez de las variables de estado directamente.
+  const sampleAndMaybeCapture = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0) return;
+    if (hasCaptureRef.current || isScanningRef.current) return;
+
+    const canvas = stabilityCanvasRef.current ?? document.createElement("canvas");
+    stabilityCanvasRef.current = canvas;
+    canvas.width = DOWNSAMPLE_SIZE;
+    canvas.height = DOWNSAMPLE_SIZE;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, DOWNSAMPLE_SIZE, DOWNSAMPLE_SIZE);
+    const frame = ctx.getImageData(0, 0, DOWNSAMPLE_SIZE, DOWNSAMPLE_SIZE).data;
+    const previous = previousFrameRef.current;
+
+    let isStableTick = false;
+    if (previous) {
+      let diffSum = 0;
+      const pixelCount = DOWNSAMPLE_SIZE * DOWNSAMPLE_SIZE;
+      for (let i = 0; i < frame.length; i += 4) {
+        diffSum += Math.abs(frame[i + 1] - previous[i + 1]);
+      }
+      const normalizedDiff = diffSum / pixelCount / 255;
+      isStableTick = normalizedDiff < STABILITY_DIFF_THRESHOLD;
+    }
+    previousFrameRef.current = frame;
+
+    const now = Date.now();
+    if (isStableTick) {
+      if (stableSinceRef.current === null) stableSinceRef.current = now;
+    } else {
+      stableSinceRef.current = null;
+    }
+
+    const stableLongEnough =
+      stableSinceRef.current !== null &&
+      now - stableSinceRef.current >= STABLE_DURATION_MS;
+    const cooldownElapsed = now - lastAttemptAtRef.current >= CAPTURE_COOLDOWN_MS;
+
+    setAutoScanStatus(
+      stableLongEnough ? "analyzing" : isStableTick ? "holding-steady" : "searching"
+    );
+
+    if (stableLongEnough && cooldownElapsed) {
+      lastAttemptAtRef.current = now;
+      void runAutoAttempt();
+    }
+  }, [runAutoAttempt]);
+
+  useEffect(() => {
+    if (isStartingCamera || cameraError) return;
+    const interval = setInterval(sampleAndMaybeCapture, STABILITY_SAMPLE_MS);
+    return () => clearInterval(interval);
+  }, [isStartingCamera, cameraError, sampleAndMaybeCapture]);
 
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -249,6 +437,13 @@ export default function ScanClient() {
     [result?.candidates]
   );
 
+  const statusLabel =
+    autoScanStatus === "analyzing"
+      ? "Analizando..."
+      : autoScanStatus === "holding-steady"
+        ? "Casi listo, no muevas la carta"
+        : "Buscando una carta...";
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1f2937,_#020617_58%)] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 py-6">
@@ -263,8 +458,8 @@ export default function ScanClient() {
             Escanear una carta
           </h1>
           <p className="mt-2 text-sm text-slate-300">
-            Centra una sola carta dentro del marco. El sistema intenta leer su
-            c&oacute;digo y proponerte la coincidencia m&aacute;s probable.
+            Centra una sola carta dentro del marco. Se detecta y analiza
+            sola en cuanto se queda quieta — no necesitas tocar nada.
           </p>
         </div>
 
@@ -281,15 +476,41 @@ export default function ScanClient() {
                     className="h-full w-full object-cover"
                   />
                   <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,6,23,0.76),rgba(2,6,23,0.18)_18%,rgba(2,6,23,0.18)_82%,rgba(2,6,23,0.82))]" />
-                  <div className="pointer-events-none absolute inset-x-0 top-5 text-center">
+                  <div className="pointer-events-none absolute inset-x-0 top-5 flex flex-col items-center gap-2">
                     <div className="inline-flex items-center gap-2 rounded-full bg-slate-950/70 px-3 py-1 text-xs font-medium text-slate-200 backdrop-blur">
                       <Smartphone className="h-3.5 w-3.5" />
                       Usa buena luz y evita reflejos
                     </div>
+                    {!isStartingCamera && (
+                      <div className="inline-flex items-center gap-2 rounded-full bg-slate-950/70 px-3 py-1 text-xs font-medium text-sky-200 backdrop-blur">
+                        {autoScanStatus === "analyzing" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full",
+                              autoScanStatus === "holding-steady"
+                                ? "bg-sky-400"
+                                : "bg-slate-400 animate-pulse"
+                            )}
+                          />
+                        )}
+                        {statusLabel}
+                      </div>
+                    )}
                   </div>
                   <div
-                    className="pointer-events-none absolute left-1/2 top-1/2 w-[72%] max-w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-[3px] border-white/90 shadow-[0_0_0_9999px_rgba(2,6,23,0.45)]"
-                    style={{ aspectRatio: `${CARD_RATIO}` }}
+                    className={cn(
+                      "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-[3px] shadow-[0_0_0_9999px_rgba(2,6,23,0.45)] transition-colors",
+                      autoScanStatus === "holding-steady" ||
+                        autoScanStatus === "analyzing"
+                        ? "border-sky-400"
+                        : "border-white/90"
+                    )}
+                    style={{
+                      aspectRatio: `${CARD_RATIO}`,
+                      width: `${FRAME_CAPTURE_RATIO * 100}%`,
+                    }}
                   >
                     <div className="absolute left-3 top-3 h-6 w-6 rounded-tl-2xl border-l-4 border-t-4 border-sky-300" />
                     <div className="absolute right-3 top-3 h-6 w-6 rounded-tr-2xl border-r-4 border-t-4 border-sky-300" />
@@ -320,17 +541,18 @@ export default function ScanClient() {
           {!hasCapture ? (
             <>
               <Button
-                className="h-12 flex-1 gap-2 text-base"
-                onClick={() => void captureFrame()}
+                variant="outline"
+                className="h-11 flex-1 gap-2 border-slate-700 bg-slate-950/70 text-slate-100 hover:bg-slate-900"
+                onClick={() => void runManualCapture()}
                 disabled={isStartingCamera}
               >
                 <Camera className="h-4 w-4" />
-                Capturar
+                Capturar ahora
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-12 w-12 border-slate-700 bg-slate-950/70 text-slate-100 hover:bg-slate-900"
+                className="h-11 w-11 border-slate-700 bg-slate-950/70 text-slate-100 hover:bg-slate-900"
                 onClick={() =>
                   setCameraFacing((prev) =>
                     prev === "environment" ? "user" : "environment"
@@ -360,7 +582,7 @@ export default function ScanClient() {
                 onClick={resetCapture}
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
-                Nueva foto
+                Escanear otra carta
               </Button>
             </>
           )}
@@ -391,6 +613,12 @@ export default function ScanClient() {
           </div>
         )}
 
+        {scanHint && !hasCapture && (
+          <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {scanHint}
+          </div>
+        )}
+
         {scanError && (
           <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
             {scanError}
@@ -407,8 +635,8 @@ export default function ScanClient() {
             <CardContent className="space-y-3">
               {!result ? (
                 <div className="rounded-lg border border-dashed border-slate-700 px-4 py-5 text-sm text-slate-400">
-                  Captura una carta para ver c&oacute;digo, nombre, set e
-                  indicadores de confianza.
+                  Apunta la c&aacute;mara a una carta para ver c&oacute;digo,
+                  nombre, set e indicadores de confianza.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -543,6 +771,7 @@ export default function ScanClient() {
               <li>Usa una sola carta por foto.</li>
               <li>Evita brillo fuerte en el sleeve.</li>
               <li>Llena el marco con la carta sin cortar las esquinas.</li>
+              <li>Mant&eacute;n la carta quieta un instante para que se detecte sola.</li>
               <li>Si el OCR falla, prueba subir una foto m&aacute;s cerrada.</li>
             </ul>
           </div>

@@ -83,12 +83,22 @@ const SEARCH_RARITY_MAP: Record<string, string> = {
   secretrare: "Secret Rare",
   secreta: "Secret Rare",
   secreto: "Secret Rare",
-  p: "Promo",
-  pr: "Promo",
-  promo: "Promo",
-  promocional: "Promo",
-  promotional: "Promo",
 };
+
+// "Promo" is not reliably stored in the `rarity` column (many promo cards
+// have it null/empty, or even "Alternate Art" bled in from bad scrapes) —
+// the actual, consistent signal for "this is a promo card" is the "P-"
+// code prefix (same one the Codes filter and a literal "p-" search use).
+// So these words feed codeTokens (a "P-" contains match) instead of rarity.
+const SEARCH_PROMO_WORDS = new Set([
+  "p",
+  "pr",
+  "promo",
+  "promos",
+  "promocional",
+  "promocionales",
+  "promotional",
+]);
 
 const SEARCH_RARITY_PHRASE_MAP: Record<string, string> = {
   "super rare": "Super Rare",
@@ -324,6 +334,11 @@ export const parseSearchTokens = (search: string): SearchTokens => {
     const mappedRarity = SEARCH_RARITY_MAP[token];
     if (mappedRarity && !isSetPhraseToken) {
       rarities.add(mappedRarity);
+      continue;
+    }
+
+    if (SEARCH_PROMO_WORDS.has(token) && !isSetPhraseToken) {
+      codeTokens.add("P-");
       continue;
     }
 

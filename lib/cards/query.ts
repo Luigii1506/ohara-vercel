@@ -1211,7 +1211,81 @@ const fetchCardsPageWithAlternates = async (
   };
 };
 
+// Las alternas exclusivas se enganchan (baseCardId) a la base de su propia
+// región (p.ej. la base china de un código), no a la base US — por eso el
+// include.alternateCards de buildInclude (una relación estricta padre→hijo)
+// nunca las alcanza aunque isRegionalExclusive sea true: su padre natural
+// jamás aparece en la vista US. Este paso las busca por código en un query
+// aparte y las agrega al array de alternas de la carta base que corresponda,
+// sin depender de a qué base estén enganchadas.
+async function mergeCrossRegionExclusiveAlternates(
+  items: CardWithCollectionData[],
+  filters: CardsFilters,
+  includeAlternates: boolean,
+  includeRelations: boolean
+): Promise<void> {
+  if (!includeAlternates) return;
+  if (normalizeRegion(filters.region) !== DEFAULT_REGION) return;
+  if (!items.length) return;
+
+  const codes = Array.from(
+    new Set(items.map((item) => item.code).filter((code): code is string => Boolean(code)))
+  );
+  if (!codes.length) return;
+
+  const excludedIds = new Set<number>();
+  for (const item of items) {
+    // item.id se declara string en CardWithCollectionData pero en runtime,
+    // antes del cast final, sigue siendo el number crudo de Prisma.
+    excludedIds.add(Number(item.id));
+    for (const alt of (item as unknown as BaseCardWithRelations).alternates ?? []) {
+      excludedIds.add(alt.id);
+    }
+  }
+
+  const extras = (await prisma.card.findMany({
+    where: {
+      code: { in: codes },
+      isRegionalExclusive: true,
+      id: { notIn: Array.from(excludedIds) },
+    },
+    orderBy: { order: "asc" },
+    select: buildAlternateSelect(includeRelations),
+  })) as unknown as AlternateWithRelations[];
+
+  if (!extras.length) return;
+
+  const extrasByCode = new Map<string, AlternateWithRelations[]>();
+  for (const extra of extras) {
+    const list = extrasByCode.get(extra.code) ?? [];
+    list.push(extra);
+    extrasByCode.set(extra.code, list);
+  }
+
+  for (const item of items as unknown as BaseCardWithRelations[]) {
+    const codeExtras = extrasByCode.get(item.code);
+    if (!codeExtras?.length) continue;
+    item.alternates = normalizeAlternates([...(item.alternates ?? []), ...codeExtras]);
+    if (item.numOfVariations !== undefined) {
+      item.numOfVariations = item.alternates.length;
+    }
+  }
+}
+
 export const fetchCardsPageFromDb = async (
+  options: FetchCardsPageOptions
+): Promise<CardsPage> => {
+  const page = await fetchCardsPageFromDbCore(options);
+  await mergeCrossRegionExclusiveAlternates(
+    page.items,
+    options.filters,
+    options.includeAlternates ?? true,
+    options.includeRelations ?? false
+  );
+  return page;
+};
+
+const fetchCardsPageFromDbCore = async (
   options: FetchCardsPageOptions
 ): Promise<CardsPage> => {
   const {

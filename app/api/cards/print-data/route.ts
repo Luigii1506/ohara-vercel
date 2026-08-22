@@ -203,58 +203,12 @@ function pickTranslationCandidate(
     return null;
   }
 
-  const currentScore = getTranslationQualityScore(currentCandidate);
-  const baseScore = baseCandidate ? getTranslationQualityScore(baseCandidate) : -1;
-
-  if (baseScore > currentScore && baseCandidate) {
-    return baseCandidate;
-  }
-
-  if (currentScore >= 0) {
-    return currentCandidate;
-  }
-
-  return baseCandidate;
-}
-
-function getTranslationQualityScore(candidate: TranslationCandidate | null) {
-  if (!candidate || candidate.localizations === false) {
-    return -1;
-  }
-
-  const localizationMap = new Map(
-    (candidate.localizations ?? []).map((entry) => [entry.sourceKey, entry.translatedText])
-  );
-
-  let score = 0;
-
-  for (const textEntry of candidate.texts) {
-    const translated = localizationMap.get(`text:${textEntry.id}`);
-    if (isMeaningfullyTranslated(translated, textEntry.text)) {
-      score += 4;
-    }
-  }
-
-  if (isMeaningfullyTranslated(localizationMap.get("triggerCard"), candidate.triggerCard)) {
-    score += 2;
-  }
-
-  if (isMeaningfullyTranslated(localizationMap.get("name"), candidate.name)) {
-    score += 1;
-  }
-
-  return score;
-}
-
-function isMeaningfullyTranslated(
-  translatedText: string | null | undefined,
-  sourceText: string | null | undefined
-) {
-  const translated = normalizeText(translatedText);
-  if (!translated) return false;
-
-  const source = normalizeText(sourceText);
-  return translated !== source;
+  // Una alterna comparte el texto de juego con su carta base (solo cambia el
+  // arte) — la base es la fuente canónica de traducción. Elegir por "calidad"
+  // entre ambas dejaba ganar traducciones parciales guardadas en la alterna
+  // (p.ej. solo el término de glosario traducido) sobre la traducción
+  // completa de la base cuando ambas puntuaban igual.
+  return baseCandidate ?? currentCandidate;
 }
 
 function normalizeText(value: string | null | undefined) {

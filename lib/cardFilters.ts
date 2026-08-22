@@ -140,7 +140,12 @@ export const cardMatchesActiveFilters = (
   }
 
   if (selectedCodes.length > 0) {
-    const normalizedCodes = selectedCodes.map((value) => value.toLowerCase());
+    // "PROMO" es un valor pseudo-código de la UI: las cartas promo reales
+    // tienen código impreso "P-XXX" (nunca contienen literalmente "promo"),
+    // igual que la normalización del lado del servidor en lib/cards/query.ts.
+    const normalizedCodes = selectedCodes.map((value) =>
+      (value.toUpperCase() === "PROMO" ? "P-" : value).toLowerCase()
+    );
     const cardCode = card.code?.toLowerCase() ?? "";
     const matchesCode = normalizedCodes.some((value) => cardCode.includes(value));
     if (!matchesCode) return false;

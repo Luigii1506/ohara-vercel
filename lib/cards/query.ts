@@ -121,10 +121,19 @@ const normalizeSetCodesParam = (value: string | null | undefined) =>
 const normalizeRegion = (value?: string | null): string =>
   value && value.trim() ? value.trim() : DEFAULT_REGION;
 
+// La región por defecto (US) es la única que también debe mostrar cartas de
+// otras regiones cuando están marcadas isRegionalExclusive (p.ej. una alterna
+// china exclusiva que Bandai nunca imprimió en US). Cualquier otra región
+// solo ve sus propias cartas.
 const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
   if (region === DEFAULT_REGION) {
     return {
-      OR: [{ region }, { region: null }, { region: "" }],
+      OR: [
+        { region },
+        { region: null },
+        { region: "" },
+        { isRegionalExclusive: true },
+      ],
     };
   }
   return { region };
@@ -133,7 +142,12 @@ const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
 const buildBaseRegionCondition = (region: string): Prisma.CardWhereInput => {
   if (region === DEFAULT_REGION) {
     return {
-      OR: [{ region }, { region: null }, { region: "" }],
+      OR: [
+        { region },
+        { region: null },
+        { region: "" },
+        { isRegionalExclusive: true },
+      ],
     };
   }
   return { region };

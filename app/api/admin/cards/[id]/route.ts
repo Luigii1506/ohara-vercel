@@ -137,6 +137,7 @@ export async function PUT(
       texts, // Relación opcional: textos de la carta
       isPro,
       region,
+      isRegionalExclusive,
     } = body;
 
     // Obtener los datos actuales de la carta
@@ -177,6 +178,8 @@ export async function PUT(
     if (order !== undefined) updateData.order = order;
     if (isPro !== undefined) updateData.isPro = isPro;
     if (region !== undefined) updateData.region = region;
+    if (isRegionalExclusive !== undefined)
+      updateData.isRegionalExclusive = isRegionalExclusive;
 
     // Handle relational data only if provided (including empty arrays to clear fields)
     if (types && Array.isArray(types)) {

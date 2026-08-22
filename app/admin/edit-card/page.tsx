@@ -114,6 +114,7 @@ interface AlternateCard {
   order?: string;
   isPro?: boolean;
   region?: string;
+  isRegionalExclusive?: boolean;
   isFirstEdition?: boolean;
   code?: string;
   setCode?: string;
@@ -854,6 +855,7 @@ const EditCard = () => {
           order: updatedAlternate.order,
           isPro: updatedAlternate.isPro,
           region: updatedAlternate.region,
+          isRegionalExclusive: updatedAlternate.isRegionalExclusive ?? false,
           setIds: updatedAlternate.sets?.map((s) => s.set.id) || [],
           setCode: updatedAlternate.setCode || "",
         };

@@ -12,6 +12,16 @@ const matchesWordToken = (value: string, token: string) => {
   const normalizedToken = token.toLowerCase().trim();
   if (!normalizedToken) return false;
 
+  // normalizeSearchWords splits on any non-alphanumeric char, so a token
+  // that itself contains one (e.g. a partial code like "p-") can never
+  // match — the words it's compared against never contain a dash either.
+  // The server's equivalent query does a plain substring `contains`
+  // (lib/cards/query.ts's buildTokenSearchCondition), so mirror that here
+  // instead of word-matching whenever the token has punctuation.
+  if (/[^a-z0-9]/.test(normalizedToken)) {
+    return value.toLowerCase().includes(normalizedToken);
+  }
+
   return normalizeSearchWords(value).some(
     (word) => word === normalizedToken || word.startsWith(normalizedToken)
   );

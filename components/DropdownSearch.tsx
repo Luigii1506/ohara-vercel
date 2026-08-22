@@ -60,6 +60,12 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const requestIdRef = React.useRef(0);
+  // Selecting a suggestion sets inputValue to that suggestion's own text,
+  // which still matches itself (and near-duplicates like "X Pre-Release") in
+  // the suggestions endpoint — the normal fetch effect would reopen the
+  // dropdown right after closing it. This flag suppresses auto-reopen until
+  // the user actually types again (onChange clears it).
+  const skipAutoOpenRef = React.useRef(false);
 
   const applySearch = React.useCallback(
     (value: string) => {
@@ -70,12 +76,14 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
   );
 
   const handleSearch = React.useCallback(() => {
+    skipAutoOpenRef.current = true;
     applySearch(inputValue);
     setIsSuggestionsOpen(false);
   }, [applySearch, inputValue]);
 
   const handleSuggestionSelect = React.useCallback(
     (suggestion: SearchSuggestion) => {
+      skipAutoOpenRef.current = true;
       setInputValue(suggestion.value);
       applySearch(suggestion.value);
       onSuggestionSelect?.(suggestion);
@@ -89,6 +97,7 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
 
   const handleClear = React.useCallback(() => {
     requestIdRef.current += 1;
+    skipAutoOpenRef.current = true;
     setInputValue("");
     setSearch("");
     onSearchInputChange?.("");
@@ -122,6 +131,7 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
       if (e.key === "ArrowDown") {
         if (!suggestions.length) return;
         e.preventDefault();
+        skipAutoOpenRef.current = false;
         setIsSuggestionsOpen(true);
         setHighlightedIndex((prev) =>
           prev < suggestions.length - 1 ? prev + 1 : 0
@@ -132,6 +142,7 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
       if (e.key === "ArrowUp") {
         if (!suggestions.length) return;
         e.preventDefault();
+        skipAutoOpenRef.current = false;
         setIsSuggestionsOpen(true);
         setHighlightedIndex((prev) =>
           prev > 0 ? prev - 1 : suggestions.length - 1
@@ -150,6 +161,7 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
       }
 
       if (e.key === "Escape") {
+        skipAutoOpenRef.current = true;
         setIsSuggestionsOpen(false);
         setHighlightedIndex(-1);
       }
@@ -212,7 +224,19 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
 
         setSuggestions(nextSuggestions);
         setHighlightedIndex(-1);
-        setIsSuggestionsOpen(nextSuggestions.length > 0);
+        // Desktop and mobile both render a DropdownSearch sharing the same
+        // `search` state; only one is visible at a time via CSS, but both
+        // stay mounted and both run this fetch when `search` changes. Only
+        // open the dropdown in the instance the user is actually focused
+        // on — otherwise the hidden twin pops its portal open too. Also
+        // respect skipAutoOpenRef so selecting/clearing/searching doesn't
+        // get reopened by this same fetch resolving with matches for the
+        // text it just set (see skipAutoOpenRef comment above).
+        setIsSuggestionsOpen(
+          !skipAutoOpenRef.current &&
+            nextSuggestions.length > 0 &&
+            document.activeElement === inputRef.current
+        );
       } catch (error) {
         if (requestIdRef.current !== currentRequestId) return;
         console.error("Autocomplete suggestion error:", error);
@@ -339,12 +363,14 @@ const DropdownSearch = React.forwardRef<DropdownSearchHandle, DropdownSearchProp
             value={inputValue}
             onChange={(e) => {
               const nextValue = e.target.value;
+              skipAutoOpenRef.current = false;
               setInputValue(nextValue);
               onSearchInputChange?.(nextValue);
               setHighlightedIndex(-1);
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => {
+              if (skipAutoOpenRef.current) return;
               if (suggestions.length > 0) {
                 setIsSuggestionsOpen(true);
               }

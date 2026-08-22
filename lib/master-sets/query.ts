@@ -97,6 +97,7 @@ function classifyCardVariantCategory(
 ): MasterSetVariantCategory {
   const lower = (alternateArt ?? "").toLowerCase().trim();
   if (!lower) return "BASE";
+  if (lower.includes("manga")) return "MANGA";
   if (lower === "pre-release") return "PRE_RELEASE";
   if (lower === "release event") return "RELEASE_EVENT";
   if (lower === "winner version") return "WINNER";

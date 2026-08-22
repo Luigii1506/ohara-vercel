@@ -23,11 +23,14 @@ export type GoogleCameoRow = {
   setNumber: string | null;
   variant: string | null;
   specialSet: string | null;
+  tcgplayerUrl: string | null;
+  tcgplayerProductId: string | null;
   raw: Record<string, unknown>;
 };
 
 export type MasterSetVariantCategory =
   | "BASE"
+  | "MANGA"
   | "PRE_RELEASE"
   | "RELEASE_EVENT"
   | "WINNER"
@@ -91,6 +94,7 @@ export function classifyMasterSetVariant(
   const text = `${normalizedVariant} ${normalizedSpecialSet}`.trim();
 
   if (!text || text === "base") return "BASE";
+  if (/\bmanga\b/.test(text)) return "MANGA";
   if (/pre release/.test(text)) return "PRE_RELEASE";
   if (/release event/.test(text)) return "RELEASE_EVENT";
   if (/\bwinner\b/.test(text)) return "WINNER";
@@ -111,6 +115,8 @@ export function getVariantCategoryLabel(category: MasterSetVariantCategory) {
   switch (category) {
     case "BASE":
       return "Base";
+    case "MANGA":
+      return "Manga";
     case "PRE_RELEASE":
       return "Pre-Release";
     case "RELEASE_EVENT":
@@ -150,6 +156,21 @@ function pickFirstValue(
       return value.trim();
     }
   }
+
+  return null;
+}
+
+function extractTcgplayerProductId(value: string | null | undefined) {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const directDigits = trimmed.match(/^\d+$/)?.[0];
+  if (directDigits) return directDigits;
+
+  const fromUrl = trimmed.match(/tcgplayer\.com\/product\/(\d+)/i)?.[1];
+  if (fromUrl) return fromUrl;
 
   return null;
 }
@@ -227,6 +248,31 @@ export async function fetchGoogleCameoRows(
         specialSet: pickFirstValue(
           row,
           ["Special Set (If applicable)", "__EMPTY_4"]
+        ),
+        tcgplayerUrl: pickFirstValue(row, [
+          "TCGPlayer URL",
+          "TCG Player URL",
+          "TCG URL",
+          "Link",
+          "URL",
+          "__EMPTY_5",
+        ]),
+        tcgplayerProductId: extractTcgplayerProductId(
+          pickFirstValue(row, [
+            "TCGPlayer Product ID",
+            "TCG Player Product ID",
+            "TCGPlayer ID",
+            "TCG Player ID",
+            "Product ID",
+            "PID",
+            "TCGPlayer URL",
+            "TCG Player URL",
+            "TCG URL",
+            "Link",
+            "URL",
+            "__EMPTY_5",
+            "__EMPTY_6",
+          ])
         ),
         raw: row,
       } satisfies GoogleCameoRow;

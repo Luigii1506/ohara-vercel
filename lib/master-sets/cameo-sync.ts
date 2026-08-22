@@ -42,6 +42,11 @@ type IndexedCard = {
   tcgUrl: string | null;
 };
 
+type CardIndexes = {
+  byCode: Map<string, IndexedCard[]>;
+  byProductId: Map<string, IndexedCard>;
+};
+
 function normalizeName(value: string | null | undefined) {
   if (!value) return "";
 
@@ -122,11 +127,20 @@ function scoreVariantMatch(
 }
 
 function pickBestCardCandidate(
+  indexes: CardIndexes,
   candidates: IndexedCard[],
   cardName?: string | null,
   variant?: string | null,
-  specialSet?: string | null
+  specialSet?: string | null,
+  tcgplayerProductId?: string | null
 ) {
+  if (tcgplayerProductId) {
+    const exactProductMatch = indexes.byProductId.get(tcgplayerProductId);
+    if (exactProductMatch) {
+      return exactProductMatch;
+    }
+  }
+
   if (candidates.length === 0) return null;
 
   const normalizedName = normalizeName(cardName);
@@ -211,6 +225,7 @@ async function buildCardIndexes() {
   });
 
   const byCode = new Map<string, IndexedCard[]>();
+  const byProductId = new Map<string, IndexedCard>();
 
   for (const card of cards) {
     const normalizedCode = normalizeCardCode(card.code);
@@ -219,9 +234,13 @@ async function buildCardIndexes() {
     const list = byCode.get(normalizedCode) ?? [];
     list.push(card);
     byCode.set(normalizedCode, list);
+
+    if (card.tcgplayerProductId) {
+      byProductId.set(card.tcgplayerProductId, card);
+    }
   }
 
-  return { byCode };
+  return { byCode, byProductId };
 }
 
 function sheetUrl(spreadsheetId: string, gid: string) {
@@ -249,7 +268,7 @@ export async function syncGoogleCameoSource(
     )
     .slice(0, options.limitSheets ?? Number.POSITIVE_INFINITY);
 
-  const { byCode } = await buildCardIndexes();
+  const indexes = await buildCardIndexes();
 
   let charactersUpserted = 0;
   let entriesProcessed = 0;
@@ -326,18 +345,25 @@ export async function syncGoogleCameoSource(
     let sheetUnmatched = 0;
 
     for (const row of rows) {
-      const candidates = row.setNumber ? byCode.get(row.setNumber) ?? [] : [];
+      const candidates = row.setNumber ? indexes.byCode.get(row.setNumber) ?? [] : [];
       const matchedCard = pickBestCardCandidate(
+        indexes,
         candidates,
         row.cardName,
         row.variant,
-        row.specialSet
+        row.specialSet,
+        row.tcgplayerProductId
       );
       const status = matchedCard ? "MATCHED" : "UNMATCHED";
+      const matchedByProductId =
+        Boolean(row.tcgplayerProductId) &&
+        matchedCard?.tcgplayerProductId === row.tcgplayerProductId;
       const note = matchedCard
-        ? `Matched by code ${row.setNumber ?? "unknown"}${row.variant ? ` variant ${row.variant}` : ""}${matchedCard.tcgplayerProductId ? ` pid ${matchedCard.tcgplayerProductId}` : ""}`
+        ? matchedByProductId
+          ? `Matched by productId ${row.tcgplayerProductId}${row.setNumber ? ` code ${row.setNumber}` : ""}`
+          : `Matched by code ${row.setNumber ?? "unknown"}${row.variant ? ` variant ${row.variant}` : ""}${matchedCard.tcgplayerProductId ? ` pid ${matchedCard.tcgplayerProductId}` : ""}`
         : row.setNumber
-        ? `No card matched code ${row.setNumber}`
+        ? `No card matched code ${row.setNumber}${row.tcgplayerProductId ? ` pid ${row.tcgplayerProductId}` : ""}`
         : "Row missing Set Number";
 
       const entry = await sourceEntryClient.upsert({

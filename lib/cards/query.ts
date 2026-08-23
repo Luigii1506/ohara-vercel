@@ -1243,6 +1243,7 @@ async function mergeCrossRegionExclusiveAlternates(
 ): Promise<void> {
   if (!includeAlternates) return;
   if (normalizeRegion(filters.region) !== DEFAULT_REGION) return;
+  if (filters.searchSetId || filters.searchSetIds?.length) return;
   if (!items.length) return;
 
   const codes = Array.from(

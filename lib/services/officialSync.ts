@@ -30,6 +30,12 @@ export const OFFICIAL_REGIONS: Record<
   "ASIA-EN": { baseUrl: "https://asia-en.onepiece-cardgame.com", region: "ASIA-EN", language: "en", label: "Inglés (Asia)" },
   JP: { baseUrl: "https://www.onepiece-cardgame.com", region: "JP", language: "ja", label: "Japonés" },
   FR: { baseUrl: "https://fr.onepiece-cardgame.com", region: "FR", language: "fr", label: "Francés" },
+  // Chino tradicional (Taiwán/HK/Macao) — misma plataforma HTML que
+  // JP/EN/FR (mismo dl.modalCol, mismos corchetes 【】, rareza/categoría ya
+  // en inglés en .infoCol). Región de carta REAL "TC", distinta de "CN"
+  // (simplificado/continental, plataforma y catálogo totalmente aparte) —
+  // no es un alias de otra región existente.
+  "ASIA-TC": { baseUrl: "https://asia-tc.onepiece-cardgame.com", region: "ASIA-TC", cardRegion: "TC", language: "zh-Hant", label: "Chino tradicional (Asia)" },
 };
 
 const CARDLIST_PATH = "/cardlist/";
@@ -273,17 +279,31 @@ export async function scanOfficialRegion(
     where: { code: { in: bases } },
     select: { code: true, officialVariantCode: true, region: true },
   });
+  // "¿ya la tenemos?" tiene que compararse contra la región REAL de la
+  // carta que se va a crear (cardRegion), no contra la BD entera — sin
+  // esto, escanear una región nueva (p.ej. ASIA-TC, sin ninguna carta
+  // propia todavía) marca como "ya la tenemos" cualquier código que ya
+  // exista en JP/US/etc., aunque no exista NINGUNA carta de esa región
+  // nueva. `codeRegions` es la única excepción: se usa para "exclusive"
+  // (¿existe en US?), una comparación cross-región a propósito.
+  const cardRegionMatches = (region: string | null) =>
+    cardRegion === "US"
+      ? region === null || region === "" || region === "US"
+      : region === cardRegion;
+
   const tokensByCode = new Map<string, Set<string>>();
   const codesInDb = new Set<string>();
   const codeRegions = new Map<string, Set<string>>();
   for (const r of dbRows) {
+    if (!codeRegions.has(r.code)) codeRegions.set(r.code, new Set());
+    if (r.region) codeRegions.get(r.code)!.add(r.region);
+
+    if (!cardRegionMatches(r.region)) continue;
     codesInDb.add(r.code);
     if (!tokensByCode.has(r.code)) tokensByCode.set(r.code, new Set());
     officialVariantTokens(r.officialVariantCode).forEach((t) =>
       tokensByCode.get(r.code)!.add(t)
     );
-    if (!codeRegions.has(r.code)) codeRegions.set(r.code, new Set());
-    if (r.region) codeRegions.get(r.code)!.add(r.region);
   }
 
   const missing: OfficialScrapedCard[] = [];

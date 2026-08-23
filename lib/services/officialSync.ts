@@ -378,7 +378,11 @@ async function uploadVariants(fileBuffer: Buffer, base: string) {
   }
 }
 
-async function ensureSet(setCode: string, region: string): Promise<number | null> {
+async function ensureSet(
+  setCode: string,
+  region: string,
+  seriesLabel?: string | null
+): Promise<number | null> {
   if (!setCode) return null;
   // Buscar/crear SIEMPRE dentro de la región de la carta — sin esto, un
   // código que ya existe como Set de OTRA región (p.ej. "OP17" ya creado
@@ -393,10 +397,14 @@ async function ensureSet(setCode: string, region: string): Promise<number | null
     select: { id: true },
   });
   if (existing) return existing.id;
+  // El título real (p.ej. "ブースターパック 神の島の冒険【OP-15】") viene del
+  // propio label de la serie escaneada — sin él, el Set quedaría con el
+  // código pelado como título ("OP15") en vez del nombre real de la página.
+  const title = seriesLabel?.trim() || setCode;
   const created = await prisma.set.create({
     data: {
       image: "",
-      title: setCode,
+      title,
       code: setCode,
       region: region === "US" ? null : region,
       releaseDate: new Date(0),
@@ -405,7 +413,7 @@ async function ensureSet(setCode: string, region: string): Promise<number | null
     select: { id: true },
   });
   console.log(
-    `[ensureSet] Set nuevo creado: code=${setCode} region=${region} (id=${created.id}) — título temporal, revisar en /admin/sets`
+    `[ensureSet] Set nuevo creado: code=${setCode} region=${region} title="${title}" (id=${created.id}) — revisar imagen/fecha en /admin/sets`
   );
   return created.id;
 }
@@ -452,8 +460,12 @@ async function persistCard(a: PersistArgs): Promise<number> {
   });
   await uploadVariants(Buffer.from(resp.data), keyBase);
   const src = `${R2_PUBLIC.replace(/\/$/, "")}/cards/${keyBase}.webp`;
-  const setId = await ensureSet(a.setCode || a.code.split("-")[0], a.region);
   const p = a.payload;
+  const setId = await ensureSet(
+    a.setCode || a.code.split("-")[0],
+    a.region,
+    p?.seriesLabel
+  );
 
   // El atributo/color/tipo de una carta no cambia entre regiones (mismo
   // juego, mismas reglas) — si el scrape no trajo attribute (ej. por un

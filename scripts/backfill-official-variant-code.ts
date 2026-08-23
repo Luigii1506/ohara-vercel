@@ -78,7 +78,7 @@ async function main() {
       continue;
     }
 
-    const fromAlias = /^p\d{1,3}$/i.test((card.alias ?? "").trim());
+    const fromAlias = /^[pr]\d{1,3}$/i.test((card.alias ?? "").trim());
     if (fromAlias) inferredFromAlias += 1;
     else inferredFromSrc += 1;
 

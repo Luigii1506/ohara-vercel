@@ -91,13 +91,26 @@ export async function fetchOfficialSeries(baseUrl: string) {
     maxRedirects: 5,
   });
   const $ = cheerio.load(data);
-  const map = new Map<string, { series: string; setCode: string; label: string }>();
+  const map = new Map<
+    string,
+    { series: string; setCode: string; label: string; hasBracketCode: boolean }
+  >();
   $("option").each((_, el) => {
     const series = ($(el).attr("value") || "").trim();
     if (!/^\d+$/.test(series)) return;
     const label = $(el).text().replace(/\s+/g, " ").trim();
-    const m = label.match(/\[([^\]]+)\]/);
-    map.set(series, { series, setCode: m ? m[1].trim() : label, label });
+    // JP usa corchetes de ancho completo 【...】 en vez de ASCII [...] — sin
+    // aceptar ambos, esto nunca matchea para JP y s.setCode cae siempre al
+    // label completo (mezcla de texto japonés), perdiendo la única señal
+    // confiable de "esta serie es la página propia y dedicada de este set"
+    // (ver el filtro de series "bundle"/bolsa-de-promos más abajo).
+    const m = label.match(/[\[【]([^\]】]+)[\]】]/);
+    map.set(series, {
+      series,
+      setCode: m ? m[1].trim() : label,
+      label,
+      hasBracketCode: Boolean(m),
+    });
   });
   return Array.from(map.values());
 }
@@ -184,49 +197,74 @@ export async function scanOfficialRegion(
       : { region: cardRegion };
 
   const all: OfficialScrapedCard[] = [];
+  // Mejor conteo visto por código, SOLO de series con código propio
+  // inequívoco (bracket "[XXX-YY]"/"【XXX-YY】" en su label — así es como el
+  // propio sitio oficial identifica "esta página ES el producto XXX-YY", y
+  // como el admin verifica a mano: entra a la página de esa serie específica
+  // y cuenta). Series SIN código propio se ignoran para este cálculo —
+  // suelen ser una bolsa de reimpresiones promocionales sueltas que toca
+  // decenas de códigos ajenos con 1-2 cartas cada uno ("プロモーションカード",
+  // "限定商品収録カード") o un bundle de varios productos completos juntos
+  // (JP "ファミリーデッキセット" combina 3 starter decks) — ninguna de esas
+  // dos páginas representa el producto original de ningún Set, contarlas
+  // infla el conteo de todo lo que tocan sin que sea un hueco real.
+  //
+  // Dentro de una serie SÍ dueña de su código se usa `cards.length` TAL
+  // CUAL (no filtrado por código de carta) porque el contenido real de un
+  // producto no siempre comparte el código de la caja: un starter deck
+  // nuevo puede traer 10 cartas reimpresas de sets viejos + 5 exclusivas
+  // (ST-19..28), y un booster "CARD THE BEST" son casi puras reimpresiones
+  // alternas de docenas de sets distintos (PRB-01/02) — en ambos casos la
+  // serie SIGUE siendo la página propia y dedicada de ESE producto.
+  const bestByCode = new Map<string, { count: number; seriesId: string }>();
+
   for (const s of series) {
     try {
       const cards = await fetchOfficialCards(cfg.baseUrl, s.series, s.label);
       all.push(...cards);
 
-      // Persistir el conteo declarado por serie en SetSource — el propio
-      // código de las cartas ("OP16-001" -> "OP16") es más confiable que
-      // s.setCode (viene del label "[OP-16]", con guion, y no siempre
-      // coincide con el formato de Set.code en esta base).
-      const setCode = cards[0]?.setCode || s.setCode.replace(/-/g, "");
-      if (setCode) {
-        const matchedSet = await prisma.set.findFirst({
-          where: { code: setCode, ...setRegionWhere },
-          select: { id: true },
-        });
-        if (matchedSet) {
-          await prisma.setSource.upsert({
-            where: { setId_source: { setId: matchedSet.id, source: "official" } },
-            create: {
-              setId: matchedSet.id,
-              source: "official",
-              sourceUrl: `${cfg.baseUrl}${CARDLIST_PATH}?series=${s.series}`,
-              sourceSlug: s.series,
-              declaredCount: cards.length,
-              lastCheckedAt: new Date(),
-            },
-            update: {
-              sourceUrl: `${cfg.baseUrl}${CARDLIST_PATH}?series=${s.series}`,
-              sourceSlug: s.series,
-              declaredCount: cards.length,
-              lastCheckedAt: new Date(),
-            },
-          });
-        } else {
-          console.warn(
-            `[official-sync] no matching Set for code=${setCode} region=${cardRegion} (series ${s.series})`
-          );
+      if (s.hasBracketCode && cards.length) {
+        const ownCode = s.setCode.replace(/-/g, "").toUpperCase();
+        const prev = bestByCode.get(ownCode);
+        if (!prev || cards.length > prev.count) {
+          bestByCode.set(ownCode, { count: cards.length, seriesId: s.series });
         }
       }
     } catch {
       // sigue con las demás series
     }
     await sleep(200);
+  }
+
+  for (const [setCode, { count, seriesId }] of Array.from(bestByCode.entries())) {
+    const matchedSet = await prisma.set.findFirst({
+      where: { code: setCode, ...setRegionWhere },
+      select: { id: true },
+    });
+    if (matchedSet) {
+      const sourceUrl = `${cfg.baseUrl}${CARDLIST_PATH}?series=${seriesId}`;
+      await prisma.setSource.upsert({
+        where: { setId_source: { setId: matchedSet.id, source: "official" } },
+        create: {
+          setId: matchedSet.id,
+          source: "official",
+          sourceUrl,
+          sourceSlug: seriesId,
+          declaredCount: count,
+          lastCheckedAt: new Date(),
+        },
+        update: {
+          sourceUrl,
+          sourceSlug: seriesId,
+          declaredCount: count,
+          lastCheckedAt: new Date(),
+        },
+      });
+    } else {
+      console.warn(
+        `[official-sync] no matching Set for code=${setCode} region=${cardRegion}`
+      );
+    }
   }
 
   // Comparar contra BD
@@ -591,4 +629,55 @@ export async function ignoreOfficialItem(itemId: number) {
     where: { id: itemId },
     data: { decisionStatus: "IGNORED" },
   });
+}
+
+export type ApplyPendingResult = {
+  region: string;
+  attempted: number;
+  applied: number;
+  failed: number;
+  failures: Array<{ itemId: number; code: string; error: string }>;
+};
+
+/**
+ * Aplica automáticamente items PENDIENTES de una región (usado por el cron
+ * de official-sync). Si un item falla al aplicarse (imagen rota, layout
+ * raro del sitio oficial, etc.) queda PENDING — visible en
+ * /admin/official-sync para revisión manual — en vez de bloquear el resto
+ * del batch.
+ */
+export async function applyPendingOfficialItems(
+  regionKey: string,
+  opts: { limit?: number } = {}
+): Promise<ApplyPendingResult> {
+  const cfg = OFFICIAL_REGIONS[regionKey.toUpperCase()];
+  if (!cfg) throw new Error(`Región no soportada: ${regionKey}`);
+  const limit = opts.limit ?? 25;
+
+  const pending = await prisma.officialSyncItem.findMany({
+    where: { region: cfg.region, decisionStatus: "PENDING", appliedCardId: null },
+    orderBy: { id: "asc" },
+    take: limit,
+    select: { id: true, code: true },
+  });
+
+  const failures: ApplyPendingResult["failures"] = [];
+  let applied = 0;
+  for (const item of pending) {
+    try {
+      await applyOfficialItem(item.id);
+      applied += 1;
+    } catch (e) {
+      failures.push({ itemId: item.id, code: item.code, error: (e as Error).message });
+    }
+    await sleep(200);
+  }
+
+  return {
+    region: cfg.region,
+    attempted: pending.length,
+    applied,
+    failed: failures.length,
+    failures,
+  };
 }

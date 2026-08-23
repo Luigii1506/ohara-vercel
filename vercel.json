@@ -17,6 +17,10 @@
       "schedule": "20 */6 * * *"
     },
     {
+      "path": "/api/cron/official-sync?region=JP",
+      "schedule": "40 */6 * * *"
+    },
+    {
       "path": "/api/cron/market-stats",
       "schedule": "0 5 * * *"
     }

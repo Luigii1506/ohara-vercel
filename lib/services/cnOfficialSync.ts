@@ -372,33 +372,37 @@ const uploadImageVariants = async (
   bucketName: string,
   publicUrl: string
 ) => {
-  for (const [, config] of Object.entries(IMAGE_SIZES)) {
-    const r2Key = `cards/${filename}${config.suffix}.webp`;
-    let transformer = sharp(buffer);
+  // Los tamaños son independientes entre sí (mismo buffer de origen, cada
+  // uno a su propia key de R2) — en paralelo en vez de uno por uno.
+  await Promise.all(
+    Object.values(IMAGE_SIZES).map(async (config) => {
+      const r2Key = `cards/${filename}${config.suffix}.webp`;
+      let transformer = sharp(buffer);
 
-    if (config.width || config.height) {
-      transformer = transformer.resize({
-        width: config.width || undefined,
-        height: config.height || undefined,
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      });
-    }
+      if (config.width || config.height) {
+        transformer = transformer.resize({
+          width: config.width || undefined,
+          height: config.height || undefined,
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        });
+      }
 
-    const transformed = await transformer
-      .webp({ quality: config.quality, effort: 6 })
-      .toBuffer();
+      const transformed = await transformer
+        .webp({ quality: config.quality, effort: 6 })
+        .toBuffer();
 
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: bucketName,
-        Key: r2Key,
-        Body: transformed,
-        ContentType: "image/webp",
-        CacheControl: "public, max-age=31536000, immutable",
-      })
-    );
-  }
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: r2Key,
+          Body: transformed,
+          ContentType: "image/webp",
+          CacheControl: "public, max-age=31536000, immutable",
+        })
+      );
+    })
+  );
 
   return `${publicUrl}/cards/${filename}.webp`;
 };

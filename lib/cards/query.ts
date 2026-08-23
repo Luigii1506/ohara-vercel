@@ -139,6 +139,17 @@ const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
   return { region };
 };
 
+const buildStrictRegionScopeCondition = (
+  region: string
+): Prisma.CardWhereInput => {
+  if (region === DEFAULT_REGION) {
+    return {
+      OR: [{ region }, { region: null }, { region: "" }],
+    };
+  }
+  return { region };
+};
+
 const buildBaseRegionCondition = (region: string): Prisma.CardWhereInput => {
   if (region === DEFAULT_REGION) {
     return {
@@ -237,6 +248,9 @@ const shouldSkipSearchTokenConditions = (filters: CardsFilters) =>
 
 const shouldIgnoreRegionForSearch = (filters: CardsFilters) =>
   Boolean(filters.skipRegionScope);
+
+const shouldUseStrictRegionScope = (filters: CardsFilters) =>
+  Boolean(filters.searchSetIds?.length);
 
 const buildTokenSearchCondition = (
   search: string,
@@ -346,9 +360,12 @@ const buildWhere = (
 ): Prisma.CardWhereInput => {
   const ignoreRegion = shouldIgnoreRegionForSearch(filters);
   const selectedRegion = normalizeRegion(filters.region);
+  const strictRegionScope = shouldUseStrictRegionScope(filters);
   const alternateRegionCondition = ignoreRegion
     ? {}
-    : buildRegionScopeCondition(selectedRegion);
+    : strictRegionScope
+      ? buildStrictRegionScopeCondition(selectedRegion)
+      : buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     // Solo filtrar por baseCardId: null si NO incluimos alternativas
     // o si el caller solicita solo cartas base.
@@ -1531,9 +1548,12 @@ export const fetchAllCardsFromDb = async (
 export const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   const ignoreRegion = shouldIgnoreRegionForSearch(filters);
   const selectedRegion = normalizeRegion(filters.region);
+  const strictRegionScope = shouldUseStrictRegionScope(filters);
   const regionCondition = ignoreRegion
     ? {}
-    : buildRegionScopeCondition(selectedRegion);
+    : strictRegionScope
+      ? buildStrictRegionScopeCondition(selectedRegion)
+      : buildRegionScopeCondition(selectedRegion);
   const where: Prisma.CardWhereInput = {
     AND: [],
   };

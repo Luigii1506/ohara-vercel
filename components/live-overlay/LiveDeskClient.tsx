@@ -35,6 +35,32 @@ type LiveDeskClientProps = {
 
 type FlattenedCardResult = LiveOverlayCard & {
   baseId: string;
+  itemType: "card";
+};
+
+type LiveDeskProductResult = LiveOverlayCard & {
+  baseId: string;
+  itemType: "product";
+  productType: string | null;
+  description: string | null;
+};
+
+type LiveDeskSearchResult = FlattenedCardResult | LiveDeskProductResult;
+
+type ProductApiItem = {
+  id: number;
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+  productType?: string | null;
+  marketPrice?: number | string | null;
+  priceCurrency?: string | null;
+  tcgUrl?: string | null;
+  set?: {
+    id: number;
+    title: string;
+  } | null;
 };
 
 const EMPTY_STATE: LiveOverlayState = {
@@ -79,6 +105,25 @@ const toOverlayCard = (card: CardWithCollectionData): LiveOverlayCard => ({
   region: card.region ?? null,
 });
 
+const toOverlayProduct = (product: ProductApiItem): LiveDeskProductResult => ({
+  id: `product-${product.id}`,
+  baseId: `product-${product.id}`,
+  itemType: "product",
+  name: product.name,
+  code: product.productType
+    ? product.productType.replace(/_/g, " ")
+    : "PRODUCT",
+  imageUrl: product.imageUrl ?? product.thumbnailUrl ?? null,
+  rarity: null,
+  setTitle: product.set?.title ?? null,
+  alternateArt: null,
+  price: normalizePrice(product.marketPrice),
+  priceCurrency: product.priceCurrency ?? "USD",
+  region: null,
+  productType: product.productType ?? null,
+  description: product.description ?? null,
+});
+
 // Modalidades prearmadas (letreros del overlay). Acentos chroma-safe (sin verdes).
 const MODE_PRESETS: { label: string; emoji: string; accent: string }[] = [
   { label: "Subasta", emoji: "🔨", accent: "#f5b301" },
@@ -96,8 +141,11 @@ export default function LiveDeskClient({
   const { region } = useRegion();
   const [origin, setOrigin] = useState("");
   const [search, setSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<"cards" | "products">("cards");
   const [results, setResults] = useState<FlattenedCardResult[]>([]);
+  const [productResults, setProductResults] = useState<LiveDeskProductResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [productLoading, setProductLoading] = useState(false);
   // Filtros del buscador (como /card-list).
   const [fColors, setFColors] = useState<string[]>([]);
   const [fRarities, setFRarities] = useState<string[]>([]);
@@ -107,6 +155,8 @@ export default function LiveDeskClient({
   const [searchLimit, setSearchLimit] = useState(60);
   const [resultBaseCount, setResultBaseCount] = useState(0);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [productPage, setProductPage] = useState(1);
+  const [productTotalCount, setProductTotalCount] = useState<number | null>(null);
   const filtersKey = useMemo(
     () =>
       [
@@ -210,6 +260,14 @@ export default function LiveDeskClient({
   useEffect(() => {
     if (!overlayToken) return;
 
+    if (searchMode !== "cards") {
+      setResults([]);
+      setResultBaseCount(0);
+      setTotalCount(null);
+      setSearchLoading(false);
+      return;
+    }
+
     const q = search.trim();
     const active = q.length >= 2 || anyFilter;
     if (!active) {
@@ -245,14 +303,23 @@ export default function LiveDeskClient({
         // Mismo orden que /card-list (por collectionOrder / prefijo+código).
         const items = sortCards(rawItems as CardWithCollectionData[]);
 
-        const flattened = items.flatMap((card: CardWithCollectionData) => {
-          const base = { ...toOverlayCard(card), baseId: String(card.id) };
-          const alternates = (card.alternates ?? []).map((alternate) => ({
-            ...toOverlayCard(alternate),
-            baseId: String(card.id),
-          }));
+        const flattened: FlattenedCardResult[] = items.flatMap(
+          (card: CardWithCollectionData) => {
+            const base: FlattenedCardResult = {
+              ...toOverlayCard(card),
+              baseId: String(card.id),
+              itemType: "card",
+            };
+            const alternates: FlattenedCardResult[] = (
+              card.alternates ?? []
+            ).map((alternate) => ({
+              ...toOverlayCard(alternate),
+              baseId: String(card.id),
+              itemType: "card",
+            }));
           return [base, ...alternates];
-        });
+          }
+        );
 
         setResults(flattened);
         setResultBaseCount(items.length);
@@ -271,6 +338,7 @@ export default function LiveDeskClient({
     };
   }, [
     overlayToken,
+    searchMode,
     region,
     search,
     filtersKey,
@@ -286,6 +354,70 @@ export default function LiveDeskClient({
   useEffect(() => {
     setSearchLimit(60);
   }, [search, filtersKey]);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (!overlayToken) return;
+
+    if (searchMode !== "products") {
+      setProductResults([]);
+      setProductTotalCount(null);
+      setProductLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setProductLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (search.trim()) params.set("search", search.trim());
+        params.set("page", String(productPage));
+        params.set("limit", "60");
+        params.set("archived", "false");
+        params.set("sort", search.trim() ? "name" : "recent");
+
+        const response = await fetch(`/api/products?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Failed to search products");
+        const data = await response.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const mapped: LiveDeskProductResult[] = items.map(
+          (item: ProductApiItem) => toOverlayProduct(item)
+        );
+
+        setProductResults((prev) =>
+          productPage === 1
+            ? mapped
+            : [
+                ...prev,
+                ...mapped.filter(
+                  (item) => !prev.some((existing) => existing.id === item.id)
+                ),
+              ]
+        );
+        setProductTotalCount(
+          typeof data?.total === "number" ? data.total : mapped.length
+        );
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("[live-desk] product search failed:", error);
+        if (productPage === 1) setProductResults([]);
+      } finally {
+        if (!controller.signal.aborted) setProductLoading(false);
+      }
+    }, 220);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [overlayToken, productPage, search, searchMode]);
 
   const runAction = useCallback(
     async (payload: Record<string, unknown>, loadingKey: string) => {
@@ -335,11 +467,11 @@ export default function LiveDeskClient({
 
   // Click en una carta = toggle: si ya está en el overlay la quita, si no la pone.
   const toggleCard = useCallback(
-    (card: FlattenedCardResult) => {
-      if (liveCardId === card.id) {
-        runAction({ action: "clear_card" }, `clear-${card.id}`);
+    (item: LiveDeskSearchResult) => {
+      if (liveCardId === item.id) {
+        runAction({ action: "clear_card" }, `clear-${item.id}`);
       } else {
-        runAction({ action: "show_card", card }, `show-${card.id}`);
+        runAction({ action: "show_card", card: item }, `show-${item.id}`);
       }
     },
     [liveCardId, runAction]
@@ -1124,18 +1256,26 @@ export default function LiveDeskClient({
     </div>
   );
 
+  const renderedResults =
+    searchMode === "cards" ? results : productResults;
+  const isResultsLoading = searchMode === "cards" ? searchLoading : productLoading;
+  const visibleCount =
+    searchMode === "cards" ? resultBaseCount : productResults.length;
+  const visibleTotalCount =
+    searchMode === "cards" ? totalCount : productTotalCount;
+
   const resultsGrid = (
     <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
-      {results.map((card) => {
-        const isLive = liveCardId === card.id;
+      {renderedResults.map((item) => {
+        const isLive = liveCardId === item.id;
         const busy =
-          actionLoading === `show-${card.id}` ||
-          actionLoading === `clear-${card.id}`;
+          actionLoading === `show-${item.id}` ||
+          actionLoading === `clear-${item.id}`;
         return (
           <button
-            key={`${card.baseId}-${card.id}`}
+            key={`${item.baseId}-${item.id}`}
             type="button"
-            onClick={() => toggleCard(card)}
+            onClick={() => toggleCard(item)}
             className={`group relative overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${
               isLive
                 ? "border-rose-500 ring-2 ring-rose-500"
@@ -1143,11 +1283,11 @@ export default function LiveDeskClient({
             }`}
           >
             <div className="relative aspect-[2.5/3.5] bg-slate-100">
-              {card.imageUrl ? (
+              {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={card.imageUrl}
-                  alt={card.name}
+                  src={item.imageUrl}
+                  alt={item.name}
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
@@ -1170,14 +1310,28 @@ export default function LiveDeskClient({
             </div>
             <div className="p-1.5">
               <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                {card.code}
+                {item.code}
               </div>
               <div className="truncate text-[11px] font-medium text-slate-800">
-                {card.name}
+                {item.name}
               </div>
-              {card.alternateArt ? (
+              {item.alternateArt ? (
                 <div className="truncate text-[10px] text-slate-400">
-                  {card.alternateArt}
+                  {item.alternateArt}
+                </div>
+              ) : item.setTitle ? (
+                <div className="truncate text-[10px] text-slate-400">
+                  {item.setTitle}
+                </div>
+              ) : null}
+              {item.price != null ? (
+                <div className="mt-0.5 truncate text-[10px] font-semibold text-emerald-700">
+                  {new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: item.priceCurrency || "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }).format(item.price)}
                 </div>
               ) : null}
             </div>
@@ -1201,7 +1355,11 @@ export default function LiveDeskClient({
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Busca por nombre o código…"
+        placeholder={
+          searchMode === "cards"
+            ? "Busca por nombre o código…"
+            : "Busca productos por nombre…"
+        }
         className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-12 text-base text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
       />
       {search ? (
@@ -1257,15 +1415,37 @@ export default function LiveDeskClient({
 
   const searchFilters = (
     <div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+          {(
+            [
+              ["cards", "Cartas"],
+              ["products", "Productos"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSearchMode(key)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${
+                searchMode === key
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => setShowFilters((v) => !v)}
+          disabled={searchMode !== "cards"}
           className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-bold transition ${
             anyFilter
               ? "border-amber-400 bg-amber-50 text-amber-800"
               : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-          }`}
+          } ${searchMode !== "cards" ? "cursor-not-allowed opacity-40" : ""}`}
         >
           <SlidersHorizontal className="h-4 w-4" />
           Filtros
@@ -1298,37 +1478,59 @@ export default function LiveDeskClient({
           )}
         </div>
       ) : null}
+      {searchMode === "products" ? (
+        <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-500">
+          Productos usa el mismo overlay que cartas. Puedes mostrar sellados y
+          otros productos con imagen, set y market price.
+        </div>
+      ) : null}
     </div>
   );
 
   const resultsFooter =
-    results.length > 0 ? (
+    renderedResults.length > 0 ? (
       <div className="mt-3 flex items-center justify-center gap-3 pb-2">
         <span className="text-xs font-semibold text-slate-500">
-          {resultBaseCount} carta{resultBaseCount === 1 ? "" : "s"}
+          {visibleCount}{" "}
+          {searchMode === "cards"
+            ? `carta${visibleCount === 1 ? "" : "s"}`
+            : `producto${visibleCount === 1 ? "" : "s"}`}
         </span>
-        {resultBaseCount >= searchLimit ? (
+        {searchMode === "cards" ? (
+          resultBaseCount >= searchLimit ? (
+            <button
+              type="button"
+              onClick={() => setSearchLimit((l) => l + 60)}
+              disabled={searchLoading}
+              className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {searchLoading ? "Cargando…" : "Mostrar más"}
+            </button>
+          ) : null
+        ) : visibleTotalCount != null && productResults.length < visibleTotalCount ? (
           <button
             type="button"
-            onClick={() => setSearchLimit((l) => l + 60)}
-            disabled={searchLoading}
+            onClick={() => setProductPage((page) => page + 1)}
+            disabled={productLoading}
             className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            {searchLoading ? "Cargando…" : "Mostrar más"}
+            {productLoading ? "Cargando…" : "Mostrar más"}
           </button>
         ) : null}
       </div>
     ) : null;
 
-  const emptyOrLoading = searchLoading ? (
+  const emptyOrLoading = isResultsLoading ? (
     <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
       <Loader2 className="h-4 w-4 animate-spin" /> Buscando…
     </div>
   ) : (
     <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-12 text-center text-sm text-slate-500">
-      {search.trim().length < 2 && !anyFilter
+      {searchMode === "cards" && search.trim().length < 2 && !anyFilter
         ? "Escribe al menos 2 caracteres o usa un filtro para buscar."
-        : "No encontramos cartas con esos criterios."}
+        : searchMode === "cards"
+          ? "No encontramos cartas con esos criterios."
+          : "No encontramos productos con esos criterios."}
     </div>
   );
 
@@ -1437,7 +1639,7 @@ export default function LiveDeskClient({
             </>
           ) : (
             <span className="text-sm font-medium text-white/50">
-              Sin carta en vivo — busca una en “Cartas”.
+              Sin carta o producto en vivo — busca uno en “Cartas”.
             </span>
           )}
         </div>
@@ -1577,8 +1779,8 @@ export default function LiveDeskClient({
               </button>
             </>
           ) : (
-            <span className="text-sm font-medium text-white/50">
-              Sin carta en vivo — usa "Buscar carta"
+              <span className="text-sm font-medium text-white/50">
+              Sin carta o producto en vivo — usa "Buscar"
             </span>
           )}
         </div>
@@ -1876,7 +2078,7 @@ export default function LiveDeskClient({
             </>
           ) : (
             <span className="text-xs font-medium text-white/50">
-              Sin carta en vivo — abre "Cartas" para elegir una
+              Sin carta o producto en vivo — abre "Cartas" para elegir uno
             </span>
           )}
         </div>

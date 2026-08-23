@@ -52,8 +52,16 @@ export async function GET() {
           region && region.trim()
             ? { region }
             : { OR: [{ region: null }, { region: "" }, { region: "US" }] };
+        // Excluir la carta DON!! genérica del set (p.ej. "OP01-DON") —
+        // nosotros la modelamos como un miembro más del set, pero
+        // Limitless/los sitios oficiales no la cuentan entre las cartas
+        // coleccionables del set, así que sin esto todo set queda ~100%+1.
         const count = await prisma.card.count({
-          where: { sets: { some: { setId: s.setId } }, ...regionWhere },
+          where: {
+            sets: { some: { setId: s.setId } },
+            ...regionWhere,
+            category: { not: "DON" },
+          },
         });
         ourCountBySetId.set(s.setId, count);
       })

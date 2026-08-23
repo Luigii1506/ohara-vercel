@@ -322,14 +322,16 @@ model CardSource {
 // similitud de título (ver catalogSetResolver.findBestSetMatch) — una vez
 // guardada la URL, el match es directo por sourceSlug.
 model SetSource {
-  id         Int      @id @default(autoincrement())
-  setId      Int
-  source     String
-  sourceUrl  String
-  sourceSlug String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  id            Int       @id @default(autoincrement())
+  setId         Int
+  source        String
+  sourceUrl     String
+  sourceSlug    String?
+  declaredCount Int?
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  set           Set       @relation(fields: [setId], references: [id], onDelete: Cascade)
 
   @@unique([setId, source])
   @@index([sourceSlug])

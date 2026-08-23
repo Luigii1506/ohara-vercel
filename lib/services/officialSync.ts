@@ -177,10 +177,52 @@ export async function scanOfficialRegion(
     );
   }
 
+  const cardRegion = cfg.cardRegion ?? cfg.region;
+  const setRegionWhere =
+    cardRegion === "US"
+      ? { OR: [{ region: null }, { region: "" }, { region: "US" }] }
+      : { region: cardRegion };
+
   const all: OfficialScrapedCard[] = [];
   for (const s of series) {
     try {
-      all.push(...(await fetchOfficialCards(cfg.baseUrl, s.series, s.label)));
+      const cards = await fetchOfficialCards(cfg.baseUrl, s.series, s.label);
+      all.push(...cards);
+
+      // Persistir el conteo declarado por serie en SetSource — el propio
+      // código de las cartas ("OP16-001" -> "OP16") es más confiable que
+      // s.setCode (viene del label "[OP-16]", con guion, y no siempre
+      // coincide con el formato de Set.code en esta base).
+      const setCode = cards[0]?.setCode || s.setCode.replace(/-/g, "");
+      if (setCode) {
+        const matchedSet = await prisma.set.findFirst({
+          where: { code: setCode, ...setRegionWhere },
+          select: { id: true },
+        });
+        if (matchedSet) {
+          await prisma.setSource.upsert({
+            where: { setId_source: { setId: matchedSet.id, source: "official" } },
+            create: {
+              setId: matchedSet.id,
+              source: "official",
+              sourceUrl: `${cfg.baseUrl}${CARDLIST_PATH}?series=${s.series}`,
+              sourceSlug: s.series,
+              declaredCount: cards.length,
+              lastCheckedAt: new Date(),
+            },
+            update: {
+              sourceUrl: `${cfg.baseUrl}${CARDLIST_PATH}?series=${s.series}`,
+              sourceSlug: s.series,
+              declaredCount: cards.length,
+              lastCheckedAt: new Date(),
+            },
+          });
+        } else {
+          console.warn(
+            `[official-sync] no matching Set for code=${setCode} region=${cardRegion} (series ${s.series})`
+          );
+        }
+      }
     } catch {
       // sigue con las demás series
     }

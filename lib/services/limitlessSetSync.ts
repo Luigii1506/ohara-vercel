@@ -931,6 +931,27 @@ export async function persistLimitlessSetReview(
     },
   });
 
+  // También refresca SetSource — es la tabla que lee el dashboard de salud
+  // del catálogo para "conteo declarado" sin importar si vino de Limitless
+  // u Official Sync.
+  if (report.dbSet?.setId) {
+    await prisma.setSource.upsert({
+      where: { setId_source: { setId: report.dbSet.setId, source: "limitless" } },
+      create: {
+        setId: report.dbSet.setId,
+        source: "limitless",
+        sourceUrl: report.snapshot.sourceUrl,
+        sourceSlug: report.snapshot.slug,
+        declaredCount: report.snapshot.declaredCardCount,
+        lastCheckedAt: new Date(),
+      },
+      update: {
+        declaredCount: report.snapshot.declaredCardCount,
+        lastCheckedAt: new Date(),
+      },
+    });
+  }
+
   // Conserva los EXTRA que el usuario aceptó/ignoró (para que no reaparezcan);
   // el reconcile ya los excluye del reporte, así que no se duplican.
   await prisma.limitlessSetReviewItem.deleteMany({

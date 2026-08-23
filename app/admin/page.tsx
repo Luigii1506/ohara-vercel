@@ -26,6 +26,7 @@ import {
   Sparkles,
   Receipt,
   Languages,
+  HeartPulse,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -130,6 +131,12 @@ export default function AdminDashboard() {
           label: "Cobertura de catálogo",
           icon: Activity,
           description: "¿Qué cartas/versiones me faltan por región?",
+        },
+        {
+          href: "/admin/catalog-health",
+          label: "Salud del catálogo",
+          icon: HeartPulse,
+          description: "% de cobertura por set y región, de un vistazo",
         },
         {
           href: "/admin/catalog-audit",

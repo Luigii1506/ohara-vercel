@@ -1,0 +1,106 @@
+export const dynamic = "force-dynamic";
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { RECONCILE_REGIONS } from "@/lib/services/catalogReconcile";
+
+// Regiones que sí tienen alguna fuente de "conteo declarado" persistida en
+// SetSource (Limitless para US, Official Sync para JP/FR/ASIA-EN). KR/CN no
+// tienen scraper de sitio oficial todavía — para esas dos solo mostramos
+// conteo de CatalogGap (gaps a nivel de código, ya cubre las 5 regiones).
+const REGIONS_WITH_DECLARED_COUNT = new Set(["US", "JP", "FR", "ASIA-EN"]);
+
+function normalizeRegionLabel(region: string | null): string {
+  return region && region.trim() ? region : "US";
+}
+
+export async function GET() {
+  try {
+    const cardCountsRaw = await prisma.card.groupBy({
+      by: ["region"],
+      _count: { _all: true },
+    });
+    const cardCountsByRegion: Record<string, number> = {};
+    for (const row of cardCountsRaw) {
+      const region = normalizeRegionLabel(row.region);
+      cardCountsByRegion[region] =
+        (cardCountsByRegion[region] ?? 0) + row._count._all;
+    }
+
+    const setSources = await prisma.setSource.findMany({
+      where: { declaredCount: { not: null } },
+      select: {
+        setId: true,
+        source: true,
+        sourceUrl: true,
+        declaredCount: true,
+        lastCheckedAt: true,
+        set: { select: { id: true, title: true, code: true, region: true } },
+      },
+    });
+
+    // Contar solo las cartas de LA MISMA región que el set — igual que
+    // loadDbCardsForSet en limitlessSetSync.ts. Un conteo crudo por
+    // CardSet (sin filtrar región) infla el número si alguna carta de otra
+    // región quedó también enlazada a este Set, y da coberturas sin
+    // sentido (>100%) al compararlo contra una fuente de una sola región.
+    const ourCountBySetId = new Map<number, number>();
+    await Promise.all(
+      setSources.map(async (s) => {
+        const region = s.set.region;
+        const regionWhere =
+          region && region.trim()
+            ? { region }
+            : { OR: [{ region: null }, { region: "" }, { region: "US" }] };
+        const count = await prisma.card.count({
+          where: { sets: { some: { setId: s.setId } }, ...regionWhere },
+        });
+        ourCountBySetId.set(s.setId, count);
+      })
+    );
+
+    const sets = setSources.map((s) => {
+      const ourCount = ourCountBySetId.get(s.setId) ?? 0;
+      const declaredCount = s.declaredCount ?? 0;
+      const coverage =
+        declaredCount > 0
+          ? Math.round((ourCount / declaredCount) * 100)
+          : null;
+      return {
+        setId: s.setId,
+        title: s.set.title,
+        code: s.set.code,
+        region: normalizeRegionLabel(s.set.region),
+        source: s.source,
+        sourceUrl: s.sourceUrl,
+        declaredCount,
+        ourCount,
+        coverage,
+        lastCheckedAt: s.lastCheckedAt,
+      };
+    });
+    sets.sort((a, b) => (a.coverage ?? 100) - (b.coverage ?? 100));
+
+    const openBase = { resolved: false, ignored: false };
+    const gapsByRegion: Record<string, number> = {};
+    await Promise.all(
+      RECONCILE_REGIONS.map(async (region) => {
+        gapsByRegion[region] = await prisma.catalogGap.count({
+          where: { ...openBase, missingRegions: { has: region } },
+        });
+      })
+    );
+
+    const regions = RECONCILE_REGIONS.map((region) => ({
+      region,
+      cardCount: cardCountsByRegion[region] ?? 0,
+      openGaps: gapsByRegion[region] ?? 0,
+      hasDeclaredCountSource: REGIONS_WITH_DECLARED_COUNT.has(region),
+    }));
+
+    return NextResponse.json({ regions, sets });
+  } catch (error: any) {
+    console.error("Error en GET /api/admin/catalog-health:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

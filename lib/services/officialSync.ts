@@ -378,20 +378,35 @@ async function uploadVariants(fileBuffer: Buffer, base: string) {
   }
 }
 
-async function ensureSet(setCode: string): Promise<number | null> {
+async function ensureSet(setCode: string, region: string): Promise<number | null> {
   if (!setCode) return null;
-  const existing = await prisma.set.findFirst({ where: { code: setCode }, select: { id: true } });
+  // Buscar/crear SIEMPRE dentro de la región de la carta — sin esto, un
+  // código que ya existe como Set de OTRA región (p.ej. "OP17" ya creado
+  // para US o CN) se reutiliza para todas, mezclando cartas de regiones
+  // distintas en el mismo Set.
+  const regionWhere =
+    region === "US"
+      ? { OR: [{ region: null }, { region: "" }, { region: "US" }] }
+      : { region };
+  const existing = await prisma.set.findFirst({
+    where: { code: setCode, ...regionWhere },
+    select: { id: true },
+  });
   if (existing) return existing.id;
   const created = await prisma.set.create({
     data: {
       image: "",
       title: setCode,
       code: setCode,
+      region: region === "US" ? null : region,
       releaseDate: new Date(0),
       isOpen: false,
     } as never,
     select: { id: true },
   });
+  console.log(
+    `[ensureSet] Set nuevo creado: code=${setCode} region=${region} (id=${created.id}) — título temporal, revisar en /admin/sets`
+  );
   return created.id;
 }
 
@@ -437,7 +452,7 @@ async function persistCard(a: PersistArgs): Promise<number> {
   });
   await uploadVariants(Buffer.from(resp.data), keyBase);
   const src = `${R2_PUBLIC.replace(/\/$/, "")}/cards/${keyBase}.webp`;
-  const setId = await ensureSet(a.setCode || a.code.split("-")[0]);
+  const setId = await ensureSet(a.setCode || a.code.split("-")[0], a.region);
   const p = a.payload;
 
   // El atributo/color/tipo de una carta no cambia entre regiones (mismo
@@ -683,12 +698,20 @@ export async function applyPendingOfficialItems(
 
   const failures: ApplyPendingResult["failures"] = [];
   let applied = 0;
+  let processed = 0;
   for (const item of pending) {
+    processed += 1;
     try {
       await applyOfficialItem(item.id);
       applied += 1;
+      console.log(
+        `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> ok`
+      );
     } catch (e) {
       failures.push({ itemId: item.id, code: item.code, error: (e as Error).message });
+      console.log(
+        `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> FAILED: ${(e as Error).message}`
+      );
     }
     await sleep(200);
   }

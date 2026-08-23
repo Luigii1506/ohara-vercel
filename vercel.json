@@ -21,6 +21,14 @@
       "schedule": "40 */6 * * *"
     },
     {
+      "path": "/api/cron/official-sync?region=EN",
+      "schedule": "45 */6 * * *"
+    },
+    {
+      "path": "/api/cron/official-sync?region=FR",
+      "schedule": "50 */6 * * *"
+    },
+    {
       "path": "/api/cron/market-stats",
       "schedule": "0 5 * * *"
     }

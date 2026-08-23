@@ -121,6 +121,12 @@ export default function AdminDashboard() {
           description: "Sync alternateArt for non-US cards",
         },
         {
+          href: "/admin/region-matrix",
+          label: "Region Matrix",
+          icon: Layers,
+          description: "Vista visual completa por código para exclusivas y regiones",
+        },
+        {
           href: "/admin/dotgg-cards",
           label: "DotGG Cards",
           icon: Sparkles,

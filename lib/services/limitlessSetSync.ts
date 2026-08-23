@@ -495,6 +495,23 @@ async function resolveDbSet(
     };
   }
 
+  // Si algún Set ya tiene guardada esta URL/slug de Limitless (SetSource),
+  // usarlo directo en vez de adivinar por similitud de título — esto es lo
+  // que hace confiable el batch-sync sobre todo el catálogo sin que un
+  // admin pegue la URL de cada set a mano.
+  const linkedSource = await prisma.setSource.findFirst({
+    where: { source: "limitless", sourceSlug: snapshot.slug },
+    select: { set: { select: { id: true, title: true, code: true } } },
+  });
+  if (linkedSource?.set) {
+    return {
+      setId: linkedSource.set.id,
+      title: linkedSource.set.title,
+      code: linkedSource.set.code,
+      matchedBy: "sourceLink",
+    };
+  }
+
   return findBestSetMatch(snapshot.title, null);
 }
 

@@ -37,6 +37,7 @@ interface Set {
   isOpen: boolean;
   createdAt: string;
   updatedAt: string;
+  setSources?: { source: string; sourceUrl: string }[];
   _count?: {
     cards: number;
   };

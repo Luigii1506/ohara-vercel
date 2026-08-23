@@ -317,6 +317,24 @@ model CardSource {
   @@index([cardId])
 }
 
+// Enlace persistido de un Set a su página en una fuente externa (Limitless
+// por ahora). Evita que cada sync tenga que re-adivinar el set por
+// similitud de título (ver catalogSetResolver.findBestSetMatch) — una vez
+// guardada la URL, el match es directo por sourceSlug.
+model SetSource {
+  id         Int      @id @default(autoincrement())
+  setId      Int
+  source     String
+  sourceUrl  String
+  sourceSlug String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, source])
+  @@index([sourceSlug])
+}
+
 model Deck {
   id              Int              @id @default(autoincrement())
   name            String
@@ -950,6 +968,7 @@ model Set {
   events           EventSet[]
   products         Product[]
   limitlessReviews LimitlessSetReview[]
+  setSources       SetSource[]
 
   @@index([region])
 }

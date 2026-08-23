@@ -2,7 +2,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { mergeSetAliases, normalizeSetTitle } from "@/lib/sets/normalization";
+import {
+  mergeSetAliases,
+  normalizeSetTitle,
+  parseLimitlessSlug,
+} from "@/lib/sets/normalization";
 
 // GET - Obtener un set por ID
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -14,6 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             include: {
                 cards: true, // Relacionar las cartas asociadas al set
                 events: true, // Relacionar los eventos asociados al set
+                setSources: true,
             },
         });
 
@@ -36,6 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const body = await req.json();
         const { image, code, version, releaseDate, isOpen } = body;
         const title = typeof body?.title === "string" ? body.title.trim() : undefined;
+        const limitlessUrl =
+            typeof body?.limitlessUrl === "string" ? body.limitlessUrl.trim() : undefined;
         const targetId = parseInt(id);
 
         const existingSet = await prisma.set.findUnique({
@@ -70,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             }
         }
 
-        const updatedSet = await prisma.set.update({
+        await prisma.set.update({
             where: { id: targetId },
             data: {
                 image,
@@ -83,6 +90,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                     ? mergeSetAliases(existingSet.aliasesJson, [existingSet.title, title])
                     : undefined,
             },
+        });
+
+        if (limitlessUrl !== undefined) {
+            if (limitlessUrl === "") {
+                await prisma.setSource.deleteMany({
+                    where: { setId: targetId, source: "limitless" },
+                });
+            } else {
+                await prisma.setSource.upsert({
+                    where: { setId_source: { setId: targetId, source: "limitless" } },
+                    create: {
+                        setId: targetId,
+                        source: "limitless",
+                        sourceUrl: limitlessUrl,
+                        sourceSlug: parseLimitlessSlug(limitlessUrl),
+                    },
+                    update: {
+                        sourceUrl: limitlessUrl,
+                        sourceSlug: parseLimitlessSlug(limitlessUrl),
+                    },
+                });
+            }
+        }
+
+        const updatedSet = await prisma.set.findUnique({
+            where: { id: targetId },
+            include: { setSources: true },
         });
 
         return NextResponse.json(updatedSet, { status: 200 });

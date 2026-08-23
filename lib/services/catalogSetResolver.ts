@@ -8,7 +8,7 @@ export type SetMatchResult = {
   setId: number | null;
   title: string;
   code: string | null;
-  matchedBy: "code" | "title" | null;
+  matchedBy: "code" | "title" | "sourceLink" | null;
 };
 
 function extractEmbeddedSetCode(title: string): string | null {

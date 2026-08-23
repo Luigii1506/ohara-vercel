@@ -32,6 +32,7 @@ interface Set {
   isOpen: boolean;
   createdAt: string;
   updatedAt: string;
+  setSources?: { source: string; sourceUrl: string }[];
 }
 
 interface EditSetModalProps {
@@ -55,6 +56,7 @@ const EditSetModal: React.FC<EditSetModalProps> = ({
     image: "",
     releaseDate: "",
     isOpen: false,
+    limitlessUrl: "",
   });
 
   const isEditing = editingSet !== null;
@@ -64,12 +66,16 @@ const EditSetModal: React.FC<EditSetModalProps> = ({
     if (isOpen) {
       if (editingSet) {
         // Editing existing set
+        const limitlessSource = editingSet.setSources?.find(
+          (s) => s.source === "limitless"
+        );
         setFormData({
           title: editingSet.title,
           code: editingSet.code || "",
           image: editingSet.image || "",
           releaseDate: editingSet.releaseDate,
           isOpen: editingSet.isOpen,
+          limitlessUrl: limitlessSource?.sourceUrl || "",
         });
         setDate(new Date(editingSet.releaseDate));
       } else {
@@ -83,6 +89,7 @@ const EditSetModal: React.FC<EditSetModalProps> = ({
           image: "",
           releaseDate: todayFormatted,
           isOpen: false,
+          limitlessUrl: "",
         });
         setDate(today);
       }
@@ -115,6 +122,7 @@ const EditSetModal: React.FC<EditSetModalProps> = ({
       image: "",
       releaseDate: "",
       isOpen: false,
+      limitlessUrl: "",
     });
     setDate(undefined);
   };
@@ -237,6 +245,23 @@ const EditSetModal: React.FC<EditSetModalProps> = ({
               value={formData.image}
               onChange={(e) => handleInputChange("image", e.target.value)}
               placeholder="https://..."
+              disabled={loading}
+              className="mt-1"
+            />
+          </div>
+
+          {/* URL de Limitless (Opcional) */}
+          <div className="space-y-2">
+            <Label htmlFor="limitlessUrl" className="text-sm font-medium">
+              URL de Limitless
+            </Label>
+            <Input
+              id="limitlessUrl"
+              value={formData.limitlessUrl}
+              onChange={(e) =>
+                handleInputChange("limitlessUrl", e.target.value)
+              }
+              placeholder="https://onepiece.limitlesstcg.com/cards/..."
               disabled={loading}
               className="mt-1"
             />

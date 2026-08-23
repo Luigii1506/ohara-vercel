@@ -2,7 +2,31 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { mergeSetAliases, normalizeSetTitle } from "@/lib/sets/normalization";
+import {
+  mergeSetAliases,
+  normalizeSetTitle,
+  parseLimitlessSlug,
+} from "@/lib/sets/normalization";
+
+async function upsertLimitlessSource(setId: number, limitlessUrl: unknown) {
+  if (typeof limitlessUrl !== "string") return;
+  const trimmed = limitlessUrl.trim();
+  if (!trimmed) return;
+
+  await prisma.setSource.upsert({
+    where: { setId_source: { setId, source: "limitless" } },
+    create: {
+      setId,
+      source: "limitless",
+      sourceUrl: trimmed,
+      sourceSlug: parseLimitlessSlug(trimmed),
+    },
+    update: {
+      sourceUrl: trimmed,
+      sourceSlug: parseLimitlessSlug(trimmed),
+    },
+  });
+}
 
 // CREATE - POST
 export async function POST(req: NextRequest) {
@@ -47,7 +71,7 @@ export async function POST(req: NextRequest) {
         rawTitle,
       ]);
 
-      const updatedSet = await prisma.set.update({
+      await prisma.set.update({
         where: { id: existingSet.id },
         data: {
           aliasesJson: aliases.length > 0 ? aliases : undefined,
@@ -67,6 +91,12 @@ export async function POST(req: NextRequest) {
           isOpen,
         },
       });
+      await upsertLimitlessSource(existingSet.id, body?.limitlessUrl);
+
+      const updatedSet = await prisma.set.findUnique({
+        where: { id: existingSet.id },
+        include: { setSources: true },
+      });
 
       return NextResponse.json(updatedSet, { status: 200 });
     }
@@ -85,8 +115,14 @@ export async function POST(req: NextRequest) {
         aliasesJson: [rawTitle],
       },
     });
+    await upsertLimitlessSource(newSet.id, body?.limitlessUrl);
 
-    return NextResponse.json(newSet, { status: 201 });
+    const newSetWithSources = await prisma.set.findUnique({
+      where: { id: newSet.id },
+      include: { setSources: true },
+    });
+
+    return NextResponse.json(newSetWithSources, { status: 201 });
   } catch (error: any) {
     console.error("Error en POST /api/sets:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -102,8 +138,13 @@ export async function GET(req: NextRequest) {
     const sets = await prisma.set.findMany({
       include:
         includeRelations === "true"
-          ? { cards: true, events: true, _count: { select: { cards: true } } }
-          : { _count: { select: { cards: true } } },
+          ? {
+              cards: true,
+              events: true,
+              setSources: true,
+              _count: { select: { cards: true } },
+            }
+          : { setSources: true, _count: { select: { cards: true } } },
       orderBy: { createdAt: "desc" }, // Más recientes primero
     });
 

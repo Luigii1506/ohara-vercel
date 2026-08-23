@@ -60,3 +60,20 @@ export const mergeSetAliases = (
 
   return Array.from(byNormalized.values());
 };
+
+// "https://onepiece.limitlesstcg.com/cards/{slug}" (con o sin query string /
+// segmentos extra después) -> "{slug}". Se guarda en SetSource.sourceSlug
+// para que resolveDbSet en limitlessSetSync.ts matchee directo por slug en
+// vez de por título difuso.
+export const parseLimitlessSlug = (url: string): string | null => {
+  try {
+    const parsed = new URL(url.trim());
+    if (!parsed.hostname.includes("limitlesstcg.com")) return null;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const cardsIndex = segments.indexOf("cards");
+    if (cardsIndex === -1 || !segments[cardsIndex + 1]) return null;
+    return segments[cardsIndex + 1];
+  } catch {
+    return null;
+  }
+};

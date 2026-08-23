@@ -27,7 +27,11 @@ export async function GET(request: NextRequest) {
     "limitlesstcg.nyc3.digitaloceanspaces.com",
     "digitaloceanspaces.com",
     "limitlesstcg.nyc3.cdn.digitaloceanspaces.com",
-    "en.onepiece-cardgame.com",
+    // Base sin subdominio para cubrir TODOS los sitios oficiales
+    // (www.onepiece-cardgame.com = JP, en./fr./asia-en./asia-tc. = las demás
+    // regiones) — antes solo estaba "en.onepiece-cardgame.com", así que JP/FR
+    // se enrutaban al proxy (lib/proxyImage.ts) pero el proxy los rechazaba.
+    "onepiece-cardgame.com",
     "static.dotgg.gg",
     "i.pinimg.com",
     "assets.pokemon.com",

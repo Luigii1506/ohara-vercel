@@ -362,20 +362,25 @@ const imageBase = (region: string, cardId: string) =>
   `official-${`${region}-${cardId}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
 
 async function uploadVariants(fileBuffer: Buffer, base: string) {
-  for (const cfg of IMAGE_SIZES) {
-    let t = sharp(fileBuffer);
-    if (cfg.width || cfg.height) {
-      t = t.resize({ width: cfg.width || undefined, height: cfg.height || undefined, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } });
-    }
-    const buf = await t.webp({ quality: cfg.quality, effort: 6 }).toBuffer();
-    await s3.send(new PutObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: `cards/${base}${cfg.suffix}.webp`,
-      Body: buf,
-      ContentType: "image/webp",
-      CacheControl: "public, max-age=31536000, immutable",
-    }));
-  }
+  // Los 7 tamaños son independientes entre sí (mismo buffer de origen,
+  // cada uno a su propia key de R2) — generarlos y subirlos en paralelo
+  // en vez de uno por uno corta el tiempo por carta varias veces.
+  await Promise.all(
+    IMAGE_SIZES.map(async (cfg) => {
+      let t = sharp(fileBuffer);
+      if (cfg.width || cfg.height) {
+        t = t.resize({ width: cfg.width || undefined, height: cfg.height || undefined, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } });
+      }
+      const buf = await t.webp({ quality: cfg.quality, effort: 6 }).toBuffer();
+      await s3.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: `cards/${base}${cfg.suffix}.webp`,
+        Body: buf,
+        ContentType: "image/webp",
+        CacheControl: "public, max-age=31536000, immutable",
+      }));
+    })
+  );
 }
 
 async function ensureSet(
@@ -695,11 +700,16 @@ export type ApplyPendingResult = {
  */
 export async function applyPendingOfficialItems(
   regionKey: string,
-  opts: { limit?: number } = {}
+  opts: { limit?: number; concurrency?: number } = {}
 ): Promise<ApplyPendingResult> {
   const cfg = OFFICIAL_REGIONS[regionKey.toUpperCase()];
   if (!cfg) throw new Error(`Región no soportada: ${regionKey}`);
   const limit = opts.limit ?? 25;
+  // Cada item ya se reclama atómicamente (CLAIM_SENTINEL en
+  // applyOfficialItem), así que procesar varios a la vez es seguro — el
+  // costo real por carta es descargar+subir 7 tamaños de imagen, la
+  // mayor parte esperando red, no CPU, así que la concurrencia ayuda mucho.
+  const concurrency = Math.max(1, opts.concurrency ?? 4);
 
   const pending = await prisma.officialSyncItem.findMany({
     where: { region: cfg.region, decisionStatus: "PENDING", appliedCardId: null },
@@ -711,22 +721,35 @@ export async function applyPendingOfficialItems(
   const failures: ApplyPendingResult["failures"] = [];
   let applied = 0;
   let processed = 0;
-  for (const item of pending) {
-    processed += 1;
-    try {
-      await applyOfficialItem(item.id);
-      applied += 1;
-      console.log(
-        `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> ok`
-      );
-    } catch (e) {
-      failures.push({ itemId: item.id, code: item.code, error: (e as Error).message });
-      console.log(
-        `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> FAILED: ${(e as Error).message}`
-      );
+
+  let nextIndex = 0;
+  const worker = async () => {
+    while (true) {
+      const i = nextIndex;
+      nextIndex += 1;
+      if (i >= pending.length) return;
+      const item = pending[i];
+      try {
+        await applyOfficialItem(item.id);
+        applied += 1;
+        processed += 1;
+        console.log(
+          `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> ok`
+        );
+      } catch (e) {
+        failures.push({ itemId: item.id, code: item.code, error: (e as Error).message });
+        processed += 1;
+        console.log(
+          `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> FAILED: ${(e as Error).message}`
+        );
+      }
+      await sleep(200);
     }
-    await sleep(200);
-  }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, pending.length) }, () => worker())
+  );
 
   return {
     region: cfg.region,

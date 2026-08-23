@@ -55,6 +55,7 @@ const IMAGE_SIZES = [
 const RARITY_MAP: Record<string, string> = {
   L: "Leader", C: "Common", UC: "Uncommon", R: "Rare",
   SR: "Super Rare", SEC: "Secret Rare", P: "Promo", SP: "Special",
+  TR: "Treasure Rare",
 };
 const CATEGORY_MAP: Record<string, string> = {
   LEADER: "Leader", CHARACTER: "Character", EVENT: "Event", STAGE: "Stage", DON: "DON",
@@ -162,7 +163,13 @@ export async function fetchOfficialCards(
       imageUrl: abs(baseUrl, imgPath),
       setCode: code.split("-")[0],
       seriesLabel,
-      rarity: rarityRaw ? RARITY_MAP[rarityRaw.toUpperCase()] || rarityRaw : null,
+      // ASIA-TC trae la rareza con texto pegado (ej. "SP卡" = "SP" + 卡
+      // "carta") en vez del código limpio que usan JP/EN/FR — se toma solo
+      // el prefijo de letras ASCII antes de buscar en RARITY_MAP.
+      rarity: rarityRaw
+        ? RARITY_MAP[(rarityRaw.match(/^[A-Za-z]+/)?.[0] ?? rarityRaw).toUpperCase()] ||
+          rarityRaw
+        : null,
       category: CATEGORY_MAP[categoryRaw.toUpperCase()] || categoryRaw || "Character",
       attribute: attributeRaw || null,
       cost: !isLife && costNum ? `${costNum} Cost` : null,

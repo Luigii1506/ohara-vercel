@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Layers3 } from "lucide-react";
@@ -21,6 +21,14 @@ type AdminCodeCard = {
 };
 
 export default function AdminRegionMatrixPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminRegionMatrixContent />
+    </Suspense>
+  );
+}
+
+function AdminRegionMatrixContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { role, loading: userLoading } = useUser();

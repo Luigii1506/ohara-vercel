@@ -44,25 +44,49 @@ export async function GET() {
     // CardSet (sin filtrar región) infla el número si alguna carta de otra
     // región quedó también enlazada a este Set, y da coberturas sin
     // sentido (>100%) al compararlo contra una fuente de una sola región.
+    const countCardsForSet = async (setId: number, region: string | null) => {
+      const regionWhere =
+        region && region.trim()
+          ? { region }
+          : { OR: [{ region: null }, { region: "" }, { region: "US" }] };
+      // Excluir la carta DON!! genérica del set (p.ej. "OP01-DON") —
+      // nosotros la modelamos como un miembro más del set, pero
+      // Limitless/los sitios oficiales no la cuentan entre las cartas
+      // coleccionables del set, así que sin esto todo set queda ~100%+1.
+      return prisma.card.count({
+        where: {
+          sets: { some: { setId } },
+          ...regionWhere,
+          category: { not: "DON" },
+        },
+      });
+    };
+
+    // Limitless combina "Normal" + "Winner" en una sola página/conteo
+    // declarado, pero nosotros los modelamos como dos Sets separados
+    // ("X" y "X Winner", estandarizado). Sumar ambos antes de comparar
+    // evita falsos "50%" cuando el par ya está completo.
+    const winnerSiblingIds = await Promise.all(
+      setSources.map((s) =>
+        s.set.title.endsWith(" Winner")
+          ? Promise.resolve(null)
+          : prisma.set
+              .findFirst({
+                where: { title: `${s.set.title} Winner` },
+                select: { id: true },
+              })
+              .then((found) => found?.id ?? null)
+      )
+    );
+
     const ourCountBySetId = new Map<number, number>();
     await Promise.all(
-      setSources.map(async (s) => {
-        const region = s.set.region;
-        const regionWhere =
-          region && region.trim()
-            ? { region }
-            : { OR: [{ region: null }, { region: "" }, { region: "US" }] };
-        // Excluir la carta DON!! genérica del set (p.ej. "OP01-DON") —
-        // nosotros la modelamos como un miembro más del set, pero
-        // Limitless/los sitios oficiales no la cuentan entre las cartas
-        // coleccionables del set, así que sin esto todo set queda ~100%+1.
-        const count = await prisma.card.count({
-          where: {
-            sets: { some: { setId: s.setId } },
-            ...regionWhere,
-            category: { not: "DON" },
-          },
-        });
+      setSources.map(async (s, index) => {
+        let count = await countCardsForSet(s.setId, s.set.region);
+        const winnerId = winnerSiblingIds[index];
+        if (winnerId) {
+          count += await countCardsForSet(winnerId, s.set.region);
+        }
         ourCountBySetId.set(s.setId, count);
       })
     );

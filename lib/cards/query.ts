@@ -118,50 +118,67 @@ const normalizeSetCodesParam = (value: string | null | undefined) =>
     code.toUpperCase() === "PROMO" ? "P-" : code
   );
 
-const normalizeRegion = (value?: string | null): string =>
+// `filters.region` sigue siendo un string (para no romper el tipo de
+// CardsFilters), pero ahora puede traer varios códigos separados por coma
+// (ej. "US,JP") — el selector de región del sitio permite elegir más de
+// una a la vez. normalizeRegionParam solo recorta/pone el default al
+// construir ese string desde query params; normalizeRegions lo separa en
+// lista al momento de armar el where de Prisma.
+const normalizeRegionParam = (value?: string | null): string =>
   value && value.trim() ? value.trim() : DEFAULT_REGION;
+
+const normalizeRegions = (value?: string | null): string[] => {
+  const parsed = splitParam(value);
+  return parsed.length ? parsed : [DEFAULT_REGION];
+};
 
 // La región por defecto (US) es la única que también debe mostrar cartas de
 // otras regiones cuando están marcadas isRegionalExclusive (p.ej. una alterna
 // china exclusiva que Bandai nunca imprimió en US). Cualquier otra región
-// solo ve sus propias cartas.
-const buildRegionScopeCondition = (region: string): Prisma.CardWhereInput => {
-  if (region === DEFAULT_REGION) {
-    return {
-      OR: [
-        { region },
-        { region: null },
-        { region: "" },
-        { isRegionalExclusive: true },
-      ],
-    };
+// solo ve sus propias cartas. Con varias regiones seleccionadas, cada una
+// aporta su propia condición exacta (unidas por OR).
+const buildRegionScopeCondition = (
+  regions: string[]
+): Prisma.CardWhereInput => {
+  const conditions: Prisma.CardWhereInput[] = regions.map((region) => ({
+    region,
+  }));
+  if (regions.includes(DEFAULT_REGION)) {
+    conditions.push(
+      { region: null },
+      { region: "" },
+      { isRegionalExclusive: true }
+    );
   }
-  return { region };
+  return { OR: conditions };
 };
 
 const buildStrictRegionScopeCondition = (
-  region: string
+  regions: string[]
 ): Prisma.CardWhereInput => {
-  if (region === DEFAULT_REGION) {
-    return {
-      OR: [{ region }, { region: null }, { region: "" }],
-    };
+  const conditions: Prisma.CardWhereInput[] = regions.map((region) => ({
+    region,
+  }));
+  if (regions.includes(DEFAULT_REGION)) {
+    conditions.push({ region: null }, { region: "" });
   }
-  return { region };
+  return { OR: conditions };
 };
 
-const buildBaseRegionCondition = (region: string): Prisma.CardWhereInput => {
-  if (region === DEFAULT_REGION) {
-    return {
-      OR: [
-        { region },
-        { region: null },
-        { region: "" },
-        { isRegionalExclusive: true },
-      ],
-    };
+const buildBaseRegionCondition = (
+  regions: string[]
+): Prisma.CardWhereInput => {
+  const conditions: Prisma.CardWhereInput[] = regions.map((region) => ({
+    region,
+  }));
+  if (regions.includes(DEFAULT_REGION)) {
+    conditions.push(
+      { region: null },
+      { region: "" },
+      { isRegionalExclusive: true }
+    );
   }
-  return { region };
+  return { OR: conditions };
 };
 
 const VALID_SORT_VALUES = [
@@ -199,7 +216,7 @@ export const buildFiltersFromSearchParams = (
     types: splitParam(params.get("types")),
     effects: splitParam(params.get("effects")),
     altArts: splitParam(params.get("altArts")),
-    region: normalizeRegion(params.get("region")),
+    region: normalizeRegionParam(params.get("region")),
     counter: params.get("counter") ?? undefined,
     trigger: params.get("trigger") ?? undefined,
     regulationMarks: splitParam(params.get("blocks"))
@@ -359,7 +376,7 @@ const buildWhere = (
   includeAlternates: boolean = false
 ): Prisma.CardWhereInput => {
   const ignoreRegion = shouldIgnoreRegionForSearch(filters);
-  const selectedRegion = normalizeRegion(filters.region);
+  const selectedRegion = normalizeRegions(filters.region);
   const strictRegionScope = shouldUseStrictRegionScope(filters);
   const alternateRegionCondition = ignoreRegion
     ? {}
@@ -835,7 +852,7 @@ const buildInclude = (
   ignoreRegion: boolean = false
 ): Prisma.CardInclude | undefined => {
   const include: Prisma.CardInclude = {};
-  const selectedRegion = normalizeRegion(region);
+  const selectedRegion = normalizeRegions(region);
   const alternateRegionCondition = ignoreRegion
     ? {}
     : buildRegionScopeCondition(selectedRegion);
@@ -1242,7 +1259,8 @@ async function mergeCrossRegionExclusiveAlternates(
   includeRelations: boolean
 ): Promise<void> {
   if (!includeAlternates) return;
-  if (normalizeRegion(filters.region) !== DEFAULT_REGION) return;
+  const onlyRegions = normalizeRegions(filters.region);
+  if (onlyRegions.length !== 1 || onlyRegions[0] !== DEFAULT_REGION) return;
   if (filters.searchSetId || filters.searchSetIds?.length) return;
   if (!items.length) return;
 
@@ -1548,7 +1566,7 @@ export const fetchAllCardsFromDb = async (
 // Used for counting individual cards that match filters
 export const buildDirectWhere = (filters: CardsFilters): Prisma.CardWhereInput => {
   const ignoreRegion = shouldIgnoreRegionForSearch(filters);
-  const selectedRegion = normalizeRegion(filters.region);
+  const selectedRegion = normalizeRegions(filters.region);
   const strictRegionScope = shouldUseStrictRegionScope(filters);
   const regionCondition = ignoreRegion
     ? {}

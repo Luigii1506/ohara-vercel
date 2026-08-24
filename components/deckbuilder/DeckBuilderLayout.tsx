@@ -130,7 +130,7 @@ const CompleteDeckBuilderLayout = ({
   initialQueryData,
 }: CompleteDeckBuilderLayoutProps) => {
   const { t } = useI18n();
-  const { region } = useRegion();
+  const { region, selectedRegions } = useRegion();
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Helper functions for price handling
@@ -496,9 +496,14 @@ const CompleteDeckBuilderLayout = ({
 
   const rawCardsSource = useServerCards ? serverCards : initialCards;
   const cardsSource = useMemo(() => {
-    if (!region) return rawCardsSource;
-    return rawCardsSource.filter((card) => card.region === region);
-  }, [rawCardsSource, region]);
+    if (!selectedRegions.length) return rawCardsSource;
+    return rawCardsSource.filter((card) => {
+      if (selectedRegions.includes("US") && (!card.region || card.region === "")) {
+        return true;
+      }
+      return card.region ? selectedRegions.includes(card.region) : false;
+    });
+  }, [rawCardsSource, selectedRegions]);
 
   // Total results - prefer count from API, fallback to pagination count
   const totalResults = countData ?? totalCount ?? cardsSource.length;

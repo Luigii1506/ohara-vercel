@@ -11,42 +11,86 @@ import React, {
 import { DEFAULT_REGION, REGION_OPTIONS, type RegionOption } from "@/lib/regions";
 
 type RegionContextValue = {
+  /** Códigos actualmente seleccionados (uno o más), ej. ["US"] o ["US", "JP"]. */
+  selectedRegions: string[];
+  /** selectedRegions.join(",") — para código que ya pasa `region` directo a
+   * la API como query param; lib/cards/query.ts sabe separar por coma. */
   region: string;
-  setRegion: (region: string) => void;
-  regions: RegionOption[];
+  /** Prende/apaga un código de la selección. Nunca deja la lista vacía —
+   * si se apaga el último, no hace nada (siempre debe quedar al menos uno). */
+  toggleRegion: (code: string) => void;
+  /** Reemplaza la selección completa. */
+  setRegions: (codes: string[]) => void;
+  /** Compatibilidad con el código existente que solo maneja una región:
+   * selecciona ÚNICAMENTE ese código (reemplaza la lista entera). */
+  setRegion: (code: string) => void;
+  /** Todas las regiones disponibles para mostrar en el selector. */
+  regionOptions: RegionOption[];
 };
 
 const RegionContext = createContext<RegionContextValue | null>(null);
 
 const STORAGE_KEY = "ohara-region";
+const VALID_CODES = new Set(REGION_OPTIONS.map((option) => option.code));
+
+const sanitizeRegions = (codes: string[]): string[] => {
+  const cleaned = Array.from(
+    new Set(codes.map((code) => code?.trim()).filter((code) => code && VALID_CODES.has(code)))
+  ) as string[];
+  return cleaned.length ? cleaned : [DEFAULT_REGION];
+};
+
+const parseStored = (raw: string | null): string[] | null => {
+  if (!raw || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return sanitizeRegions(parsed);
+  } catch {
+    // Formato viejo: un solo string plano (ej. "US"), no JSON.
+  }
+  return sanitizeRegions([raw]);
+};
 
 export const RegionProvider = ({ children }: { children: React.ReactNode }) => {
-  const [region, setRegionState] = useState<string>(DEFAULT_REGION);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([DEFAULT_REGION]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && stored.trim()) {
-      setRegionState(stored.trim());
-      return;
-    }
-    setRegionState(DEFAULT_REGION);
+    const stored = parseStored(window.localStorage.getItem(STORAGE_KEY));
+    setSelectedRegions(stored ?? [DEFAULT_REGION]);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, region);
-  }, [region]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedRegions));
+  }, [selectedRegions]);
 
-  const setRegion = useCallback((nextRegion: string) => {
-    setRegionState(nextRegion?.trim() ? nextRegion.trim() : DEFAULT_REGION);
+  const setRegions = useCallback((codes: string[]) => {
+    setSelectedRegions(sanitizeRegions(codes));
   }, []);
 
-  const value = useMemo(
+  const setRegion = useCallback((code: string) => {
+    setSelectedRegions(sanitizeRegions([code]));
+  }, []);
+
+  const toggleRegion = useCallback((code: string) => {
+    setSelectedRegions((current) => {
+      if (current.includes(code)) {
+        const next = current.filter((c) => c !== code);
+        return next.length ? next : current; // no dejar la selección vacía
+      }
+      return sanitizeRegions([...current, code]);
+    });
+  }, []);
+
+  const value = useMemo<RegionContextValue>(
     () => ({
-      region,
+      selectedRegions,
+      region: selectedRegions.join(","),
+      toggleRegion,
+      setRegions,
       setRegion,
-      regions: REGION_OPTIONS,
+      regionOptions: REGION_OPTIONS,
     }),
-    [region, setRegion]
+    [selectedRegions, toggleRegion, setRegions, setRegion]
   );
 
   return (

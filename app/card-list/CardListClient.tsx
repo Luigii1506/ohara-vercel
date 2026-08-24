@@ -136,20 +136,22 @@ const formatCurrencyStatic = (value: number, currency?: string | null) =>
 
 const cardMatchesRegionSelection = (
   card: CardWithCollectionData | undefined,
-  region: string
+  regions: string[]
 ) => {
   if (!card) return false;
 
-  if (region === "US") {
-    return (
+  if (regions.includes("US")) {
+    if (
       card.region === "US" ||
       card.region === null ||
       card.region === undefined ||
       card.region === ""
-    );
+    ) {
+      return true;
+    }
   }
 
-  return card.region === region;
+  return card.region ? regions.includes(card.region) : false;
 };
 
 const isEditableElement = (target: EventTarget | null) => {
@@ -216,7 +218,7 @@ const CardListClient = ({
   // useSearchParams() es nullable en Next; fallback a uno vacío para no romper.
   const searchParams = useSearchParams() ?? new URLSearchParams();
   const { t } = useI18n();
-  const { region, setRegion } = useRegion();
+  const { region, setRegion, selectedRegions } = useRegion();
   const { showCollectionToast, showToast } = useToast();
   const [priceField, setPriceField] = useState<PriceField>("marketPrice");
   const sortOptions = useMemo<SortOption[]>(
@@ -1114,7 +1116,7 @@ const CardListClient = ({
       const requestId = ++modalFamilyRequestRef.current;
       const filterModalAlternates = (alternates: CardWithCollectionData[]) =>
         alternates.filter((item) =>
-          cardMatchesRegionSelection(item, selectedRegion || "US")
+          cardMatchesRegionSelection(item, selectedRegions)
         );
 
       const hydrateModalFamily = async () => {
@@ -1476,7 +1478,7 @@ const CardListClient = ({
     if (currentCardIndex > 0) {
       const previousCard = filteredCards[currentCardIndex - 1];
       const previousAlternates = (previousCard.alternates || []).filter((alt) =>
-        cardMatchesRegionSelection(alt, selectedRegion || "US")
+        cardMatchesRegionSelection(alt, selectedRegions)
       );
       setBaseCard(previousCard);
       setSelectedCard(previousCard);
@@ -1489,7 +1491,7 @@ const CardListClient = ({
     if (currentCardIndex < filteredCards.length - 1) {
       const nextCard = filteredCards[currentCardIndex + 1];
       const nextAlternates = (nextCard.alternates || []).filter((alt) =>
-        cardMatchesRegionSelection(alt, selectedRegion || "US")
+        cardMatchesRegionSelection(alt, selectedRegions)
       );
       setBaseCard(nextCard);
       setSelectedCard(nextCard);

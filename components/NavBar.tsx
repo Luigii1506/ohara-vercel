@@ -76,7 +76,7 @@ const NavBar = () => {
 
   const { userId, role, loading } = useUser();
   const { t, lang, setLang, languages } = useI18n();
-  const { region, setRegion, regions } = useRegion();
+  const { region, selectedRegions, toggleRegion, regionOptions } = useRegion();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -455,7 +455,11 @@ const NavBar = () => {
                 aria-label="Region"
               >
                 <MapPin size={14} />
-                <span className="uppercase hidden xl:inline">{region || DEFAULT_REGION}</span>
+                <span className="uppercase hidden xl:inline">
+                  {selectedRegions.length > 1
+                    ? `${selectedRegions[0]}+${selectedRegions.length - 1}`
+                    : selectedRegions[0] || DEFAULT_REGION}
+                </span>
               </button>
 
               <button
@@ -834,25 +838,33 @@ const NavBar = () => {
       <BaseDrawer isOpen={isRegionDrawerOpen} onClose={() => setIsRegionDrawerOpen(false)} maxHeight="60vh">
         <div className="px-5 pb-4 flex flex-col">
           <h3 className="text-lg font-semibold text-slate-900">Region</h3>
-          <p className="text-sm text-slate-500">Choose the region for card data.</p>
+          <p className="text-sm text-slate-500">Choose one or more regions for card data.</p>
         </div>
         <div className="px-3 pb-6 space-y-1">
-          {regions.map((option) => {
-            const isActive = option.code === region;
+          {regionOptions.map((option) => {
+            const isActive = selectedRegions.includes(option.code);
             return (
               <button
                 key={option.code}
                 type="button"
-                onClick={() => {
-                  setRegion(option.code);
-                  setIsRegionDrawerOpen(false);
-                }}
+                onClick={() => toggleRegion(option.code)}
                 className={`w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-200 active:scale-[0.98] ${
                   isActive ? "bg-blue-50 border-2 border-blue-500" : "bg-slate-50 border-2 border-transparent hover:bg-slate-100"
                 }`}
               >
                 <span className="font-semibold text-slate-900">{option.label}</span>
-                {isActive && <span className="text-xs font-semibold text-blue-600 uppercase">{option.code}</span>}
+                <span className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold uppercase ${isActive ? "text-blue-600" : "text-slate-400"}`}>
+                    {option.code}
+                  </span>
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
+                      isActive ? "border-blue-500 bg-blue-500 text-white" : "border-slate-300 text-transparent"
+                    }`}
+                  >
+                    ✓
+                  </span>
+                </span>
               </button>
             );
           })}
@@ -865,25 +877,31 @@ const NavBar = () => {
         <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border-none bg-white p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle>Region</DialogTitle>
-            <DialogDescription>Choose the region for card data.</DialogDescription>
+            <DialogDescription>Choose one or more regions for card data.</DialogDescription>
           </DialogHeader>
           <div className="mt-4 space-y-2">
-            {regions.map((option) => {
-              const isActive = option.code === region;
+            {regionOptions.map((option) => {
+              const isActive = selectedRegions.includes(option.code);
               return (
                 <button
                   key={option.code}
                   type="button"
-                  onClick={() => {
-                    setRegion(option.code);
-                    setIsRegionModalOpen(false);
-                  }}
+                  onClick={() => toggleRegion(option.code)}
                   className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors ${
                     isActive ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-900 hover:bg-slate-200"
                   }`}
                 >
                   <span className="font-semibold">{option.label}</span>
-                  <span className="text-xs font-semibold uppercase">{option.code}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase">{option.code}</span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
+                        isActive ? "border-white bg-white text-slate-900" : "border-slate-300 text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                  </span>
                 </button>
               );
             })}

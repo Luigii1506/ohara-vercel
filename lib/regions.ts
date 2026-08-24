@@ -11,4 +11,5 @@ export const REGION_OPTIONS: RegionOption[] = [
   { code: "FR", label: "France" },
   { code: "KR", label: "Korea" },
   { code: "CN", label: "China" },
+  { code: "TC", label: "Taiwan / HK" },
 ];

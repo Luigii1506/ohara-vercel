@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, RefreshCw, Star, Copy } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw, Star, Copy, Link2, Unlink, X } from "lucide-react";
 import { REGION_OPTIONS } from "@/lib/regions";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -41,6 +41,7 @@ type RegionVariantCard = {
   setCode?: string | null;
   isRegionalExclusive: boolean;
   baseCardId?: number | null;
+  variantGroupLinks?: { variantGroupId: number }[];
 };
 
 type RegionVariantRow = {
@@ -110,11 +111,14 @@ export default function RegionVariantMatrix({
   const [data, setData] = useState<RegionVariantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingCardIds, setSavingCardIds] = useState<Record<number, boolean>>({});
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
+  const [linking, setLinking] = useState(false);
 
   const load = async () => {
     if (!cardId) return;
     setLoading(true);
     setError(null);
+    setSelectedCardIds(new Set());
     try {
       const response = await fetch(`/api/cards/${cardId}/region-variants`, {
         cache: "no-store",
@@ -176,6 +180,125 @@ export default function RegionVariantMatrix({
       showErrorToast("Error al actualizar la carta");
     } finally {
       setSavingCardIds((prev) => ({ ...prev, [targetCardId]: false }));
+    }
+  };
+
+  const toggleCardSelection = (targetCardId: number) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(targetCardId)) next.delete(targetCardId);
+      else next.add(targetCardId);
+      return next;
+    });
+  };
+
+  // Vincula las cartas seleccionadas como LA MISMA alterna entre regiones
+  // (CardVariantGroup + CardVariantLink) — para que dejen de mostrarse cada
+  // una como "Exclusiva" de su región cuando en realidad es el mismo print
+  // repetido. Si alguna ya pertenece a un grupo, se reusa ese grupo; si
+  // ninguna tiene uno, se crea nuevo a partir de la base cross-región de
+  // este código (data.groupId).
+  const linkSelectedAsVariant = async () => {
+    if (!data || selectedCardIds.size < 2) return;
+    const selected = data.rows
+      .flatMap((row) => Object.values(row.cardsByRegion).flat())
+      .filter((card) => selectedCardIds.has(card.id));
+
+    if (selected.some((card) => card.isFirstEdition)) {
+      showErrorToast("Solo se pueden vincular alternas, no la carta base.");
+      return;
+    }
+
+    const existingGroupIds = Array.from(
+      new Set(
+        selected.flatMap((card) =>
+          (card.variantGroupLinks ?? []).map((link) => link.variantGroupId)
+        )
+      )
+    );
+    if (existingGroupIds.length > 1) {
+      showErrorToast(
+        "Estas cartas ya pertenecen a grupos distintos — no se pueden fusionar automáticamente."
+      );
+      return;
+    }
+
+    setLinking(true);
+    try {
+      let variantGroupId = existingGroupIds[0] ?? null;
+      let remaining = selected;
+
+      if (variantGroupId == null) {
+        if (data.groupId == null) {
+          showErrorToast(
+            "Esta carta no tiene un grupo base entre regiones todavía — no se puede vincular."
+          );
+          return;
+        }
+        const first = remaining[0];
+        const response = await fetch("/api/admin/card-variant-groups", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ baseGroupId: data.groupId, cardId: first.id }),
+        });
+        if (!response.ok) throw new Error("No se pudo crear el grupo de variante.");
+        const created = (await response.json()) as { variantGroupId: number };
+        variantGroupId = created.variantGroupId;
+        remaining = remaining.slice(1);
+      } else {
+        remaining = remaining.filter(
+          (card) =>
+            !(card.variantGroupLinks ?? []).some(
+              (link) => link.variantGroupId === variantGroupId
+            )
+        );
+      }
+
+      for (const card of remaining) {
+        const response = await fetch(
+          `/api/admin/card-variant-groups/${variantGroupId}/link`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardId: card.id }),
+          }
+        );
+        if (!response.ok) {
+          throw new Error(`No se pudo vincular ${card.code} (${card.region}).`);
+        }
+      }
+
+      showSuccessToast("Alternas vinculadas como el mismo print.");
+      await load();
+    } catch (err) {
+      console.error(err);
+      showErrorToast(err instanceof Error ? err.message : "Error al vincular.");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const unlinkCard = async (card: RegionVariantCard) => {
+    const variantGroupId = card.variantGroupLinks?.[0]?.variantGroupId;
+    if (!variantGroupId) return;
+    setSavingCardIds((prev) => ({ ...prev, [card.id]: true }));
+    try {
+      const response = await fetch(
+        `/api/admin/card-variant-groups/${variantGroupId}/unlink`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: card.id }),
+        }
+      );
+      if (!response.ok) throw new Error("No se pudo desvincular.");
+      showSuccessToast("Carta desvinculada.");
+      await load();
+    } catch (err) {
+      console.error(err);
+      showErrorToast("Error al desvincular.");
+    } finally {
+      setSavingCardIds((prev) => ({ ...prev, [card.id]: false }));
     }
   };
 
@@ -243,6 +366,39 @@ export default function RegionVariantMatrix({
             </Button>
           </div>
 
+          {isAdmin && selectedCardIds.size > 0 ? (
+            <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 shadow-sm">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedCardIds.size} seleccionada{selectedCardIds.size > 1 ? "s" : ""}
+              </span>
+              <span className="text-xs text-blue-700">
+                Marca cartas de distintas regiones que sean el mismo print y vincúlalas.
+              </span>
+              <div className="ml-auto flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1 text-blue-700 hover:bg-blue-100"
+                  onClick={() => setSelectedCardIds(new Set())}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  disabled={selectedCardIds.size < 2 || linking}
+                  onClick={() => void linkSelectedAsVariant()}
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  {linking ? "Vinculando..." : "Vincular como la misma alterna"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {loading && !data ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
               Cargando matriz regional...
@@ -289,23 +445,41 @@ export default function RegionVariantMatrix({
                 })}
               </div>
 
-              {data.rows.map((row) => (
+              {data.rows.map((row) => {
+                // El color de acento es la señal principal de jerarquía:
+                // negro = base (el ancla), ámbar = exclusiva de una sola
+                // región (posible candidata a vincular), verde = ya
+                // reconocida como el mismo print repetido entre regiones.
+                const accent =
+                  row.key === "base"
+                    ? "border-l-slate-900"
+                    : row.exclusiveToSingleRegion
+                      ? "border-l-amber-400"
+                      : "border-l-emerald-400";
+                return (
                 <section
                   key={row.key}
-                  className={`grid gap-2 rounded-2xl xl:grid-cols-[minmax(180px,220px)_1fr] ${
-                    row.exclusiveToSingleRegion
-                      ? "ring-1 ring-amber-300/70"
-                      : ""
-                  }`}
+                  className={`grid gap-2 rounded-2xl border-l-4 pl-1 xl:grid-cols-[minmax(180px,220px)_1fr] ${accent}`}
                 >
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <h4
-                      className={`text-sm font-semibold ${
-                        row.key === "base" ? "text-slate-950" : "text-slate-900"
-                      }`}
-                    >
-                      {row.label}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      {row.key === "base" ? (
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">
+                          B
+                        </span>
+                      ) : row.exclusiveToSingleRegion ? (
+                        <Star className="h-4 w-4 flex-shrink-0 fill-amber-500 text-amber-500" />
+                      ) : (
+                        <Copy className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                      )}
+                      <h4
+                        className={`text-sm font-semibold ${
+                          row.key === "base" ? "text-slate-950" : "text-slate-900"
+                        }`}
+                      >
+                        {row.label}
+                      </h4>
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {row.exclusiveToSingleRegion ? (
                         <Badge className="gap-1 bg-amber-100 text-amber-800 hover:bg-amber-100">
@@ -372,13 +546,18 @@ export default function RegionVariantMatrix({
                             <div className="space-y-2">
                               {cards.map((card) => {
                                 const isSaving = Boolean(savingCardIds[card.id]);
+                                const isSelected = selectedCardIds.has(card.id);
+                                const linkedGroupId = card.variantGroupLinks?.[0]?.variantGroupId;
+                                const canSelect = isAdmin && !card.isFirstEdition;
                                 return (
                                   <div
                                     key={card.id}
                                     className={`rounded-xl border p-2 transition ${
-                                      card.isRegionalExclusive
-                                        ? "border-amber-200 bg-amber-50/60"
-                                        : "border-slate-200 bg-slate-50"
+                                      isSelected
+                                        ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-300"
+                                        : card.isRegionalExclusive
+                                          ? "border-amber-200 bg-amber-50/60"
+                                          : "border-slate-200 bg-slate-50"
                                     }`}
                                   >
                                     <div className="flex flex-col gap-2">
@@ -390,6 +569,28 @@ export default function RegionVariantMatrix({
                                           sizes="220px"
                                           className="object-cover"
                                         />
+                                        {canSelect ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleCardSelection(card.id)}
+                                            title="Seleccionar para vincular con otra región"
+                                            className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md border-2 shadow ${
+                                              isSelected
+                                                ? "border-blue-500 bg-blue-500 text-white"
+                                                : "border-white bg-black/40 text-transparent hover:bg-black/55"
+                                            }`}
+                                          >
+                                            ✓
+                                          </button>
+                                        ) : null}
+                                        {linkedGroupId ? (
+                                          <span
+                                            title="Ya vinculada con otra(s) región(es) como el mismo print"
+                                            className="absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow"
+                                          >
+                                            <Link2 className="h-2.5 w-2.5" />
+                                          </span>
+                                        ) : null}
                                       </div>
 
                                       <div className="flex min-w-0 flex-col gap-1.5">
@@ -403,7 +604,7 @@ export default function RegionVariantMatrix({
                                             card.name}
                                         </p>
 
-                                        <div className="flex flex-wrap gap-1">
+                                        <div className="flex flex-wrap items-center gap-1">
                                           <Badge
                                             variant="outline"
                                             className="border-slate-300 bg-white px-1.5 py-0 text-[10px]"
@@ -415,6 +616,17 @@ export default function RegionVariantMatrix({
                                               <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
                                               Exclusive
                                             </Badge>
+                                          ) : null}
+                                          {linkedGroupId && isAdmin ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => void unlinkCard(card)}
+                                              disabled={isSaving}
+                                              title="Desvincular de las otras regiones"
+                                              className="ml-auto flex items-center gap-0.5 rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-500 hover:border-rose-300 hover:text-rose-600"
+                                            >
+                                              <Unlink className="h-2.5 w-2.5" />
+                                            </button>
                                           ) : null}
                                         </div>
 
@@ -479,7 +691,8 @@ export default function RegionVariantMatrix({
                     })}
                   </div>
                 </section>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </div>

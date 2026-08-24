@@ -135,6 +135,7 @@ export default function RegionVariantMatrix({
       }, 0) ?? 0,
     [data]
   );
+  const resolvedColumns = Math.max(1, Math.min(data?.regions.length ?? 1, 5));
 
   const updateCard = async (
     targetCardId: number,
@@ -233,49 +234,63 @@ export default function RegionVariantMatrix({
               {error}
             </div>
           ) : data ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              <div
+                className="hidden gap-2 xl:grid"
+                style={{
+                  gridTemplateColumns: `minmax(180px, 220px) repeat(${resolvedColumns}, minmax(0, 1fr))`,
+                }}
+              >
+                <div className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Variant Row
+                </div>
+                {data.regions.map((region) => (
+                  <div
+                    key={`header-${region}`}
+                    className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                  >
+                    {formatRegionLabel(region)}
+                  </div>
+                ))}
+              </div>
+
               {data.rows.map((row) => (
                 <section
                   key={row.key}
-                  className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  className="grid gap-2 xl:grid-cols-[minmax(180px,220px)_1fr]"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          {row.label}
-                        </h4>
-                        {row.key === "base" ? (
-                          <Badge className="bg-slate-900 text-white hover:bg-slate-900">
-                            Base
-                          </Badge>
-                        ) : null}
-                        {row.exclusiveToSingleRegion ? (
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                            Exclusiva visual
-                          </Badge>
-                        ) : null}
-                        {row.repeatedAcrossRegions ? (
-                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                            Repetida
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Presente en {row.presentRegions.length} región
-                        {row.presentRegions.length === 1 ? "" : "es"}:{" "}
-                        {row.presentRegions.map(formatRegionLabel).join(", ")}
-                      </p>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        {row.label}
+                      </h4>
+                      {row.key === "base" ? (
+                        <Badge className="bg-slate-900 text-white hover:bg-slate-900">
+                          Base
+                        </Badge>
+                      ) : null}
                     </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {row.exclusiveToSingleRegion ? (
+                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                          Exclusiva
+                        </Badge>
+                      ) : null}
+                      {row.repeatedAcrossRegions ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                          Repetida
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                      {row.presentRegions.map(formatRegionLabel).join(", ") || "Sin regiones"}
+                    </p>
                   </div>
 
                   <div
-                    className="grid gap-3 p-3"
+                    className="grid gap-2"
                     style={{
-                      gridTemplateColumns: `repeat(${Math.max(
-                        1,
-                        Math.min(data.regions.length, 4)
-                      )}, minmax(0, 1fr))`,
+                      gridTemplateColumns: `repeat(${resolvedColumns}, minmax(0, 1fr))`,
                     }}
                   >
                     {data.regions.map((region) => {
@@ -283,9 +298,9 @@ export default function RegionVariantMatrix({
                       return (
                         <div
                           key={`${row.key}-${region}`}
-                          className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/70 p-2"
+                          className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
                         >
-                          <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="mb-2 flex items-center justify-between gap-2 xl:hidden">
                             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               {formatRegionLabel(region)}
                             </span>
@@ -298,8 +313,8 @@ export default function RegionVariantMatrix({
                           </div>
 
                           {cards.length === 0 ? (
-                            <div className="flex min-h-[132px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white px-3 text-center text-xs text-slate-400">
-                              Sin carta en esta región
+                            <div className="flex min-h-[112px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 text-center text-[11px] text-slate-400">
+                              Sin carta
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -308,60 +323,46 @@ export default function RegionVariantMatrix({
                                 return (
                                   <div
                                     key={card.id}
-                                    className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+                                    className="rounded-xl border border-slate-200 bg-slate-50 p-2"
                                   >
-                                    <div className="relative aspect-[0.72] w-full bg-slate-100">
-                                      <Image
-                                        src={resolveImageSrc(card)}
-                                        alt={`${card.code} ${card.name}`}
-                                        fill
-                                        sizes="(max-width: 768px) 50vw, 20vw"
-                                        className="object-cover"
-                                      />
-                                    </div>
+                                    <div className="flex gap-2">
+                                      <div className="relative h-[92px] w-[66px] flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                        <Image
+                                          src={resolveImageSrc(card)}
+                                          alt={`${card.code} ${card.name}`}
+                                          fill
+                                          sizes="96px"
+                                          className="object-cover"
+                                        />
+                                      </div>
 
-                                    <div className="space-y-2 p-2">
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-900">
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <p className="truncate text-[11px] font-semibold text-slate-900">
                                           {card.setCode || card.code}
                                         </p>
-                                        <p className="line-clamp-2 text-[11px] text-slate-500">
+                                        <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">
                                           {card.alternateArt?.trim() ||
                                             card.alias?.trim() ||
                                             card.illustrator?.trim() ||
                                             card.name}
                                         </p>
-                                      </div>
 
-                                      <div className="flex flex-wrap gap-1">
-                                        {card.isFirstEdition ? (
+                                        <div className="flex flex-wrap gap-1">
                                           <Badge
                                             variant="outline"
-                                            className="border-slate-300 bg-slate-100 text-[10px]"
+                                            className="border-slate-300 bg-white px-1.5 py-0 text-[10px]"
                                           >
-                                            Base
+                                            {card.isFirstEdition ? "Base" : "Alt"}
                                           </Badge>
-                                        ) : (
-                                          <Badge
-                                            variant="outline"
-                                            className="border-slate-300 bg-slate-100 text-[10px]"
-                                          >
-                                            Alterna
-                                          </Badge>
-                                        )}
-                                        {card.isRegionalExclusive ? (
-                                          <Badge className="bg-amber-100 text-[10px] text-amber-800 hover:bg-amber-100">
-                                            Exclusive
-                                          </Badge>
-                                        ) : null}
-                                      </div>
+                                          {card.isRegionalExclusive ? (
+                                            <Badge className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800 hover:bg-amber-100">
+                                              Exclusive
+                                            </Badge>
+                                          ) : null}
+                                        </div>
 
-                                      {isAdmin ? (
-                                        <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-                                          <div className="space-y-1">
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                              Región
-                                            </span>
+                                        {isAdmin ? (
+                                          <div className="space-y-1 pt-1">
                                             <Select
                                               value={card.region?.trim() || UNASSIGNED_REGION}
                                               onValueChange={(value) =>
@@ -374,7 +375,7 @@ export default function RegionVariantMatrix({
                                               }
                                               disabled={isSaving}
                                             >
-                                              <SelectTrigger className="h-8 bg-white text-xs">
+                                              <SelectTrigger className="h-7 bg-white px-2 text-[11px]">
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -391,30 +392,25 @@ export default function RegionVariantMatrix({
                                                 ))}
                                               </SelectContent>
                                             </Select>
-                                          </div>
 
-                                          <div className="flex items-center justify-between gap-2">
-                                            <div>
-                                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                                Regional Exclusive
-                                              </p>
-                                              <p className="text-[11px] text-slate-500">
-                                                Marca manual de exclusividad
-                                              </p>
+                                            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1">
+                                              <span className="text-[10px] font-medium text-slate-500">
+                                                Exclusive
+                                              </span>
+                                              <Switch
+                                                checked={card.isRegionalExclusive}
+                                                onCheckedChange={(checked) =>
+                                                  void updateCard(card.id, {
+                                                    isRegionalExclusive: checked,
+                                                  })
+                                                }
+                                                disabled={isSaving}
+                                                aria-label="Toggle regional exclusive"
+                                              />
                                             </div>
-                                            <Switch
-                                              checked={card.isRegionalExclusive}
-                                              onCheckedChange={(checked) =>
-                                                void updateCard(card.id, {
-                                                  isRegionalExclusive: checked,
-                                                })
-                                              }
-                                              disabled={isSaving}
-                                              aria-label="Toggle regional exclusive"
-                                            />
                                           </div>
-                                        </div>
-                                      ) : null}
+                                        ) : null}
+                                      </div>
                                     </div>
                                   </div>
                                 );

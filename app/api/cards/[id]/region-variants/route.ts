@@ -136,7 +136,13 @@ export async function GET(
     const rows = new Map<string, RowAccumulator>();
     const regions = new Set<string>();
 
-    for (const card of cards) {
+    // TC (Taiwan/HK) no es una región real de comparación — sus cartas base
+    // son el mismo archivo/texto japonés que JP, republicado (ver
+    // lib/regions.ts). No tiene sentido mostrarla como columna aparte en
+    // esta comparación por región.
+    const comparableCards = cards.filter((card) => card.region !== "TC");
+
+    for (const card of comparableCards) {
       const linkedVariant = card.variantGroupLinks[0]?.variantGroup;
       const isBaseRow = card.isFirstEdition && !linkedVariant && !card.baseCardId;
 

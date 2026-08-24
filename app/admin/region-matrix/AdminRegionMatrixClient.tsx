@@ -382,7 +382,7 @@ export default function AdminRegionMatrixClient() {
           if (!open) closeEntry();
         }}
       >
-        <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-6xl overflow-y-auto rounded-[28px] border-none bg-[#f7f2e6] p-0 shadow-2xl">
+        <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] max-w-[1600px] overflow-y-auto rounded-[28px] border-none bg-[#f7f2e6] p-0 shadow-2xl">
           {selectedEntry ? (
             <div className="flex flex-col">
               <div className="flex items-center gap-4 border-b border-slate-200 bg-white px-6 py-5">

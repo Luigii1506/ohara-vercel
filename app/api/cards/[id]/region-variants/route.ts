@@ -24,17 +24,26 @@ const buildFallbackRowKey = (card: {
   illustrator?: string | null;
   alias?: string | null;
   setCode?: string | null;
+  region?: string | null;
   id: number;
 }) => {
   const alt = normalizeText(card.alternateArt);
   const illustrator = normalizeText(card.illustrator);
   const alias = normalizeText(card.alias);
   const setCode = normalizeText(card.setCode);
+  // Cada región escanea y traduce sus propias alternas por su cuenta, así
+  // que dos cartas de regiones distintas que digan literalmente lo mismo
+  // (ej. "Alternate Art") no son necesariamente la misma carta — solo
+  // sabemos que SON la misma si vienen curadas con variantGroupLinks. Sin
+  // esa liga explícita, el fallback nunca debe cruzar regiones: si no,
+  // una alterna exclusiva de Japón termina "emparejada" con una de China
+  // o Taiwán que no tiene ninguna relación real con ella.
+  const region = normalizeText(card.region).toLowerCase() || "unassigned";
 
-  if (alt) return `fallback:alt:${alt.toLowerCase()}`;
-  if (illustrator) return `fallback:illustrator:${illustrator.toLowerCase()}`;
-  if (alias) return `fallback:alias:${alias.toLowerCase()}`;
-  if (setCode) return `fallback:set:${setCode.toLowerCase()}`;
+  if (alt) return `fallback:${region}:alt:${alt.toLowerCase()}`;
+  if (illustrator) return `fallback:${region}:illustrator:${illustrator.toLowerCase()}`;
+  if (alias) return `fallback:${region}:alias:${alias.toLowerCase()}`;
+  if (setCode) return `fallback:${region}:set:${setCode.toLowerCase()}`;
   return `fallback:card:${card.id}`;
 };
 

@@ -89,6 +89,12 @@ const regionLabelMap = new Map(
 const formatRegionLabel = (region: string) =>
   region === UNASSIGNED_REGION ? "Sin región" : regionLabelMap.get(region) || region;
 
+// Regiones "legacy" que quedaron sueltas en la base (ej. "CN-S") y que no
+// son una de las 6 regiones reales del selector — se muestran igual (para
+// poder encontrarlas y limpiarlas) pero marcadas como no estándar.
+const isNonCanonicalRegion = (region: string) =>
+  region !== UNASSIGNED_REGION && !regionLabelMap.has(region);
+
 export default function RegionVariantMatrix({
   cardId,
   defaultExpanded = false,
@@ -144,7 +150,10 @@ export default function RegionVariantMatrix({
       }, 0) ?? 0,
     [data]
   );
-  const resolvedColumns = Math.max(1, Math.min(data?.regions.length ?? 1, 5));
+  // Sin tope artificial: si hay 6 regiones reales (o alguna región legacy
+  // suelta como "CN-S") cada una se queda con su propia columna en vez de
+  // desbordar a una segunda fila y apachurrar todo lo demás.
+  const resolvedColumns = Math.max(1, data?.regions.length ?? 1);
 
   const updateCard = async (
     targetCardId: number,
@@ -253,17 +262,31 @@ export default function RegionVariantMatrix({
                 <div className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Variant Row
                 </div>
-                {data.regions.map((region) => (
-                  <div
-                    key={`header-${region}`}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
-                  >
-                    <span className="text-base leading-none">
-                      {REGION_FLAGS[region] ?? "🏳️"}
-                    </span>
-                    {formatRegionLabel(region)}
-                  </div>
-                ))}
+                {data.regions.map((region) => {
+                  const nonCanonical = isNonCanonicalRegion(region);
+                  return (
+                    <div
+                      key={`header-${region}`}
+                      className={`flex flex-col items-center justify-center gap-0.5 rounded-xl border px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                        nonCanonical
+                          ? "border-dashed border-slate-300 bg-slate-50 text-slate-400"
+                          : "border-slate-200 bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-base leading-none">
+                          {REGION_FLAGS[region] ?? "🏳️"}
+                        </span>
+                        {formatRegionLabel(region)}
+                      </span>
+                      {nonCanonical ? (
+                        <span className="text-[9px] font-medium normal-case tracking-normal text-slate-400">
+                          región no estándar
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
               {data.rows.map((row) => (
@@ -276,16 +299,13 @@ export default function RegionVariantMatrix({
                   }`}
                 >
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        {row.label}
-                      </h4>
-                      {row.key === "base" ? (
-                        <Badge className="bg-slate-900 text-white hover:bg-slate-900">
-                          Base
-                        </Badge>
-                      ) : null}
-                    </div>
+                    <h4
+                      className={`text-sm font-semibold ${
+                        row.key === "base" ? "text-slate-950" : "text-slate-900"
+                      }`}
+                    >
+                      {row.label}
+                    </h4>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {row.exclusiveToSingleRegion ? (
                         <Badge className="gap-1 bg-amber-100 text-amber-800 hover:bg-amber-100">
@@ -361,19 +381,19 @@ export default function RegionVariantMatrix({
                                         : "border-slate-200 bg-slate-50"
                                     }`}
                                   >
-                                    <div className="flex gap-2">
-                                      <div className="relative h-[124px] w-[89px] flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                                    <div className="flex flex-col gap-2">
+                                      <div className="relative aspect-[5/7] w-full max-w-[200px] self-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                                         <Image
                                           src={resolveImageSrc(card)}
                                           alt={`${card.code} ${card.name}`}
                                           fill
-                                          sizes="120px"
+                                          sizes="220px"
                                           className="object-cover"
                                         />
                                       </div>
 
-                                      <div className="min-w-0 flex-1 space-y-1">
-                                        <p className="truncate text-[11px] font-semibold text-slate-900">
+                                      <div className="flex min-w-0 flex-col gap-1.5">
+                                        <p className="truncate text-[12px] font-semibold text-slate-900">
                                           {card.setCode || card.code}
                                         </p>
                                         <p className="line-clamp-2 text-[11px] leading-4 text-slate-500">
@@ -399,7 +419,7 @@ export default function RegionVariantMatrix({
                                         </div>
 
                                         {isAdmin ? (
-                                          <div className="space-y-1 pt-1">
+                                          <div className="flex flex-col gap-1.5 pt-1">
                                             <Select
                                               value={card.region?.trim() || UNASSIGNED_REGION}
                                               onValueChange={(value) =>
@@ -412,7 +432,7 @@ export default function RegionVariantMatrix({
                                               }
                                               disabled={isSaving}
                                             >
-                                              <SelectTrigger className="h-7 bg-white px-2 text-[11px]">
+                                              <SelectTrigger className="h-8 w-full min-w-0 bg-white px-2 text-[12px]">
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -430,8 +450,8 @@ export default function RegionVariantMatrix({
                                               </SelectContent>
                                             </Select>
 
-                                            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1">
-                                              <span className="text-[10px] font-medium text-slate-500">
+                                            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                                              <span className="text-[11px] font-medium text-slate-500">
                                                 Exclusive
                                               </span>
                                               <Switch

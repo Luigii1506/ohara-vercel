@@ -619,11 +619,17 @@ export async function applyOfficialItem(
     // ALTERNA: asegurar la base de la región REAL (crearla si falta), luego enlazar.
     let base = await findRegionBase(item.code, cardRegion);
     if (!base) {
+      // item.name es el nombre de la ALTERNA (ej. "...(異圖卡)") — nunca hay
+      // que ponérselo a esta base "de emergencia" o queda una fila
+      // isFirstEdition=true con nombre de alterna. Sin el nombre real de la
+      // base (todavía no se escaneó), usamos el código — applyPendingOfficialItems
+      // ya serializa los items del mismo código, así que esto solo ocurre
+      // cuando la alterna se procesa antes que su base en un batch distinto.
       const baseId = await persistCard({
         region: cardRegion, source: item.region, language, code: item.code, setCode,
         cardId: item.code, variant: null, isAlternate: false, baseCardId: null,
         imageUrl: baseImageUrlFrom(item.imageUrl, item.variant),
-        name: item.name || item.code, payload: p, refererBase,
+        name: item.code, payload: p, refererBase,
       });
       base = { id: baseId };
     }
@@ -712,10 +718,13 @@ export async function applyPendingOfficialItems(
   const cfg = OFFICIAL_REGIONS[regionKey.toUpperCase()];
   if (!cfg) throw new Error(`Región no soportada: ${regionKey}`);
   const limit = opts.limit ?? 25;
-  // Cada item ya se reclama atómicamente (CLAIM_SENTINEL en
-  // applyOfficialItem), así que procesar varios a la vez es seguro — el
-  // costo real por carta es descargar+subir 7 tamaños de imagen, la
-  // mayor parte esperando red, no CPU, así que la concurrencia ayuda mucho.
+  // Cada item se reclama atómicamente (CLAIM_SENTINEL en applyOfficialItem),
+  // eso evita procesar el MISMO item dos veces — pero no evita que dos items
+  // DISTINTOS del mismo código (ej. la base y su alterna) se procesen en
+  // paralelo, y cada uno decida por su cuenta "no existe la base, la creo"
+  // (findRegionBase + create sin lock) → dos filas base para el mismo
+  // código. Por eso claimNext() nunca deja que dos workers tengan un item
+  // del mismo código en vuelo a la vez.
   const concurrency = Math.max(1, opts.concurrency ?? 4);
 
   const pending = await prisma.officialSyncItem.findMany({
@@ -729,12 +738,33 @@ export async function applyPendingOfficialItems(
   let applied = 0;
   let processed = 0;
 
-  let nextIndex = 0;
+  const claimed = new Array(pending.length).fill(false);
+  const inFlightCodes = new Set<string>();
+
+  // Nada de esto puede correr concurrentemente entre sí — JS solo cede el
+  // control en un `await`, así que esta función síncrona es efectivamente
+  // una sección crítica sin necesidad de ningún lock real.
+  const claimNext = (): number | null => {
+    for (let i = 0; i < pending.length; i++) {
+      if (!claimed[i] && !inFlightCodes.has(pending[i].code)) {
+        claimed[i] = true;
+        inFlightCodes.add(pending[i].code);
+        return i;
+      }
+    }
+    return null;
+  };
+
   const worker = async () => {
     while (true) {
-      const i = nextIndex;
-      nextIndex += 1;
-      if (i >= pending.length) return;
+      const i = claimNext();
+      if (i === null) {
+        if (claimed.every(Boolean)) return;
+        // Todo lo que queda es de un código que otro worker tiene en
+        // vuelo — esperar a que lo suelte en vez de terminar temprano.
+        await sleep(150);
+        continue;
+      }
       const item = pending[i];
       try {
         await applyOfficialItem(item.id);
@@ -749,6 +779,8 @@ export async function applyPendingOfficialItems(
         console.log(
           `[apply][${processed}/${pending.length}] ${item.code} (item #${item.id}) -> FAILED: ${(e as Error).message}`
         );
+      } finally {
+        inFlightCodes.delete(item.code);
       }
       await sleep(200);
     }

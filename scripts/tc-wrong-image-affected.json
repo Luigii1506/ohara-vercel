@@ -1,0 +1,1362 @@
+[
+  {
+    "id": 25562,
+    "code": "EB01-003",
+    "name": "基德&奇拉(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-003.webp",
+    "baseCardId": 25560,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25586,
+    "code": "EB01-022",
+    "name": "雷電(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-022.webp",
+    "baseCardId": 25584,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25576,
+    "code": "EB01-013",
+    "name": "光月日和(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-013.webp",
+    "baseCardId": 25575,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25600,
+    "code": "EB01-031",
+    "name": "卡莉法(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-031.webp",
+    "baseCardId": 25599,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25593,
+    "code": "EB01-027",
+    "name": "Mr.1(達茲・波涅士)(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-027.webp",
+    "baseCardId": 25592,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25606,
+    "code": "EB01-034",
+    "name": "Miss星期三(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-034.webp",
+    "baseCardId": 25604,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25629,
+    "code": "EB01-052",
+    "name": "碧歐菈(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-052.webp",
+    "baseCardId": 25628,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25625,
+    "code": "EB01-049",
+    "name": "T彭恩(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-049.webp",
+    "baseCardId": 25624,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 25638,
+    "code": "EB01-056",
+    "name": "夏洛特・芙蘭佩(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-eb01-056.webp",
+    "baseCardId": 25637,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27477,
+    "code": "OP07-005",
+    "name": "卡莉娜(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-005.webp",
+    "baseCardId": 27476,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28056,
+    "code": "OP03-021",
+    "name": "克洛(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-021.webp",
+    "baseCardId": 28054,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28058,
+    "code": "OP03-022",
+    "name": "惡龍(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-022.webp",
+    "baseCardId": 28057,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28065,
+    "code": "OP03-025",
+    "name": "克利克(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-025.webp",
+    "baseCardId": 28064,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28128,
+    "code": "OP03-076",
+    "name": "羅布・路基(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-076.webp",
+    "baseCardId": 28127,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28129,
+    "code": "OP03-077",
+    "name": "夏洛特・莉莉(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-077.webp",
+    "baseCardId": 28130,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28211,
+    "code": "OP02-017",
+    "name": "面具・迪斯(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-017.webp",
+    "baseCardId": 28210,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28329,
+    "code": "OP02-086",
+    "name": "米諾無尾熊(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-086.webp",
+    "baseCardId": 28327,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27337,
+    "code": "OP08-015",
+    "name": "Dr.古蕾娃(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-015.webp",
+    "baseCardId": 27336,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27354,
+    "code": "OP08-030",
+    "name": "佩特羅(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-030.webp",
+    "baseCardId": 27353,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27410,
+    "code": "OP08-079",
+    "name": "海道(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-079.webp",
+    "baseCardId": 27409,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27412,
+    "code": "OP08-080",
+    "name": "QUEEN(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-080.webp",
+    "baseCardId": 27411,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27440,
+    "code": "OP08-105",
+    "name": "珠寶・波妮(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-105.webp",
+    "baseCardId": 27439,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27447,
+    "code": "OP08-110",
+    "name": "瓦夷帕(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-110.webp",
+    "baseCardId": 27446,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27450,
+    "code": "OP08-112",
+    "name": "S-蛇(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-112.webp",
+    "baseCardId": 27449,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27566,
+    "code": "OP07-072",
+    "name": "波琪(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-072.webp",
+    "baseCardId": 27565,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27656,
+    "code": "OP06-025",
+    "name": "海咪(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-025.webp",
+    "baseCardId": 27655,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27643,
+    "code": "OP06-013",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-013.webp",
+    "baseCardId": 27642,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27674,
+    "code": "OP06-043",
+    "name": "荒卷(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-043.webp",
+    "baseCardId": 27673,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27803,
+    "code": "OP05-055",
+    "name": "X・多雷古(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op05-055.webp",
+    "baseCardId": 27802,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27847,
+    "code": "OP05-100",
+    "name": "艾涅爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op05-100.webp",
+    "baseCardId": 27846,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27954,
+    "code": "OP04-058",
+    "name": "克洛克達爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-058.webp",
+    "baseCardId": 27953,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27919,
+    "code": "OP04-030",
+    "name": "托雷波爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-030.webp",
+    "baseCardId": 27918,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27931,
+    "code": "OP04-040",
+    "name": "QUEEN(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-040.webp",
+    "baseCardId": 27930,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27897,
+    "code": "OP04-013",
+    "name": "貝爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-013.webp",
+    "baseCardId": 27896,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27904,
+    "code": "OP04-019",
+    "name": "唐吉訶德・多佛朗明哥(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-019.webp",
+    "baseCardId": 27903,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27906,
+    "code": "OP04-020",
+    "name": "一笑(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-020.webp",
+    "baseCardId": 27905,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28051,
+    "code": "OP03-018",
+    "name": "火拳(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-018.webp",
+    "baseCardId": 28050,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27994,
+    "code": "OP04-090",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-090.webp",
+    "baseCardId": 27993,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28137,
+    "code": "OP03-081",
+    "name": "卡莉法(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-081.webp",
+    "baseCardId": 28136,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28095,
+    "code": "OP03-047",
+    "name": "哲普(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-047.webp",
+    "baseCardId": 28094,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28106,
+    "code": "OP03-058",
+    "name": "艾斯巴古(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-058.webp",
+    "baseCardId": 28105,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28157,
+    "code": "OP03-099",
+    "name": "夏洛特・卡塔克利(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-099.webp",
+    "baseCardId": 28156,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28135,
+    "code": "OP03-080",
+    "name": "卡古(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-080.webp",
+    "baseCardId": 28134,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28200,
+    "code": "OP02-009",
+    "name": "史庫亞德(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-009.webp",
+    "baseCardId": 28199,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28223,
+    "code": "OP02-026",
+    "name": "香吉士(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-026.webp",
+    "baseCardId": 28222,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28230,
+    "code": "OP02-030",
+    "name": "光月御田(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-030.webp",
+    "baseCardId": 28229,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28232,
+    "code": "OP02-031",
+    "name": "光月時(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-031.webp",
+    "baseCardId": 28231,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28240,
+    "code": "OP02-036",
+    "name": "娜美(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-036.webp",
+    "baseCardId": 28239,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28249,
+    "code": "OP02-041",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-041.webp",
+    "baseCardId": 28248,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28262,
+    "code": "OP02-049",
+    "name": "艾波利歐・伊娃柯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-049.webp",
+    "baseCardId": 28261,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28266,
+    "code": "OP02-051",
+    "name": "艾波利歐・伊娃柯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-051.webp",
+    "baseCardId": 28264,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28278,
+    "code": "OP02-058",
+    "name": "巴其(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-058.webp",
+    "baseCardId": 28277,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28289,
+    "code": "OP02-062",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-062.webp",
+    "baseCardId": 28288,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28302,
+    "code": "OP02-071",
+    "name": "麥哲倫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-071.webp",
+    "baseCardId": 28301,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28390,
+    "code": "OP01-003",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-003.webp",
+    "baseCardId": 28388,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28358,
+    "code": "OP02-105",
+    "name": "達絲琪(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-105.webp",
+    "baseCardId": 28356,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28384,
+    "code": "OP01-001",
+    "name": "羅羅亞・索隆(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-001.webp",
+    "baseCardId": 28383,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28426,
+    "code": "OP01-025",
+    "name": "羅羅亞・索隆(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-025.webp",
+    "baseCardId": 28425,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28435,
+    "code": "OP01-031",
+    "name": "光月御田(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-031.webp",
+    "baseCardId": 28434,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28399,
+    "code": "OP01-008",
+    "name": "卡文迪許(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-008.webp",
+    "baseCardId": 28398,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28460,
+    "code": "OP01-048",
+    "name": "貓蝮蛇(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-048.webp",
+    "baseCardId": 28458,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28475,
+    "code": "OP01-060",
+    "name": "唐吉訶德・多佛朗明哥(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-060.webp",
+    "baseCardId": 28474,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28481,
+    "code": "OP01-062",
+    "name": "克洛克達爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-062.webp",
+    "baseCardId": 28479,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28494,
+    "code": "OP01-067",
+    "name": "克洛克達爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-067.webp",
+    "baseCardId": 28492,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28510,
+    "code": "OP01-077",
+    "name": "培羅娜(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-077.webp",
+    "baseCardId": 28508,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28531,
+    "code": "OP01-091",
+    "name": "KING(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-091.webp",
+    "baseCardId": 28529,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28545,
+    "code": "OP01-096",
+    "name": "KING(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-096.webp",
+    "baseCardId": 28543,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28548,
+    "code": "OP01-097",
+    "name": "QUEEN(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-097.webp",
+    "baseCardId": 28546,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28558,
+    "code": "OP01-102",
+    "name": "JACK(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-102.webp",
+    "baseCardId": 28557,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28535,
+    "code": "OP01-093",
+    "name": "烏爾蒂(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-093.webp",
+    "baseCardId": 28534,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28569,
+    "code": "OP01-109",
+    "name": "福茲胡(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-109.webp",
+    "baseCardId": 28568,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29117,
+    "code": "ST13-013",
+    "name": "蒙其・D・卡普(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-013.webp",
+    "baseCardId": 29115,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29098,
+    "code": "ST13-006",
+    "name": "卡莉・達坦(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-006.webp",
+    "baseCardId": 29097,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29104,
+    "code": "ST13-008",
+    "name": "薩波(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-008.webp",
+    "baseCardId": 29102,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29114,
+    "code": "ST13-012",
+    "name": "瑪姬(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-012.webp",
+    "baseCardId": 29113,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29613,
+    "code": "P-019",
+    "name": "培波(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-019.webp",
+    "baseCardId": 29609,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29626,
+    "code": "P-028",
+    "name": "波特卡斯・D・艾斯(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-028.webp",
+    "baseCardId": 29625,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29627,
+    "code": "P-028",
+    "name": "波特卡斯・D・艾斯(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-028.webp",
+    "baseCardId": 29625,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29588,
+    "code": "P-003",
+    "name": "尤斯塔斯・基德(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-003.webp",
+    "baseCardId": 29587,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27369,
+    "code": "OP08-043",
+    "name": "艾德華・紐蓋特(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-043.webp",
+    "baseCardId": 27368,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27380,
+    "code": "OP08-052",
+    "name": "波特卡斯・D・艾斯(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-052.webp",
+    "baseCardId": 27379,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27419,
+    "code": "OP08-084",
+    "name": "JACK(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-084.webp",
+    "baseCardId": 27418,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27496,
+    "code": "OP07-022",
+    "name": "玉兒(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-022.webp",
+    "baseCardId": 27495,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27917,
+    "code": "OP04-028",
+    "name": "帝雅曼鐵(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-028.webp",
+    "baseCardId": 27916,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27929,
+    "code": "OP04-039",
+    "name": "蕾貝卡(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-039.webp",
+    "baseCardId": 27928,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27946,
+    "code": "OP04-051",
+    "name": "福茲胡(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-051.webp",
+    "baseCardId": 27945,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27958,
+    "code": "OP04-060",
+    "name": "克洛克達爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-060.webp",
+    "baseCardId": 27956,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28044,
+    "code": "OP03-013",
+    "name": "馬可(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-013.webp",
+    "baseCardId": 28043,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28063,
+    "code": "OP03-024",
+    "name": "銀仔(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-024.webp",
+    "baseCardId": 28061,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28488,
+    "code": "OP01-064",
+    "name": "亞爾麗塔(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-064.webp",
+    "baseCardId": 28485,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28117,
+    "code": "OP03-066",
+    "name": "包利(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-066.webp",
+    "baseCardId": 28116,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28305,
+    "code": "OP02-072",
+    "name": "Z(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-072.webp",
+    "baseCardId": 28303,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28448,
+    "code": "OP01-040",
+    "name": "錦右衛門(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-040.webp",
+    "baseCardId": 28447,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27327,
+    "code": "OP08-007",
+    "name": "多尼多尼・喬巴(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-007.webp",
+    "baseCardId": 27326,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27399,
+    "code": "OP08-069",
+    "name": "夏洛特・莉莉(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-069.webp",
+    "baseCardId": 27398,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27530,
+    "code": "OP07-047",
+    "name": "托拉法爾加・羅(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-047.webp",
+    "baseCardId": 27528,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27461,
+    "code": "OP08-119",
+    "name": "海道＆莉莉(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op08-119.webp",
+    "baseCardId": 27460,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27687,
+    "code": "OP06-061",
+    "name": "賓什莫克・伊吉士(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-061.webp",
+    "baseCardId": 27686,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27689,
+    "code": "OP06-062",
+    "name": "賓什莫克・賈吉士(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-062.webp",
+    "baseCardId": 27688,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27525,
+    "code": "OP07-045",
+    "name": "吉貝爾(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-045.webp",
+    "baseCardId": 27524,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27563,
+    "code": "OP07-071",
+    "name": "弗克西(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op07-071.webp",
+    "baseCardId": 27562,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27637,
+    "code": "OP06-009",
+    "name": "蕭萊亞(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-009.webp",
+    "baseCardId": 27636,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27701,
+    "code": "OP06-081",
+    "name": "阿布薩羅姆(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op06-081.webp",
+    "baseCardId": 27700,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27779,
+    "code": "OP05-032",
+    "name": "皮卡(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op05-032.webp",
+    "baseCardId": 27778,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27788,
+    "code": "OP05-041",
+    "name": "盃(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op05-041.webp",
+    "baseCardId": 27787,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27882,
+    "code": "OP04-001",
+    "name": "納菲魯塔利・薇薇(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-001.webp",
+    "baseCardId": 27881,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27834,
+    "code": "OP05-088",
+    "name": "蔓雪莉(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op05-088.webp",
+    "baseCardId": 27833,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27973,
+    "code": "OP04-072",
+    "name": "Mr.5(傑姆)(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-072.webp",
+    "baseCardId": 27972,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 27984,
+    "code": "OP04-082",
+    "name": "居魯士(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-082.webp",
+    "baseCardId": 27983,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28022,
+    "code": "OP04-118",
+    "name": "納菲魯塔利・薇薇(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op04-118.webp",
+    "baseCardId": 28021,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28031,
+    "code": "OP03-001",
+    "name": "波特卡斯・D・艾斯(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-001.webp",
+    "baseCardId": 28030,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28084,
+    "code": "OP03-040",
+    "name": "娜美(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-040.webp",
+    "baseCardId": 28083,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28087,
+    "code": "OP03-041",
+    "name": "騙人布(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-041.webp",
+    "baseCardId": 28085,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28145,
+    "code": "OP03-086",
+    "name": "斯帕達姆(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op03-086.webp",
+    "baseCardId": 28144,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28186,
+    "code": "OP02-001",
+    "name": "艾德華・紐蓋特(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-001.webp",
+    "baseCardId": 28185,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28190,
+    "code": "OP02-002",
+    "name": "蒙其・D・卡普(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-002.webp",
+    "baseCardId": 28189,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28221,
+    "code": "OP02-025",
+    "name": "錦右衛門(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-025.webp",
+    "baseCardId": 28220,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28281,
+    "code": "OP02-059",
+    "name": "波雅・漢考克(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-059.webp",
+    "baseCardId": 28280,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28308,
+    "code": "OP02-073",
+    "name": "小莎蒂(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-073.webp",
+    "baseCardId": 28306,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28339,
+    "code": "OP02-093",
+    "name": "斯摩格(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-093.webp",
+    "baseCardId": 28337,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28361,
+    "code": "OP02-108",
+    "name": "唐吉訶德・羅希南特(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-108.webp",
+    "baseCardId": 28360,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28374,
+    "code": "OP02-115",
+    "name": "蒙其・D・卡普(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op02-115.webp",
+    "baseCardId": 28373,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28386,
+    "code": "OP01-002",
+    "name": "托拉法爾加・羅(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-002.webp",
+    "baseCardId": 28385,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28408,
+    "code": "OP01-013",
+    "name": "香吉士(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-013.webp",
+    "baseCardId": 28406,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28439,
+    "code": "OP01-034",
+    "name": "犬嵐(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-034.webp",
+    "baseCardId": 28438,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28478,
+    "code": "OP01-061",
+    "name": "海道(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-061.webp",
+    "baseCardId": 28476,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 28539,
+    "code": "OP01-094",
+    "name": "海道(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-op01-094.webp",
+    "baseCardId": 28538,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29096,
+    "code": "ST13-005",
+    "name": "艾波利歐・伊娃柯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-005.webp",
+    "baseCardId": 29094,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29107,
+    "code": "ST13-009",
+    "name": "傑克(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-009.webp",
+    "baseCardId": 29105,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29123,
+    "code": "ST13-015",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-st13-015.webp",
+    "baseCardId": 29120,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29580,
+    "code": "P-001",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-001.webp",
+    "baseCardId": 29579,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29581,
+    "code": "P-001",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-001.webp",
+    "baseCardId": 29579,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29582,
+    "code": "P-001",
+    "name": "蒙其・D・魯夫(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-001.webp",
+    "baseCardId": 29579,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29605,
+    "code": "P-017",
+    "name": "托拉法爾加・羅(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-017.webp",
+    "baseCardId": 29604,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29606,
+    "code": "P-017",
+    "name": "托拉法爾加・羅(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-017.webp",
+    "baseCardId": 29604,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  },
+  {
+    "id": 29589,
+    "code": "P-003",
+    "name": "尤斯塔斯・基德(異圖卡)",
+    "src": "https://ohara-image-worker.luis-encinas1506.workers.dev/cards/official-asia-tc-p-003.webp",
+    "baseCardId": 29587,
+    "alternateArt": null,
+    "officialVariantCode": null,
+    "syncItem": null
+  }
+]

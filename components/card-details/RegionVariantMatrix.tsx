@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, RefreshCw, Star, Copy, Link2, Unlink, X } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw, Star, Copy, Link2, Unlink } from "lucide-react";
 import { REGION_OPTIONS } from "@/lib/regions";
 import { showErrorToast, showSuccessToast } from "@/lib/toastify";
 
@@ -111,14 +111,11 @@ export default function RegionVariantMatrix({
   const [data, setData] = useState<RegionVariantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingCardIds, setSavingCardIds] = useState<Record<number, boolean>>({});
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
-  const [linking, setLinking] = useState(false);
 
   const load = async () => {
     if (!cardId) return;
     setLoading(true);
     setError(null);
-    setSelectedCardIds(new Set());
     try {
       const response = await fetch(`/api/cards/${cardId}/region-variants`, {
         cache: "no-store",
@@ -183,51 +180,21 @@ export default function RegionVariantMatrix({
     }
   };
 
-  const toggleCardSelection = (targetCardId: number) => {
-    setSelectedCardIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(targetCardId)) next.delete(targetCardId);
-      else next.add(targetCardId);
-      return next;
-    });
-  };
-
-  // Vincula las cartas seleccionadas como LA MISMA alterna entre regiones
-  // (CardVariantGroup + CardVariantLink) — para que dejen de mostrarse cada
-  // una como "Exclusiva" de su región cuando en realidad es el mismo print
-  // repetido. Si alguna ya pertenece a un grupo, se reusa ese grupo; si
-  // ninguna tiene uno, se crea nuevo a partir de la base cross-región de
-  // este código (data.groupId).
-  const linkSelectedAsVariant = async () => {
-    if (!data || selectedCardIds.size < 2) return;
-    const selected = data.rows
-      .flatMap((row) => Object.values(row.cardsByRegion).flat())
-      .filter((card) => selectedCardIds.has(card.id));
-
-    if (selected.some((card) => card.isFirstEdition)) {
-      showErrorToast("Solo se pueden vincular alternas, no la carta base.");
-      return;
-    }
-
-    const existingGroupIds = Array.from(
-      new Set(
-        selected.flatMap((card) =>
-          (card.variantGroupLinks ?? []).map((link) => link.variantGroupId)
-        )
-      )
-    );
-    if (existingGroupIds.length > 1) {
-      showErrorToast(
-        "Estas cartas ya pertenecen a grupos distintos — no se pueden fusionar automáticamente."
-      );
-      return;
-    }
-
-    setLinking(true);
+  // Mueve UNA carta a la fila (= alterna) a la que realmente corresponde,
+  // en un solo paso — sin tener que re-seleccionar a todas las que ya
+  // estaban bien vinculadas. Si la fila destino ya es un CardVariantGroup
+  // (viene de otra región ya reconocida), la carta se suma ahí; si la fila
+  // destino todavía es una carta "suelta" (exclusiva sin grupo), se crea el
+  // grupo en ese momento con ambas.
+  const moveCardToRow = async (card: RegionVariantCard, targetRow: RegionVariantRow) => {
+    if (!data || card.isFirstEdition) return;
+    setSavingCardIds((prev) => ({ ...prev, [card.id]: true }));
     try {
-      let variantGroupId = existingGroupIds[0] ?? null;
-      let remaining = selected;
+      const targetCards = Object.values(targetRow.cardsByRegion).flat();
+      const anchor = targetCards.find((c) => c.variantGroupLinks?.length) ?? targetCards[0];
+      if (!anchor) return;
 
+      let variantGroupId = anchor.variantGroupLinks?.[0]?.variantGroupId ?? null;
       if (variantGroupId == null) {
         if (data.groupId == null) {
           showErrorToast(
@@ -235,46 +202,33 @@ export default function RegionVariantMatrix({
           );
           return;
         }
-        const first = remaining[0];
         const response = await fetch("/api/admin/card-variant-groups", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ baseGroupId: data.groupId, cardId: first.id }),
+          body: JSON.stringify({ baseGroupId: data.groupId, cardId: anchor.id }),
         });
         if (!response.ok) throw new Error("No se pudo crear el grupo de variante.");
         const created = (await response.json()) as { variantGroupId: number };
         variantGroupId = created.variantGroupId;
-        remaining = remaining.slice(1);
-      } else {
-        remaining = remaining.filter(
-          (card) =>
-            !(card.variantGroupLinks ?? []).some(
-              (link) => link.variantGroupId === variantGroupId
-            )
-        );
       }
 
-      for (const card of remaining) {
-        const response = await fetch(
-          `/api/admin/card-variant-groups/${variantGroupId}/link`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cardId: card.id }),
-          }
-        );
-        if (!response.ok) {
-          throw new Error(`No se pudo vincular ${card.code} (${card.region}).`);
+      const response = await fetch(
+        `/api/admin/card-variant-groups/${variantGroupId}/link`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: card.id }),
         }
-      }
+      );
+      if (!response.ok) throw new Error("No se pudo vincular la carta.");
 
-      showSuccessToast("Alternas vinculadas como el mismo print.");
+      showSuccessToast("Carta movida a su alterna correspondiente.");
       await load();
     } catch (err) {
       console.error(err);
       showErrorToast(err instanceof Error ? err.message : "Error al vincular.");
     } finally {
-      setLinking(false);
+      setSavingCardIds((prev) => ({ ...prev, [card.id]: false }));
     }
   };
 
@@ -366,38 +320,6 @@ export default function RegionVariantMatrix({
             </Button>
           </div>
 
-          {isAdmin && selectedCardIds.size > 0 ? (
-            <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 shadow-sm">
-              <span className="text-sm font-medium text-blue-900">
-                {selectedCardIds.size} seleccionada{selectedCardIds.size > 1 ? "s" : ""}
-              </span>
-              <span className="text-xs text-blue-700">
-                Marca cartas de distintas regiones que sean el mismo print y vincúlalas.
-              </span>
-              <div className="ml-auto flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1 text-blue-700 hover:bg-blue-100"
-                  onClick={() => setSelectedCardIds(new Set())}
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
-                  disabled={selectedCardIds.size < 2 || linking}
-                  onClick={() => void linkSelectedAsVariant()}
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  {linking ? "Vinculando..." : "Vincular como la misma alterna"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
 
           {loading && !data ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
@@ -546,18 +468,17 @@ export default function RegionVariantMatrix({
                             <div className="space-y-2">
                               {cards.map((card) => {
                                 const isSaving = Boolean(savingCardIds[card.id]);
-                                const isSelected = selectedCardIds.has(card.id);
                                 const linkedGroupId = card.variantGroupLinks?.[0]?.variantGroupId;
-                                const canSelect = isAdmin && !card.isFirstEdition;
+                                const linkTargets = data.rows.filter(
+                                  (r) => r.key !== "base" && r.key !== row.key
+                                );
                                 return (
                                   <div
                                     key={card.id}
                                     className={`rounded-xl border p-2 transition ${
-                                      isSelected
-                                        ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-300"
-                                        : card.isRegionalExclusive
-                                          ? "border-amber-200 bg-amber-50/60"
-                                          : "border-slate-200 bg-slate-50"
+                                      card.isRegionalExclusive
+                                        ? "border-amber-200 bg-amber-50/60"
+                                        : "border-slate-200 bg-slate-50"
                                     }`}
                                   >
                                     <div className="flex flex-col gap-2">
@@ -569,20 +490,6 @@ export default function RegionVariantMatrix({
                                           sizes="220px"
                                           className="object-cover"
                                         />
-                                        {canSelect ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => toggleCardSelection(card.id)}
-                                            title="Seleccionar para vincular con otra región"
-                                            className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md border-2 shadow ${
-                                              isSelected
-                                                ? "border-blue-500 bg-blue-500 text-white"
-                                                : "border-white bg-black/40 text-transparent hover:bg-black/55"
-                                            }`}
-                                          >
-                                            ✓
-                                          </button>
-                                        ) : null}
                                         {linkedGroupId ? (
                                           <span
                                             title="Ya vinculada con otra(s) región(es) como el mismo print"
@@ -677,6 +584,37 @@ export default function RegionVariantMatrix({
                                                 aria-label="Toggle regional exclusive"
                                               />
                                             </div>
+
+                                            {!card.isFirstEdition && linkTargets.length > 0 ? (
+                                              <Select
+                                                value=""
+                                                onValueChange={(targetKey) => {
+                                                  const target = linkTargets.find(
+                                                    (r) => r.key === targetKey
+                                                  );
+                                                  if (target) void moveCardToRow(card, target);
+                                                }}
+                                                disabled={isSaving}
+                                              >
+                                                <SelectTrigger className="h-8 w-full min-w-0 gap-1 bg-white px-2 text-[12px]">
+                                                  <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+                                                  <SelectValue placeholder="Mover a su alterna..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {linkTargets.map((target) => (
+                                                    <SelectItem key={target.key} value={target.key}>
+                                                      {target.presentRegions
+                                                        .map((rg) => REGION_FLAGS[rg] ?? "🏳️")
+                                                        .join("")}{" "}
+                                                      {target.label} ·{" "}
+                                                      {target.repeatedAcrossRegions
+                                                        ? "repetida"
+                                                        : "exclusiva"}
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            ) : null}
                                           </div>
                                         ) : null}
                                       </div>

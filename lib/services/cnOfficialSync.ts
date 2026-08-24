@@ -635,6 +635,35 @@ const fetchOfferTypes = async (): Promise<OfferTypeEntry[]> => {
     }));
 };
 
+// El backend de CN (webadmin.windoent.com, detrás de APISIX) da 504 de vez
+// en cuando bajo carga — sin retry, un solo timeout tumbaba TODA la corrida
+// (horas de trabajo perdidas por una sola carta). 3 intentos con backoff,
+// igual que downloadImageWithRetry ya hace para las imágenes.
+const withRetry = async <T>(fn: () => Promise<T>, retries = 3): Promise<T> => {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const status = error?.response?.status;
+      const code = error?.code;
+      const isRetryable =
+        status === 504 ||
+        status === 502 ||
+        status === 503 ||
+        status === 429 ||
+        code === "ECONNRESET" ||
+        code === "ETIMEDOUT" ||
+        code === "EAI_AGAIN" ||
+        code === "ECONNABORTED";
+      if (!isRetryable || attempt === retries) throw error;
+      await sleep(500 * attempt);
+    }
+  }
+  throw lastError;
+};
+
 const fetchCardListPage = async (
   offerType: string | null,
   page: number,
@@ -642,21 +671,26 @@ const fetchCardListPage = async (
 ): Promise<CardListResponse> => {
   const params: Record<string, string | number> = { page, limit };
   if (offerType) params.cardOfferType = offerType;
-  const response = await axios.get<CardListResponse>(
-    `${BASE_URL}${CARDLIST_PATH}`,
-    { params }
-  );
-  return response.data;
+  return withRetry(async () => {
+    const response = await axios.get<CardListResponse>(
+      `${BASE_URL}${CARDLIST_PATH}`,
+      { params, timeout: 20000 }
+    );
+    return response.data;
+  });
 };
 
 const fetchCardInfo = async (
   id: number
 ): Promise<CardInfoResponse["info"] | null> => {
-  const response = await axios.get<CardInfoResponse>(
-    `${BASE_URL}${CARDINFO_PATH}${id}`
-  );
-  if (response.data.code !== 0) return null;
-  return response.data.info ?? null;
+  return withRetry(async () => {
+    const response = await axios.get<CardInfoResponse>(
+      `${BASE_URL}${CARDINFO_PATH}${id}`,
+      { timeout: 20000 }
+    );
+    if (response.data.code !== 0) return null;
+    return response.data.info ?? null;
+  });
 };
 
 const resolveOfferTypeList = (
@@ -765,10 +799,19 @@ const fetchOfferTypeCards = async (
     for (let i = 0; i < listItems.length; i += 5) {
       const batch = listItems.slice(i, i + 5);
       const infos = await Promise.all(
-        batch.map(async (item) => ({
-          info: await fetchCardInfo(item.id),
-          cardImg: item.cardImg,
-        }))
+        batch.map(async (item) => {
+          try {
+            return { info: await fetchCardInfo(item.id), cardImg: item.cardImg };
+          } catch (error: any) {
+            // Ya se reintentó 3 veces en fetchCardInfo — si sigue fallando,
+            // se salta ESA carta en vez de tumbar toda la corrida (que puede
+            // llevar horas procesando miles de cartas).
+            console.log(
+              `  [skip][fetch-info-failed] id=${item.id} ${error?.message ?? error}`
+            );
+            return { info: null, cardImg: item.cardImg };
+          }
+        })
       );
       for (const entry of infos) {
         const info = entry.info;

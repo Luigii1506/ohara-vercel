@@ -1,0 +1,33 @@
+{
+  "unresolvedAlternates": [
+    {
+      "id": "OP10-082_P2",
+      "baseCode": "OP10-082",
+      "isAlternate": true,
+      "variantKey": "P2",
+      "originTitle": "[OPK-12] 부스터 팩 사제의 연",
+      "sourceId": "OP10-082_P2",
+      "name": "쿠잔",
+      "rarity": "SP",
+      "category": "Character",
+      "cost": "5 Cost",
+      "power": "5000 Power",
+      "attribute": "Special",
+      "counter": null,
+      "life": null,
+      "colors": [
+        "black"
+      ],
+      "types": [
+        "전 해군",
+        "검은 수염 해적단"
+      ],
+      "text": "이 캐릭터는 상대의 효과로는 필드를 벗어나지 않는다. 【기동: 메인】이 캐릭터를 트래시에 놓을 수 있다: 카드를 1장 뽑는다. 그 후, 자신의 트래시에서 「쿠잔」 이외의 코스트 5 이하인 《검은 수염 해적단》 특징을 가진 캐릭터 카드를 1장까지 등장시킨다.",
+      "trigger": null,
+      "imageUrl": "https://onepiece-cardgame.kr/fileDownload?downname=20260417_170220_dbaba1e3b6",
+      "setCode": "OP10",
+      "order": "P2",
+      "alias": "P2"
+    }
+  ]
+}

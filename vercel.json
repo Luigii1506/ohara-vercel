@@ -29,6 +29,18 @@
       "schedule": "50 */6 * * *"
     },
     {
+      "path": "/api/cron/scrape-cn",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/scrape-kr?set=P",
+      "schedule": "25 */12 * * *"
+    },
+    {
+      "path": "/api/cron/scrape-kr",
+      "schedule": "30 4 * * 1"
+    },
+    {
       "path": "/api/cron/market-stats",
       "schedule": "0 5 * * *"
     }

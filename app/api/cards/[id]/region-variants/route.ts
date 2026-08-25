@@ -94,7 +94,7 @@ export async function GET(
 
     const groupId = selectedCard.baseGroupLinks[0]?.groupId ?? null;
 
-    const cards = await prisma.card.findMany({
+    const rawCards = await prisma.card.findMany({
       where: { code: selectedCard.code },
       orderBy: [
         { isFirstEdition: "desc" },
@@ -117,6 +117,8 @@ export async function GET(
         setCode: true,
         isRegionalExclusive: true,
         baseCardId: true,
+        disclaimer: true,
+        sets: { select: { set: { select: { title: true } } } },
         variantGroupLinks: {
           select: {
             variantGroupId: true,
@@ -131,6 +133,23 @@ export async function GET(
           },
         },
       },
+    });
+
+    // Alternas "Demo Version", impresiones pre-errata reemplazadas por una
+    // reimpresión corregida, y cartas del set "Demo Deck" no son print real
+    // que valga comparar entre regiones — filtrado en JS (no en el WHERE)
+    // para no pisar el clásico gotcha de SQL: "col ILIKE ..." da NULL (no
+    // false) cuando col es NULL, y eso se come filas de más bajo NOT/OR.
+    const cards = rawCards.filter((card) => {
+      if ((card.alternateArt ?? "").toLowerCase().includes("demo")) return false;
+      if ((card.disclaimer ?? "").toLowerCase().includes("errata")) return false;
+      if (
+        card.sets.some((cs) =>
+          (cs.set.title ?? "").toLowerCase().includes("demo deck")
+        )
+      )
+        return false;
+      return true;
     });
 
     const rows = new Map<string, RowAccumulator>();

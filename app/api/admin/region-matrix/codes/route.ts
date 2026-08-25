@@ -1,9 +1,28 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCollectionOrderKey } from "@/lib/cards/sort";
 import { REGION_OPTIONS } from "@/lib/regions";
+
+// Cartas "de utilería" que no deben contar como catálogo real: alternas de
+// demostración/preview (alternateArt "Demo Version"), impresiones
+// pre-errata reemplazadas por una reimpresión corregida, y cualquier carta
+// que venga del set "Demo Deck". Ninguna de las tres es la carta que un
+// coleccionista busca — ensucian el conteo de regiones/exclusivas.
+// COALESCE es obligatorio: "col ILIKE ..." da NULL (no false) cuando col es
+// NULL, y NOT NULL sigue siendo NULL — sin esto, WHERE NOT(...) descarta
+// TODAS las filas con alternateArt/disclaimer nulos (la inmensa mayoría).
+const EXCLUDE_DEMO_ERRATA = Prisma.sql`(
+  COALESCE("alternateArt", '') ILIKE '%demo%'
+  OR COALESCE(disclaimer, '') ILIKE '%errata%'
+  OR EXISTS (
+    SELECT 1 FROM "CardSet" cs
+    JOIN "Set" s ON s.id = cs."setId"
+    WHERE cs."cardId" = "Card".id AND s.title ILIKE '%demo deck%'
+  )
+)`;
 
 type RepresentativeRow = {
   id: number;
@@ -36,10 +55,11 @@ export async function GET() {
         SELECT DISTINCT ON (code)
           id, code, name, src, "imageKey", "setCode", category, "collectionOrder", "order"
         FROM "Card"
+        WHERE NOT ${EXCLUDE_DEMO_ERRATA}
         ORDER BY code,
-          (region = 'US') DESC,
           "isFirstEdition" DESC,
           ("baseCardId" IS NULL) DESC,
+          (region = 'US') DESC,
           id ASC
       `,
       prisma.$queryRaw<AggregateRow[]>`
@@ -48,6 +68,7 @@ export async function GET() {
           bool_or("isRegionalExclusive") AS "hasExclusive",
           count(*)::int AS "totalVariants"
         FROM "Card"
+        WHERE NOT ${EXCLUDE_DEMO_ERRATA}
         GROUP BY code
       `,
     ]);

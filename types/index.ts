@@ -93,6 +93,9 @@ export interface Card {
   types?: { type: string }[]; // agregamos la propiedad types
   code: string; // agregamos la propiedad code
   rarity: string; // agregamos la propiedad rarity
+  marketPrice?: number | string | null;
+  midPrice?: number | string | null;
+  priceCurrency?: string | null;
 }
 
 export interface DeckCard {

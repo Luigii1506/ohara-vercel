@@ -183,7 +183,7 @@ const DecksClient = () => {
   // Show skeleton while: fetching decks, session is loading, or haven't fetched yet
   if (isFetchingDecks || sessionStatus === "loading" || !hasFetched) {
     return (
-      <div className="flex h-screen w-full min-w-0 flex-col bg-[#f2eede] lg:flex-row overflow-hidden">
+      <div className="flex h-[calc(100dvh-70px)] w-full min-w-0 flex-col bg-[#f2eede] lg:flex-row overflow-hidden">
         {/* Sidebar Skeleton */}
         <div className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-full lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r">
           {/* Header Skeleton */}
@@ -306,7 +306,7 @@ const DecksClient = () => {
   return (
     <div className="flex min-h-[calc(100dvh-70px)] w-full min-w-0 flex-col bg-white lg:bg-[#f2eede] lg:flex-row">
       {/* Sidebar - Deck List */}
-      <div className="flex w-full min-h-0 flex-col border-slate-200 bg-white lg:h-screen lg:min-h-0 lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
+      <div className="flex w-full min-h-0 flex-col border-slate-200 bg-white lg:h-[calc(100dvh-70px)] lg:min-h-0 lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:sticky lg:top-[70px]">
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3">
@@ -442,7 +442,7 @@ const DecksClient = () => {
       </div>
 
       {/* Main Content - Desktop Only */}
-      <div className="hidden flex-1 lg:flex lg:flex-col lg:h-screen lg:overflow-hidden">
+      <div className="hidden flex-1 lg:flex lg:flex-col lg:h-[calc(100dvh-70px)] lg:overflow-hidden">
         <DeckDetailPanel
           deck={selectedDeck}
           mode={mode}

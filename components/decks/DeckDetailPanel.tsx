@@ -35,6 +35,20 @@ import { Oswald } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Deck, DeckCard } from "@/types";
 import ProxiesDrawer, { ProxyCard } from "@/components/ProxiesDrawer";
+import CardWithBadges from "@/components/CardWithBadges";
+
+const getNumericPrice = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const formatCurrency = (value: number, currency?: string | null) =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -184,6 +198,16 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
     (sum, card) => sum + card.quantity,
     0
   );
+
+  let deckPrice = 0;
+  let deckPriceCurrency: string | null = null;
+  for (const card of deck.deckCards) {
+    const price = getNumericPrice(card.card?.marketPrice ?? card.marketPrice);
+    if (price !== null) {
+      deckPrice += price * card.quantity;
+      deckPriceCurrency ??= card.card?.priceCurrency ?? card.priceCurrency ?? null;
+    }
+  }
 
   // Format deck for SanSan Events
   const formatSanSanEvents = () => {
@@ -377,6 +401,13 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
 
         {/* Stats */}
         <div className="mt-4 flex flex-wrap gap-2">
+          {deckPrice > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-600 px-3 py-1.5 shadow-sm">
+              <span className="text-sm font-bold text-white">
+                {formatCurrency(deckPrice, deckPriceCurrency)}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5">
             <span className="text-amber-600 text-xs">⚡</span>
             <span className="text-xs font-medium text-amber-700">+2000</span>
@@ -506,34 +537,23 @@ const DeckDetailPanel: React.FC<DeckDetailPanelProps> = ({
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {groupedCards.map((group) =>
               group.map((card, index) => (
-                <button
+                <CardWithBadges
                   key={`${card.cardId}-${index}`}
+                  id={card.cardId}
+                  src={card.card?.src || card.src}
+                  alt={card.name}
+                  code={card.code}
+                  price={getNumericPrice(card.card?.marketPrice ?? card.marketPrice)}
+                  priceCurrency={card.card?.priceCurrency ?? card.priceCurrency}
+                  quantityInDeck={card.quantity}
                   onClick={() => {
                     setSelectedCard(card);
                     setShowLargeImage(true);
                   }}
-                  className="group relative flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
-                >
-                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-100">
-                    <img
-                      src={card.card?.src || card.src}
-                      alt={card.name}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                    {card.quantity > 1 && (
-                      <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/80 text-xs font-bold text-white shadow-sm">
-                        {card.quantity}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-1.5">
-                    <p
-                      className={`${oswald.className} text-xs font-medium text-center text-slate-700`}
-                    >
-                      {card.code}
-                    </p>
-                  </div>
-                </button>
+                  size="small"
+                  alwaysShowCode
+                  className="!max-w-none"
+                />
               ))
             )}
           </div>

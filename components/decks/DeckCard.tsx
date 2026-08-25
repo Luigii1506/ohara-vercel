@@ -8,6 +8,32 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Deck, DeckCard as DeckCardType } from "@/types";
 
+const getNumericPrice = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const formatCurrency = (value: number, currency?: string | null) =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+
+const getDeckPrice = (deck: Deck) => {
+  let total = 0;
+  let currency: string | null = null;
+  for (const card of deck.deckCards) {
+    const price = getNumericPrice(card.card?.marketPrice ?? card.marketPrice);
+    if (price !== null) {
+      total += price * card.quantity;
+      currency ??= card.card?.priceCurrency ?? card.priceCurrency ?? null;
+    }
+  }
+  return { total, currency };
+};
+
 interface DeckCardProps {
   leaderCode: string;
   leaderCard: DeckCardType | undefined;
@@ -131,6 +157,8 @@ const DeckCard: React.FC<DeckCardProps> = ({
                 );
                 const isComplete = totalCards === 51; // 50 + 1 leader
                 const isSelected = selectedDeckUrl === deck.uniqueUrl;
+                const { total: deckPrice, currency: deckCurrency } =
+                  getDeckPrice(deck);
 
                 return (
                   <button
@@ -156,8 +184,16 @@ const DeckCard: React.FC<DeckCardProps> = ({
                           )}
                         />
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {totalCards} cartas
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                        <span>{totalCards} cartas</span>
+                        {deckPrice > 0 && (
+                          <>
+                            <span className="text-slate-300">·</span>
+                            <span className="font-semibold text-emerald-700">
+                              {formatCurrency(deckPrice, deckCurrency)}
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
 

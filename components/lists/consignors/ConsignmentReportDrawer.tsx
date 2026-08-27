@@ -8,7 +8,6 @@ import {
   FileDown,
   AlertCircle,
   Info,
-  Tag,
 } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Button } from "@/components/ui/button";
@@ -160,78 +159,6 @@ const formatMxn = (usdValue: number | null, rate: number | null): string | null 
     maximumFractionDigits: 2,
   });
 };
-
-// Fila con la imagen real de la carta vendida — el corazón del reporte: qué
-// se vendió, a cuánto (vs. el market de referencia), en USD y en MXN,
-// siempre apilado verticalmente (nunca dos valores lado a lado).
-const SoldCardRow = ({
-  item,
-  exchangeRateMxn,
-}: {
-  item: SoldItem;
-  exchangeRateMxn: number | null;
-}) => {
-  const soldMxn = formatMxn(item.soldPrice, exchangeRateMxn);
-  const marketMxn = formatMxn(item.marketPriceUsd, exchangeRateMxn);
-
-  return (
-    <div className="flex gap-2 rounded-lg border border-slate-100 p-2">
-      {item.src ? (
-        <img
-          src={item.src}
-          alt={item.name}
-          className="h-16 w-16 flex-shrink-0 rounded object-cover bg-slate-100"
-        />
-      ) : (
-        <div className="h-16 w-16 flex-shrink-0 rounded bg-slate-100" />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex flex-col">
-          <span className="truncate text-xs font-semibold text-slate-800">{item.name}</span>
-          <span className="truncate text-[11px] text-slate-400">
-            {item.code} · x{item.quantity} · {formatDate(item.soldAt)}
-          </span>
-        </div>
-        <div className="flex flex-col gap-1 text-[11px]">
-          <div className="flex flex-col">
-            <span className="font-semibold text-emerald-500">
-              Vendido{item.isEstimatedPrice ? " (est.)" : ""}
-            </span>
-            <span className="text-xs font-bold text-emerald-700">
-              {formatCurrency(item.soldPrice)}
-            </span>
-            {soldMxn && <span className="text-emerald-600/80">{soldMxn}</span>}
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-slate-400">Market</span>
-            <span className="text-xs font-bold text-slate-600">
-              {item.marketPriceUsd !== null ? formatCurrency(item.marketPriceUsd) : "N/A"}
-            </span>
-            {marketMxn && <span className="text-slate-400">{marketMxn}</span>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Galería de cartas vendidas — SIEMPRE visible (no detrás de un acordeón
-// que hay que abrir), porque esto es el punto central del reporte.
-const SoldCardsGallery = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <div className="mt-2 flex flex-col gap-1.5">
-    <div className="flex items-center gap-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-2 py-1.5 text-xs font-medium text-emerald-700">
-      <Tag className="h-3 w-3" />
-      {label}
-    </div>
-    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">{children}</div>
-  </div>
-);
 
 const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   isOpen,
@@ -752,17 +679,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       </span>
                     </div>
                   </div>
-                  {g.soldItems.length > 0 && (
-                    <SoldCardsGallery label={`Cartas vendidas (${g.soldItems.length})`}>
-                      {g.soldItems.map((item) => (
-                        <SoldCardRow
-                          key={item.listCardId}
-                          item={item}
-                          exchangeRateMxn={data.exchangeRateMxn}
-                        />
-                      ))}
-                    </SoldCardsGallery>
-                  )}
                   {g.consignorId !== null && g.totalCards > 0 && (
                     <button
                       onClick={() => handleUnassignAll(g.consignorId as number, g.name)}

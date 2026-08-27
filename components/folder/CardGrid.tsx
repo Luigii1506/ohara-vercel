@@ -345,9 +345,13 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               />
                             </svg>
                           </button>
-                          {/* Mover: agrega/quita la carta de la selección para
-                              moverla (tap-to-move, funciona igual en mobile
-                              que arrastrando con mouse; admite varias). */}
+                          {/* Seleccionar: agrega/quita la carta de la selección
+                              múltiple, usada tanto para moverla como para
+                              asignarla a un consignatario (tap-to-select,
+                              funciona igual en mobile que arrastrando con
+                              mouse; admite varias). Siempre visible (no solo
+                              al pasar el mouse) para que se descubra fácil —
+                              este botón solo lo ve el dueño (canEditPrice). */}
                           {canEditPrice &&
                             cell.existing &&
                             !cell.existing.isOptimistic &&
@@ -358,15 +362,15 @@ export const CardGrid: React.FC<CardGridProps> = ({
                                 onToggleMove({ card: cell.card!, listCard: cell.existing });
                               }}
                               className={cn(
-                                "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-opacity duration-200",
+                                "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-colors duration-200",
                                 // Comparar por el id de la FILA (cell.existing.id), no por el id
                                 // de catálogo (cell.card.id): la misma carta puede repetirse en
                                 // varias celdas, y comparar por catálogo resaltaría todas a la vez.
                                 movingCardIds?.has(String(cell.existing?.id ?? ""))
-                                  ? "bg-indigo-700 opacity-100"
-                                  : "bg-indigo-500 hover:bg-indigo-600 opacity-0 group-hover:opacity-100"
+                                  ? "bg-indigo-700"
+                                  : "bg-indigo-500/80 hover:bg-indigo-600"
                               )}
-                              title="Agregar/quitar de la selección para mover"
+                              title="Seleccionar para mover o asignar a un consignatario"
                             >
                               <Move className="h-4 w-4" />
                             </button>

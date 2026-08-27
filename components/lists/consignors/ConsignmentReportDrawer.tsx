@@ -1,11 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Users, Download, AlertCircle, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Users, Download, FileDown, AlertCircle, Pencil, Trash2, Info } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
+
+declare global {
+  interface Window {
+    jspdf: { jsPDF: any };
+  }
+}
 
 interface ConsignmentGroup {
   consignorId: number | null;
@@ -65,6 +71,7 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -125,6 +132,123 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast.success("CSV descargado");
+  }, [data, listName]);
+
+  const exportPdf = useCallback(async () => {
+    if (!data) return;
+    setGeneratingPdf(true);
+    try {
+      if (!window.jspdf) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        document.head.appendChild(script);
+        await new Promise<void>((resolve, reject) => {
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Error cargando la librería de PDF"));
+        });
+      }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, 297], compress: true });
+
+      const pageWidth = 210;
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+
+      pdf.setFillColor(30, 41, 59);
+      pdf.rect(0, 0, pageWidth, 32, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Reporte de Consignación", margin, 16);
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(data.listName, margin, 25);
+
+      let y = 45;
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFontSize(9);
+      pdf.text(
+        `Generado: ${new Date(data.generatedAt).toLocaleString("es-MX", { dateStyle: "long", timeStyle: "short" })}`,
+        margin,
+        y
+      );
+
+      y += 10;
+      const drawHeader = (headerY: number) => {
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, headerY, contentWidth, 9, "F");
+        pdf.setTextColor(71, 85, 105);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Consignatario", margin + 3, headerY + 6);
+        pdf.text("Cartas", margin + 75, headerY + 6);
+        pdf.text("Vendido", margin + 100, headerY + 6);
+        pdf.text("Disponible", margin + 135, headerY + 6);
+        pdf.text("Total", margin + 170, headerY + 6);
+      };
+      drawHeader(y);
+      y += 13;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      data.groups.forEach((g, idx) => {
+        if (idx % 2 === 0) {
+          pdf.setFillColor(248, 250, 252);
+          pdf.rect(margin, y - 4, contentWidth, 8, "F");
+        }
+        pdf.setTextColor(30, 41, 59);
+        pdf.text(g.name.length > 30 ? g.name.slice(0, 30) + "…" : g.name, margin + 3, y);
+        pdf.text(`${g.totalCards} (${g.totalQuantity})`, margin + 75, y);
+        pdf.setTextColor(5, 150, 105);
+        pdf.text(formatCurrency(g.soldValue), margin + 100, y);
+        pdf.setTextColor(217, 119, 6);
+        pdf.text(formatCurrency(g.availableValue), margin + 135, y);
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(formatCurrency(g.totalValue), margin + 170, y);
+        pdf.setFont("helvetica", "normal");
+        y += 8;
+      });
+
+      y += 6;
+      pdf.setDrawColor(30, 41, 59);
+      pdf.setLineWidth(0.8);
+      pdf.line(margin, y, margin + contentWidth, y);
+      y += 10;
+
+      pdf.setFillColor(15, 23, 42);
+      pdf.roundedRect(margin, y, contentWidth, 30, 2, 2, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text("Total de la carpeta", margin + 8, y + 11);
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(formatCurrency(data.grandTotal.totalValue), margin + 8, y + 24);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(
+        `${data.grandTotal.totalCards} cartas  ·  Vendido: ${formatCurrency(data.grandTotal.soldValue)}  ·  Disponible: ${formatCurrency(data.grandTotal.availableValue)}`,
+        margin + 70,
+        y + 18
+      );
+
+      pdf.setTextColor(148, 163, 184);
+      pdf.setFontSize(7.5);
+      pdf.text(
+        '"Vendido" usa el precio real de venta. "Disponible" es un valor estimado (precio personalizado o market price).',
+        margin,
+        y + 40
+      );
+
+      const safeName = listName.replace(/[^a-z0-9]/gi, "-").toLowerCase();
+      pdf.save(`consignacion-${safeName}.pdf`);
+      toast.success("PDF descargado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar el PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
   }, [data, listName]);
 
   const handleRename = useCallback(
@@ -190,15 +314,31 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
             <p className="truncate text-xs text-slate-500">{listName}</p>
           </div>
           {data && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportCsv}
-              className="gap-1.5 shrink-0"
-            >
-              <Download className="h-3.5 w-3.5" />
-              CSV
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportPdf}
+                disabled={generatingPdf}
+                className="gap-1.5"
+              >
+                {generatingPdf ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5" />
+                )}
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportCsv}
+                className="gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </Button>
+            </div>
           )}
         </div>
 
@@ -221,6 +361,18 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
 
           {data && !loading && !error && (
             <div className="space-y-3">
+              <div className="flex gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3">
+                <Info className="h-4 w-4 shrink-0 text-purple-500 mt-0.5" />
+                <p className="text-xs text-purple-800">
+                  <span className="font-semibold">¿Cómo asigno cartas a alguien?</span>{" "}
+                  En la carpeta, toca el botón redondo con la flecha (⇅) sobre
+                  una o varias cartas para seleccionarlas, y en la barra que
+                  aparece abajo toca <span className="font-semibold">"Asignar a…"</span>{" "}
+                  — ahí puedes elegir a alguien que ya creaste o escribir un
+                  nombre nuevo. Las cartas sin asignar cuentan como tuyas.
+                </p>
+              </div>
+
               {data.groups.map((g) => (
                 <div
                   key={g.consignorId ?? "mine"}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Check, DollarSign, ExternalLink, Tag, Move, X, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink, Tag, X, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -43,10 +43,17 @@ interface CardGridProps {
   dragOverPosition?: { page: number; row: number; column: number } | null;
   /** IDs de cartas actualmente "levantadas" para mover (selección múltiple). */
   movingCardIds?: Set<string>;
+  /**
+   * Qué hace un tap sobre una carta ahora mismo:
+   * - "move-select" / "assign-select": construir la cola (tocar agrega/quita).
+   * - "move-place": la cola ya está armada, este toque elige el destino.
+   * - null/undefined: comportamiento normal (abrir el visor de imagen).
+   */
+  cardTapMode?: "move-select" | "move-place" | "assign-select" | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
-  /** Botón "mover": agrega/quita esta carta de la selección múltiple. */
+  /** Agrega/quita esta carta de la selección múltiple (mover o asignar). */
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
@@ -71,6 +78,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onCardDragStart,
   dragOverPosition,
   movingCardIds,
+  cardTapMode,
   canEditPrice = false,
   onEditPrice,
   onToggleSold,
@@ -109,8 +117,16 @@ export const CardGrid: React.FC<CardGridProps> = ({
             dragOverPosition?.column === actualCol;
 
           const hasCardsToMove = (movingCardIds?.size ?? 0) > 0;
-          const isAvailableForPlacement = hasCardsToMove && !cell && isEditing;
-          const canReplaceCard = hasCardsToMove && cell && isEditing;
+          // Solo mostramos el hint de "colocar aquí" cuando de verdad estamos
+          // en el paso de elegir destino — mientras se arma la selección
+          // (move-select / assign-select), tocar una casilla NO coloca nada.
+          const isPlacingNow = cardTapMode === "move-place" && hasCardsToMove;
+          const isAvailableForPlacement = isPlacingNow && !cell && isEditing;
+          const canReplaceCard = isPlacingNow && cell && isEditing;
+          const isSelectedForQueue = movingCardIds?.has(rowKey) ?? false;
+          const queueOrder = isSelectedForQueue
+            ? Array.from(movingCardIds ?? []).indexOf(rowKey) + 1
+            : null;
 
           return (
             <div
@@ -138,6 +154,16 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         height: `${dimensions.cardHeight}px`,
                         maxWidth: "100%",
                         maxHeight: "100%",
+                        // Anillo de color del consignatario — para identificar
+                        // de un vistazo (sin leer el badge) que esta carta no
+                        // es tuya, y de quién es.
+                        ...(cell.existing?.consignor
+                          ? {
+                              boxShadow: `0 0 0 3px ${
+                                cell.existing.consignor.color || "#a78bfa"
+                              }, 0 4px 6px -1px rgba(0,0,0,0.3)`,
+                            }
+                          : {}),
                       }}
                       draggable={isEditing && !!onCardDragStart}
                       onDragStart={(e) =>
@@ -172,10 +198,21 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         className="relative w-full h-full cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation(); // 🛡️ Evitar propagación hacia BookFlipContainer
-                          // Si hay cartas "levantadas" para mover, este toque
-                          // completa el movimiento (mueve/intercambia/acomoda)
-                          // en vez de abrir el visor de imagen.
-                          if (isEditing && hasCardsToMove) {
+                          // Mientras se arma la cola (mover o asignar), tocar
+                          // la carta la agrega/quita de la selección.
+                          if (
+                            isEditing &&
+                            (cardTapMode === "move-select" || cardTapMode === "assign-select")
+                          ) {
+                            if (cell.existing && !cell.existing.isOptimistic) {
+                              onToggleMove?.({ card: cell.card!, listCard: cell.existing });
+                            }
+                            return;
+                          }
+                          // Ya se armó la cola y se está eligiendo destino:
+                          // este toque completa el movimiento (mueve/
+                          // intercambia/acomoda) en vez de abrir el visor.
+                          if (isEditing && cardTapMode === "move-place") {
                             onPositionClick?.(actualRow, actualCol, currentPage);
                             return;
                           }
@@ -271,6 +308,30 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         return null;
                       })()}
 
+                      {/* Capa de selección: mientras se arma la cola (mover o
+                          asignar), cada carta elegida se tiñe de color y
+                          muestra su orden (mover) o un check (asignar) — así
+                          se ve de un vistazo qué está seleccionado y en qué
+                          orden se va a acomodar. */}
+                      {isEditing && isSelectedForQueue && (
+                        <div
+                          className={cn(
+                            "pointer-events-none absolute inset-0 z-[15] flex items-center justify-center rounded-[4%]",
+                            cardTapMode === "assign-select"
+                              ? "bg-purple-600/70"
+                              : "bg-indigo-600/70"
+                          )}
+                        >
+                          {cardTapMode === "assign-select" ? (
+                            <Check className="h-10 w-10 text-white drop-shadow-md" />
+                          ) : (
+                            <span className="text-4xl font-black text-white drop-shadow-md">
+                              {queueOrder}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Acciones de edición: un solo botón "Opciones" (⋮) con
                           las acciones que se hacen una vez (editar precio,
                           marcar vendida, ver en TCGplayer, eliminar), y aparte
@@ -349,42 +410,30 @@ export const CardGrid: React.FC<CardGridProps> = ({
                                 <div className="border-t border-slate-100 my-1" />
                                 <div
                                   onClick={() => {
+                                    // Si hay una cola de mover/asignar en curso,
+                                    // este mismo onPositionClick se interpretaría
+                                    // como "colocar aquí" en vez de "eliminar" —
+                                    // hay que salir del modo primero.
+                                    if (cardTapMode) {
+                                      setOpenOptionsId(null);
+                                      return;
+                                    }
                                     onPositionClick?.(actualRow, actualCol, currentPage);
                                     setOpenOptionsId(null);
                                   }}
-                                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                                  className={cn(
+                                    "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm",
+                                    cardTapMode
+                                      ? "text-slate-300 cursor-not-allowed"
+                                      : "text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                                  )}
+                                  title={cardTapMode ? "Sal del modo de selección para eliminar cartas" : undefined}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                   <span>Eliminar carta</span>
                                 </div>
                               </PopoverContent>
                             </Popover>
-                          )}
-
-                          {/* Seleccionar: agrega/quita la carta de la selección
-                              múltiple, usada tanto para moverla como para
-                              asignarla a un consignatario (tap-to-select,
-                              funciona igual en mobile que arrastrando con
-                              mouse; admite varias). */}
-                          {onToggleMove && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleMove({ card: cell.card!, listCard: cell.existing });
-                              }}
-                              className={cn(
-                                "w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-colors duration-200",
-                                // Comparar por el id de la FILA (cell.existing.id), no por el id
-                                // de catálogo (cell.card.id): la misma carta puede repetirse en
-                                // varias celdas, y comparar por catálogo resaltaría todas a la vez.
-                                movingCardIds?.has(String(cell.existing?.id ?? ""))
-                                  ? "bg-indigo-700"
-                                  : "bg-indigo-500/80 hover:bg-indigo-600"
-                              )}
-                              title="Seleccionar para mover o asignar a un consignatario"
-                            >
-                              <Move className="h-4 w-4" />
-                            </button>
                           )}
                         </div>
                       )}
@@ -462,9 +511,15 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       maxWidth: "100%",
                       maxHeight: "100%",
                     }}
-                    onClick={() =>
-                      onPositionClick?.(actualRow, actualCol, currentPage)
-                    }
+                    onClick={() => {
+                      // Mientras se arma la cola (mover o asignar), las
+                      // casillas vacías no son un destino válido todavía —
+                      // no hay nada que "colocar" hasta elegir destino.
+                      if (cardTapMode === "move-select" || cardTapMode === "assign-select") {
+                        return;
+                      }
+                      onPositionClick?.(actualRow, actualCol, currentPage);
+                    }}
                     {...(onDragHandlers
                       ? {
                           onDragOver: onDragHandlers.onDragOver,
@@ -487,7 +542,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
                       : {})}
                   >
                     <div className="text-center">
-                      {hasCardsToMove ? (
+                      {isPlacingNow ? (
                         <>
                           <Plus className="h-8 w-8 mx-auto mb-1 text-green-500" />
                           <div className="text-xs text-green-600 font-medium">

@@ -52,6 +52,9 @@ interface BookFlipContainerProps {
   dragOverPosition?: { page: number; row: number; column: number } | null;
   /** IDs de cartas actualmente "levantadas" para mover (selección múltiple). */
   movingCardIds?: Set<string>;
+  /** Qué hace un tap sobre una carta ahora mismo: construir la selección
+   * (mover o asignar) o completar el destino de un movimiento. */
+  cardTapMode?: "move-select" | "move-place" | "assign-select" | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
@@ -129,6 +132,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onCardDragStart,
   dragOverPosition,
   movingCardIds,
+  cardTapMode,
   canEditPrice,
   onEditPrice,
   onToggleSold,
@@ -398,6 +402,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onCardDragStart={onCardDragStart}
             dragOverPosition={dragOverPosition}
             movingCardIds={movingCardIds}
+            cardTapMode={cardTapMode}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
@@ -438,6 +443,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onCardDragStart={onCardDragStart}
             dragOverPosition={dragOverPosition}
             movingCardIds={movingCardIds}
+            cardTapMode={cardTapMode}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
@@ -474,6 +480,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
     onCardDragStart,
     dragOverPosition,
     movingCardIds,
+    cardTapMode,
     onToggleMove,
     displayCurrency,
     exchangeRate,

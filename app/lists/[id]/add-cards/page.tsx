@@ -38,6 +38,8 @@ import {
   Camera,
   FileText,
   Users,
+  Move,
+  UserCog,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -177,6 +179,10 @@ const FolderOptionsMenu = ({
   onOpenSnapshots,
   onOpenReport,
   onOpenConsignmentReport,
+  onToggleMoveMode,
+  isMoveModeActive,
+  onToggleAssignMode,
+  isAssignModeActive,
   variant = "labeled",
 }: {
   listId: string;
@@ -201,6 +207,12 @@ const FolderOptionsMenu = ({
   onOpenReport?: () => void;
   /** Solo dueño — reporte de venta agrupado por consignatario. */
   onOpenConsignmentReport?: () => void;
+  /** Solo dueño, solo carpetas (isOrdered): activa/cancela el modo mover. */
+  onToggleMoveMode?: () => void;
+  isMoveModeActive?: boolean;
+  /** Solo dueño, solo carpetas (isOrdered): activa/cancela el modo asignar. */
+  onToggleAssignMode?: () => void;
+  isAssignModeActive?: boolean;
   variant?: "labeled" | "icon";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -293,6 +305,30 @@ const FolderOptionsMenu = ({
             icon: <Users className="h-4 w-4" />,
             onClick: onOpenConsignmentReport,
             hoverClass: "hover:bg-purple-50 hover:text-purple-700",
+          },
+        ]
+      : []),
+    ...(onToggleMoveMode
+      ? [
+          {
+            label: isMoveModeActive ? "Cancelar modo mover" : "Modo mover",
+            icon: <Move className="h-4 w-4" />,
+            onClick: onToggleMoveMode,
+            hoverClass: isMoveModeActive
+              ? "bg-indigo-50 text-indigo-700"
+              : "hover:bg-indigo-50 hover:text-indigo-700",
+          },
+        ]
+      : []),
+    ...(onToggleAssignMode
+      ? [
+          {
+            label: isAssignModeActive ? "Cancelar modo asignar" : "Modo asignar consignatario",
+            icon: <UserCog className="h-4 w-4" />,
+            onClick: onToggleAssignMode,
+            hoverClass: isAssignModeActive
+              ? "bg-purple-50 text-purple-700"
+              : "hover:bg-purple-50 hover:text-purple-700",
           },
         ]
       : []),
@@ -634,6 +670,24 @@ const AddCardsPage = () => {
   // golpe una hoja completa sin tener que vaciarla primero. Se apaga solo
   // después de cada uso para evitar recorrer cartas por accidente.
   const [insertMode, setInsertMode] = useState(false);
+  // Modo explícito de qué se está armando con la selección múltiple: mover
+  // (con un paso previo de elegir destino) o asignar a un consignatario
+  // (sin destino, se resuelve directo con el picker). null = navegación
+  // normal, tocar una carta abre el visor de imagen.
+  const [selectMode, setSelectMode] = useState<"move" | "assign" | null>(null);
+  // Dentro de selectMode "move": false = tocar cartas las agrega/quita de la
+  // cola; true = ya se armó la cola y el siguiente toque en una casilla es
+  // el destino (igual que antes se comportaba movingCards.length > 0).
+  const [isChoosingDestination, setIsChoosingDestination] = useState(false);
+  // Qué debe hacer un tap sobre una carta AHORA MISMO, para CardGrid.
+  const cardTapMode: "move-select" | "move-place" | "assign-select" | null =
+    selectMode === "move"
+      ? isChoosingDestination
+        ? "move-place"
+        : "move-select"
+      : selectMode === "assign"
+      ? "assign-select"
+      : null;
 
   // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard,
   // mapeadas a la URL de imagen de sleeve elegida (null = reverso genérico).
@@ -3051,6 +3105,32 @@ const AddCardsPage = () => {
   const cancelMovingCards = () => {
     setMovingCards([]);
     setInsertMode(false);
+    setSelectMode(null);
+    setIsChoosingDestination(false);
+  };
+
+  // Activa el "Modo mover": arma la cola tocando cartas, luego "Elegir
+  // destino" para completar el movimiento. Si ya estaba activo, lo cancela.
+  const toggleMoveMode = () => {
+    if (selectMode === "move") {
+      cancelMovingCards();
+    } else {
+      setMovingCards([]);
+      setInsertMode(false);
+      setIsChoosingDestination(false);
+      setSelectMode("move");
+    }
+  };
+
+  // Activa el "Modo asignar consignatario": arma la cola tocando cartas,
+  // luego "Asignar a…" resuelve todo de una vez (sin necesitar destino).
+  const toggleAssignMode = () => {
+    if (selectMode === "assign") {
+      cancelMovingCards();
+    } else {
+      setMovingCards([]);
+      setSelectMode("assign");
+    }
   };
 
   // Mueve varias cartas ya colocadas a la vez.
@@ -3745,58 +3825,68 @@ const AddCardsPage = () => {
               {movingCards.length > 0 && !isMobile && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
-                    {movingCards.length === 1 ? (
-                      <div className="w-8 h-11 flex-shrink-0">
-                        <LazyImage
-                          src={movingCards[0].card.src}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={movingCards[0].card.name}
-                          className="w-full rounded border"
-                          priority={true}
-                          size="small"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
-                        {movingCards.length}
-                      </div>
-                    )}
+                    <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
+                      {movingCards.length}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-900 truncate">
-                        {movingCards.length === 1
-                          ? movingCards[0].card.name
-                          : `${movingCards.length} cartas seleccionadas`}
+                      <p className="text-sm font-bold text-blue-900 truncate">
+                        {selectMode === "assign" ? "Asignar consignatario" : "Modo mover"}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {insertMode
-                          ? "Modo insertar: lo que haya en la casilla destino se recorrerá"
-                          : movingCards.length === 1
-                          ? "Moviendo esta carta — toca la casilla destino"
-                          : "Toca la casilla inicial: se acomodan en ese orden"}
+                        {selectMode === "move" && isChoosingDestination
+                          ? insertMode
+                            ? "Modo insertar: lo que haya en la casilla se recorrerá"
+                            : "Toca la casilla destino"
+                          : `${movingCards.length} carta(s) seleccionada(s) — toca más cartas para agregarlas`}
                       </p>
                     </div>
                     <button
                       onClick={cancelMovingCards}
                       className="p-1 hover:bg-blue-100 rounded-full"
+                      title="Cancelar"
                     >
                       <X className="h-4 w-4 text-blue-600" />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setInsertMode((prev) => !prev)}
-                    className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
-                      insertMode
-                        ? "bg-indigo-600 border-indigo-600 text-white"
-                        : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
-                    }`}
-                    title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
-                  >
-                    {insertMode
-                      ? "✓ Insertar (recorre lo existente)"
-                      : "Insertar (recorre lo existente)"}
-                  </button>
-                  {isOwner && list && (
+
+                  {selectMode === "move" && !isChoosingDestination && (
+                    <button
+                      type="button"
+                      onClick={() => setIsChoosingDestination(true)}
+                      disabled={movingCards.length === 0}
+                      className="mt-2 w-full text-xs font-semibold py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Elegir destino →
+                    </button>
+                  )}
+
+                  {selectMode === "move" && isChoosingDestination && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setInsertMode((prev) => !prev)}
+                        className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
+                          insertMode
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
+                        }`}
+                        title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
+                      >
+                        {insertMode
+                          ? "✓ Insertar (recorre lo existente)"
+                          : "Insertar (recorre lo existente)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsChoosingDestination(false)}
+                        className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                      >
+                        ← Volver a editar selección
+                      </button>
+                    </>
+                  )}
+
+                  {selectMode === "assign" && isOwner && list && (
                     <ConsignorPicker
                       listId={list.id}
                       selectedListCardIds={movingCards.map((m) => m.listCardId)}
@@ -3806,10 +3896,12 @@ const AddCardsPage = () => {
                           consignor
                         )
                       }
+                      disabled={movingCards.length === 0}
                       trigger={
                         <button
                           type="button"
-                          className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+                          disabled={movingCards.length === 0}
+                          className="mt-2 w-full text-xs font-semibold py-1.5 rounded-md bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           Asignar a…
                         </button>
@@ -4312,6 +4404,10 @@ const AddCardsPage = () => {
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
                         }
+                        onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
+                        isMoveModeActive={selectMode === "move"}
+                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        isAssignModeActive={selectMode === "assign"}
                         variant="labeled"
                       />
                     </div>
@@ -4382,6 +4478,10 @@ const AddCardsPage = () => {
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
                         }
+                        onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
+                        isMoveModeActive={selectMode === "move"}
+                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        isAssignModeActive={selectMode === "assign"}
                         variant="icon"
                       />
                     </div>
@@ -4446,6 +4546,7 @@ const AddCardsPage = () => {
                         onCardDragStart={handleGridCardDragStart}
                         dragOverPosition={dragOverPosition}
                         movingCardIds={movingCardIds}
+                        cardTapMode={cardTapMode}
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
@@ -4534,6 +4635,8 @@ const AddCardsPage = () => {
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
                         }
+                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        isAssignModeActive={selectMode === "assign"}
                         variant="labeled"
                       />
                     </div>
@@ -4581,6 +4684,8 @@ const AddCardsPage = () => {
                           onOpenConsignmentReport={
                             isOwner ? () => setShowConsignmentReport(true) : undefined
                           }
+                          onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                          isAssignModeActive={selectMode === "assign"}
                           variant="icon"
                         />
                       </div>
@@ -5245,58 +5350,68 @@ const AddCardsPage = () => {
               {movingCards.length > 0 && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-3">
-                    {movingCards.length === 1 ? (
-                      <div className="w-8 h-11 flex-shrink-0">
-                        <LazyImage
-                          src={movingCards[0].card.src}
-                          fallbackSrc="/assets/images/backcard.webp"
-                          alt={movingCards[0].card.name}
-                          className="w-full rounded border"
-                          priority={true}
-                          size="small"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
-                        {movingCards.length}
-                      </div>
-                    )}
+                    <div className="w-8 h-11 flex-shrink-0 rounded border border-blue-300 bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-sm">
+                      {movingCards.length}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-900 truncate">
-                        {movingCards.length === 1
-                          ? movingCards[0].card.name
-                          : `${movingCards.length} cartas seleccionadas`}
+                      <p className="text-sm font-bold text-blue-900 truncate">
+                        {selectMode === "assign" ? "Asignar consignatario" : "Modo mover"}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {insertMode
-                          ? "Modo insertar: lo que haya en la casilla destino se recorrerá"
-                          : movingCards.length === 1
-                          ? "Moviendo esta carta — toca la casilla destino"
-                          : "Toca la casilla inicial: se acomodan en ese orden"}
+                        {selectMode === "move" && isChoosingDestination
+                          ? insertMode
+                            ? "Modo insertar: lo que haya en la casilla se recorrerá"
+                            : "Toca la casilla destino"
+                          : `${movingCards.length} carta(s) seleccionada(s) — toca más cartas para agregarlas`}
                       </p>
                     </div>
                     <button
                       onClick={cancelMovingCards}
                       className="p-1 hover:bg-blue-100 rounded-full"
+                      title="Cancelar"
                     >
                       <X className="h-4 w-4 text-blue-600" />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setInsertMode((prev) => !prev)}
-                    className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
-                      insertMode
-                        ? "bg-indigo-600 border-indigo-600 text-white"
-                        : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
-                    }`}
-                    title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
-                  >
-                    {insertMode
-                      ? "✓ Insertar (recorre lo existente)"
-                      : "Insertar (recorre lo existente)"}
-                  </button>
-                  {isOwner && list && (
+
+                  {selectMode === "move" && !isChoosingDestination && (
+                    <button
+                      type="button"
+                      onClick={() => setIsChoosingDestination(true)}
+                      disabled={movingCards.length === 0}
+                      className="mt-2 w-full text-xs font-semibold py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Elegir destino →
+                    </button>
+                  )}
+
+                  {selectMode === "move" && isChoosingDestination && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setInsertMode((prev) => !prev)}
+                        className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
+                          insertMode
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
+                        }`}
+                        title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
+                      >
+                        {insertMode
+                          ? "✓ Insertar (recorre lo existente)"
+                          : "Insertar (recorre lo existente)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsChoosingDestination(false)}
+                        className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                      >
+                        ← Volver a editar selección
+                      </button>
+                    </>
+                  )}
+
+                  {selectMode === "assign" && isOwner && list && (
                     <ConsignorPicker
                       listId={list.id}
                       selectedListCardIds={movingCards.map((m) => m.listCardId)}
@@ -5306,10 +5421,12 @@ const AddCardsPage = () => {
                           consignor
                         )
                       }
+                      disabled={movingCards.length === 0}
                       trigger={
                         <button
                           type="button"
-                          className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+                          disabled={movingCards.length === 0}
+                          className="mt-2 w-full text-xs font-semibold py-1.5 rounded-md bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           Asignar a…
                         </button>

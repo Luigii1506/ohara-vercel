@@ -48,6 +48,7 @@ interface FolderPageProps {
   dragOverPosition?: { page: number; row: number; column: number } | null;
   /** IDs de cartas actualmente "levantadas" para mover (selección múltiple). */
   movingCardIds?: Set<string>;
+  cardTapMode?: "move-select" | "move-place" | "assign-select" | null;
   canEditPrice?: boolean;
   onEditPrice?: (entry: {
     card: CardWithCollectionData;
@@ -89,6 +90,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   onCardDragStart,
   dragOverPosition,
   movingCardIds,
+  cardTapMode,
   canEditPrice,
   onEditPrice,
   onToggleSold,
@@ -166,6 +168,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             onCardDragStart={onCardDragStart}
             dragOverPosition={dragOverPosition}
             movingCardIds={movingCardIds}
+            cardTapMode={cardTapMode}
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}

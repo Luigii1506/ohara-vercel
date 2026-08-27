@@ -20,6 +20,66 @@ declare global {
   }
 }
 
+// Algunos dominios de imágenes bloquean el canvas (CORS) necesario para
+// meterlas en el PDF — se piden a través del proxy propio en esos casos.
+// Mismo tratamiento que usa CollectionReportDrawer para su PDF.
+const getProxiedImageUrl = (originalUrl: string): string => {
+  const problematicDomains = [
+    "limitlesstcg.nyc3.digitaloceanspaces.com",
+    "digitaloceanspaces.com",
+    "limitlesstcg.nyc3.cdn.digitaloceanspaces.com",
+    "en.onepiece-cardgame.com",
+    "static.dotgg.gg",
+    "i.pinimg.com",
+    "assets.pokemon.com",
+    "bez3ta.com",
+    "spellmana.com",
+    "oharatcg-21eab.kxcdn.com",
+  ];
+  try {
+    const urlObj = new URL(originalUrl);
+    const needsProxy = problematicDomains.some(
+      (domain) => urlObj.hostname === domain || urlObj.hostname.endsWith("." + domain)
+    );
+    return needsProxy ? `/api/proxy-image?url=${encodeURIComponent(originalUrl)}` : originalUrl;
+  } catch {
+    return originalUrl;
+  }
+};
+
+const loadCardImageDataUrl = (url: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    if (!url.startsWith("/api/proxy-image")) {
+      img.crossOrigin = "anonymous";
+    }
+    const timeout = setTimeout(() => {
+      img.src = "";
+      reject(new Error("Timeout cargando imagen"));
+    }, 15000);
+    img.onload = () => {
+      clearTimeout(timeout);
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 744;
+        canvas.height = 1044;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Sin contexto de canvas");
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("Error cargando imagen"));
+    };
+    img.src = url;
+  });
+
 interface SoldItem {
   listCardId: number;
   cardId: number;
@@ -405,6 +465,22 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
 
       const groupsWithSales = data.groups.filter((g) => g.soldItems.length > 0);
       if (groupsWithSales.length > 0) {
+        // Precargamos cada imagen única UNA vez (varias cartas pueden
+        // compartir el mismo src) y la convertimos a JPEG en un canvas —
+        // jsPDF no puede usar una URL directamente, necesita el data URL.
+        const allSoldItems = groupsWithSales.flatMap((g) => g.soldItems);
+        const imageCache = new Map<string, string>();
+        const uniqueImageUrls = Array.from(
+          new Set(allSoldItems.map((it) => it.src).filter(Boolean))
+        );
+        for (const url of uniqueImageUrls) {
+          try {
+            imageCache.set(url, await loadCardImageDataUrl(getProxiedImageUrl(url)));
+          } catch {
+            imageCache.set(url, "error");
+          }
+        }
+
         pdf.addPage();
         y = 20;
         pdf.setTextColor(30, 41, 59);
@@ -412,6 +488,10 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         pdf.setFont("helvetica", "bold");
         pdf.text("Detalle de ventas", margin, y);
         y += 10;
+
+        const imgWidth = 20;
+        const imgHeight = 28;
+        const itemHeight = imgHeight + 3;
 
         groupsWithSales.forEach((g) => {
           ensureSpace(16);
@@ -425,58 +505,64 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
             margin + 3,
             y
           );
-          y += 9;
+          y += 10;
 
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(8);
-          pdf.setTextColor(71, 85, 105);
-          pdf.text("Carta", margin + 3, y);
-          pdf.text("Cant.", margin + 105, y);
-          pdf.text("Vendido", margin + 125, y);
-          pdf.text("Fecha", margin + 155, y);
-          y += 5;
-          pdf.setDrawColor(226, 232, 240);
-          pdf.setLineWidth(0.3);
-          pdf.line(margin, y - 3.5, margin + contentWidth, y - 3.5);
-
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(8);
           g.soldItems.forEach((item, idx) => {
-            ensureSpace(13);
+            ensureSpace(itemHeight + 2);
             if (idx % 2 === 0) {
               pdf.setFillColor(248, 250, 252);
-              pdf.rect(margin, y - 4, contentWidth, 13, "F");
+              pdf.rect(margin, y - 3, contentWidth, itemHeight, "F");
             }
+
+            const imgX = margin + 2;
+            const imgY = y - 2;
+            const imgData = imageCache.get(item.src);
+            if (imgData && imgData !== "error") {
+              try {
+                pdf.addImage(imgData, "JPEG", imgX, imgY, imgWidth, imgHeight, undefined, "NONE");
+              } catch {
+                pdf.setFillColor(226, 232, 240);
+                pdf.rect(imgX, imgY, imgWidth, imgHeight, "F");
+              }
+            } else {
+              pdf.setFillColor(226, 232, 240);
+              pdf.rect(imgX, imgY, imgWidth, imgHeight, "F");
+            }
+
+            const textX = imgX + imgWidth + 5;
+            let ty = y + 3;
+
             pdf.setTextColor(30, 41, 59);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(8.5);
             const label = `${item.name} (${item.code})`;
-            pdf.text(label.length > 48 ? label.slice(0, 48) + "…" : label, margin + 3, y);
-            pdf.text(String(item.quantity), margin + 105, y);
+            pdf.text(label.length > 45 ? label.slice(0, 45) + "…" : label, textX, ty);
+            ty += 5.5;
+
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(`Cantidad: ${item.quantity}   ·   ${formatDate(item.soldAt)}`, textX, ty);
+            ty += 5.5;
+
+            const soldMxn = formatMxn(item.soldPrice, data.exchangeRateMxn);
             pdf.setTextColor(5, 150, 105);
             pdf.text(
-              formatCurrency(item.soldPrice) + (item.isEstimatedPrice ? " (est.)" : ""),
-              margin + 125,
-              y
+              `Vendido: ${formatCurrency(item.soldPrice)}${
+                item.isEstimatedPrice ? " (est.)" : ""
+              }${soldMxn ? "   ·   " + soldMxn : ""}`,
+              textX,
+              ty
             );
-            pdf.setTextColor(100, 116, 139);
-            pdf.text(formatDate(item.soldAt), margin + 155, y);
+            ty += 5.5;
 
-            // Sub-línea: MXN (si hay tipo de cambio) y el market price de
-            // referencia — siempre debajo, nunca lado a lado con lo de arriba.
-            y += 5.5;
-            pdf.setFontSize(7);
-            pdf.setTextColor(148, 163, 184);
-            const soldMxn = data.exchangeRateMxn
-              ? formatMxn(item.soldPrice, data.exchangeRateMxn)
-              : null;
             const marketUsd =
               item.marketPriceUsd !== null ? formatCurrency(item.marketPriceUsd) : "N/A";
             const marketMxn = formatMxn(item.marketPriceUsd, data.exchangeRateMxn);
-            const subLine = `${soldMxn ? soldMxn + "  ·  " : ""}Market: ${marketUsd}${
-              marketMxn ? ` (${marketMxn})` : ""
-            }`;
-            pdf.text(subLine, margin + 3, y);
-            pdf.setFontSize(8);
-            y += 7.5;
+            pdf.setTextColor(217, 119, 6);
+            pdf.text(`Market: ${marketUsd}${marketMxn ? "   ·   " + marketMxn : ""}`, textX, ty);
+
+            y += itemHeight + 2;
           });
           y += 6;
         });

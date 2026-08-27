@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Users, Download, FileDown, AlertCircle, Pencil, Trash2, Info } from "lucide-react";
+import { Loader2, Users, Download, FileDown, AlertCircle, Info } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
 
 declare global {
@@ -68,9 +67,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ConsignmentReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [busyId, setBusyId] = useState<number | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const fetchReport = useCallback(async () => {
@@ -251,49 +247,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
     }
   }, [data, listName]);
 
-  const handleRename = useCallback(
-    async (consignorId: number) => {
-      const name = editingName.trim();
-      if (!name) return;
-      setBusyId(consignorId);
-      try {
-        const res = await fetch(`/api/consignors/${consignorId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || "Error al renombrar");
-        toast.success("Renombrado");
-        setEditingId(null);
-        fetchReport();
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Error al renombrar");
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [editingName, fetchReport]
-  );
-
-  const handleDelete = useCallback(
-    async (consignorId: number, name: string) => {
-      if (!window.confirm(`¿Eliminar a "${name}"? Sus cartas quedarán sin asignar (vuelven a ser tuyas).`)) return;
-      setBusyId(consignorId);
-      try {
-        const res = await fetch(`/api/consignors/${consignorId}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Error al eliminar");
-        toast.success("Consignatario eliminado");
-        fetchReport();
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Error al eliminar");
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [fetchReport]
-  );
-
   return (
     <BaseDrawer
       isOpen={isOpen}
@@ -365,11 +318,13 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                 <Info className="h-4 w-4 shrink-0 text-purple-500 mt-0.5" />
                 <p className="text-xs text-purple-800">
                   <span className="font-semibold">¿Cómo asigno cartas a alguien?</span>{" "}
-                  En la carpeta, toca el botón redondo con la flecha (⇅) sobre
-                  una o varias cartas para seleccionarlas, y en la barra que
-                  aparece abajo toca <span className="font-semibold">"Asignar a…"</span>{" "}
-                  — ahí puedes elegir a alguien que ya creaste o escribir un
-                  nombre nuevo. Las cartas sin asignar cuentan como tuyas.
+                  En la carpeta, abre "Opciones" → "Modo asignar consignatario",
+                  toca las cartas que quieras y luego{" "}
+                  <span className="font-semibold">"Asignar a…"</span>. Ahí mismo
+                  puedes renombrar o eliminar consignatarios (pasa el mouse
+                  sobre uno en la lista). Las cartas sin asignar cuentan como
+                  tuyas. Este panel es solo una vista previa — para llevártelo
+                  usa PDF o CSV arriba.
                 </p>
               </div>
 
@@ -384,53 +339,8 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                         className="h-3 w-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: g.color || (g.consignorId === null ? "#0f172a" : "#94a3b8") }}
                       />
-                      {editingId === g.consignorId ? (
-                        <div className="flex items-center gap-1 flex-1">
-                          <Input
-                            autoFocus
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && g.consignorId != null) handleRename(g.consignorId);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            className="h-7 text-sm"
-                          />
-                          <button
-                            onClick={() => g.consignorId != null && handleRename(g.consignorId)}
-                            disabled={busyId === g.consignorId}
-                            className="text-xs font-semibold text-emerald-600 px-1.5"
-                          >
-                            OK
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="truncate text-sm font-bold text-slate-900">{g.name}</p>
-                      )}
+                      <p className="truncate text-sm font-bold text-slate-900">{g.name}</p>
                     </div>
-                    {g.consignorId !== null && editingId !== g.consignorId && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => {
-                            setEditingId(g.consignorId);
-                            setEditingName(g.name);
-                          }}
-                          disabled={busyId === g.consignorId}
-                          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700"
-                          title="Renombrar"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(g.consignorId as number, g.name)}
-                          disabled={busyId === g.consignorId}
-                          className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
                     <p className="text-sm font-bold text-slate-900 shrink-0">
                       {formatCurrency(g.totalValue)}
                     </p>

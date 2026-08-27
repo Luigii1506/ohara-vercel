@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Loader2, User, Check } from "lucide-react";
+import { Loader2, User, Check, Pencil, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
@@ -38,6 +38,8 @@ const ConsignorPicker: React.FC<ConsignorPickerProps> = ({
   const [consignors, setConsignors] = useState<Consignor[]>([]);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const fetchConsignors = useCallback(async () => {
     setLoading(true);
@@ -112,6 +114,52 @@ const ConsignorPicker: React.FC<ConsignorPickerProps> = ({
     }
   }, [newName, assign]);
 
+  const handleRename = useCallback(
+    async (consignorId: number, e: React.MouseEvent | React.KeyboardEvent) => {
+      e.stopPropagation();
+      const name = editingName.trim();
+      if (!name) return;
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/consignors/${consignorId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Error al renombrar");
+        setConsignors((prev) =>
+          prev
+            .map((c) => (c.id === consignorId ? { ...c, name } : c))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setEditingId(null);
+        toast.success("Renombrado");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Error al renombrar");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [editingName]
+  );
+
+  const handleDelete = useCallback(async (consignorId: number, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Eliminar a "${name}"? Sus cartas quedarán sin asignar (vuelven a ser tuyas).`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/consignors/${consignorId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar");
+      setConsignors((prev) => prev.filter((c) => c.id !== consignorId));
+      toast.success("Consignatario eliminado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al eliminar");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   return (
     <Popover
       open={isOpen}
@@ -148,20 +196,60 @@ const ConsignorPicker: React.FC<ConsignorPickerProps> = ({
               Aún no tienes consignatarios — crea uno abajo.
             </p>
           ) : (
-            consignors.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => !busy && assign(c.id, c)}
-                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: c.color || "#94a3b8" }}
-                />
-                <span className="truncate">{c.name}</span>
-              </div>
-            ))
-          )}
+            consignors.map((c) =>
+              editingId === c.id ? (
+                <div key={c.id} className="flex items-center gap-1 px-2 py-1.5">
+                  <Input
+                    autoFocus
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(c.id, e);
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    className="h-7 text-xs"
+                  />
+                  <button
+                    onClick={(e) => handleRename(c.id, e)}
+                    disabled={busy}
+                    className="shrink-0 text-xs font-semibold text-emerald-600 px-1"
+                  >
+                    OK
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={c.id}
+                  onClick={() => !busy && assign(c.id, c)}
+                  className="group flex items-center gap-2 px-2 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: c.color || "#94a3b8" }}
+                  />
+                  <span className="truncate flex-1">{c.name}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(c.id);
+                      setEditingName(c.name);
+                    }}
+                    className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700"
+                    title="Renombrar"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(c.id, c.name, e)}
+                    className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-slate-400 hover:text-red-600"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              )
+            ))}
         </div>
 
         <div className="border-t border-slate-100 my-1" />

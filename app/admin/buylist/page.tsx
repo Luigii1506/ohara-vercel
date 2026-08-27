@@ -1,14 +1,17 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Oswald } from "next/font/google";
 import {
+  BarChart3,
+  ClipboardList,
   Loader2,
   Minus,
   Package,
   Plus,
   RefreshCw,
+  Receipt,
   ShoppingBag,
   Trash2,
   X,
@@ -179,6 +182,30 @@ const formatCurrency = (value: number, currency: string) =>
     currency,
     maximumFractionDigits: 2,
   }).format(value || 0);
+
+const formatDateTime = (value?: string) => {
+  if (!value) return "Sin fecha";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-MX", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const SOURCE_TYPE_LABELS: Record<BuylistSession["sourceType"], string> = {
+  SINGLES: "Singles",
+  BINDER: "Binder",
+  MIXED: "Mixto",
+};
+
+const STATUS_STYLES: Record<BuylistSession["status"], string> = {
+  DRAFT: "border-amber-200 bg-amber-50 text-amber-800",
+  COMPLETED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  CANCELLED: "border-rose-200 bg-rose-50 text-rose-800",
+};
 
 const toCardSearchItem = (card: CardWithCollectionData): CardSearchItem => ({
   id: Number(card.id),
@@ -475,199 +502,355 @@ export default function AdminBuylistPage() {
   };
 
   return (
-    <div className="w-full px-6 py-6 2xl:px-10">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold">Buylist</h1>
-          <p className="text-muted-foreground">
-            Captura compras r&aacute;pidas, guarda snapshots de precio y lleva
-            historial operativo de colecciones y singles.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void loadSessions()}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${sessionsLoading ? "animate-spin" : ""}`} />
-            Refrescar
-          </Button>
-          <Button onClick={() => void createSession()} disabled={saving}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nueva compra
-          </Button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#f5eddc] px-4 py-5 sm:px-6 2xl:px-10">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6">
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.18),_transparent_35%),linear-gradient(135deg,#fffdf8_0%,#f8f1e4_100%)] px-6 py-6 sm:px-8">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                    Admin Buylist
+                  </p>
+                  <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                    Mesa de compra
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
+                    Diseñada para capturar singles, binders y lotes rápido, con
+                    snapshots de precio, porcentajes de referencia y seguimiento
+                    operativo de cada compra.
+                  </p>
+                </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)]">
-        <Card className="border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ShoppingBag className="h-5 w-5" />
-              Sesiones
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sessionsLoading ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                Cargando sesiones...
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => void loadSessions()}>
+                    <RefreshCw className={`mr-2 h-4 w-4 ${sessionsLoading ? "animate-spin" : ""}`} />
+                    Refrescar
+                  </Button>
+                  <Button
+                    onClick={() => void createSession()}
+                    disabled={saving}
+                    className="bg-slate-950 text-white hover:bg-slate-800"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva compra
+                  </Button>
+                </div>
               </div>
-            ) : sessions.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                No hay compras guardadas todav&iacute;a.
-              </div>
-            ) : (
-              sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => setSelectedSessionId(session.id)}
-                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                    selectedSessionId === session.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <p className="truncate font-medium">{session.title}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {session.customerName || "Sin cliente"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {session.totalQuantity} carta(s)
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="flex-shrink-0">
-                      {session.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground">
-                    <span>{session.sourceType}</span>
-                    <span className="font-medium text-foreground">
-                      {formatCurrency(toNumber(session.totalPaid), session.currency)}
-                    </span>
-                  </div>
-                </button>
-              ))
-            )}
-          </CardContent>
-        </Card>
+            </div>
 
-        <div className="space-y-6">
-          {!selectedSession ? (
-            <Card>
-              <CardContent className="py-16 text-center text-muted-foreground">
-                Selecciona una sesi&oacute;n o crea una nueva compra.
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-8">
-                <SummaryCard
-                  label="Total pagado"
+            <div className="border-t border-slate-200 bg-slate-950 px-6 py-6 text-white xl:border-l xl:border-t-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/60">
+                Vista rápida
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <HeroStat
+                  icon={<ShoppingBag className="h-4 w-4" />}
+                  label="Sesiones"
+                  value={String(sessions.length)}
+                />
+                <HeroStat
+                  icon={<ClipboardList className="h-4 w-4" />}
+                  label="Items draft"
+                  value={String(summary.totalItems)}
+                />
+                <HeroStat
+                  icon={<Package className="h-4 w-4" />}
+                  label="Cantidad"
+                  value={String(summary.totalQuantity)}
+                />
+                <HeroStat
+                  icon={<Receipt className="h-4 w-4" />}
+                  label="Pagado"
                   value={formatCurrency(summary.totalPaid, draftCurrency)}
                 />
-                <SummaryCard
-                  label="Market total"
-                  value={formatCurrency(summary.totalMarket, draftCurrency)}
-                />
-                <SummaryCard
-                  label="Median total"
-                  value={formatCurrency(summary.totalMedian, draftCurrency)}
-                />
-                <SummaryCard
-                  label="Cantidad"
-                  value={`${summary.totalQuantity} carta(s)`}
-                />
-                <SummaryCard
-                  label="Market 70%"
-                  value={formatCurrency(summary.totalMarket70, draftCurrency)}
-                />
-                <SummaryCard
-                  label="Market 80%"
-                  value={formatCurrency(summary.totalMarket80, draftCurrency)}
-                />
-                <SummaryCard
-                  label="Median 70%"
-                  value={formatCurrency(summary.totalMedian70, draftCurrency)}
-                />
-                <SummaryCard
-                  label="Median 80%"
-                  value={formatCurrency(summary.totalMedian80, draftCurrency)}
-                />
               </div>
+            </div>
+          </div>
+        </section>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Detalle de la compra</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <Input
-                    value={draftTitle}
-                    onChange={(event) => setDraftTitle(event.target.value)}
-                    placeholder="Nombre de la compra"
-                  />
-                  <Input
-                    value={draftCustomerName}
-                    onChange={(event) => setDraftCustomerName(event.target.value)}
-                    placeholder="Cliente / vendedor"
-                  />
-                  <Select
-                    value={draftSourceType}
-                    onValueChange={(value: BuylistSession["sourceType"]) =>
-                      setDraftSourceType(value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Tipo de entrada" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SINGLES">Singles</SelectItem>
-                      <SelectItem value="BINDER">Binder</SelectItem>
-                      <SelectItem value="MIXED">Mixto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={draftStatus}
-                    onValueChange={(value: BuylistSession["status"]) =>
-                      setDraftStatus(value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DRAFT">Draft</SelectItem>
-                      <SelectItem value="COMPLETED">Completed</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="md:col-span-2">
-                    <Textarea
-                      value={draftNotes}
-                      onChange={(event) => setDraftNotes(event.target.value)}
-                      placeholder="Notas internas de la compra, trato, condición general, etc."
-                    />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm">
+              <CardHeader className="border-b border-slate-100 bg-slate-50">
+                <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+                  <ShoppingBag className="h-5 w-5" />
+                  Sesiones de compra
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 p-4">
+                {sessionsLoading ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500">
+                    Cargando sesiones...
                   </div>
-                  <div className="md:col-span-2 flex justify-end">
-                    <Button onClick={() => void saveSession()} disabled={saving}>
-                      {saving ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Guardar buylist
-                    </Button>
+                ) : sessions.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                    No hay compras guardadas todavía.
                   </div>
+                ) : (
+                  sessions.map((session) => {
+                    const active = selectedSessionId === session.id;
+                    return (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className={cn(
+                          "w-full rounded-2xl border p-4 text-left transition-all",
+                          active
+                            ? "border-slate-900 bg-slate-900 text-white shadow-lg"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {session.title}
+                            </p>
+                            <p
+                              className={cn(
+                                "mt-1 truncate text-xs",
+                                active ? "text-white/65" : "text-slate-500"
+                              )}
+                            >
+                              {session.customerName || "Sin cliente"}
+                            </p>
+                          </div>
+                          <Badge
+                            className={cn(
+                              "border",
+                              active
+                                ? "border-white/20 bg-white/10 text-white"
+                                : STATUS_STYLES[session.status]
+                            )}
+                          >
+                            {session.status}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <p className={cn(active ? "text-white/50" : "text-slate-500")}>
+                              Tipo
+                            </p>
+                            <p className="mt-1 font-medium">
+                              {SOURCE_TYPE_LABELS[session.sourceType]}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={cn(active ? "text-white/50" : "text-slate-500")}>
+                              Cantidad
+                            </p>
+                            <p className="mt-1 font-medium">{session.totalQuantity}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className={cn(active ? "text-white/50" : "text-slate-500")}>
+                              Total pagado
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">
+                              {formatCurrency(toNumber(session.totalPaid), session.currency)}
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className={cn(active ? "text-white/50" : "text-slate-500")}>
+                              Actualizada
+                            </p>
+                            <p className="mt-1 font-medium">
+                              {formatDateTime(session.updatedAt || session.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </aside>
+
+          <main className="space-y-6">
+            {!selectedSession ? (
+              <Card className="rounded-[28px] border-slate-200 shadow-sm">
+                <CardContent className="py-20 text-center text-slate-500">
+                  Selecciona una sesión o crea una nueva compra.
                 </CardContent>
               </Card>
+            ) : (
+              <>
+                <section className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                  <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm">
+                    <CardContent className="p-0">
+                      <div className="border-b border-slate-100 bg-slate-950 px-5 py-4 text-white sm:px-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/60">
+                              Resumen activo
+                            </p>
+                            <h2 className="mt-2 text-xl font-semibold">
+                              {draftTitle || "Buylist en edición"}
+                            </h2>
+                          </div>
+                          <Badge
+                            className={cn("border", STATUS_STYLES[draftStatus])}
+                          >
+                            {draftStatus}
+                          </Badge>
+                        </div>
+                      </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-                  <CardTitle>Items de compra</CardTitle>
-                  <Button onClick={() => setShowAddCardsModal(true)} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Agregar cartas
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <Table>
+                      <div className="grid gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-4">
+                        <WorkspaceMetric
+                          icon={<Receipt className="h-4 w-4" />}
+                          label="Total pagado"
+                          value={formatCurrency(summary.totalPaid, draftCurrency)}
+                          tone="dark"
+                        />
+                        <WorkspaceMetric
+                          icon={<BarChart3 className="h-4 w-4" />}
+                          label="Market total"
+                          value={formatCurrency(summary.totalMarket, draftCurrency)}
+                          tone="emerald"
+                        />
+                        <WorkspaceMetric
+                          icon={<BarChart3 className="h-4 w-4" />}
+                          label="Median total"
+                          value={formatCurrency(summary.totalMedian, draftCurrency)}
+                          tone="amber"
+                        />
+                        <WorkspaceMetric
+                          icon={<Package className="h-4 w-4" />}
+                          label="Cantidad"
+                          value={`${summary.totalQuantity} cartas`}
+                          tone="slate"
+                        />
+                      </div>
+
+                      <div className="border-t border-slate-100 px-4 py-4 sm:px-6">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <MiniStat
+                            label="Market 70%"
+                            value={formatCurrency(summary.totalMarket70, draftCurrency)}
+                          />
+                          <MiniStat
+                            label="Market 80%"
+                            value={formatCurrency(summary.totalMarket80, draftCurrency)}
+                          />
+                          <MiniStat
+                            label="Median 70%"
+                            value={formatCurrency(summary.totalMedian70, draftCurrency)}
+                          />
+                          <MiniStat
+                            label="Median 80%"
+                            value={formatCurrency(summary.totalMedian80, draftCurrency)}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-[28px] border-slate-200 shadow-sm">
+                    <CardHeader className="border-b border-slate-100">
+                      <CardTitle className="text-lg text-slate-900">
+                        Datos de la compra
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-2">
+                      <DetailField label="Nombre interno">
+                        <Input
+                          value={draftTitle}
+                          onChange={(event) => setDraftTitle(event.target.value)}
+                          placeholder="Nombre de la compra"
+                        />
+                      </DetailField>
+                      <DetailField label="Cliente o vendedor">
+                        <Input
+                          value={draftCustomerName}
+                          onChange={(event) => setDraftCustomerName(event.target.value)}
+                          placeholder="Cliente / vendedor"
+                        />
+                      </DetailField>
+                      <DetailField label="Tipo de entrada">
+                        <Select
+                          value={draftSourceType}
+                          onValueChange={(value: BuylistSession["sourceType"]) =>
+                            setDraftSourceType(value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Tipo de entrada" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SINGLES">Singles</SelectItem>
+                            <SelectItem value="BINDER">Binder</SelectItem>
+                            <SelectItem value="MIXED">Mixto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </DetailField>
+                      <DetailField label="Estado">
+                        <Select
+                          value={draftStatus}
+                          onValueChange={(value: BuylistSession["status"]) =>
+                            setDraftStatus(value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Estado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DRAFT">Draft</SelectItem>
+                            <SelectItem value="COMPLETED">Completed</SelectItem>
+                            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </DetailField>
+                      <div className="md:col-span-2">
+                        <DetailField label="Notas internas">
+                          <Textarea
+                            value={draftNotes}
+                            onChange={(event) => setDraftNotes(event.target.value)}
+                            placeholder="Notas internas de la compra, trato, condición general, etc."
+                            className="min-h-[120px]"
+                          />
+                        </DetailField>
+                      </div>
+                      <div className="md:col-span-2 flex justify-end">
+                        <Button
+                          onClick={() => void saveSession()}
+                          disabled={saving}
+                          className="bg-slate-950 text-white hover:bg-slate-800"
+                        >
+                          {saving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Guardar buylist
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+
+                <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm">
+                  <CardHeader className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="text-lg text-slate-900">
+                        Mesa de captura
+                      </CardTitle>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Ajusta cantidad, condición y precio pagado sin perder de
+                        vista market y median.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => setShowAddCardsModal(true)}
+                      className="gap-2 bg-slate-950 text-white hover:bg-slate-800"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Agregar cartas o productos
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Carta</TableHead>
@@ -683,7 +866,7 @@ export default function AdminBuylistPage() {
                     <TableBody>
                       {draftItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-10 text-center">
+                          <TableCell colSpan={8} className="py-16 text-center text-slate-500">
                             Agrega cartas desde la búsqueda para empezar.
                           </TableCell>
                         </TableRow>
@@ -691,13 +874,13 @@ export default function AdminBuylistPage() {
                         draftItems.map((item) => {
                           const display = getItemDisplay(item);
                           return (
-                          <TableRow key={item.localId}>
+                          <TableRow key={item.localId} className="align-top">
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <img
                                   src={display.src}
                                   alt={display.name}
-                                  className="h-16 w-12 rounded border object-cover"
+                                  className="h-16 w-12 rounded-xl border object-cover"
                                 />
                                 <div className="flex min-w-0 flex-col gap-0.5">
                                   <p className="truncate font-medium">
@@ -804,14 +987,16 @@ export default function AdminBuylistPage() {
                         })
                       )}
                     </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </>
-          )}
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </main>
         </div>
       </div>
-
+      
       <AddCardsModal
         open={showAddCardsModal}
         onClose={() => setShowAddCardsModal(false)}
@@ -822,16 +1007,86 @@ export default function AdminBuylistPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function HeroStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center gap-2 text-white/60">
+        {icon}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em]">
           {label}
         </p>
-        <p className="mt-2 text-lg font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="mt-3 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function WorkspaceMetric({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  tone: "dark" | "emerald" | "amber" | "slate";
+}) {
+  const toneClass =
+    tone === "dark"
+      ? "border-slate-950 bg-slate-950 text-white"
+      : tone === "emerald"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+        : tone === "amber"
+          ? "border-amber-200 bg-amber-50 text-amber-950"
+          : "border-slate-200 bg-slate-50 text-slate-950";
+
+  const labelClass = tone === "dark" ? "text-white/65" : "text-slate-500";
+
+  return (
+    <div className={cn("rounded-2xl border p-4", toneClass)}>
+      <div className={cn("flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]", labelClass)}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className="mt-3 text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </p>
+      {children}
+    </div>
   );
 }
 

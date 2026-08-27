@@ -542,7 +542,6 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
 
           // Card info
           const infoX = margin + cardImageWidth + 15;
-          const infoWidth = contentWidth - cardImageWidth - 20;
 
           pdf.setTextColor(30, 41, 59);
           pdf.setFontSize(11);
@@ -557,13 +556,28 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           pdf.setFont("helvetica", "normal");
           pdf.setTextColor(71, 85, 105);
           pdf.text(`Code: ${card.cardCode}`, infoX, y + 17);
-          pdf.text(`Quantity: ${card.quantity}`, infoX + 50, y + 17);
 
-          // Reference prices (los otros 2 insumos de la mezcla + el listed median crudo)
+          // Precios de referencia crudos (los insumos de las 3 métricas + High Sale)
+          const highSalePrice =
+            card.lastSales && card.lastSales.length > 0
+              ? Math.max(...card.lastSales.map((s) => s.purchasePrice))
+              : null;
+
           pdf.setFontSize(7);
+          pdf.setFont("helvetica", "normal");
           pdf.setTextColor(100, 116, 139);
           pdf.text(
-            `Low Listed: ${formatCurrency(card.lowPrice)}   Last Sale: ${
+            `Low Listed: ${formatCurrency(card.lowPrice)}   High Sale: ${formatCurrency(highSalePrice)}`,
+            infoX,
+            y + 23
+          );
+          pdf.text(
+            `Listed Median: ${formatCurrency(card.midPrice)}   Market Price: ${formatCurrency(card.marketPrice)}`,
+            infoX,
+            y + 28
+          );
+          pdf.text(
+            `Last Sale: ${
               card.lastSales?.[0]
                 ? `${formatCurrency(card.lastSales[0].purchasePrice)} (${formatDate(
                     card.lastSales[0].orderDate
@@ -571,20 +585,21 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
                 : "N/A"
             }`,
             infoX,
-            y + 23
+            y + 33
           );
 
           // Sales history
           if (card.lastSales && card.lastSales.length > 0) {
             pdf.setFontSize(8);
             pdf.setTextColor(100, 116, 139);
-            pdf.text("Recent Sales:", infoX, y + 30);
+            pdf.text("Recent Sales:", infoX, y + 40);
 
-            let salesY = y + 36;
-            card.lastSales.slice(0, 2).forEach((sale, idx) => {
+            let salesY = y + 45;
+            card.lastSales.slice(0, 3).forEach((sale, idx) => {
               const saleDate = formatDate(sale.orderDate);
               const condition = sale.condition || "NM";
               const price = formatCurrency(sale.purchasePrice);
+              pdf.setFontSize(7);
               pdf.text(
                 `${idx + 1}. ${saleDate} - ${condition} - ${price}`,
                 infoX,
@@ -595,23 +610,28 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           } else if (card.error) {
             pdf.setTextColor(239, 68, 68); // red-500
             pdf.setFontSize(8);
-            pdf.text(`Error: ${card.error}`, infoX, y + 30);
+            pdf.text(`Error: ${card.error}`, infoX, y + 40);
           } else {
             pdf.setTextColor(148, 163, 184);
             pdf.setFontSize(8);
-            pdf.text("No sales data available", infoX, y + 30);
+            pdf.text("No sales data available", infoX, y + 40);
           }
 
-          // 3 métricas de referencia + subtotal de cada una
+          // Cantidad × valor = subtotal, para cada una de las 3 métricas —
+          // en una sola línea por métrica para que la cuenta se entienda de
+          // un vistazo, en vez de columnas sueltas de "Value"/"Subtotal".
           const boxX = pageWidth - margin - 58;
           pdf.setFillColor(241, 245, 249);
           pdf.roundedRect(boxX - 3, y + 3, 61, 54, 2, 2, "F");
 
-          pdf.setTextColor(100, 116, 139);
-          pdf.setFontSize(7);
+          pdf.setTextColor(30, 41, 59);
+          pdf.setFontSize(9);
           pdf.setFont("helvetica", "bold");
-          pdf.text("Value", boxX + 20, y + 10);
-          pdf.text("Subtotal", boxX + 38, y + 10);
+          pdf.text(`Qty: ${card.quantity}`, boxX, y + 11);
+
+          pdf.setDrawColor(203, 213, 225); // slate-300
+          pdf.setLineWidth(0.3);
+          pdf.line(boxX - 1, y + 14, boxX + 55, y + 14);
 
           const metricRows: Array<{
             label: string;
@@ -624,19 +644,18 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           ];
 
           metricRows.forEach((row, idx) => {
-            const rowY = y + 20 + idx * 13;
+            const rowY = y + 22 + idx * 11;
             pdf.setFont("helvetica", "normal");
             pdf.setFontSize(7);
             pdf.setTextColor(71, 85, 105);
-            pdf.text(row.label, boxX, rowY);
+            const prefix = `${row.label}: ${formatCurrency(row.value)} × ${card.quantity} = `;
+            pdf.text(prefix, boxX, rowY);
+            const prefixWidth = pdf.getTextWidth(prefix);
 
             pdf.setFont("helvetica", "bold");
             pdf.setFontSize(8);
-            pdf.setTextColor(30, 41, 59);
-            pdf.text(formatCurrency(row.value), boxX + 18, rowY);
-
             pdf.setTextColor(22, 163, 74); // green-600
-            pdf.text(formatCurrency(row.subtotal), boxX + 38, rowY);
+            pdf.text(formatCurrency(row.subtotal), boxX + prefixWidth, rowY);
           });
 
           y += 65;

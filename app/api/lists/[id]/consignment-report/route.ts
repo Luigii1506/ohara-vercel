@@ -49,21 +49,19 @@ export async function GET(
       );
     }
 
-    const [cards, consignors] = await Promise.all([
-      prisma.userListCard.findMany({
-        where: { listId },
-        include: {
-          card: {
-            select: { id: true, name: true, code: true, marketPrice: true, midPrice: true },
-          },
-          consignor: { select: { id: true, name: true, color: true } },
+    // Solo traemos las cartas de la lista — los grupos del reporte se
+    // arman a partir de quién realmente tiene algo asignado aquí, no de
+    // todos los consignatarios que existan en la cuenta (uno sin ninguna
+    // carta en esta carpeta simplemente no debe aparecer).
+    const cards = await prisma.userListCard.findMany({
+      where: { listId },
+      include: {
+        card: {
+          select: { id: true, name: true, code: true, marketPrice: true, midPrice: true },
         },
-      }),
-      prisma.consignor.findMany({
-        where: { userId: user.id },
-        select: { id: true, name: true, color: true },
-      }),
-    ]);
+        consignor: { select: { id: true, name: true, color: true } },
+      },
+    });
 
     type Group = {
       consignorId: number | null;
@@ -132,25 +130,6 @@ export async function GET(
       }
     }
 
-    // Incluir consignatarios sin ninguna carta todavía (para que aparezcan
-    // en 0, en vez de estar "invisibles" hasta que se les asigne algo).
-    for (const consignor of consignors) {
-      if (!groups.has(consignor.id)) {
-        groups.set(consignor.id, {
-          consignorId: consignor.id,
-          name: consignor.name,
-          color: consignor.color,
-          totalCards: 0,
-          totalQuantity: 0,
-          soldCards: 0,
-          soldQuantity: 0,
-          soldValue: 0,
-          availableCards: 0,
-          availableQuantity: 0,
-          availableValue: 0,
-        });
-      }
-    }
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const groupList = Array.from(groups.values())

@@ -394,66 +394,93 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       };
 
+      // Misma rejilla vertical para TODAS las cajas (consignatarios + total
+      // de la carpeta) — mismo alto, mismo espaciado entre líneas, mismos
+      // márgenes arriba/abajo, para que se vean uniformes entre sí.
+      const SUMMARY_BOX_HEIGHT = 46;
+      const SUMMARY_LINE_NAME = 12; // nombre / "Total de la carpeta"
+      const SUMMARY_LINE_VALUE = 23; // monto grande
+      const SUMMARY_LINE_STAT1 = 31; // cartas/unid.
+      const SUMMARY_LINE_STAT2 = 37; // vendido
+      const SUMMARY_LINE_STAT3 = 43; // disponible
+
       y += 10;
       data.groups.forEach((g) => {
-        const cardHeight = 38;
-        ensureSpace(cardHeight + 4);
+        ensureSpace(SUMMARY_BOX_HEIGHT + 4);
 
         pdf.setFillColor(248, 250, 252);
         pdf.setDrawColor(226, 232, 240);
         pdf.setLineWidth(0.4);
-        pdf.roundedRect(margin, y, contentWidth, cardHeight, 3, 3, "FD");
+        pdf.roundedRect(margin, y, contentWidth, SUMMARY_BOX_HEIGHT, 3, 3, "FD");
 
         const dotColor = g.consignorId === null ? [15, 23, 42] : hexToRgb(g.color);
         pdf.setFillColor(dotColor[0], dotColor[1], dotColor[2]);
-        pdf.circle(margin + 7, y + 9, 1.8, "F");
+        pdf.circle(margin + 7, y + SUMMARY_LINE_NAME - 1.3, 1.8, "F");
 
         pdf.setTextColor(30, 41, 59);
         pdf.setFontSize(10.5);
         pdf.setFont("helvetica", "bold");
         const name = g.name.length > 45 ? g.name.slice(0, 45) + "…" : g.name;
-        pdf.text(name, margin + 12, y + 10.5);
+        pdf.text(name, margin + 12, y + SUMMARY_LINE_NAME);
 
         pdf.setFontSize(15);
-        pdf.text(formatCurrency(g.totalValue), margin + 12, y + 20);
+        pdf.text(formatCurrency(g.totalValue), margin + 12, y + SUMMARY_LINE_VALUE);
 
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8.5);
         pdf.setTextColor(100, 116, 139);
-        pdf.text(`${g.totalCards} carta(s)  ·  ${g.totalQuantity} unid.`, margin + 12, y + 27);
+        pdf.text(
+          `${g.totalCards} carta(s)  ·  ${g.totalQuantity} unid.`,
+          margin + 12,
+          y + SUMMARY_LINE_STAT1
+        );
         pdf.setTextColor(5, 150, 105);
-        pdf.text(`Vendido: ${formatCurrency(g.soldValue)}`, margin + 12, y + 32.5);
+        pdf.text(`Vendido: ${formatCurrency(g.soldValue)}`, margin + 12, y + SUMMARY_LINE_STAT2);
         pdf.setTextColor(217, 119, 6);
-        pdf.text(`Disponible: ${formatCurrency(g.availableValue)}`, margin + 12, y + 37.5);
+        pdf.text(
+          `Disponible: ${formatCurrency(g.availableValue)}`,
+          margin + 12,
+          y + SUMMARY_LINE_STAT3
+        );
 
-        y += cardHeight + 4;
+        y += SUMMARY_BOX_HEIGHT + 4;
       });
 
-      const totalsBoxHeight = 52;
-      ensureSpace(totalsBoxHeight + 4);
+      ensureSpace(SUMMARY_BOX_HEIGHT + 4);
       pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(margin, y, contentWidth, totalsBoxHeight, 3, 3, "F");
+      pdf.roundedRect(margin, y, contentWidth, SUMMARY_BOX_HEIGHT, 3, 3, "F");
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Total de la carpeta", margin + 8, y + 11);
-      pdf.setFontSize(18);
+      pdf.setFontSize(10.5);
       pdf.setFont("helvetica", "bold");
-      pdf.text(formatCurrency(data.grandTotal.totalValue), margin + 8, y + 24);
+      pdf.text("Total de la carpeta", margin + 12, y + SUMMARY_LINE_NAME);
+      pdf.setFontSize(15);
+      pdf.text(
+        formatCurrency(data.grandTotal.totalValue),
+        margin + 12,
+        y + SUMMARY_LINE_VALUE
+      );
 
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
+      pdf.setFontSize(8.5);
       pdf.setTextColor(203, 213, 225);
       pdf.text(
         `${data.grandTotal.totalCards} carta(s)  ·  ${data.grandTotal.totalQuantity} unid.`,
-        margin + 8,
-        y + 32
+        margin + 12,
+        y + SUMMARY_LINE_STAT1
       );
       pdf.setTextColor(110, 231, 183);
-      pdf.text(`Vendido: ${formatCurrency(data.grandTotal.soldValue)}`, margin + 8, y + 39);
+      pdf.text(
+        `Vendido: ${formatCurrency(data.grandTotal.soldValue)}`,
+        margin + 12,
+        y + SUMMARY_LINE_STAT2
+      );
       pdf.setTextColor(252, 211, 77);
-      pdf.text(`Disponible: ${formatCurrency(data.grandTotal.availableValue)}`, margin + 8, y + 46);
-      y += totalsBoxHeight;
+      pdf.text(
+        `Disponible: ${formatCurrency(data.grandTotal.availableValue)}`,
+        margin + 12,
+        y + SUMMARY_LINE_STAT3
+      );
+      y += SUMMARY_BOX_HEIGHT;
 
       pdf.setTextColor(148, 163, 184);
       pdf.setFontSize(7.5);

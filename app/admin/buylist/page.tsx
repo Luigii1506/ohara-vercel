@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Oswald } from "next/font/google";
+import { toast } from "react-toastify";
 import {
   BarChart3,
   ClipboardList,
@@ -336,6 +337,12 @@ export default function AdminBuylistPage() {
   const [draftStatus, setDraftStatus] =
     useState<BuylistSession["status"]>("DRAFT");
   const [draftItems, setDraftItems] = useState<BuylistItemDraft[]>([]);
+  // true mientras el draft* viene de re-hidratar `selectedSession` (carga
+  // inicial, cambio de sesión, o el eco que regresa el propio autoguardado)
+  // — evita que ese re-render dispare otro autoguardado en cadena.
+  const isHydratingRef = useRef(true);
+  const saveInFlightRef = useRef(false);
+  const saveQueuedRef = useRef(false);
 
   useEffect(() => {
     if (!loading && role !== "ADMIN") {
@@ -373,8 +380,11 @@ export default function AdminBuylistPage() {
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId]
   );
+  const hasCurrentEmptyDraft =
+    selectedSession?.status === "DRAFT" && draftItems.length === 0;
 
   useEffect(() => {
+    isHydratingRef.current = true;
     setDraftTitle(selectedSession?.title ?? "");
     setDraftCustomerName(selectedSession?.customerName ?? "");
     setDraftNotes(selectedSession?.notes ?? "");
@@ -383,6 +393,34 @@ export default function AdminBuylistPage() {
     setDraftStatus(selectedSession?.status ?? "DRAFT");
     setDraftItems(hydrateDraftItems(selectedSession));
   }, [selectedSession]);
+
+  // Autoguardado: cualquier cambio real del usuario en el draft (agregar
+  // cartas, cambiar cantidad/condición/precio/notas, título, cliente, tipo
+  // de entrada, estado) programa un guardado con un pequeño debounce, para
+  // no mandar una petición por cada tecla. No hay botón "Guardar" — todo
+  // movimiento se persiste solo.
+  useEffect(() => {
+    if (isHydratingRef.current) {
+      isHydratingRef.current = false;
+      return;
+    }
+    if (!selectedSessionId) return;
+
+    const timer = setTimeout(() => {
+      void saveSession();
+    }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedSessionId,
+    draftTitle,
+    draftCustomerName,
+    draftNotes,
+    draftCurrency,
+    draftSourceType,
+    draftStatus,
+    draftItems,
+  ]);
 
   const summary = useMemo(() => {
     return draftItems.reduce(
@@ -436,6 +474,7 @@ export default function AdminBuylistPage() {
   };
 
   const createSession = async () => {
+    if (hasCurrentEmptyDraft && selectedSessionId) return;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/buylist", {
@@ -460,6 +499,13 @@ export default function AdminBuylistPage() {
 
   const saveSession = async () => {
     if (!selectedSessionId) return;
+    // Si ya hay un guardado en curso, no mandamos dos PATCH en paralelo
+    // (podrían pisarse) — solo marcamos que hace falta otro al terminar.
+    if (saveInFlightRef.current) {
+      saveQueuedRef.current = true;
+      return;
+    }
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
       const response = await fetch(`/api/admin/buylist/${selectedSessionId}`, {
@@ -499,8 +545,14 @@ export default function AdminBuylistPage() {
       setSelectedSessionId(data.session.id);
     } catch (error) {
       console.error(error);
+      toast.error("No se pudo guardar automáticamente — revisa tu conexión");
     } finally {
       setSaving(false);
+      saveInFlightRef.current = false;
+      if (saveQueuedRef.current) {
+        saveQueuedRef.current = false;
+        void saveSession();
+      }
     }
   };
 
@@ -551,7 +603,7 @@ export default function AdminBuylistPage() {
                   </Button>
                   <Button
                     onClick={() => void createSession()}
-                    disabled={saving}
+                    disabled={saving || hasCurrentEmptyDraft}
                     className="bg-slate-950 text-white hover:bg-slate-800"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -858,17 +910,15 @@ export default function AdminBuylistPage() {
                           />
                         </DetailField>
                       </div>
-                      <div className="md:col-span-2 flex justify-end">
-                        <Button
-                          onClick={() => void saveSession()}
-                          disabled={saving}
-                          className="bg-slate-950 text-white hover:bg-slate-800"
-                        >
-                          {saving ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : null}
-                          Guardar buylist
-                        </Button>
+                      <div className="md:col-span-2 flex items-center justify-end gap-2 text-sm text-slate-500">
+                        {saving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Guardando…
+                          </>
+                        ) : (
+                          "Los cambios se guardan solos"
+                        )}
                       </div>
                     </CardContent>
                   </Card>

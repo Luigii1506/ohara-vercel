@@ -100,6 +100,24 @@ export async function POST(request: NextRequest) {
         ? body.currency.trim().toUpperCase()
         : "USD";
 
+    const existingEmptyDraft = await db.buylistSession.findFirst({
+      where: {
+        userId: user.id,
+        status: "DRAFT",
+        totalItems: 0,
+        totalQuantity: 0,
+      },
+      include: { items: true },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    });
+
+    if (existingEmptyDraft) {
+      return NextResponse.json(
+        { session: existingEmptyDraft, reusedExistingDraft: true },
+        { status: 200 }
+      );
+    }
+
     const session = await db.buylistSession.create({
       data: {
         userId: user.id,

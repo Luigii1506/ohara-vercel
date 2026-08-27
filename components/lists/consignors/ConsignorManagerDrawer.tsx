@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Users, Pencil, Trash2, Check, UserX } from "lucide-react";
+import { Loader2, Users, Pencil, Trash2, UserX, Check } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { CONSIGNOR_COLOR_PALETTE } from "@/lib/consignors/colorPalette";
 
@@ -35,12 +35,55 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+// Popover de color: paleta grande y espaciada (no la anterior grilla de 6
+// columnas apretujada) montada en un Portal, así nunca queda recortada por
+// el scroll del drawer.
+const ColorPickerPopover = ({
+  color,
+  onPick,
+  disabled,
+}: {
+  color: string | null;
+  onPick: (color: string) => void;
+  disabled?: boolean;
+}) => (
+  <Popover>
+    <PopoverTrigger asChild disabled={disabled}>
+      <button
+        type="button"
+        className="h-8 w-8 shrink-0 rounded-full border-2 border-white shadow ring-1 ring-slate-200 transition-transform hover:scale-105 disabled:opacity-40"
+        style={{ backgroundColor: color || "#94a3b8" }}
+        title="Cambiar color"
+      />
+    </PopoverTrigger>
+    <PopoverContent align="start" className="w-56 p-3">
+      <p className="mb-2 text-xs font-semibold text-slate-500">Elegir color</p>
+      <div className="grid grid-cols-4 gap-3">
+        {CONSIGNOR_COLOR_PALETTE.map((paletteColor) => (
+          <button
+            key={paletteColor}
+            type="button"
+            onClick={() => onPick(paletteColor)}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110"
+            style={{ backgroundColor: paletteColor }}
+            title={paletteColor}
+          >
+            {color === paletteColor && <Check className="h-4 w-4 text-white drop-shadow" />}
+          </button>
+        ))}
+      </div>
+    </PopoverContent>
+  </Popover>
+);
+
 // Panel de gestión de consignatarios: a diferencia del reporte (que es solo
 // preview + descarga) y del picker de asignación (que solo resuelve "a
 // quién le asigno estas N cartas seleccionadas"), este es el lugar para ver
-// de un vistazo a TODOS tus consignatarios — su color, cuánto tienen en
-// esta carpeta — y gestionarlos: cambiar color, renombrar, desligarlos de
-// esta carpeta de golpe, o eliminarlos por completo.
+// de un vistazo a los consignatarios QUE YA TIENEN algo en esta carpeta —
+// su color, cuánto tienen — y gestionarlos: cambiar color, renombrar,
+// desligarlos de esta carpeta de golpe, o eliminarlos por completo. Si
+// alguien no tiene ninguna carta asignada aquí, simplemente no aparece
+// (misma regla que el reporte de consignación).
 const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
   isOpen,
   onClose,
@@ -50,52 +93,27 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [consignors, setConsignors] = useState<ManagedConsignor[]>([]);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
-  const [colorPickerId, setColorPickerId] = useState<number | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [consignorsRes, reportRes] = await Promise.all([
-        fetch("/api/consignors"),
-        fetch(`/api/lists/${listId}/consignment-report`),
-      ]);
-      if (!consignorsRes.ok) throw new Error();
-      const consignorsData = await consignorsRes.json();
-      const reportData = reportRes.ok ? await reportRes.json() : null;
-
-      const statsByConsignorId = new Map<
-        number,
-        { totalCards: number; totalQuantity: number; totalValue: number }
-      >();
-      (reportData?.groups ?? []).forEach((g: any) => {
-        if (g.consignorId != null) {
-          statsByConsignorId.set(g.consignorId, {
-            totalCards: g.totalCards,
-            totalQuantity: g.totalQuantity,
-            totalValue: g.totalValue,
-          });
-        }
-      });
-
-      const merged: ManagedConsignor[] = (consignorsData.consignors ?? []).map(
-        (c: any) => {
-          const stats = statsByConsignorId.get(c.id);
-          return {
-            id: c.id,
-            name: c.name,
-            color: c.color,
-            totalCards: stats?.totalCards ?? 0,
-            totalQuantity: stats?.totalQuantity ?? 0,
-            totalValue: stats?.totalValue ?? 0,
-          };
-        }
-      );
-      setConsignors(merged);
+      const res = await fetch(`/api/lists/${listId}/consignment-report`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const managed: ManagedConsignor[] = (data.groups ?? [])
+        .filter((g: any) => g.consignorId != null)
+        .map((g: any) => ({
+          id: g.consignorId,
+          name: g.name,
+          color: g.color,
+          totalCards: g.totalCards,
+          totalQuantity: g.totalQuantity,
+          totalValue: g.totalValue,
+        }));
+      setConsignors(managed);
     } catch {
       toast.error("Error al cargar consignatarios");
     } finally {
@@ -106,40 +124,6 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
   useEffect(() => {
     if (isOpen) fetchAll();
   }, [isOpen, fetchAll]);
-
-  const handleCreate = useCallback(async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/consignors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "Error al crear consignatario");
-      setNewName("");
-      setConsignors((prev) =>
-        [
-          ...prev,
-          {
-            id: body.consignor.id,
-            name: body.consignor.name,
-            color: body.consignor.color,
-            totalCards: 0,
-            totalQuantity: 0,
-            totalValue: 0,
-          },
-        ].sort((a, b) => a.name.localeCompare(b.name))
-      );
-      toast.success("Consignatario creado");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al crear consignatario");
-    } finally {
-      setCreating(false);
-    }
-  }, [newName]);
 
   const handleRename = useCallback(
     async (id: number) => {
@@ -184,7 +168,6 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || "Error al cambiar el color");
         setConsignors((prev) => prev.map((c) => (c.id === id ? { ...c, color } : c)));
-        setColorPickerId(null);
         const name = consignors.find((c) => c.id === id)?.name ?? "";
         onConsignorUpdated?.({ id, name, color });
       } catch (error) {
@@ -211,11 +194,7 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || "Error al deslindar");
-        setConsignors((prev) =>
-          prev.map((c) =>
-            c.id === id ? { ...c, totalCards: 0, totalQuantity: 0, totalValue: 0 } : c
-          )
-        );
+        setConsignors((prev) => prev.filter((c) => c.id !== id));
         onConsignorClearedFromFolder?.(id);
         toast.success(`${body.updated ?? 0} carta(s) desligadas de ${name}`);
       } catch (error) {
@@ -266,50 +245,29 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-bold text-slate-900">Consignatarios</h3>
-            <p className="text-xs text-slate-500">
-              Colores, totales en esta carpeta y gestión
-            </p>
+            <p className="text-xs text-slate-500">Colores, totales y gestión en esta carpeta</p>
           </div>
         </div>
 
-        <div className="max-h-[65vh] space-y-2 overflow-y-auto px-4 py-4">
+        <div className="max-h-[70vh] space-y-2 overflow-y-auto px-4 py-4">
           {loading ? (
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
             </div>
           ) : consignors.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">
-              Aún no tienes consignatarios — crea uno abajo.
+              Nadie tiene cartas asignadas en esta carpeta todavía. Usa "Modo
+              asignar consignatario" para asignarles alguna.
             </p>
           ) : (
             consignors.map((c) => (
               <div key={c.id} className="rounded-xl border border-slate-200 p-3">
                 <div className="flex items-center gap-2">
-                  <div className="relative shrink-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setColorPickerId((prev) => (prev === c.id ? null : c.id))
-                      }
-                      className="h-6 w-6 rounded-full border-2 border-white shadow ring-1 ring-slate-200"
-                      style={{ backgroundColor: c.color || "#94a3b8" }}
-                      title="Cambiar color"
-                    />
-                    {colorPickerId === c.id && (
-                      <div className="absolute left-0 top-8 z-10 grid grid-cols-6 gap-1 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                        {CONSIGNOR_COLOR_PALETTE.map((color) => (
-                          <button
-                            key={color}
-                            type="button"
-                            onClick={() => handleColorChange(c.id, color)}
-                            className="h-5 w-5 rounded-full transition-transform hover:scale-110"
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <ColorPickerPopover
+                    color={c.color}
+                    disabled={busyId === c.id}
+                    onPick={(color) => handleColorChange(c.id, color)}
+                  />
 
                   {editingId === c.id ? (
                     <div className="flex flex-1 items-center gap-1">
@@ -360,54 +318,21 @@ const ConsignorManagerDrawer: React.FC<ConsignorManagerDrawerProps> = ({
                 </div>
 
                 <p className="mt-1.5 text-xs text-slate-500">
-                  {c.totalCards > 0
-                    ? `${c.totalCards} carta(s) · ${c.totalQuantity} unid. · ${formatCurrency(
-                        c.totalValue
-                      )} en esta carpeta`
-                    : "Sin cartas en esta carpeta"}
+                  {c.totalCards} carta(s) · {c.totalQuantity} unid. ·{" "}
+                  {formatCurrency(c.totalValue)} en esta carpeta
                 </p>
 
-                {c.totalCards > 0 && (
-                  <button
-                    onClick={() => handleRemoveFromFolder(c.id, c.name)}
-                    disabled={busyId === c.id}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40"
-                  >
-                    <UserX className="h-3.5 w-3.5" />
-                    {busyId === c.id
-                      ? "Quitando…"
-                      : `Quitar de esta carpeta (${c.totalCards})`}
-                  </button>
-                )}
+                <button
+                  onClick={() => handleRemoveFromFolder(c.id, c.name)}
+                  disabled={busyId === c.id}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40"
+                >
+                  <UserX className="h-3.5 w-3.5" />
+                  {busyId === c.id ? "Quitando…" : `Quitar de esta carpeta (${c.totalCards})`}
+                </button>
               </div>
             ))
           )}
-        </div>
-
-        <div className="flex gap-1.5 border-t border-slate-100 px-4 py-3">
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-            }}
-            placeholder="Nuevo consignatario…"
-            className="h-9 text-sm"
-            disabled={creating}
-          />
-          <Button
-            onClick={handleCreate}
-            disabled={creating || !newName.trim()}
-            size="sm"
-            className="shrink-0 gap-1.5"
-          >
-            {creating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Check className="h-3.5 w-3.5" />
-            )}
-            Crear
-          </Button>
         </div>
       </div>
     </BaseDrawer>

@@ -401,74 +401,82 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       );
       pdf.text(`Failed Lookups: ${data.failedLookups}`, margin + 10, statsY + 24);
 
-      // Value Box
-      y = 155;
-      pdf.setFillColor(22, 163, 74); // green-600
-      pdf.roundedRect(margin, y, contentWidth, 45, 3, 3, "F");
-
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Total Collection Value", margin + 10, y + 12);
-
-      pdf.setFontSize(28);
-      pdf.setFont("helvetica", "bold");
-      pdf.text(formatPdfCurrency(data.totalValue), margin + 10, y + 32);
-
-      // Negotiation Values
-      y = 210;
-      pdf.setFillColor(251, 191, 36); // amber-400
-      pdf.roundedRect(margin, y, contentWidth / 2 - 5, 35, 3, 3, "F");
-
+      // ===== Reference Price Table (120% -> 50%, 3 base metrics) =====
+      y = 152;
       pdf.setTextColor(30, 41, 59);
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("80% Value", margin + 10, y + 12);
-      pdf.setFontSize(20);
+      pdf.setFontSize(13);
       pdf.setFont("helvetica", "bold");
-      pdf.text(formatPdfCurrency(data.value80Percent), margin + 10, y + 27);
+      pdf.text("Reference Price Table", margin, y);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100, 116, 139);
+      pdf.text("(collection totals at each %, 120% down to 50%)", margin + 62, y);
 
-      pdf.setFillColor(249, 115, 22); // orange-500
-      pdf.roundedRect(
-        margin + contentWidth / 2 + 5,
-        y,
-        contentWidth / 2 - 5,
-        35,
-        3,
-        3,
-        "F"
-      );
+      y += 7;
+      const pctColX = margin + 3;
+      const blendColX = margin + 30;
+      const medianColX = margin + 90;
+      const marketColX = margin + 145;
 
+      pdf.setFillColor(30, 41, 59);
+      pdf.rect(margin, y, contentWidth, 8, "F");
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("70% Value", margin + contentWidth / 2 + 15, y + 12);
-      pdf.setFontSize(20);
+      pdf.setFontSize(9);
       pdf.setFont("helvetica", "bold");
-      pdf.text(
-        formatPdfCurrency(data.value70Percent),
-        margin + contentWidth / 2 + 15,
-        y + 27
-      );
+      pdf.text("%", pctColX, y + 5.5);
+      pdf.text("Avg + Low Blend", blendColX, y + 5.5);
+      pdf.text("Listed Median", medianColX, y + 5.5);
+      pdf.text("Market Price", marketColX, y + 5.5);
+      y += 8;
+
+      data.percentiles.forEach((row, idx) => {
+        const isBase = row.percent === 100;
+        if (isBase) {
+          pdf.setFillColor(220, 252, 231); // green-100 — resalta el 100% (valor sin ajustar)
+        } else if (idx % 2 === 0) {
+          pdf.setFillColor(248, 250, 252); // slate-50, fila par
+        } else {
+          pdf.setFillColor(255, 255, 255);
+        }
+        pdf.rect(margin, y, contentWidth, 7, "F");
+
+        pdf.setFont("helvetica", isBase ? "bold" : "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(30, 41, 59);
+        pdf.text(`${row.percent}%`, pctColX, y + 5);
+        pdf.text(formatPdfCurrency(row.blended), blendColX, y + 5);
+        pdf.text(formatPdfCurrency(row.midPrice), medianColX, y + 5);
+        pdf.text(formatPdfCurrency(row.marketPrice), marketColX, y + 5);
+        y += 7;
+      });
 
       // Methodology note
-      y = 260;
+      y += 6;
       pdf.setTextColor(100, 116, 139); // slate-500
-      pdf.setFontSize(9);
+      pdf.setFontSize(7.5);
       pdf.setFont("helvetica", "normal");
       const methodologyText = [
-        "Methodology: Prices are based on the average of the 3 most recent sales",
-        "from TCGPlayer (English versions only, excluding graded cards).",
-        "The 70% and 80% values are provided as negotiation reference points.",
+        "Avg + Low Blend = average of (a) the last 3 real TCGPlayer sales and (b) the current lowest TCGPlayer listing (English, ungraded).",
+        "Listed Median and Market Price are TCGPlayer's own reference prices. Percentages scale each of the 3 totals from 120% down to 50%.",
       ];
       methodologyText.forEach((line, i) => {
-        pdf.text(line, margin, y + i * 5);
+        pdf.text(line, margin, y + i * 4);
       });
 
       // ========== CARD DETAILS PAGES ==========
       const cardsPerPage = 4;
       const cardImageWidth = 35;
       const cardImageHeight = 49;
+      const maxRowsPerPage = 30;
+      // Estimado de páginas totales: carátula + detalle por carta + 3 tablas
+      // resumen (una por métrica), cada una paginada a maxRowsPerPage filas.
+      const cardDetailPageCount = Math.ceil(data.cards.length / cardsPerPage);
+      const summaryPagesPerMetric = Math.max(
+        1,
+        Math.ceil(data.cards.length / maxRowsPerPage)
+      );
+      const totalPages =
+        1 + cardDetailPageCount + summaryPagesPerMetric * 3;
 
       for (let i = 0; i < data.cards.length; i += cardsPerPage) {
         pdf.addPage();
@@ -485,8 +493,6 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
         pdf.setFontSize(10);
         pdf.setFont("helvetica", "normal");
         const pageNum = Math.floor(i / cardsPerPage) + 2;
-        const totalPages =
-          Math.ceil(data.cards.length / cardsPerPage) + 2; // +2 for cover and summary
         pdf.text(
           `Page ${pageNum} of ${totalPages}`,
           pageWidth - margin - 30,
@@ -553,14 +559,29 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           pdf.text(`Code: ${card.cardCode}`, infoX, y + 17);
           pdf.text(`Quantity: ${card.quantity}`, infoX + 50, y + 17);
 
+          // Reference prices (los otros 2 insumos de la mezcla + el listed median crudo)
+          pdf.setFontSize(7);
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(
+            `Low Listed: ${formatCurrency(card.lowPrice)}   Last Sale: ${
+              card.lastSales?.[0]
+                ? `${formatCurrency(card.lastSales[0].purchasePrice)} (${formatDate(
+                    card.lastSales[0].orderDate
+                  )})`
+                : "N/A"
+            }`,
+            infoX,
+            y + 23
+          );
+
           // Sales history
           if (card.lastSales && card.lastSales.length > 0) {
             pdf.setFontSize(8);
             pdf.setTextColor(100, 116, 139);
-            pdf.text("Recent Sales:", infoX, y + 26);
+            pdf.text("Recent Sales:", infoX, y + 30);
 
-            let salesY = y + 32;
-            card.lastSales.slice(0, 3).forEach((sale, idx) => {
+            let salesY = y + 36;
+            card.lastSales.slice(0, 2).forEach((sale, idx) => {
               const saleDate = formatDate(sale.orderDate);
               const condition = sale.condition || "NM";
               const price = formatCurrency(sale.purchasePrice);
@@ -574,150 +595,171 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           } else if (card.error) {
             pdf.setTextColor(239, 68, 68); // red-500
             pdf.setFontSize(8);
-            pdf.text(`Error: ${card.error}`, infoX, y + 26);
+            pdf.text(`Error: ${card.error}`, infoX, y + 30);
           } else {
             pdf.setTextColor(148, 163, 184);
             pdf.setFontSize(8);
-            pdf.text("No sales data available", infoX, y + 26);
+            pdf.text("No sales data available", infoX, y + 30);
           }
 
-          // Average and subtotal
-          const avgX = pageWidth - margin - 45;
+          // 3 métricas de referencia + subtotal de cada una
+          const boxX = pageWidth - margin - 58;
           pdf.setFillColor(241, 245, 249);
-          pdf.roundedRect(avgX - 5, y + 3, 48, 54, 2, 2, "F");
+          pdf.roundedRect(boxX - 3, y + 3, 61, 54, 2, 2, "F");
 
-          pdf.setTextColor(71, 85, 105);
-          pdf.setFontSize(8);
-          pdf.text("Avg Price", avgX, y + 12);
-
-          pdf.setTextColor(30, 41, 59);
-          pdf.setFontSize(12);
+          pdf.setTextColor(100, 116, 139);
+          pdf.setFontSize(7);
           pdf.setFont("helvetica", "bold");
-          pdf.text(formatCurrency(card.top3Average), avgX, y + 22);
+          pdf.text("Value", boxX + 20, y + 10);
+          pdf.text("Subtotal", boxX + 38, y + 10);
 
-          pdf.setTextColor(71, 85, 105);
-          pdf.setFontSize(8);
-          pdf.setFont("helvetica", "normal");
-          pdf.text("Subtotal", avgX, y + 35);
+          const metricRows: Array<{
+            label: string;
+            value: number | null;
+            subtotal: number;
+          }> = [
+            { label: "Blend", value: card.blendedValue, subtotal: card.subtotalBlended },
+            { label: "Median", value: card.midPrice, subtotal: card.subtotalMidPrice },
+            { label: "Market", value: card.marketPrice, subtotal: card.subtotalMarketPrice },
+          ];
 
-          pdf.setTextColor(22, 163, 74); // green-600
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.text(formatCurrency(card.subtotal), avgX, y + 45);
+          metricRows.forEach((row, idx) => {
+            const rowY = y + 20 + idx * 13;
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(7);
+            pdf.setTextColor(71, 85, 105);
+            pdf.text(row.label, boxX, rowY);
+
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(8);
+            pdf.setTextColor(30, 41, 59);
+            pdf.text(formatCurrency(row.value), boxX + 18, rowY);
+
+            pdf.setTextColor(22, 163, 74); // green-600
+            pdf.text(formatCurrency(row.subtotal), boxX + 38, rowY);
+          });
 
           y += 65;
         }
       }
 
-      // ========== SUMMARY PAGE ==========
-      pdf.addPage();
+      // ========== SUMMARY PAGES (una tabla completa por cada métrica) ==========
+      const summaryTables: Array<{
+        title: string;
+        valueLabel: string;
+        getValue: (c: (typeof data.cards)[number]) => number | null;
+        getSubtotal: (c: (typeof data.cards)[number]) => number;
+        total: number;
+      }> = [
+        {
+          title: "Breakdown — Avg + Low Blend",
+          valueLabel: "Blend",
+          getValue: (c) => c.blendedValue,
+          getSubtotal: (c) => c.subtotalBlended,
+          total: data.totalBlended,
+        },
+        {
+          title: "Breakdown — Listed Median",
+          valueLabel: "Median",
+          getValue: (c) => c.midPrice,
+          getSubtotal: (c) => c.subtotalMidPrice,
+          total: data.totalMidPrice,
+        },
+        {
+          title: "Breakdown — Market Price",
+          valueLabel: "Market",
+          getValue: (c) => c.marketPrice,
+          getSubtotal: (c) => c.subtotalMarketPrice,
+          total: data.totalMarketPrice,
+        },
+      ];
 
-      // Header
-      pdf.setFillColor(30, 41, 59);
-      pdf.rect(0, 0, pageWidth, 25, "F");
+      const drawSummaryHeader = (headerY: number, valueLabel: string) => {
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, headerY, contentWidth, 10, "F");
 
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Complete Breakdown", margin, 16);
+        pdf.setTextColor(71, 85, 105);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Code", margin + 3, headerY + 7);
+        pdf.text("Name", margin + 35, headerY + 7);
+        pdf.text("Qty", margin + 110, headerY + 7);
+        pdf.text(valueLabel, margin + 125, headerY + 7);
+        pdf.text("Subtotal", margin + 150, headerY + 7);
+      };
 
-      // Table header
-      y = 35;
-      pdf.setFillColor(241, 245, 249);
-      pdf.rect(margin, y, contentWidth, 10, "F");
+      for (const table of summaryTables) {
+        pdf.addPage();
 
-      pdf.setTextColor(71, 85, 105);
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Code", margin + 3, y + 7);
-      pdf.text("Name", margin + 35, y + 7);
-      pdf.text("Qty", margin + 110, y + 7);
-      pdf.text("Avg", margin + 125, y + 7);
-      pdf.text("Subtotal", margin + 150, y + 7);
+        pdf.setFillColor(30, 41, 59);
+        pdf.rect(0, 0, pageWidth, 25, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(table.title, margin, 16);
 
-      y += 12;
+        y = 35;
+        drawSummaryHeader(y, table.valueLabel);
+        y += 12;
 
-      // Table rows
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
 
-      let rowCount = 0;
-      const maxRowsPerPage = 30;
+        let rowCount = 0;
 
-      for (const card of data.cards) {
-        if (rowCount >= maxRowsPerPage && rowCount > 0) {
-          pdf.addPage();
-          y = 15;
-          rowCount = 0;
+        for (const card of data.cards) {
+          if (rowCount >= maxRowsPerPage && rowCount > 0) {
+            pdf.addPage();
+            y = 15;
+            rowCount = 0;
 
-          // Re-draw header on new page
-          pdf.setFillColor(241, 245, 249);
-          pdf.rect(margin, y, contentWidth, 10, "F");
+            drawSummaryHeader(y, table.valueLabel);
+            y += 12;
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(8);
+          }
 
-          pdf.setTextColor(71, 85, 105);
-          pdf.setFontSize(9);
-          pdf.setFont("helvetica", "bold");
-          pdf.text("Code", margin + 3, y + 7);
-          pdf.text("Name", margin + 35, y + 7);
-          pdf.text("Qty", margin + 110, y + 7);
-          pdf.text("Avg", margin + 125, y + 7);
-          pdf.text("Subtotal", margin + 150, y + 7);
+          // Alternate row background
+          if (rowCount % 2 === 0) {
+            pdf.setFillColor(248, 250, 252); // slate-50
+            pdf.rect(margin, y - 3, contentWidth, 7, "F");
+          }
 
-          y += 12;
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(8);
+          pdf.setTextColor(30, 41, 59);
+          pdf.text(card.cardCode, margin + 3, y);
+
+          const shortName =
+            card.cardName.length > 40
+              ? card.cardName.substring(0, 40) + "..."
+              : card.cardName;
+          pdf.text(shortName, margin + 35, y);
+
+          pdf.text(String(card.quantity), margin + 113, y);
+          pdf.text(formatCurrency(table.getValue(card)), margin + 125, y);
+
+          pdf.setTextColor(22, 163, 74);
+          pdf.text(formatCurrency(table.getSubtotal(card)), margin + 150, y);
+          pdf.setTextColor(30, 41, 59);
+
+          y += 7;
+          rowCount++;
         }
 
-        // Alternate row background
-        if (rowCount % 2 === 0) {
-          pdf.setFillColor(248, 250, 252); // slate-50
-          pdf.rect(margin, y - 3, contentWidth, 7, "F");
-        }
+        // Final total for this metric
+        y += 10;
+        pdf.setDrawColor(30, 41, 59);
+        pdf.setLineWidth(1);
+        pdf.line(margin, y, margin + contentWidth, y);
 
+        y += 10;
         pdf.setTextColor(30, 41, 59);
-        pdf.text(card.cardCode, margin + 3, y);
-
-        const shortName =
-          card.cardName.length > 40
-            ? card.cardName.substring(0, 40) + "..."
-            : card.cardName;
-        pdf.text(shortName, margin + 35, y);
-
-        pdf.text(String(card.quantity), margin + 113, y);
-        pdf.text(formatCurrency(card.top3Average), margin + 125, y);
-
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`TOTAL (${table.valueLabel}):`, margin + 90, y);
         pdf.setTextColor(22, 163, 74);
-        pdf.text(formatCurrency(card.subtotal), margin + 150, y);
-
-        y += 7;
-        rowCount++;
+        pdf.setFontSize(14);
+        pdf.text(formatPdfCurrency(table.total), margin + 150, y);
       }
-
-      // Final totals
-      y += 10;
-      pdf.setDrawColor(30, 41, 59);
-      pdf.setLineWidth(1);
-      pdf.line(margin, y, margin + contentWidth, y);
-
-      y += 10;
-      pdf.setTextColor(30, 41, 59);
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("TOTAL VALUE:", margin + 100, y);
-      pdf.setTextColor(22, 163, 74);
-      pdf.setFontSize(14);
-      pdf.text(formatPdfCurrency(data.totalValue), margin + 150, y);
-
-      y += 12;
-      pdf.setTextColor(251, 191, 36); // amber
-      pdf.setFontSize(11);
-      pdf.text("80% Value:", margin + 100, y);
-      pdf.text(formatPdfCurrency(data.value80Percent), margin + 150, y);
-
-      y += 10;
-      pdf.setTextColor(249, 115, 22); // orange
-      pdf.text("70% Value:", margin + 100, y);
-      pdf.text(formatPdfCurrency(data.value70Percent), margin + 150, y);
 
       // 5. Generate blob
       const blob = pdf.output("blob");
@@ -805,8 +847,9 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
               Generate Valuation Report
             </h3>
             <p className="text-sm text-slate-500 mb-6 max-w-xs mx-auto">
-              Create a professional PDF with TCGPlayer sales data, pricing
-              averages, and negotiation values (70% / 80%).
+              Create a professional PDF with 3 reference prices per card
+              (recent sales blend, listed median, market price) and a
+              120%&nbsp;→&nbsp;50% reference table for the whole collection.
             </p>
             <Button
               onClick={generateReport}
@@ -872,30 +915,34 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
             <div className="bg-slate-50 rounded-xl p-4 mb-4 text-left">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-slate-500">Total Value</p>
-                  <p className="text-lg font-bold text-green-600">
-                    {formatCurrency(reportData.totalValue)}
-                  </p>
-                </div>
-                <div>
                   <p className="text-xs text-slate-500">Cards</p>
                   <p className="text-lg font-bold text-slate-900">
                     {reportData.totalQuantity}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500">80% Value</p>
-                  <p className="text-lg font-bold text-amber-600">
-                    {formatCurrency(reportData.value80Percent)}
+                  <p className="text-xs text-slate-500">Avg + Low Blend</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {formatCurrency(reportData.totalBlended)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500">70% Value</p>
+                  <p className="text-xs text-slate-500">Listed Median</p>
+                  <p className="text-lg font-bold text-amber-600">
+                    {formatCurrency(reportData.totalMidPrice)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Market Price</p>
                   <p className="text-lg font-bold text-orange-600">
-                    {formatCurrency(reportData.value70Percent)}
+                    {formatCurrency(reportData.totalMarketPrice)}
                   </p>
                 </div>
               </div>
+              <p className="text-[11px] text-slate-400 mt-3">
+                Full 120%&nbsp;→&nbsp;50% reference table is on the PDF cover
+                page.
+              </p>
             </div>
 
             <div className="space-y-3">

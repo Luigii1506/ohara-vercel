@@ -472,13 +472,33 @@ export interface CardSalesReportItem {
   cardSrc: string;
   productId: number | null;
   quantity: number;
+  /** Últimas ventas de TCGPlayer (hasta 5), la más reciente primero. */
   lastSales: TCGSaleRecord[];
+  /** Promedio de las últimas 3 ventas reales. */
   top3Average: number | null;
-  subtotal: number;
+  /** Precio más bajo actualmente listado en TCGPlayer (Card.lowPrice). */
+  lowPrice: number | null;
+  /** "Listed Median" (Card.midPrice). */
+  midPrice: number | null;
+  marketPrice: number | null;
+  /**
+   * (top3Average + lowPrice) / 2 — si falta uno de los dos, se usa el que
+   * esté disponible en vez de promediar contra null; si faltan ambos, null.
+   */
+  blendedValue: number | null;
+  subtotalBlended: number;
+  subtotalMidPrice: number;
+  subtotalMarketPrice: number;
   customPrice?: number | null;
-  marketPrice?: number | null;
-  midPrice?: number | null;
   error?: string;
+}
+
+/** Un renglón de la tabla de referencia: los 3 totales a un % dado (120%→50%). */
+export interface ReportPercentileRow {
+  percent: number;
+  blended: number;
+  midPrice: number;
+  marketPrice: number;
 }
 
 export interface CollectionReportData {
@@ -490,7 +510,9 @@ export interface CollectionReportData {
   successfulLookups: number;
   failedLookups: number;
   cards: CardSalesReportItem[];
-  totalValue: number;
-  value70Percent: number;
-  value80Percent: number;
+  totalBlended: number;
+  totalMidPrice: number;
+  totalMarketPrice: number;
+  /** 15 filas, de 120% a 50% en pasos de 5%. */
+  percentiles: ReportPercentileRow[];
 }

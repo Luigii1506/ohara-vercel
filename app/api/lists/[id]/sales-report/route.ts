@@ -143,6 +143,16 @@ function calculateTop3Average(sales: TCGPlayerSale[]): number | null {
   return total / topSales.length;
 }
 
+// Promedio de los valores no nulos que vengan; si ambos faltan, null. Evita
+// que "(A + null) / 2" castigue el valor cuando solo tenemos uno de los dos.
+function blendValues(...values: Array<number | null>): number | null {
+  const present = values.filter((v): v is number => v != null);
+  if (present.length === 0) return null;
+  return present.reduce((a, b) => a + b, 0) / present.length;
+}
+
+const PERCENTILES = Array.from({ length: 15 }, (_, i) => 120 - i * 5); // 120..50
+
 // ============================================================================
 // API Route Handler
 // ============================================================================
@@ -212,6 +222,8 @@ export async function GET(
         productId: string | null;
         customPrice: number | null;
         marketPrice: number | null;
+        lowPrice: number | null;
+        midPrice: number | null;
       }
     >();
 
@@ -244,6 +256,8 @@ export async function GET(
             ? Number(listCard.customPrice)
             : null,
           marketPrice: card.marketPrice ? Number(card.marketPrice) : null,
+          lowPrice: card.lowPrice ? Number(card.lowPrice) : null,
+          midPrice: card.midPrice ? Number(card.midPrice) : null,
         });
       }
 
@@ -289,11 +303,13 @@ export async function GET(
     const reportCards: CardSalesReportItem[] = [];
     let successfulLookups = 0;
     let failedLookups = 0;
-    let totalValue = 0;
+    let totalBlended = 0;
+    let totalMidPrice = 0;
+    let totalMarketPrice = 0;
     let totalQuantity = 0;
 
     for (const [, cardData] of Array.from(uniqueCards)) {
-      const { productId, code, name, src, quantity, customPrice, marketPrice } = cardData;
+      const { productId, code, name, src, quantity, customPrice, marketPrice, lowPrice, midPrice } = cardData;
 
       let filteredSales: TCGSaleRecord[] = [];
       let top3Average: number | null = null;
@@ -312,8 +328,17 @@ export async function GET(
         failedLookups++;
       }
 
-      const subtotal = (top3Average || 0) * quantity;
-      totalValue += subtotal;
+      // "Average last sales" + "Low listed" — si falta uno de los dos se usa
+      // el otro solo, en vez de castigar el promedio contra null.
+      const blendedValue = blendValues(top3Average, lowPrice);
+
+      const subtotalBlended = (blendedValue ?? 0) * quantity;
+      const subtotalMidPrice = (midPrice ?? 0) * quantity;
+      const subtotalMarketPrice = (marketPrice ?? 0) * quantity;
+
+      totalBlended += subtotalBlended;
+      totalMidPrice += subtotalMidPrice;
+      totalMarketPrice += subtotalMarketPrice;
       totalQuantity += quantity;
 
       reportCards.push({
@@ -324,9 +349,14 @@ export async function GET(
         quantity,
         lastSales: filteredSales,
         top3Average,
-        subtotal,
-        customPrice,
+        lowPrice,
+        midPrice,
         marketPrice,
+        blendedValue,
+        subtotalBlended,
+        subtotalMidPrice,
+        subtotalMarketPrice,
+        customPrice,
         error: productId ? undefined : "No TCGPlayer product ID",
       });
     }
@@ -334,7 +364,16 @@ export async function GET(
     // 8. Sort cards by code for consistent output
     reportCards.sort((a, b) => a.cardCode.localeCompare(b.cardCode));
 
-    // 9. Build the response
+    // 9. Tabla de referencia: los 3 totales a cada nivel de 120% a 50%.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const percentiles = PERCENTILES.map((percent) => ({
+      percent,
+      blended: round2((totalBlended * percent) / 100),
+      midPrice: round2((totalMidPrice * percent) / 100),
+      marketPrice: round2((totalMarketPrice * percent) / 100),
+    }));
+
+    // 10. Build the response
     const reportData: CollectionReportData = {
       listName: list.name,
       listId: list.id,
@@ -344,9 +383,10 @@ export async function GET(
       successfulLookups,
       failedLookups,
       cards: reportCards,
-      totalValue: Math.round(totalValue * 100) / 100,
-      value70Percent: Math.round(totalValue * 0.7 * 100) / 100,
-      value80Percent: Math.round(totalValue * 0.8 * 100) / 100,
+      totalBlended: round2(totalBlended),
+      totalMidPrice: round2(totalMidPrice),
+      totalMarketPrice: round2(totalMarketPrice),
+      percentiles,
     };
 
     return NextResponse.json(reportData);

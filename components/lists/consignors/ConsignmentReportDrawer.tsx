@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Users, Download, FileDown, AlertCircle, Info } from "lucide-react";
+import {
+  Loader2,
+  Users,
+  Download,
+  FileDown,
+  AlertCircle,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Tag,
+} from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -10,6 +20,18 @@ declare global {
   interface Window {
     jspdf: { jsPDF: any };
   }
+}
+
+interface SoldItem {
+  listCardId: number;
+  cardId: number;
+  code: string;
+  name: string;
+  src: string;
+  quantity: number;
+  soldPrice: number;
+  isEstimatedPrice: boolean;
+  soldAt: string | null;
 }
 
 interface ConsignmentGroup {
@@ -25,6 +47,7 @@ interface ConsignmentGroup {
   availableQuantity: number;
   availableValue: number;
   totalValue: number;
+  soldItems: SoldItem[];
 }
 
 interface ConsignmentReportData {
@@ -58,6 +81,15 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const formatDate = (iso: string | null) => {
+  if (!iso) return "Sin fecha";
+  return new Date(iso).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   isOpen,
   onClose,
@@ -69,6 +101,16 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [unassigningId, setUnassigningId] = useState<number | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -116,8 +158,22 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         data.grandTotal.availableValue.toFixed(2),
         data.grandTotal.totalValue.toFixed(2),
       ],
+      [],
+      ["Detalle de ventas"],
+      ["Consignatario", "Carta", "Código", "Cantidad", "Precio de venta ($)", "Estimado", "Fecha de venta"],
+      ...data.groups.flatMap((g) =>
+        g.soldItems.map((item) => [
+          g.name,
+          item.name,
+          item.code,
+          String(item.quantity),
+          item.soldPrice.toFixed(2),
+          item.isEstimatedPrice ? "Sí" : "No",
+          formatDate(item.soldAt),
+        ])
+      ),
     ];
-    const csv = rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -237,6 +293,77 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         margin,
         y + 40
       );
+
+      // Detalle de ventas por consignatario, en página(s) aparte.
+      const groupsWithSales = data.groups.filter((g) => g.soldItems.length > 0);
+      if (groupsWithSales.length > 0) {
+        pdf.addPage();
+        y = 20;
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Detalle de ventas", margin, y);
+        y += 10;
+
+        const pageBottom = 280;
+        const ensureSpace = (needed: number) => {
+          if (y + needed > pageBottom) {
+            pdf.addPage();
+            y = 20;
+          }
+        };
+
+        groupsWithSales.forEach((g) => {
+          ensureSpace(16);
+          pdf.setFillColor(15, 23, 42);
+          pdf.rect(margin, y - 5, contentWidth, 8, "F");
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(9.5);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(
+            `${g.name}  ·  ${g.soldItems.length} venta(s)  ·  ${formatCurrency(g.soldValue)}`,
+            margin + 3,
+            y
+          );
+          y += 9;
+
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.setTextColor(71, 85, 105);
+          pdf.text("Carta", margin + 3, y);
+          pdf.text("Cant.", margin + 105, y);
+          pdf.text("Precio", margin + 125, y);
+          pdf.text("Fecha", margin + 155, y);
+          y += 5;
+          pdf.setDrawColor(226, 232, 240);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin, y - 3.5, margin + contentWidth, y - 3.5);
+
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          g.soldItems.forEach((item, idx) => {
+            ensureSpace(7);
+            if (idx % 2 === 0) {
+              pdf.setFillColor(248, 250, 252);
+              pdf.rect(margin, y - 4, contentWidth, 6.5, "F");
+            }
+            pdf.setTextColor(30, 41, 59);
+            const label = `${item.name} (${item.code})`;
+            pdf.text(label.length > 48 ? label.slice(0, 48) + "…" : label, margin + 3, y);
+            pdf.text(String(item.quantity), margin + 105, y);
+            pdf.setTextColor(5, 150, 105);
+            pdf.text(
+              formatCurrency(item.soldPrice) + (item.isEstimatedPrice ? " (est.)" : ""),
+              margin + 125,
+              y
+            );
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(formatDate(item.soldAt), margin + 155, y);
+            y += 6.5;
+          });
+          y += 6;
+        });
+      }
 
       const safeName = listName.replace(/[^a-z0-9]/gi, "-").toLowerCase();
       pdf.save(`consignacion-${safeName}.pdf`);
@@ -395,6 +522,60 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       </p>
                     </div>
                   </div>
+                  {g.soldItems.length > 0 && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => toggleExpanded(String(g.consignorId ?? "mine"))}
+                        className="flex w-full items-center justify-between gap-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Tag className="h-3 w-3" />
+                          Ver cartas vendidas ({g.soldItems.length})
+                        </span>
+                        {expandedGroups.has(String(g.consignorId ?? "mine")) ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      {expandedGroups.has(String(g.consignorId ?? "mine")) && (
+                        <div className="mt-1.5 space-y-1.5">
+                          {g.soldItems.map((item) => (
+                            <div
+                              key={item.listCardId}
+                              className="flex items-center gap-2 rounded-lg border border-slate-100 p-1.5"
+                            >
+                              {item.src ? (
+                                <img
+                                  src={item.src}
+                                  alt={item.name}
+                                  className="h-10 w-10 flex-shrink-0 rounded object-cover bg-slate-100"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 flex-shrink-0 rounded bg-slate-100" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-semibold text-slate-800">
+                                  {item.name}
+                                </p>
+                                <p className="truncate text-[11px] text-slate-400">
+                                  {item.code} · x{item.quantity} · {formatDate(item.soldAt)}
+                                </p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <p className="text-xs font-bold text-emerald-700">
+                                  {formatCurrency(item.soldPrice)}
+                                </p>
+                                {item.isEstimatedPrice && (
+                                  <p className="text-[10px] text-amber-500">est.</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {g.consignorId !== null && g.totalCards > 0 && (
                     <button
                       onClick={() => handleUnassignAll(g.consignorId as number, g.name)}

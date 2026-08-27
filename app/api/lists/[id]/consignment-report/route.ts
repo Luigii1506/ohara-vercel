@@ -57,11 +57,24 @@ export async function GET(
       where: { listId },
       include: {
         card: {
-          select: { id: true, name: true, code: true, marketPrice: true, midPrice: true },
+          select: { id: true, name: true, code: true, src: true, marketPrice: true, midPrice: true },
         },
         consignor: { select: { id: true, name: true, color: true } },
       },
     });
+
+    type SoldItem = {
+      listCardId: number;
+      cardId: number;
+      code: string;
+      name: string;
+      src: string;
+      quantity: number;
+      soldPrice: number;
+      /** true si no había soldPrice guardado y se usó un valor estimado como respaldo. */
+      isEstimatedPrice: boolean;
+      soldAt: string | null;
+    };
 
     type Group = {
       consignorId: number | null;
@@ -75,6 +88,7 @@ export async function GET(
       availableCards: number;
       availableQuantity: number;
       availableValue: number;
+      soldItems: SoldItem[];
     };
 
     const groups = new Map<number | null, Group>();
@@ -90,6 +104,7 @@ export async function GET(
       availableCards: 0,
       availableQuantity: 0,
       availableValue: 0,
+      soldItems: [],
     });
 
     for (const c of cards) {
@@ -107,6 +122,7 @@ export async function GET(
           availableCards: 0,
           availableQuantity: 0,
           availableValue: 0,
+          soldItems: [],
         });
       }
       const g = groups.get(key)!;
@@ -116,11 +132,22 @@ export async function GET(
       g.totalQuantity += quantity;
 
       if (c.isSold) {
-        const soldUnitPrice =
-          num(c.soldPrice) ?? num(c.customPrice) ?? num(c.card.marketPrice) ?? 0;
+        const realSoldPrice = num(c.soldPrice);
+        const soldUnitPrice = realSoldPrice ?? num(c.customPrice) ?? num(c.card.marketPrice) ?? 0;
         g.soldCards += 1;
         g.soldQuantity += quantity;
         g.soldValue += soldUnitPrice * quantity;
+        g.soldItems.push({
+          listCardId: c.id,
+          cardId: c.card.id,
+          code: c.card.code,
+          name: c.card.name,
+          src: c.card.src,
+          quantity,
+          soldPrice: soldUnitPrice,
+          isEstimatedPrice: realSoldPrice === null,
+          soldAt: c.soldAt ? c.soldAt.toISOString() : null,
+        });
       } else {
         const estUnitPrice =
           num(c.customPrice) ?? num(c.card.marketPrice) ?? num(c.card.midPrice) ?? 0;
@@ -130,6 +157,15 @@ export async function GET(
       }
     }
 
+    // Más recientes primero, dentro de cada consignatario.
+    for (const g of Array.from(groups.values())) {
+      g.soldItems.sort((a, b) => {
+        if (!a.soldAt && !b.soldAt) return 0;
+        if (!a.soldAt) return 1;
+        if (!b.soldAt) return -1;
+        return b.soldAt.localeCompare(a.soldAt);
+      });
+    }
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const groupList = Array.from(groups.values())
@@ -138,6 +174,7 @@ export async function GET(
         soldValue: round2(g.soldValue),
         availableValue: round2(g.availableValue),
         totalValue: round2(g.soldValue + g.availableValue),
+        soldItems: g.soldItems.map((it) => ({ ...it, soldPrice: round2(it.soldPrice) })),
       }))
       .sort((a, b) => {
         if (a.consignorId === null) return -1;

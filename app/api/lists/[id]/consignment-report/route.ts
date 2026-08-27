@@ -77,17 +77,8 @@ export async function GET(
       /** true si no había soldPrice guardado y se usó un valor estimado como respaldo. */
       isEstimatedPrice: boolean;
       soldAt: string | null;
-    };
-
-    type AvailableItem = {
-      listCardId: number;
-      cardId: number;
-      code: string;
-      name: string;
-      src: string;
-      quantity: number;
-      /** Siempre estimado (precio personalizado, market price o listed median) — no se ha vendido. */
-      estimatedPrice: number;
+      /** Market price ACTUAL de la carta (referencia, no necesariamente el de cuando se vendió). */
+      marketPriceUsd: number | null;
     };
 
     type Group = {
@@ -103,7 +94,6 @@ export async function GET(
       availableQuantity: number;
       availableValue: number;
       soldItems: SoldItem[];
-      availableItems: AvailableItem[];
     };
 
     const groups = new Map<number | null, Group>();
@@ -120,7 +110,6 @@ export async function GET(
       availableQuantity: 0,
       availableValue: 0,
       soldItems: [],
-      availableItems: [],
     });
 
     for (const c of cards) {
@@ -139,7 +128,6 @@ export async function GET(
           availableQuantity: 0,
           availableValue: 0,
           soldItems: [],
-          availableItems: [],
         });
       }
       const g = groups.get(key)!;
@@ -164,6 +152,7 @@ export async function GET(
           soldPrice: soldUnitPrice,
           isEstimatedPrice: realSoldPrice === null,
           soldAt: c.soldAt ? c.soldAt.toISOString() : null,
+          marketPriceUsd: num(c.card.marketPrice),
         });
       } else {
         const estUnitPrice =
@@ -171,20 +160,10 @@ export async function GET(
         g.availableCards += 1;
         g.availableQuantity += quantity;
         g.availableValue += estUnitPrice * quantity;
-        g.availableItems.push({
-          listCardId: c.id,
-          cardId: c.card.id,
-          code: c.card.code,
-          name: c.card.name,
-          src: c.card.src,
-          quantity,
-          estimatedPrice: estUnitPrice,
-        });
       }
     }
 
-    // Más recientes primero, dentro de cada consignatario; las disponibles
-    // se ordenan de mayor a menor valor total (lo más valioso primero).
+    // Más recientes primero, dentro de cada consignatario.
     for (const g of Array.from(groups.values())) {
       g.soldItems.sort((a, b) => {
         if (!a.soldAt && !b.soldAt) return 0;
@@ -192,9 +171,6 @@ export async function GET(
         if (!b.soldAt) return -1;
         return b.soldAt.localeCompare(a.soldAt);
       });
-      g.availableItems.sort(
-        (a, b) => b.estimatedPrice * b.quantity - a.estimatedPrice * a.quantity
-      );
     }
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -205,10 +181,6 @@ export async function GET(
         availableValue: round2(g.availableValue),
         totalValue: round2(g.soldValue + g.availableValue),
         soldItems: g.soldItems.map((it) => ({ ...it, soldPrice: round2(it.soldPrice) })),
-        availableItems: g.availableItems.map((it) => ({
-          ...it,
-          estimatedPrice: round2(it.estimatedPrice),
-        })),
       }))
       .sort((a, b) => {
         if (a.consignorId === null) return -1;
@@ -237,10 +209,16 @@ export async function GET(
       }
     );
 
+    // Tipo de cambio fijo configurado en la carpeta (1 USD = ? MXN) — si no
+    // está configurado, el frontend simplemente no muestra la columna MXN.
+    const rate = Number(list.exchangeRate);
+    const exchangeRateMxn = Number.isFinite(rate) && rate > 0 ? rate : null;
+
     return NextResponse.json({
       listName: list.name,
       listId: list.id,
       generatedAt: new Date().toISOString(),
+      exchangeRateMxn,
       groups: groupList,
       grandTotal,
     });

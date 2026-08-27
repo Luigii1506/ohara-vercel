@@ -32,16 +32,7 @@ interface SoldItem {
   soldPrice: number;
   isEstimatedPrice: boolean;
   soldAt: string | null;
-}
-
-interface AvailableItem {
-  listCardId: number;
-  cardId: number;
-  code: string;
-  name: string;
-  src: string;
-  quantity: number;
-  estimatedPrice: number;
+  marketPriceUsd: number | null;
 }
 
 interface ConsignmentGroup {
@@ -58,13 +49,14 @@ interface ConsignmentGroup {
   availableValue: number;
   totalValue: number;
   soldItems: SoldItem[];
-  availableItems: AvailableItem[];
 }
 
 interface ConsignmentReportData {
   listName: string;
   listId: number;
   generatedAt: string;
+  /** 1 USD = ? MXN, configurado en la carpeta. Null si la carpeta no tiene tipo de cambio. */
+  exchangeRateMxn: number | null;
   groups: ConsignmentGroup[];
   grandTotal: {
     totalCards: number;
@@ -101,44 +93,69 @@ const formatDate = (iso: string | null) => {
   });
 };
 
-// Fila con la imagen real de la carta — la idea es poder hojear el reporte
-// viendo las cartas tal cual se ven en la carpeta, no solo un renglón de
-// texto con nombre y número.
-const CardThumbRow = ({
-  src,
-  name,
-  subtitle,
-  priceLabel,
-  priceClassName,
-  note,
+const formatMxn = (usdValue: number | null, rate: number | null): string | null => {
+  if (usdValue === null || rate === null) return null;
+  return (usdValue * rate).toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+// Fila con la imagen real de la carta vendida — el corazón del reporte: qué
+// se vendió, a cuánto (vs. el market de referencia), en USD y en MXN,
+// siempre apilado verticalmente (nunca dos valores lado a lado).
+const SoldCardRow = ({
+  item,
+  exchangeRateMxn,
 }: {
-  src: string;
-  name: string;
-  subtitle: string;
-  priceLabel: string;
-  priceClassName: string;
-  note?: string;
-}) => (
-  <div className="flex items-center gap-2 rounded-lg border border-slate-100 p-1.5">
-    {src ? (
-      <img
-        src={src}
-        alt={name}
-        className="h-14 w-14 flex-shrink-0 rounded object-cover bg-slate-100"
-      />
-    ) : (
-      <div className="h-14 w-14 flex-shrink-0 rounded bg-slate-100" />
-    )}
-    <div className="min-w-0 flex-1">
-      <p className="truncate text-xs font-semibold text-slate-800">{name}</p>
-      <p className="truncate text-[11px] text-slate-400">{subtitle}</p>
+  item: SoldItem;
+  exchangeRateMxn: number | null;
+}) => {
+  const soldMxn = formatMxn(item.soldPrice, exchangeRateMxn);
+  const marketMxn = formatMxn(item.marketPriceUsd, exchangeRateMxn);
+
+  return (
+    <div className="flex gap-2 rounded-lg border border-slate-100 p-2">
+      {item.src ? (
+        <img
+          src={item.src}
+          alt={item.name}
+          className="h-16 w-16 flex-shrink-0 rounded object-cover bg-slate-100"
+        />
+      ) : (
+        <div className="h-16 w-16 flex-shrink-0 rounded bg-slate-100" />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div>
+          <p className="truncate text-xs font-semibold text-slate-800">{item.name}</p>
+          <p className="truncate text-[11px] text-slate-400">
+            {item.code} · x{item.quantity} · {formatDate(item.soldAt)}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 text-[11px]">
+          <div className="flex flex-col">
+            <span className="font-semibold text-emerald-500">
+              Vendido{item.isEstimatedPrice ? " (est.)" : ""}
+            </span>
+            <span className="text-xs font-bold text-emerald-700">
+              {formatCurrency(item.soldPrice)}
+            </span>
+            {soldMxn && <span className="text-emerald-600/80">{soldMxn}</span>}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-semibold text-slate-400">Market</span>
+            <span className="text-xs font-bold text-slate-600">
+              {item.marketPriceUsd !== null ? formatCurrency(item.marketPriceUsd) : "N/A"}
+            </span>
+            {marketMxn && <span className="text-slate-400">{marketMxn}</span>}
+          </div>
+        </div>
+      </div>
     </div>
-    <div className="shrink-0 text-right">
-      <p className={`text-xs font-bold ${priceClassName}`}>{priceLabel}</p>
-      {note && <p className="text-[10px] text-amber-500">{note}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 // Sección expandible con galería de cartas (imagen + nombre + precio) — la
 // alternativa visual a los cuadros de totales de arriba.
@@ -243,20 +260,19 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         data.grandTotal.totalValue.toFixed(2),
       ],
       [],
-      ["Cartas disponibles"],
-      ["Consignatario", "Carta", "Código", "Cantidad", "Precio estimado ($)"],
-      ...data.groups.flatMap((g) =>
-        g.availableItems.map((item) => [
-          g.name,
-          item.name,
-          item.code,
-          String(item.quantity),
-          item.estimatedPrice.toFixed(2),
-        ])
-      ),
-      [],
       ["Detalle de ventas"],
-      ["Consignatario", "Carta", "Código", "Cantidad", "Precio de venta ($)", "Estimado", "Fecha de venta"],
+      [
+        "Consignatario",
+        "Carta",
+        "Código",
+        "Cantidad",
+        "Vendido (USD)",
+        "Vendido (MXN)",
+        "Estimado",
+        "Market (USD)",
+        "Market (MXN)",
+        "Fecha de venta",
+      ],
       ...data.groups.flatMap((g) =>
         g.soldItems.map((item) => [
           g.name,
@@ -264,7 +280,12 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
           item.code,
           String(item.quantity),
           item.soldPrice.toFixed(2),
+          data.exchangeRateMxn ? (item.soldPrice * data.exchangeRateMxn).toFixed(2) : "",
           item.isEstimatedPrice ? "Sí" : "No",
+          item.marketPriceUsd !== null ? item.marketPriceUsd.toFixed(2) : "",
+          item.marketPriceUsd !== null && data.exchangeRateMxn
+            ? (item.marketPriceUsd * data.exchangeRateMxn).toFixed(2)
+            : "",
           formatDate(item.soldAt),
         ])
       ),
@@ -322,75 +343,9 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         y
       );
 
-      y += 10;
-      const drawHeader = (headerY: number) => {
-        pdf.setFillColor(241, 245, 249);
-        pdf.rect(margin, headerY, contentWidth, 9, "F");
-        pdf.setTextColor(71, 85, 105);
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Consignatario", margin + 3, headerY + 6);
-        pdf.text("Cartas", margin + 75, headerY + 6);
-        pdf.text("Vendido", margin + 100, headerY + 6);
-        pdf.text("Disponible", margin + 135, headerY + 6);
-        pdf.text("Total", margin + 170, headerY + 6);
-      };
-      drawHeader(y);
-      y += 13;
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      data.groups.forEach((g, idx) => {
-        if (idx % 2 === 0) {
-          pdf.setFillColor(248, 250, 252);
-          pdf.rect(margin, y - 4, contentWidth, 8, "F");
-        }
-        pdf.setTextColor(30, 41, 59);
-        pdf.text(g.name.length > 30 ? g.name.slice(0, 30) + "…" : g.name, margin + 3, y);
-        pdf.text(`${g.totalCards} (${g.totalQuantity})`, margin + 75, y);
-        pdf.setTextColor(5, 150, 105);
-        pdf.text(formatCurrency(g.soldValue), margin + 100, y);
-        pdf.setTextColor(217, 119, 6);
-        pdf.text(formatCurrency(g.availableValue), margin + 135, y);
-        pdf.setTextColor(30, 41, 59);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(formatCurrency(g.totalValue), margin + 170, y);
-        pdf.setFont("helvetica", "normal");
-        y += 8;
-      });
-
-      y += 6;
-      pdf.setDrawColor(30, 41, 59);
-      pdf.setLineWidth(0.8);
-      pdf.line(margin, y, margin + contentWidth, y);
-      y += 10;
-
-      pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(margin, y, contentWidth, 30, 2, 2, "F");
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Total de la carpeta", margin + 8, y + 11);
-      pdf.setFontSize(18);
-      pdf.setFont("helvetica", "bold");
-      pdf.text(formatCurrency(data.grandTotal.totalValue), margin + 8, y + 24);
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(
-        `${data.grandTotal.totalCards} cartas  ·  Vendido: ${formatCurrency(data.grandTotal.soldValue)}  ·  Disponible: ${formatCurrency(data.grandTotal.availableValue)}`,
-        margin + 70,
-        y + 18
-      );
-
-      pdf.setTextColor(148, 163, 184);
-      pdf.setFontSize(7.5);
-      pdf.text(
-        '"Vendido" usa el precio real de venta. "Disponible" es un valor estimado (precio personalizado o market price).',
-        margin,
-        y + 40
-      );
-
-      // Detalle de disponibles y de ventas por consignatario, en página(s) aparte.
+      // Resumen general: una "card" por consignatario (no una tabla) — todo
+      // apilado en vertical (nombre, total, luego cada stat en su propia
+      // línea), igual que en la vista previa dentro de la app.
       const pageBottom = 280;
       const ensureSpace = (needed: number) => {
         if (y + needed > pageBottom) {
@@ -399,60 +354,82 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         }
       };
 
-      const groupsWithAvailable = data.groups.filter((g) => g.availableItems.length > 0);
-      if (groupsWithAvailable.length > 0) {
-        pdf.addPage();
-        y = 20;
+      const hexToRgb = (hex: string | null): [number, number, number] => {
+        if (!hex) return [148, 163, 184];
+        const m = hex.replace("#", "");
+        const n = parseInt(m, 16);
+        if (Number.isNaN(n) || m.length !== 6) return [148, 163, 184];
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      };
+
+      y += 10;
+      data.groups.forEach((g) => {
+        const cardHeight = 38;
+        ensureSpace(cardHeight + 4);
+
+        pdf.setFillColor(248, 250, 252);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.4);
+        pdf.roundedRect(margin, y, contentWidth, cardHeight, 3, 3, "FD");
+
+        const dotColor = g.consignorId === null ? [15, 23, 42] : hexToRgb(g.color);
+        pdf.setFillColor(dotColor[0], dotColor[1], dotColor[2]);
+        pdf.circle(margin + 7, y + 9, 1.8, "F");
+
         pdf.setTextColor(30, 41, 59);
-        pdf.setFontSize(14);
+        pdf.setFontSize(10.5);
         pdf.setFont("helvetica", "bold");
-        pdf.text("Detalle de disponibles", margin, y);
-        y += 10;
+        const name = g.name.length > 45 ? g.name.slice(0, 45) + "…" : g.name;
+        pdf.text(name, margin + 12, y + 10.5);
 
-        groupsWithAvailable.forEach((g) => {
-          ensureSpace(16);
-          pdf.setFillColor(15, 23, 42);
-          pdf.rect(margin, y - 5, contentWidth, 8, "F");
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(9.5);
-          pdf.setFont("helvetica", "bold");
-          pdf.text(
-            `${g.name}  ·  ${g.availableItems.length} carta(s)  ·  ${formatCurrency(g.availableValue)}`,
-            margin + 3,
-            y
-          );
-          y += 9;
+        pdf.setFontSize(15);
+        pdf.text(formatCurrency(g.totalValue), margin + 12, y + 20);
 
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(8);
-          pdf.setTextColor(71, 85, 105);
-          pdf.text("Carta", margin + 3, y);
-          pdf.text("Cant.", margin + 130, y);
-          pdf.text("Precio est.", margin + 150, y);
-          y += 5;
-          pdf.setDrawColor(226, 232, 240);
-          pdf.setLineWidth(0.3);
-          pdf.line(margin, y - 3.5, margin + contentWidth, y - 3.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`${g.totalCards} carta(s)  ·  ${g.totalQuantity} unid.`, margin + 12, y + 27);
+        pdf.setTextColor(5, 150, 105);
+        pdf.text(`Vendido: ${formatCurrency(g.soldValue)}`, margin + 12, y + 32.5);
+        pdf.setTextColor(217, 119, 6);
+        pdf.text(`Disponible: ${formatCurrency(g.availableValue)}`, margin + 12, y + 37.5);
 
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(8);
-          g.availableItems.forEach((item, idx) => {
-            ensureSpace(7);
-            if (idx % 2 === 0) {
-              pdf.setFillColor(248, 250, 252);
-              pdf.rect(margin, y - 4, contentWidth, 6.5, "F");
-            }
-            pdf.setTextColor(30, 41, 59);
-            const label = `${item.name} (${item.code})`;
-            pdf.text(label.length > 60 ? label.slice(0, 60) + "…" : label, margin + 3, y);
-            pdf.text(String(item.quantity), margin + 130, y);
-            pdf.setTextColor(217, 119, 6);
-            pdf.text(formatCurrency(item.estimatedPrice), margin + 150, y);
-            y += 6.5;
-          });
-          y += 6;
-        });
-      }
+        y += cardHeight + 4;
+      });
+
+      const totalsBoxHeight = 52;
+      ensureSpace(totalsBoxHeight + 4);
+      pdf.setFillColor(15, 23, 42);
+      pdf.roundedRect(margin, y, contentWidth, totalsBoxHeight, 3, 3, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text("Total de la carpeta", margin + 8, y + 11);
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(formatCurrency(data.grandTotal.totalValue), margin + 8, y + 24);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(203, 213, 225);
+      pdf.text(
+        `${data.grandTotal.totalCards} carta(s)  ·  ${data.grandTotal.totalQuantity} unid.`,
+        margin + 8,
+        y + 32
+      );
+      pdf.setTextColor(110, 231, 183);
+      pdf.text(`Vendido: ${formatCurrency(data.grandTotal.soldValue)}`, margin + 8, y + 39);
+      pdf.setTextColor(252, 211, 77);
+      pdf.text(`Disponible: ${formatCurrency(data.grandTotal.availableValue)}`, margin + 8, y + 46);
+      y += totalsBoxHeight;
+
+      pdf.setTextColor(148, 163, 184);
+      pdf.setFontSize(7.5);
+      pdf.text(
+        '"Vendido" usa el precio real de venta. "Disponible" es un valor estimado (precio personalizado o market price).',
+        margin,
+        y + 8
+      );
 
       const groupsWithSales = data.groups.filter((g) => g.soldItems.length > 0);
       if (groupsWithSales.length > 0) {
@@ -483,7 +460,7 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
           pdf.setTextColor(71, 85, 105);
           pdf.text("Carta", margin + 3, y);
           pdf.text("Cant.", margin + 105, y);
-          pdf.text("Precio", margin + 125, y);
+          pdf.text("Vendido", margin + 125, y);
           pdf.text("Fecha", margin + 155, y);
           y += 5;
           pdf.setDrawColor(226, 232, 240);
@@ -493,10 +470,10 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
           pdf.setFont("helvetica", "normal");
           pdf.setFontSize(8);
           g.soldItems.forEach((item, idx) => {
-            ensureSpace(7);
+            ensureSpace(13);
             if (idx % 2 === 0) {
               pdf.setFillColor(248, 250, 252);
-              pdf.rect(margin, y - 4, contentWidth, 6.5, "F");
+              pdf.rect(margin, y - 4, contentWidth, 13, "F");
             }
             pdf.setTextColor(30, 41, 59);
             const label = `${item.name} (${item.code})`;
@@ -510,7 +487,24 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
             );
             pdf.setTextColor(100, 116, 139);
             pdf.text(formatDate(item.soldAt), margin + 155, y);
-            y += 6.5;
+
+            // Sub-línea: MXN (si hay tipo de cambio) y el market price de
+            // referencia — siempre debajo, nunca lado a lado con lo de arriba.
+            y += 5.5;
+            pdf.setFontSize(7);
+            pdf.setTextColor(148, 163, 184);
+            const soldMxn = data.exchangeRateMxn
+              ? formatMxn(item.soldPrice, data.exchangeRateMxn)
+              : null;
+            const marketUsd =
+              item.marketPriceUsd !== null ? formatCurrency(item.marketPriceUsd) : "N/A";
+            const marketMxn = formatMxn(item.marketPriceUsd, data.exchangeRateMxn);
+            const subLine = `${soldMxn ? soldMxn + "  ·  " : ""}Market: ${marketUsd}${
+              marketMxn ? ` (${marketMxn})` : ""
+            }`;
+            pdf.text(subLine, margin + 3, y);
+            pdf.setFontSize(8);
+            y += 7.5;
           });
           y += 6;
         });
@@ -628,11 +622,11 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                   <span className="font-semibold">¿Cómo asigno cartas a alguien?</span>{" "}
                   En la carpeta, abre "Opciones" → "Modo asignar consignatario",
                   toca las cartas que quieras y luego{" "}
-                  <span className="font-semibold">"Asignar a…"</span>. Ahí mismo
-                  puedes renombrar o eliminar consignatarios (pasa el mouse
-                  sobre uno en la lista). Las cartas sin asignar cuentan como
-                  tuyas. Este panel es solo una vista previa — para llevártelo
-                  usa PDF o CSV arriba.
+                  <span className="font-semibold">"Asignar a…"</span>. Para
+                  cambiar de color, renombrar o desligar a un consignatario,
+                  usa "Opciones" → "Consignatarios". Las cartas sin asignar
+                  cuentan como tuyas. Este panel es solo una vista previa —
+                  para llevártelo usa PDF o CSV arriba.
                 </p>
               </div>
 
@@ -673,26 +667,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       </p>
                     </div>
                   </div>
-                  {g.availableItems.length > 0 && (
-                    <ExpandableCardSection
-                      isExpanded={expandedGroups.has(`${g.consignorId ?? "mine"}-available`)}
-                      onToggle={() => toggleExpanded(`${g.consignorId ?? "mine"}-available`)}
-                      label={`Ver cartas disponibles (${g.availableItems.length})`}
-                      accentClass="border-amber-100 bg-amber-50/50 text-amber-700 hover:bg-amber-50"
-                    >
-                      {g.availableItems.map((item) => (
-                        <CardThumbRow
-                          key={item.listCardId}
-                          src={item.src}
-                          name={item.name}
-                          subtitle={`${item.code} · x${item.quantity}`}
-                          priceLabel={formatCurrency(item.estimatedPrice)}
-                          priceClassName="text-amber-700"
-                          note="est."
-                        />
-                      ))}
-                    </ExpandableCardSection>
-                  )}
                   {g.soldItems.length > 0 && (
                     <ExpandableCardSection
                       isExpanded={expandedGroups.has(`${g.consignorId ?? "mine"}-sold`)}
@@ -701,14 +675,10 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       accentClass="border-emerald-100 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50"
                     >
                       {g.soldItems.map((item) => (
-                        <CardThumbRow
+                        <SoldCardRow
                           key={item.listCardId}
-                          src={item.src}
-                          name={item.name}
-                          subtitle={`${item.code} · x${item.quantity} · ${formatDate(item.soldAt)}`}
-                          priceLabel={formatCurrency(item.soldPrice)}
-                          priceClassName="text-emerald-700"
-                          note={item.isEstimatedPrice ? "est." : undefined}
+                          item={item}
+                          exchangeRateMxn={data.exchangeRateMxn}
                         />
                       ))}
                     </ExpandableCardSection>

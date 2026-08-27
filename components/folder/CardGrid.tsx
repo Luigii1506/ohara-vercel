@@ -345,7 +345,10 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               }}
                               className={cn(
                                 "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-opacity duration-200",
-                                movingCardIds?.has(cell.card?.id ?? "")
+                                // Comparar por el id de la FILA (cell.existing.id), no por el id
+                                // de catálogo (cell.card.id): la misma carta puede repetirse en
+                                // varias celdas, y comparar por catálogo resaltaría todas a la vez.
+                                movingCardIds?.has(String(cell.existing?.id ?? ""))
                                   ? "bg-indigo-700 opacity-100"
                                   : "bg-indigo-500 hover:bg-indigo-600 opacity-0 group-hover:opacity-100"
                               )}

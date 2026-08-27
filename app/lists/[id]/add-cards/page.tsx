@@ -564,10 +564,20 @@ const AddCardsPage = () => {
   const [movingCards, setMovingCards] = useState<
     Array<{
       card: CardWithCollectionData;
+      listCardId: number;
       from: { page: number; row: number; column: number };
     }>
   >([]);
+  // Set de ids de FILA (UserListCard.id), no de catálogo — una misma carta
+  // puede repetirse varias veces en la carpeta, así que identificar la
+  // selección por id de catálogo resaltaría TODAS las copias a la vez.
   const movingCardIds = useMemo(
+    () => new Set(movingCards.map((m) => String(m.listCardId))),
+    [movingCards]
+  );
+  // Set aparte, por id de catálogo, solo para resaltar en el sidebar de
+  // búsqueda la carta equivalente a la(s) que se están moviendo.
+  const movingCatalogCardIds = useMemo(
     () => new Set(movingCards.map((m) => m.card.id)),
     [movingCards]
   );
@@ -2634,11 +2644,15 @@ const AddCardsPage = () => {
           column: newChange.position.column,
         };
 
-        // If it's a change, first remove the previous card
+        // If it's a change, first remove the previous card. Identificamos
+        // la fila por su propio id (listCardId) cuando lo tenemos — si la
+        // misma carta está repetida en otra posición de la carpeta, borrar
+        // solo por cardId podría eliminar la copia equivocada.
         if (newChange.type === "change" && existingCard?.cardId) {
-          await fetch(`/api/lists/${listId}/cards/${existingCard.cardId}`, {
-            method: "DELETE",
-          });
+          const deleteUrl = existingCard.id
+            ? `/api/lists/${listId}/cards/${existingCard.cardId}?listCardId=${existingCard.id}`
+            : `/api/lists/${listId}/cards/${existingCard.cardId}`;
+          await fetch(deleteUrl, { method: "DELETE" });
         }
 
         // Add the new card
@@ -2653,10 +2667,19 @@ const AddCardsPage = () => {
           throw new Error(`Error agregando carta: ${errorData.error}`);
         }
 
-        // Update local state to reflect the save
+        const responseData = await response.json();
+        const createdCard = Array.isArray(responseData.cards)
+          ? responseData.cards[0]
+          : responseData.card;
+
+        // Update local state to reflect the save. Guardamos el id real de la
+        // fila (createdCard.id) — sin él, cualquier intento posterior de
+        // mover esta carta (antes de refrescar la página) no podría
+        // identificar la fila correcta si hay copias duplicadas.
         const newExistingCards = { ...existingCards };
         const key = `${newChange.position.page}-${newChange.position.row}-${newChange.position.column}`;
         newExistingCards[key] = {
+          id: createdCard?.id,
           card: newChange.card,
           cardId: newChange.card.id,
           page: newChange.position.page,
@@ -2664,6 +2687,7 @@ const AddCardsPage = () => {
           column: newChange.position.column,
         };
         setExistingCards(newExistingCards);
+        existingCardsRef.current = newExistingCards;
 
         // Remove the processed change from pending changes
         setPendingChanges((prev) => prev.filter((p) => p.id !== newChange.id));
@@ -2846,7 +2870,15 @@ const AddCardsPage = () => {
 
     const fromKey = `${from.page}-${from.row}-${from.column}`;
     const toKey = `${to.page}-${to.row}-${to.column}`;
+    const sourceEntry = existingCardsRef.current[fromKey];
     const destinationEntry = existingCardsRef.current[toKey];
+
+    if (!sourceEntry?.id) {
+      toast.error(
+        "No se pudo identificar la carta de origen, refresca la página e intenta de nuevo"
+      );
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -2855,6 +2887,7 @@ const AddCardsPage = () => {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            listCardId: sourceEntry.id,
             toPage: to.page,
             toRow: to.row,
             toColumn: to.column,
@@ -2906,14 +2939,21 @@ const AddCardsPage = () => {
   // casilla (vacía u ocupada) completa el movimiento vía handlePositionClick.
   const toggleMovingCard = (entry: { card: CardWithCollectionData; listCard: any }) => {
     if (!entry.listCard || entry.listCard.page == null) return;
+    // Importante: togglear/comparar por el id de la FILA (listCard.id), no
+    // por el id de catálogo (card.id) — la misma carta puede repetirse en
+    // varias posiciones de la carpeta, y comparar por card.id seleccionaría
+    // (y luego movería) una copia distinta a la que el usuario tocó.
+    const listCardId = entry.listCard.id;
+    if (listCardId == null) return;
     setMovingCards((prev) => {
-      if (prev.some((m) => m.card.id === entry.card.id)) {
-        return prev.filter((m) => m.card.id !== entry.card.id);
+      if (prev.some((m) => m.listCardId === listCardId)) {
+        return prev.filter((m) => m.listCardId !== listCardId);
       }
       return [
         ...prev,
         {
           card: entry.card,
+          listCardId,
           from: {
             page: entry.listCard.page,
             row: entry.listCard.row,
@@ -2935,6 +2975,7 @@ const AddCardsPage = () => {
   const handleMoveCardsBatch = async (
     cards: Array<{
       card: CardWithCollectionData;
+      listCardId: number;
       from: { page: number; row: number; column: number };
     }>,
     to: { page: number; row: number; column: number }
@@ -2951,7 +2992,9 @@ const AddCardsPage = () => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cardIds: cards.map((c) => c.card.id),
+          // Identificar cada fila por su propio id evita que dos copias de
+          // la misma carta (mismo cardId) se pisen entre sí en el backend.
+          listCardIds: cards.map((c) => c.listCardId),
           toPage: to.page,
           toRow: to.row,
           toColumn: to.column,
@@ -2966,20 +3009,27 @@ const AddCardsPage = () => {
       // Reubicar cada carta directo en el estado local (sin refetch: evita
       // el parpadeo/skeleton de toda la página). Conservamos todos los
       // campos de cada carta (precio custom, vendida, etc.), solo cambia
-      // su posición.
-      const entryByCardId = new Map<string, any>();
+      // su posición. Reconciliamos por id de FILA, no de catálogo, por la
+      // misma razón que arriba.
+      const entryByListCardId = new Map<string, any>();
       updateExistingCards((prev) => {
         const next = { ...prev };
         cards.forEach((c) => {
           const fromKey = `${c.from.page}-${c.from.row}-${c.from.column}`;
           const entry = next[fromKey];
-          if (entry) entryByCardId.set(String(c.card.id), entry);
+          if (entry) entryByListCardId.set(String(c.listCardId), entry);
           delete next[fromKey];
         });
 
         (data.assignments || []).forEach(
-          (a: { cardId: number; page: number; row: number; column: number }) => {
-            const entry = entryByCardId.get(String(a.cardId));
+          (a: {
+            cardId: number;
+            rowId: number;
+            page: number;
+            row: number;
+            column: number;
+          }) => {
+            const entry = entryByListCardId.get(String(a.rowId));
             if (!entry) return;
             const toKey = `${a.page}-${a.row}-${a.column}`;
             next[toKey] = { ...entry, page: a.page, row: a.row, column: a.column };
@@ -3098,12 +3148,33 @@ const AddCardsPage = () => {
         throw new Error(`Error agregando carta: ${errorData.error}`);
       }
 
+      const data = await response.json();
+      const createdCards: any[] = Array.isArray(data.cards)
+        ? data.cards
+        : data.card
+        ? [data.card]
+        : [];
+
       updateExistingCards((prev) => {
         const next = { ...prev };
         entries.forEach((entry) => {
           const key = `${entry.page}-${entry.row}-${entry.column}`;
           if (next[key]) {
-            next[key] = { ...next[key], isOptimistic: false };
+            // Guardamos el id real de la fila (createdCard.id): sin él, la
+            // carta queda sin identidad propia hasta refrescar la página, y
+            // cualquier intento de moverla mientras tanto usaría el id de
+            // catálogo como fallback — ambiguo si hay copias duplicadas.
+            const createdCard = createdCards.find(
+              (c) =>
+                c.page === entry.page &&
+                c.row === entry.row &&
+                c.column === entry.column
+            );
+            next[key] = {
+              ...next[key],
+              id: createdCard?.id ?? next[key].id,
+              isOptimistic: false,
+            };
           }
         });
         return next;
@@ -3335,14 +3406,17 @@ const AddCardsPage = () => {
       } else {
         // Mark existing card for removal and auto-save
         try {
-          // Remove from server
+          // Remove from server. Identificamos la fila por su propio id
+          // (listCardId) cuando está disponible — si hay copias duplicadas
+          // de la misma carta en otras posiciones, borrar solo por cardId
+          // podría eliminar la copia equivocada.
           if (cardAtPosition.existing?.cardId) {
-            const response = await fetch(
-              `/api/lists/${listId}/cards/${cardAtPosition.existing.cardId}`,
-              {
-                method: "DELETE",
-              }
-            );
+            const deleteUrl = cardAtPosition.existing.id
+              ? `/api/lists/${listId}/cards/${cardAtPosition.existing.cardId}?listCardId=${cardAtPosition.existing.id}`
+              : `/api/lists/${listId}/cards/${cardAtPosition.existing.cardId}`;
+            const response = await fetch(deleteUrl, {
+              method: "DELETE",
+            });
 
             if (!response.ok) {
               const errorData = await response.json();
@@ -3686,7 +3760,7 @@ const AddCardsPage = () => {
                                 handleDragStart(e, card, "sidebar")
                               }
                               className={`cursor-pointer transition-all duration-200 relative group ${
-                                movingCardIds.has(card.id)
+                                movingCatalogCardIds.has(card.id)
                                   ? "ring-2 ring-blue-500 bg-blue-50"
                                   : "hover:shadow-md"
                               }`}
@@ -3745,7 +3819,7 @@ const AddCardsPage = () => {
                                   handleDragStart(e, alt, "sidebar")
                                 }
                                 className={`cursor-pointer transition-all duration-200 relative group ${
-                                  movingCardIds.has(alt.id)
+                                  movingCatalogCardIds.has(alt.id)
                                     ? "ring-2 ring-blue-500 bg-blue-50"
                                     : "hover:shadow-md"
                                 }`}
@@ -3825,7 +3899,7 @@ const AddCardsPage = () => {
                               handleDragStart(e, card, "sidebar")
                             }
                             className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg relative group ${
-                              movingCardIds.has(card.id)
+                              movingCatalogCardIds.has(card.id)
                                 ? "ring-2 ring-blue-500 bg-blue-50"
                                 : ""
                             }`}
@@ -3909,7 +3983,7 @@ const AddCardsPage = () => {
                                 handleDragStart(e, alt, "sidebar")
                               }
                               className={`w-full cursor-pointer max-w-[450px] transition-all duration-200 rounded-lg relative group ${
-                                movingCardIds.has(alt.id)
+                                movingCatalogCardIds.has(alt.id)
                                   ? "ring-2 ring-blue-500 bg-blue-50"
                                   : ""
                               }`}

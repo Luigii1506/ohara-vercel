@@ -238,13 +238,26 @@ export async function DELETE(
       );
     }
 
-    // Buscar la carta en la lista
-    const listCard = await prisma.userListCard.findFirst({
-      where: {
-        listId,
-        cardId,
-      },
-    });
+    // Obtener parámetros de consulta para manejo de cantidad
+    const { searchParams } = new URL(request.url);
+    const decreaseBy = parseInt(searchParams.get("decreaseBy") || "0");
+    const listCardIdParam = searchParams.get("listCardId");
+    const listCardId = listCardIdParam ? Number(listCardIdParam) : null;
+
+    // Preferimos identificar la fila exacta por su propio id (listCardId).
+    // El id de catálogo (cardId) puede repetirse varias veces en la misma
+    // carpeta (copias duplicadas de la misma carta), así que buscar solo por
+    // {listId, cardId} puede borrar una fila distinta a la que el usuario
+    // realmente quería eliminar. Se mantiene el fallback por cardId por
+    // compatibilidad con llamadas antiguas.
+    const listCard =
+      listCardId != null
+        ? await prisma.userListCard.findFirst({
+            where: { id: listCardId, listId },
+          })
+        : await prisma.userListCard.findFirst({
+            where: { listId, cardId },
+          });
 
     if (!listCard) {
       return NextResponse.json(
@@ -252,10 +265,6 @@ export async function DELETE(
         { status: 404 }
       );
     }
-
-    // Obtener parámetros de consulta para manejo de cantidad
-    const { searchParams } = new URL(request.url);
-    const decreaseBy = parseInt(searchParams.get("decreaseBy") || "0");
 
     if (decreaseBy > 0) {
       // Disminuir cantidad en lugar de eliminar completamente

@@ -49,9 +49,26 @@ export async function PUT(
       );
     }
 
-    const sourceCard = await prisma.userListCard.findFirst({
-      where: { listId, cardId },
-    });
+    const body = await request.json();
+    const listCardId =
+      body?.listCardId !== undefined && body?.listCardId !== null
+        ? Number(body.listCardId)
+        : null;
+
+    // Preferimos identificar la fila exacta por su propio id (listCardId).
+    // El id de catálogo (cardId) puede repetirse varias veces en la misma
+    // carpeta (copias duplicadas de la misma carta), así que buscar solo por
+    // {listId, cardId} puede devolver una fila distinta a la que el usuario
+    // realmente seleccionó. Se mantiene el fallback por cardId por
+    // compatibilidad con llamadas antiguas.
+    const sourceCard =
+      listCardId != null
+        ? await prisma.userListCard.findFirst({
+            where: { id: listCardId, listId },
+          })
+        : await prisma.userListCard.findFirst({
+            where: { listId, cardId },
+          });
     if (!sourceCard) {
       return NextResponse.json(
         { error: "Carta no encontrada en la lista" },
@@ -69,7 +86,6 @@ export async function PUT(
       );
     }
 
-    const body = await request.json();
     const toPage = Number(body?.toPage);
     const hasExplicitSlot =
       body?.toRow !== undefined && body?.toColumn !== undefined;

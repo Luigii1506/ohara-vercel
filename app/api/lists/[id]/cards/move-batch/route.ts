@@ -51,13 +51,16 @@ export async function PUT(
     }
 
     const body = await request.json();
+    const rawListCardIds: number[] = Array.isArray(body?.listCardIds)
+      ? body.listCardIds
+          .map((id: any) => Number(id))
+          .filter((id: number) => Number.isInteger(id))
+      : [];
     const rawCardIds: number[] = Array.isArray(body?.cardIds)
       ? body.cardIds
           .map((id: any) => Number(id))
           .filter((id: number) => Number.isInteger(id))
       : [];
-    // Dedup preservando el orden de selección.
-    const cardIds = Array.from(new Set(rawCardIds));
 
     const toPage = Number(body?.toPage);
     const toRow = Number(body?.toRow);
@@ -66,7 +69,7 @@ export async function PUT(
     const maxRows = list.maxRows || 3;
     const maxColumns = list.maxColumns || 3;
 
-    if (cardIds.length === 0) {
+    if (rawListCardIds.length === 0 && rawCardIds.length === 0) {
       return NextResponse.json(
         { error: "No se enviaron cartas para mover" },
         { status: 400 }
@@ -88,20 +91,45 @@ export async function PUT(
       );
     }
 
-    const sourceCards = await prisma.userListCard.findMany({
-      where: { listId, cardId: { in: cardIds } },
-    });
+    // Preferimos identificar cada fila por su propio id (listCardId). El id
+    // de catálogo (cardId) puede repetirse varias veces en la misma carpeta
+    // (copias duplicadas de la misma carta): deduplicar o buscar por cardId
+    // colapsa esas copias entre sí y mueve/pierde la fila equivocada. Se
+    // mantiene el fallback por cardId (con dedup) por compatibilidad.
+    let orderedSources: { id: number; cardId: number }[];
 
-    if (sourceCards.length !== cardIds.length) {
-      return NextResponse.json(
-        { error: "Alguna carta no se encontró en la lista" },
-        { status: 404 }
-      );
+    if (rawListCardIds.length > 0) {
+      const listCardIds = Array.from(new Set(rawListCardIds));
+      const sourceCards = await prisma.userListCard.findMany({
+        where: { id: { in: listCardIds }, listId },
+      });
+
+      if (sourceCards.length !== listCardIds.length) {
+        return NextResponse.json(
+          { error: "Alguna carta no se encontró en la lista" },
+          { status: 404 }
+        );
+      }
+
+      const sourceById = new Map(sourceCards.map((c) => [c.id, c]));
+      orderedSources = listCardIds.map((id) => sourceById.get(id)!);
+    } else {
+      const cardIds = Array.from(new Set(rawCardIds));
+      const sourceCards = await prisma.userListCard.findMany({
+        where: { listId, cardId: { in: cardIds } },
+      });
+
+      if (sourceCards.length !== cardIds.length) {
+        return NextResponse.json(
+          { error: "Alguna carta no se encontró en la lista" },
+          { status: 404 }
+        );
+      }
+
+      const sourceByCardId = new Map(sourceCards.map((c) => [c.cardId, c]));
+      orderedSources = cardIds.map((id) => sourceByCardId.get(id)!);
     }
 
-    const sourceByCardId = new Map(sourceCards.map((c) => [c.cardId, c]));
-    // Mantener el orden en que el cliente seleccionó las cartas.
-    const orderedSources = cardIds.map((id) => sourceByCardId.get(id)!);
     const movingIds = new Set(orderedSources.map((c) => c.id));
 
     // Todo lo que bloquea el paso: cartas que NO se están moviendo, y
@@ -139,7 +167,7 @@ export async function PUT(
     let page = toPage;
     let row = toRow;
     let column = toColumn;
-    const maxIterations = (cardIds.length + blocked.size + 50) * maxRows * maxColumns + 1000;
+    const maxIterations = (orderedSources.length + blocked.size + 50) * maxRows * maxColumns + 1000;
     let guard = 0;
 
     for (const source of orderedSources) {
@@ -209,6 +237,7 @@ export async function PUT(
       message: "Cartas movidas",
       assignments: assignments.map((a) => ({
         cardId: a.cardId,
+        rowId: a.rowId,
         page: a.page,
         row: a.row,
         column: a.column,

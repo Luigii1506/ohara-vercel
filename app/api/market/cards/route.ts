@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       where = {
         points: { gte: MIN_POINTS },
         priceNow: { gte: 1, lte: 15 },
-        pct30d: { gte: 20, lte: 400 },
+        pct30d: { gte: 20 },
         pct90d: { gte: 0 },
         card: { OR: [{ region: "US" }, { region: null }] },
       };
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       where = {
         points: { gte: MIN_POINTS },
         priceNow: priceFloor,
-        pct30d: { gt: 0, lte: 400 },
+        pct30d: { gt: 0 },
         card: {
           OR: [{ region: "US" }, { region: null }],
           alternateArt: { not: null },
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       where = {
         points: { gte: MIN_POINTS },
         priceNow: priceFloor,
-        [pctField]: { gt: 0, lte: 400 },
+        [pctField]: { gt: 0 },
         card: { OR: [{ region: "US" }, { region: null }] },
       } as Prisma.CardPriceStatWhereInput;
       orderBy = { [pctField]: "desc" } as Prisma.CardPriceStatOrderByWithRelationInput;

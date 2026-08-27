@@ -129,6 +129,7 @@ export async function GET(
             },
           },
         },
+        consignor: { select: { id: true, name: true, color: true } },
       },
       orderBy: list.isOrdered
         ? [{ page: "asc" }, { row: "asc" }, { column: "asc" }]

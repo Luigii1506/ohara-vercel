@@ -638,6 +638,27 @@ model User {
   announcementEvents AnnouncementEvent[]
   collection         Collection?
   buylistSessions    BuylistSession[]
+  consignors         Consignor[]
+}
+
+// 🤝 Persona (que no es el dueño de la cuenta) cuyas cartas viven dentro de
+// una carpeta de venta del dueño — para poder llevar cuánto tiene cada quién,
+// cuánto vendió y cuánto le queda disponible. Compartido entre TODAS las
+// carpetas del dueño (no por carpeta individual), para no tener que
+// recrear a la misma persona en cada carpeta nueva.
+model Consignor {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  name      String
+  notes     String?
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards     UserListCard[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model Account {
@@ -721,16 +742,21 @@ model UserListCard {
   isSold         Boolean   @default(false)
   soldAt         DateTime?
   soldPrice      Decimal?
+  // Dueño de esta carta dentro de la carpeta (para venta en consignación).
+  // null = es del dueño de la carpeta ("Yo"), sin necesidad de asignarlo.
+  consignorId    Int?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   card           Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
   list           UserList  @relation(fields: [listId], references: [id], onDelete: Cascade)
+  consignor      Consignor? @relation(fields: [consignorId], references: [id], onDelete: SetNull)
 
   @@unique([listId, page, row, column], name: "unique_physical_position")
   @@index([listId, cardId])
   @@index([listId, sortOrder])
   @@index([listId, isSold])
   @@index([cardId])
+  @@index([consignorId])
 }
 
 // 📸 Snapshot congelado del estado de una carpeta de venta en un momento dado.

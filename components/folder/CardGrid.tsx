@@ -192,6 +192,20 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         </div>
                       )}
 
+                      {/* Consignatario - a quién le pertenece esta carta dentro de la carpeta */}
+                      {cell.existing?.consignor && (
+                        <div
+                          className="pointer-events-none absolute top-1 left-1 z-10 flex max-w-[85%] items-center gap-1 truncate rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-md"
+                          title={cell.existing.consignor.name}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                            style={{ backgroundColor: cell.existing.consignor.color || "#a78bfa" }}
+                          />
+                          <span className="truncate">{cell.existing.consignor.name}</span>
+                        </div>
+                      )}
+
                       {/* Quantity Badge - Shows in both viewing and editing modes */}
                       {cell.quantity && cell.quantity > 1 && (
                         <div className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white shadow-md z-10">

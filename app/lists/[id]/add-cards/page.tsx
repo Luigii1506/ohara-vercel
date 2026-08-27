@@ -37,6 +37,7 @@ import {
   FilePlus2,
   Camera,
   FileText,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -106,6 +107,7 @@ import {
 } from "@/lib/cardFilters";
 import { SnapshotsDrawer } from "@/components/lists/snapshots";
 import { CollectionReportDrawer } from "@/components/lists/report";
+import { ConsignorPicker, ConsignmentReportDrawer, type Consignor } from "@/components/lists/consignors";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -174,6 +176,7 @@ const FolderOptionsMenu = ({
   pageTools,
   onOpenSnapshots,
   onOpenReport,
+  onOpenConsignmentReport,
   variant = "labeled",
 }: {
   listId: string;
@@ -196,6 +199,8 @@ const FolderOptionsMenu = ({
   onOpenSnapshots?: () => void;
   /** Solo admin — misma regla que /lists/[id]. */
   onOpenReport?: () => void;
+  /** Solo dueño — reporte de venta agrupado por consignatario. */
+  onOpenConsignmentReport?: () => void;
   variant?: "labeled" | "icon";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -278,6 +283,16 @@ const FolderOptionsMenu = ({
             icon: <Camera className="h-4 w-4" />,
             onClick: onOpenSnapshots,
             hoverClass: "hover:bg-slate-100 hover:text-slate-900",
+          },
+        ]
+      : []),
+    ...(onOpenConsignmentReport
+      ? [
+          {
+            label: "Reporte de consignación",
+            icon: <Users className="h-4 w-4" />,
+            onClick: onOpenConsignmentReport,
+            hoverClass: "hover:bg-purple-50 hover:text-purple-700",
           },
         ]
       : []),
@@ -748,8 +763,29 @@ const AddCardsPage = () => {
   // viendo una foto congelada" con "estoy editando en vivo".
   const [showSnapshotsDrawer, setShowSnapshotsDrawer] = useState(false);
   const [showReportDrawer, setShowReportDrawer] = useState(false);
+  const [showConsignmentReport, setShowConsignmentReport] = useState(false);
   const goToSnapshot = (snapshotId: number | null) => {
     if (snapshotId != null) router.push(`/lists/${listId}?snapshot=${snapshotId}`);
+  };
+
+  // Tras asignar un consignatario a las cartas seleccionadas, reflejamos el
+  // cambio en el estado local (para que el badge se vea sin refetch) y
+  // cerramos la selección múltiple.
+  const handleConsignorAssigned = (
+    assignedListCardIds: number[],
+    consignor: Consignor | null
+  ) => {
+    const idSet = new Set(assignedListCardIds);
+    updateExistingCards((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (next[key]?.id != null && idSet.has(next[key].id)) {
+          next[key] = { ...next[key], consignor, consignorId: consignor?.id ?? null };
+        }
+      });
+      return next;
+    });
+    cancelMovingCards();
   };
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
@@ -3760,6 +3796,26 @@ const AddCardsPage = () => {
                       ? "✓ Insertar (recorre lo existente)"
                       : "Insertar (recorre lo existente)"}
                   </button>
+                  {isOwner && list && (
+                    <ConsignorPicker
+                      listId={list.id}
+                      selectedListCardIds={movingCards.map((m) => m.listCardId)}
+                      onAssigned={(consignor) =>
+                        handleConsignorAssigned(
+                          movingCards.map((m) => m.listCardId),
+                          consignor
+                        )
+                      }
+                      trigger={
+                        <button
+                          type="button"
+                          className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+                        >
+                          Asignar a…
+                        </button>
+                      }
+                    />
+                  )}
                 </div>
               )}
 
@@ -4253,6 +4309,9 @@ const AddCardsPage = () => {
                             : undefined
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
+                        onOpenConsignmentReport={
+                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                        }
                         variant="labeled"
                       />
                     </div>
@@ -4320,6 +4379,9 @@ const AddCardsPage = () => {
                             : undefined
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
+                        onOpenConsignmentReport={
+                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                        }
                         variant="icon"
                       />
                     </div>
@@ -4469,6 +4531,9 @@ const AddCardsPage = () => {
                             : undefined
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
+                        onOpenConsignmentReport={
+                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                        }
                         variant="labeled"
                       />
                     </div>
@@ -4513,6 +4578,9 @@ const AddCardsPage = () => {
                               : undefined
                           }
                           onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
+                          onOpenConsignmentReport={
+                            isOwner ? () => setShowConsignmentReport(true) : undefined
+                          }
                           variant="icon"
                         />
                       </div>
@@ -5228,6 +5296,26 @@ const AddCardsPage = () => {
                       ? "✓ Insertar (recorre lo existente)"
                       : "Insertar (recorre lo existente)"}
                   </button>
+                  {isOwner && list && (
+                    <ConsignorPicker
+                      listId={list.id}
+                      selectedListCardIds={movingCards.map((m) => m.listCardId)}
+                      onAssigned={(consignor) =>
+                        handleConsignorAssigned(
+                          movingCards.map((m) => m.listCardId),
+                          consignor
+                        )
+                      }
+                      trigger={
+                        <button
+                          type="button"
+                          className="mt-1.5 w-full text-xs font-medium py-1.5 rounded-md border bg-white border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+                        >
+                          Asignar a…
+                        </button>
+                      }
+                    />
+                  )}
                 </div>
               )}
 
@@ -6192,6 +6280,16 @@ const AddCardsPage = () => {
           listName={list.name}
           currentSnapshotId={null}
           onSelectSnapshot={goToSnapshot}
+        />
+      )}
+
+      {/* Reporte de consignación (solo dueño) */}
+      {list && isOwner && (
+        <ConsignmentReportDrawer
+          isOpen={showConsignmentReport}
+          onClose={() => setShowConsignmentReport(false)}
+          listId={list.id}
+          listName={list.name}
         />
       )}
     </div>

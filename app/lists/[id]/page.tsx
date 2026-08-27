@@ -13,8 +13,8 @@ import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
 import TcgplayerLogo from "@/components/Icons/TcgplayerLogo";
 import { useUser } from "@/app/context/UserContext";
-import CollectionReportDrawer from "@/components/CollectionReportDrawer";
-import SnapshotsDrawer from "@/components/SnapshotsDrawer";
+import { CollectionReportDrawer } from "@/components/lists/report";
+import { SnapshotsDrawer } from "@/components/lists/snapshots";
 import { convertForListDisplay } from "@/lib/lists/currency";
 
 import { Oswald } from "next/font/google";

@@ -6,19 +6,7 @@ import BaseDrawer from "@/components/ui/BaseDrawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
-
-interface SnapshotSummary {
-  id: number;
-  label: string | null;
-  createdAt: string;
-  totalCards: number;
-  totalUnique: number;
-  soldCount: number;
-  soldValue: number | string;
-  availableValue: number | string;
-  totalValue: number | string;
-  currency: string;
-}
+import type { UserListSnapshot } from "@/types";
 
 interface SnapshotsDrawerProps {
   isOpen: boolean;
@@ -27,7 +15,7 @@ interface SnapshotsDrawerProps {
   listName: string;
   /** Snapshot que se está viendo actualmente en la página (null = estado en vivo). */
   currentSnapshotId: number | null;
-  /** Cambia qué se muestra en la página: un snapshot puntual, o null para el estado en vivo. */
+  /** Cambia qué se muestra: un snapshot puntual, o null para el estado en vivo. */
   onSelectSnapshot: (snapshotId: number | null) => void;
 }
 
@@ -38,7 +26,7 @@ const formatCurrency = (value: number | string, currency?: string | null) =>
     minimumFractionDigits: 2,
   }).format(Number(value));
 
-const formatDate = (iso: string) =>
+const formatDate = (iso: string | Date) =>
   new Date(iso).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -53,7 +41,7 @@ const SnapshotsDrawer: React.FC<SnapshotsDrawerProps> = ({
   onSelectSnapshot,
 }) => {
   const [loading, setLoading] = useState(false);
-  const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([]);
+  const [snapshots, setSnapshots] = useState<UserListSnapshot[]>([]);
   const [creating, setCreating] = useState(false);
   const [labelInput, setLabelInput] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);

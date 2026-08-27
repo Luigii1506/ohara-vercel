@@ -35,6 +35,8 @@ import {
   DollarSign,
   Tag,
   FilePlus2,
+  Camera,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -102,6 +104,8 @@ import {
   getFilteredAlternates,
   cardMatchesActiveFilters,
 } from "@/lib/cardFilters";
+import { SnapshotsDrawer } from "@/components/lists/snapshots";
+import { CollectionReportDrawer } from "@/components/lists/report";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -168,6 +172,8 @@ const FolderOptionsMenu = ({
   onRefresh,
   isRefreshing,
   pageTools,
+  onOpenSnapshots,
+  onOpenReport,
   variant = "labeled",
 }: {
   listId: string;
@@ -186,6 +192,10 @@ const FolderOptionsMenu = ({
     onInsertPage: () => void;
     canInsertPage: boolean;
   };
+  /** Dueño y no-Colección — misma regla que /lists/[id]. */
+  onOpenSnapshots?: () => void;
+  /** Solo admin — misma regla que /lists/[id]. */
+  onOpenReport?: () => void;
   variant?: "labeled" | "icon";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -251,6 +261,26 @@ const FolderOptionsMenu = ({
       hoverClass: "hover:bg-blue-50 hover:text-blue-700",
       disabled: zipLoading,
     },
+    ...(onOpenReport
+      ? [
+          {
+            label: "Generar reporte",
+            icon: <FileText className="h-4 w-4" />,
+            onClick: onOpenReport,
+            hoverClass: "hover:bg-amber-50 hover:text-amber-700",
+          },
+        ]
+      : []),
+    ...(onOpenSnapshots
+      ? [
+          {
+            label: "Snapshots",
+            icon: <Camera className="h-4 w-4" />,
+            onClick: onOpenSnapshots,
+            hoverClass: "hover:bg-slate-100 hover:text-slate-900",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -711,6 +741,16 @@ const AddCardsPage = () => {
   const isAdmin = session?.user?.role === "ADMIN";
   // Listed Median (midPrice) se muestra por default; admin puede alternar a Market Price.
   const [showListedMedian, setShowListedMedian] = useState(true);
+  // Snapshots y Report: mismos drawers compartidos que usa /lists/[id], con
+  // las mismas reglas de acceso (dueño+no-Colección / admin). "Ver" un
+  // snapshot puntual desde aquí navega a /lists/[id]?snapshot=X en vez de
+  // renderizarlo dentro de esta pantalla de edición — evita mezclar "estoy
+  // viendo una foto congelada" con "estoy editando en vivo".
+  const [showSnapshotsDrawer, setShowSnapshotsDrawer] = useState(false);
+  const [showReportDrawer, setShowReportDrawer] = useState(false);
+  const goToSnapshot = (snapshotId: number | null) => {
+    if (snapshotId != null) router.push(`/lists/${listId}?snapshot=${snapshotId}`);
+  };
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
     baseCard ?? simpleModalBaseCard ?? undefined;
@@ -4207,6 +4247,12 @@ const AddCardsPage = () => {
                           onInsertPage: openInsertPageDialog,
                           canInsertPage: Boolean(isOwner),
                         }}
+                        onOpenSnapshots={
+                          isOwner && !list?.isCollection
+                            ? () => setShowSnapshotsDrawer(true)
+                            : undefined
+                        }
+                        onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         variant="labeled"
                       />
                     </div>
@@ -4268,6 +4314,12 @@ const AddCardsPage = () => {
                           onInsertPage: openInsertPageDialog,
                           canInsertPage: Boolean(isOwner),
                         }}
+                        onOpenSnapshots={
+                          isOwner && !list?.isCollection
+                            ? () => setShowSnapshotsDrawer(true)
+                            : undefined
+                        }
+                        onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         variant="icon"
                       />
                     </div>
@@ -4411,6 +4463,12 @@ const AddCardsPage = () => {
                         onDeleteClick={handleDeleteClick}
                         onRefresh={handleRefreshCards}
                         isRefreshing={isRefreshing}
+                        onOpenSnapshots={
+                          isOwner && !list?.isCollection
+                            ? () => setShowSnapshotsDrawer(true)
+                            : undefined
+                        }
+                        onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         variant="labeled"
                       />
                     </div>
@@ -4449,6 +4507,12 @@ const AddCardsPage = () => {
                           onDeleteClick={handleDeleteClick}
                           onRefresh={handleRefreshCards}
                           isRefreshing={isRefreshing}
+                          onOpenSnapshots={
+                            isOwner && !list?.isCollection
+                              ? () => setShowSnapshotsDrawer(true)
+                              : undefined
+                          }
+                          onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                           variant="icon"
                         />
                       </div>
@@ -6106,6 +6170,30 @@ const AddCardsPage = () => {
         onConfirm={handleDeleteConfirm}
         isDeleting={deletingId !== null}
       />
+
+      {/* Report (solo admin) — mismo componente compartido que /lists/[id] */}
+      {list && isAdmin && (
+        <CollectionReportDrawer
+          isOpen={showReportDrawer}
+          onClose={() => setShowReportDrawer(false)}
+          listId={list.id}
+          listName={list.name}
+        />
+      )}
+
+      {/* Snapshots (dueño, no-Colección) — "ver" navega a /lists/[id] en vez
+          de renderizar el estado congelado aquí, para no mezclarlo con la
+          edición en vivo de esta pantalla. */}
+      {list && isOwner && !list.isCollection && (
+        <SnapshotsDrawer
+          isOpen={showSnapshotsDrawer}
+          onClose={() => setShowSnapshotsDrawer(false)}
+          listId={list.id}
+          listName={list.name}
+          currentSnapshotId={null}
+          onSelectSnapshot={goToSnapshot}
+        />
+      )}
     </div>
   );
 };

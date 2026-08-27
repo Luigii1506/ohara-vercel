@@ -11,6 +11,9 @@ export async function PATCH(
 ) {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const consignorId = parseInt(params.id);
     if (isNaN(consignorId)) {
@@ -80,6 +83,9 @@ export async function DELETE(
 ) {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const consignorId = parseInt(params.id);
     if (isNaN(consignorId)) {

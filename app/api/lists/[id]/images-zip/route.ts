@@ -3,6 +3,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, handleAuthError, AuthError } from "@/lib/auth-helpers";
 
 /**
  * GET /api/lists/[id]/images-zip
@@ -108,6 +109,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const listId = Number(params.id);
     if (!Number.isFinite(listId)) {
       return NextResponse.json({ error: "id inválido" }, { status: 400 });
@@ -185,6 +191,9 @@ export async function GET(
       },
     });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return handleAuthError(error);
+    }
     console.error("[lists/images-zip] failed:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

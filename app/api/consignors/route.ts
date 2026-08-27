@@ -10,6 +10,9 @@ import { pickConsignorColor } from "@/lib/consignors/colorPalette";
 export async function GET() {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const consignors = await prisma.consignor.findMany({
       where: { userId: user.id },
@@ -26,6 +29,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const body = await request.json();
     const name = typeof body?.name === "string" ? body.name.trim() : "";

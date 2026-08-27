@@ -24,6 +24,9 @@ export async function GET(
 ) {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const listId = parseInt(params.id);
     if (isNaN(listId) || listId <= 0) {

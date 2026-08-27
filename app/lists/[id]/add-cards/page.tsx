@@ -195,7 +195,8 @@ const FolderOptionsMenu = ({
   listId: string;
   router: any;
   onExportCsv: () => void;
-  onExportZip: () => void;
+  /** Solo admin. */
+  onExportZip?: () => void;
   zipLoading: boolean;
   onDeleteClick: () => void;
   onRefresh?: () => void;
@@ -212,14 +213,14 @@ const FolderOptionsMenu = ({
   onOpenSnapshots?: () => void;
   /** Solo admin — misma regla que /lists/[id]. */
   onOpenReport?: () => void;
-  /** Solo dueño — reporte de venta agrupado por consignatario. */
+  /** Solo admin — reporte de venta agrupado por consignatario. */
   onOpenConsignmentReport?: () => void;
-  /** Solo dueño — panel para ver/gestionar consignatarios (color, totales, desligar, eliminar). */
+  /** Solo admin — panel para ver/gestionar consignatarios (color, totales, desligar, eliminar). */
   onOpenConsignorManager?: () => void;
   /** Solo dueño, solo carpetas (isOrdered): activa/cancela el modo mover. */
   onToggleMoveMode?: () => void;
   isMoveModeActive?: boolean;
-  /** Solo dueño, solo carpetas (isOrdered): activa/cancela el modo asignar. */
+  /** Solo admin, solo carpetas (isOrdered): activa/cancela el modo asignar. */
   onToggleAssignMode?: () => void;
   isAssignModeActive?: boolean;
   variant?: "labeled" | "icon";
@@ -276,17 +277,21 @@ const FolderOptionsMenu = ({
       onClick: onExportCsv,
       hoverClass: "hover:bg-blue-50 hover:text-blue-700",
     },
-    {
-      label: zipLoading ? "Generando ZIP…" : "Imágenes ZIP",
-      icon: zipLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Download className="h-4 w-4" />
-      ),
-      onClick: onExportZip,
-      hoverClass: "hover:bg-blue-50 hover:text-blue-700",
-      disabled: zipLoading,
-    },
+    ...(onExportZip
+      ? [
+          {
+            label: zipLoading ? "Generando ZIP…" : "Imágenes ZIP",
+            icon: zipLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            ),
+            onClick: onExportZip,
+            hoverClass: "hover:bg-blue-50 hover:text-blue-700",
+            disabled: zipLoading,
+          },
+        ]
+      : []),
     ...(onOpenReport
       ? [
           {
@@ -3916,7 +3921,7 @@ const AddCardsPage = () => {
                   carta, mostramos un acceso directo a ver/gestionar
                   consignatarios (colores, totales, desligar) — antes solo
                   aparecía tras seleccionar al menos una carta. */}
-              {selectMode === "assign" && movingCards.length === 0 && !isMobile && isOwner && (
+              {selectMode === "assign" && movingCards.length === 0 && !isMobile && isAdmin && (
                 <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
                   <p className="text-xs text-purple-800">
                     Toca cartas para agregarlas a la cola de asignación.
@@ -3997,7 +4002,7 @@ const AddCardsPage = () => {
                     </>
                   )}
 
-                  {selectMode === "assign" && isOwner && list && (
+                  {selectMode === "assign" && isAdmin && list && (
                     <ConsignorPicker
                       listId={list.id}
                       selectedListCardIds={movingCards.map((m) => m.listCardId)}
@@ -4494,7 +4499,7 @@ const AddCardsPage = () => {
                         listId={listId}
                         router={router}
                         onExportCsv={exportListToCsv}
-                        onExportZip={downloadImagesZip}
+                        onExportZip={isAdmin ? downloadImagesZip : undefined}
                         zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
                         onRefresh={handleRefreshCards}
@@ -4513,14 +4518,14 @@ const AddCardsPage = () => {
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         onOpenConsignmentReport={
-                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                          isAdmin ? () => setShowConsignmentReport(true) : undefined
                         }
                         onOpenConsignorManager={
-                          isOwner ? () => setShowConsignorManager(true) : undefined
+                          isAdmin ? () => setShowConsignorManager(true) : undefined
                         }
                         onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
                         isMoveModeActive={selectMode === "move"}
-                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        onToggleAssignMode={isAdmin ? toggleAssignMode : undefined}
                         isAssignModeActive={selectMode === "assign"}
                         variant="labeled"
                       />
@@ -4571,7 +4576,7 @@ const AddCardsPage = () => {
                         listId={listId}
                         router={router}
                         onExportCsv={exportListToCsv}
-                        onExportZip={downloadImagesZip}
+                        onExportZip={isAdmin ? downloadImagesZip : undefined}
                         zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
                         onRefresh={handleRefreshCards}
@@ -4590,14 +4595,14 @@ const AddCardsPage = () => {
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         onOpenConsignmentReport={
-                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                          isAdmin ? () => setShowConsignmentReport(true) : undefined
                         }
                         onOpenConsignorManager={
-                          isOwner ? () => setShowConsignorManager(true) : undefined
+                          isAdmin ? () => setShowConsignorManager(true) : undefined
                         }
                         onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
                         isMoveModeActive={selectMode === "move"}
-                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        onToggleAssignMode={isAdmin ? toggleAssignMode : undefined}
                         isAssignModeActive={selectMode === "assign"}
                         variant="icon"
                       />
@@ -4739,7 +4744,7 @@ const AddCardsPage = () => {
                         listId={listId}
                         router={router}
                         onExportCsv={exportListToCsv}
-                        onExportZip={downloadImagesZip}
+                        onExportZip={isAdmin ? downloadImagesZip : undefined}
                         zipLoading={zipLoading}
                         onDeleteClick={handleDeleteClick}
                         onRefresh={handleRefreshCards}
@@ -4751,12 +4756,12 @@ const AddCardsPage = () => {
                         }
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         onOpenConsignmentReport={
-                          isOwner ? () => setShowConsignmentReport(true) : undefined
+                          isAdmin ? () => setShowConsignmentReport(true) : undefined
                         }
                         onOpenConsignorManager={
-                          isOwner ? () => setShowConsignorManager(true) : undefined
+                          isAdmin ? () => setShowConsignorManager(true) : undefined
                         }
-                        onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                        onToggleAssignMode={isAdmin ? toggleAssignMode : undefined}
                         isAssignModeActive={selectMode === "assign"}
                         variant="labeled"
                       />
@@ -4791,7 +4796,7 @@ const AddCardsPage = () => {
                           listId={listId}
                           router={router}
                           onExportCsv={exportListToCsv}
-                          onExportZip={downloadImagesZip}
+                          onExportZip={isAdmin ? downloadImagesZip : undefined}
                           zipLoading={zipLoading}
                           onDeleteClick={handleDeleteClick}
                           onRefresh={handleRefreshCards}
@@ -4803,12 +4808,12 @@ const AddCardsPage = () => {
                           }
                           onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                           onOpenConsignmentReport={
-                            isOwner ? () => setShowConsignmentReport(true) : undefined
+                            isAdmin ? () => setShowConsignmentReport(true) : undefined
                           }
                           onOpenConsignorManager={
-                            isOwner ? () => setShowConsignorManager(true) : undefined
+                            isAdmin ? () => setShowConsignorManager(true) : undefined
                           }
-                          onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
+                          onToggleAssignMode={isAdmin ? toggleAssignMode : undefined}
                           isAssignModeActive={selectMode === "assign"}
                           variant="icon"
                         />
@@ -5470,7 +5475,7 @@ const AddCardsPage = () => {
                     </div>
                   )}
 
-                  {selectMode === "assign" && movingCards.length === 0 && isOwner && (
+                  {selectMode === "assign" && movingCards.length === 0 && isAdmin && (
                     <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
                       <p className="text-xs text-purple-800">
                         Toca cartas para agregarlas a la cola de asignación.
@@ -5551,7 +5556,7 @@ const AddCardsPage = () => {
                     </>
                   )}
 
-                  {selectMode === "assign" && isOwner && list && (
+                  {selectMode === "assign" && isAdmin && list && (
                     <ConsignorPicker
                       listId={list.id}
                       selectedListCardIds={movingCards.map((m) => m.listCardId)}
@@ -6540,8 +6545,8 @@ const AddCardsPage = () => {
         />
       )}
 
-      {/* Reporte de consignación (solo dueño) */}
-      {list && isOwner && (
+      {/* Reporte de consignación (solo admin) */}
+      {list && isAdmin && (
         <ConsignmentReportDrawer
           isOpen={showConsignmentReport}
           onClose={() => setShowConsignmentReport(false)}
@@ -6551,8 +6556,8 @@ const AddCardsPage = () => {
       )}
 
       {/* Gestión de consignatarios: colores, totales en la carpeta, desligar
-          y eliminar (solo dueño). */}
-      {list && isOwner && (
+          y eliminar (solo admin). */}
+      {list && isAdmin && (
         <ConsignorManagerDrawer
           isOpen={showConsignorManager}
           onClose={() => setShowConsignorManager(false)}

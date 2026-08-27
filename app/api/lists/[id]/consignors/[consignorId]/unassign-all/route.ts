@@ -19,6 +19,9 @@ export async function PUT(
 ) {
   try {
     const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const listId = parseInt(params.id);
     const consignorId = parseInt(params.consignorId);

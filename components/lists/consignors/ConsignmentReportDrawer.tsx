@@ -8,8 +8,6 @@ import {
   FileDown,
   AlertCircle,
   Info,
-  ChevronDown,
-  ChevronUp,
   Tag,
 } from "lucide-react";
 import BaseDrawer from "@/components/ui/BaseDrawer";
@@ -128,11 +126,11 @@ const SoldCardRow = ({
         <div className="h-16 w-16 flex-shrink-0 rounded bg-slate-100" />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div>
-          <p className="truncate text-xs font-semibold text-slate-800">{item.name}</p>
-          <p className="truncate text-[11px] text-slate-400">
+        <div className="flex flex-col">
+          <span className="truncate text-xs font-semibold text-slate-800">{item.name}</span>
+          <span className="truncate text-[11px] text-slate-400">
             {item.code} · x{item.quantity} · {formatDate(item.soldAt)}
-          </p>
+          </span>
         </div>
         <div className="flex flex-col gap-1 text-[11px]">
           <div className="flex flex-col">
@@ -157,37 +155,21 @@ const SoldCardRow = ({
   );
 };
 
-// Sección expandible con galería de cartas (imagen + nombre + precio) — la
-// alternativa visual a los cuadros de totales de arriba.
-const ExpandableCardSection = ({
-  isExpanded,
-  onToggle,
+// Galería de cartas vendidas — SIEMPRE visible (no detrás de un acordeón
+// que hay que abrir), porque esto es el punto central del reporte.
+const SoldCardsGallery = ({
   label,
-  accentClass,
   children,
 }: {
-  isExpanded: boolean;
-  onToggle: () => void;
   label: string;
-  accentClass: string;
   children: React.ReactNode;
 }) => (
-  <div className="mt-2">
-    <button
-      onClick={onToggle}
-      className={`flex w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${accentClass}`}
-    >
-      <span className="flex items-center gap-1.5">
-        <Tag className="h-3 w-3" />
-        {label}
-      </span>
-      {isExpanded ? (
-        <ChevronUp className="h-3.5 w-3.5" />
-      ) : (
-        <ChevronDown className="h-3.5 w-3.5" />
-      )}
-    </button>
-    {isExpanded && <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">{children}</div>}
+  <div className="mt-2 flex flex-col gap-1.5">
+    <div className="flex items-center gap-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-2 py-1.5 text-xs font-medium text-emerald-700">
+      <Tag className="h-3 w-3" />
+      {label}
+    </div>
+    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">{children}</div>
   </div>
 );
 
@@ -202,16 +184,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [unassigningId, setUnassigningId] = useState<number | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  const toggleExpanded = (key: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -648,32 +620,27 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                     </p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="rounded-lg bg-slate-50 p-2">
-                      <p className="text-slate-400">Total</p>
-                      <p className="font-semibold text-slate-700">
+                    <div className="flex flex-col gap-0.5 rounded-lg bg-slate-50 p-2">
+                      <span className="text-slate-400">Total</span>
+                      <span className="font-semibold text-slate-700">
                         {g.totalCards} cartas · {g.totalQuantity} unid.
-                      </p>
+                      </span>
                     </div>
-                    <div className="rounded-lg bg-emerald-50 p-2">
-                      <p className="text-emerald-500">Vendido</p>
-                      <p className="font-semibold text-emerald-700">
+                    <div className="flex flex-col gap-0.5 rounded-lg bg-emerald-50 p-2">
+                      <span className="text-emerald-500">Vendido</span>
+                      <span className="font-semibold text-emerald-700">
                         {g.soldQuantity} unid. · {formatCurrency(g.soldValue)}
-                      </p>
+                      </span>
                     </div>
-                    <div className="rounded-lg bg-amber-50 p-2">
-                      <p className="text-amber-500">Disponible</p>
-                      <p className="font-semibold text-amber-700">
+                    <div className="flex flex-col gap-0.5 rounded-lg bg-amber-50 p-2">
+                      <span className="text-amber-500">Disponible</span>
+                      <span className="font-semibold text-amber-700">
                         {g.availableQuantity} unid. · {formatCurrency(g.availableValue)}
-                      </p>
+                      </span>
                     </div>
                   </div>
                   {g.soldItems.length > 0 && (
-                    <ExpandableCardSection
-                      isExpanded={expandedGroups.has(`${g.consignorId ?? "mine"}-sold`)}
-                      onToggle={() => toggleExpanded(`${g.consignorId ?? "mine"}-sold`)}
-                      label={`Ver cartas vendidas (${g.soldItems.length})`}
-                      accentClass="border-emerald-100 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50"
-                    >
+                    <SoldCardsGallery label={`Cartas vendidas (${g.soldItems.length})`}>
                       {g.soldItems.map((item) => (
                         <SoldCardRow
                           key={item.listCardId}
@@ -681,7 +648,7 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                           exchangeRateMxn={data.exchangeRateMxn}
                         />
                       ))}
-                    </ExpandableCardSection>
+                    </SoldCardsGallery>
                   )}
                   {g.consignorId !== null && g.totalCards > 0 && (
                     <button

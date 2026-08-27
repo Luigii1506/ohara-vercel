@@ -251,3 +251,39 @@ export async function PATCH(
     return handleAuthError(error);
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireAuth();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const sessionId = Number(params.id);
+    if (!Number.isInteger(sessionId) || sessionId <= 0) {
+      return NextResponse.json({ error: "Invalid session id" }, { status: 400 });
+    }
+
+    const session = await assertSessionOwnership(sessionId, user.id);
+    if (!session) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await (tx as any).buylistItem.deleteMany({
+        where: { sessionId },
+      });
+
+      await (tx as any).buylistSession.delete({
+        where: { id: sessionId },
+      });
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleAuthError(error);
+  }
+}

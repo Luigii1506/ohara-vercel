@@ -326,6 +326,7 @@ export default function AdminBuylistPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [showAddCardsModal, setShowAddCardsModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftCustomerName, setDraftCustomerName] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
@@ -350,7 +351,9 @@ export default function AdminBuylistPage() {
       const data = await response.json();
       const nextSessions = (data.sessions ?? []) as BuylistSession[];
       setSessions(nextSessions);
-      if (!selectedSessionId && nextSessions.length > 0) {
+      if (!nextSessions.some((session) => session.id === selectedSessionId)) {
+        setSelectedSessionId(nextSessions[0]?.id ?? null);
+      } else if (!selectedSessionId && nextSessions.length > 0) {
         setSelectedSessionId(nextSessions[0].id);
       }
     } catch (error) {
@@ -501,6 +504,25 @@ export default function AdminBuylistPage() {
     }
   };
 
+  const deleteSession = async (sessionId: number) => {
+    setDeletingSessionId(sessionId);
+    try {
+      const response = await fetch(`/api/admin/buylist/${sessionId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete buylist session");
+      const remainingSessions = sessions.filter((session) => session.id !== sessionId);
+      setSessions(remainingSessions);
+      if (selectedSessionId === sessionId) {
+        setSelectedSessionId(remainingSessions[0]?.id ?? null);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f5eddc] px-4 py-5 sm:px-6 2xl:px-10">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6">
@@ -569,16 +591,16 @@ export default function AdminBuylistPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-4">
-            <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start">
+          <aside className="space-y-4 xl:sticky xl:top-4">
+            <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm xl:max-h-[calc(100vh-13rem)]">
               <CardHeader className="border-b border-slate-100 bg-slate-50">
                 <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
                   <ShoppingBag className="h-5 w-5" />
                   Sesiones de compra
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 p-4">
+              <CardContent className="space-y-3 overflow-y-auto p-4 xl:max-h-[calc(100vh-18rem)]">
                 {sessionsLoading ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500">
                     Cargando sesiones...
@@ -602,7 +624,7 @@ export default function AdminBuylistPage() {
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                         )}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col items-start gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold">
                               {session.title}
@@ -616,20 +638,43 @@ export default function AdminBuylistPage() {
                               {session.customerName || "Sin cliente"}
                             </p>
                           </div>
-                          <Badge
-                            className={cn(
-                              "border",
-                              active
-                                ? "border-white/20 bg-white/10 text-white"
-                                : STATUS_STYLES[session.status]
-                            )}
-                          >
-                            {session.status}
-                          </Badge>
+                          <div className="flex w-full items-center justify-between gap-3">
+                            <Badge
+                              className={cn(
+                                "border",
+                                active
+                                  ? "border-white/20 bg-white/10 text-white"
+                                  : STATUS_STYLES[session.status]
+                              )}
+                            >
+                              {session.status}
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void deleteSession(session.id);
+                              }}
+                              disabled={deletingSessionId === session.id}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
+                                active
+                                  ? "bg-white/10 text-white hover:bg-white/15"
+                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              )}
+                            >
+                              {deletingSessionId === session.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                              Eliminar
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                          <div>
+                        <div className="mt-4 flex flex-col gap-3 text-xs">
+                          <div className="flex flex-col gap-1">
                             <p className={cn(active ? "text-white/50" : "text-slate-500")}>
                               Tipo
                             </p>
@@ -637,13 +682,13 @@ export default function AdminBuylistPage() {
                               {SOURCE_TYPE_LABELS[session.sourceType]}
                             </p>
                           </div>
-                          <div>
+                          <div className="flex flex-col gap-1">
                             <p className={cn(active ? "text-white/50" : "text-slate-500")}>
                               Cantidad
                             </p>
                             <p className="mt-1 font-medium">{session.totalQuantity}</p>
                           </div>
-                          <div className="col-span-2">
+                          <div className="flex flex-col gap-1">
                             <p className={cn(active ? "text-white/50" : "text-slate-500")}>
                               Total pagado
                             </p>
@@ -651,7 +696,7 @@ export default function AdminBuylistPage() {
                               {formatCurrency(toNumber(session.totalPaid), session.currency)}
                             </p>
                           </div>
-                          <div className="col-span-2">
+                          <div className="flex flex-col gap-1">
                             <p className={cn(active ? "text-white/50" : "text-slate-500")}>
                               Actualizada
                             </p>
@@ -668,7 +713,7 @@ export default function AdminBuylistPage() {
             </Card>
           </aside>
 
-          <main className="space-y-6">
+          <main className="space-y-6 xl:min-w-0">
             {!selectedSession ? (
               <Card className="rounded-[28px] border-slate-200 shadow-sm">
                 <CardContent className="py-20 text-center text-slate-500">
@@ -677,7 +722,7 @@ export default function AdminBuylistPage() {
               </Card>
             ) : (
               <>
-                <section className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                <section className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
                   <Card className="overflow-hidden rounded-[28px] border-slate-200 shadow-sm">
                     <CardContent className="p-0">
                       <div className="border-b border-slate-100 bg-slate-950 px-5 py-4 text-white sm:px-6">
@@ -849,144 +894,144 @@ export default function AdminBuylistPage() {
                     </Button>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="overflow-x-auto">
+                    <div className="max-h-[calc(100vh-18rem)] overflow-auto">
                       <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Carta</TableHead>
-                        <TableHead className="w-20">Qty</TableHead>
-                        <TableHead className="w-24">Cond.</TableHead>
-                        <TableHead className="w-28">Pagado</TableHead>
-                        <TableHead>Mkt / 70 / 80</TableHead>
-                        <TableHead>Mid / 70 / 80</TableHead>
-                        <TableHead>Notas</TableHead>
-                        <TableHead className="w-14" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {draftItems.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={8} className="py-16 text-center text-slate-500">
-                            Agrega cartas desde la búsqueda para empezar.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        draftItems.map((item) => {
-                          const display = getItemDisplay(item);
-                          return (
-                          <TableRow key={item.localId} className="align-top">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <img
-                                  src={display.src}
-                                  alt={display.name}
-                                  className="h-16 w-12 rounded-xl border object-cover"
-                                />
-                                <div className="flex min-w-0 flex-col gap-0.5">
-                                  <p className="truncate font-medium">
-                                    {display.name}
-                                  </p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {display.code}
-                                  </p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {display.subtitle}
-                                  </p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={item.quantity}
-                                onChange={(event) =>
-                                  updateDraftItem(item.localId, {
-                                    quantity: Math.max(1, Number(event.target.value) || 1),
-                                  })
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={item.condition}
-                                onValueChange={(value) =>
-                                  updateDraftItem(item.localId, { condition: value })
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {CONDITION_OPTIONS.map((option) => (
-                                    <SelectItem key={option} value={option}>
-                                      {option}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={item.purchasePrice}
-                                onChange={(event) =>
-                                  updateDraftItem(item.localId, {
-                                    purchasePrice: roundCurrency(
-                                      Number(event.target.value) || 0
-                                    ),
-                                  })
-                                }
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <div className="flex flex-col gap-0.5">
-                                <span>{formatCurrency(item.marketPriceSnapshot, draftCurrency)}</span>
-                                <span className="text-muted-foreground">
-                                  70% {formatCurrency(item.market70Snapshot, draftCurrency)}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  80% {formatCurrency(item.market80Snapshot, draftCurrency)}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <div className="flex flex-col gap-0.5">
-                                <span>{formatCurrency(item.midPriceSnapshot, draftCurrency)}</span>
-                                <span className="text-muted-foreground">
-                                  70% {formatCurrency(item.median70Snapshot, draftCurrency)}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  80% {formatCurrency(item.median80Snapshot, draftCurrency)}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.notes}
-                                onChange={(event) =>
-                                  updateDraftItem(item.localId, {
-                                    notes: event.target.value,
-                                  })
-                                }
-                                placeholder="nota"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeDraftItem(item.localId)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </TableCell>
+                        <TableHeader className="sticky top-0 z-10 bg-white">
+                          <TableRow>
+                            <TableHead>Carta</TableHead>
+                            <TableHead className="w-20">Qty</TableHead>
+                            <TableHead className="w-24">Cond.</TableHead>
+                            <TableHead className="w-28">Pagado</TableHead>
+                            <TableHead>Mkt / 70 / 80</TableHead>
+                            <TableHead>Mid / 70 / 80</TableHead>
+                            <TableHead>Notas</TableHead>
+                            <TableHead className="w-14" />
                           </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
+                        </TableHeader>
+                        <TableBody>
+                          {draftItems.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={8} className="py-16 text-center text-slate-500">
+                                Agrega cartas desde la búsqueda para empezar.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            draftItems.map((item) => {
+                              const display = getItemDisplay(item);
+                              return (
+                                <TableRow key={item.localId} className="align-top">
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <img
+                                        src={display.src}
+                                        alt={display.name}
+                                        className="h-16 w-12 rounded-xl border object-cover"
+                                      />
+                                      <div className="flex min-w-0 flex-col gap-0.5">
+                                        <p className="truncate font-medium">
+                                          {display.name}
+                                        </p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                          {display.code}
+                                        </p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                          {display.subtitle}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={item.quantity}
+                                      onChange={(event) =>
+                                        updateDraftItem(item.localId, {
+                                          quantity: Math.max(1, Number(event.target.value) || 1),
+                                        })
+                                      }
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select
+                                      value={item.condition}
+                                      onValueChange={(value) =>
+                                        updateDraftItem(item.localId, { condition: value })
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {CONDITION_OPTIONS.map((option) => (
+                                          <SelectItem key={option} value={option}>
+                                            {option}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={item.purchasePrice}
+                                      onChange={(event) =>
+                                        updateDraftItem(item.localId, {
+                                          purchasePrice: roundCurrency(
+                                            Number(event.target.value) || 0
+                                          ),
+                                        })
+                                      }
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span>{formatCurrency(item.marketPriceSnapshot, draftCurrency)}</span>
+                                      <span className="text-muted-foreground">
+                                        70% {formatCurrency(item.market70Snapshot, draftCurrency)}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        80% {formatCurrency(item.market80Snapshot, draftCurrency)}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span>{formatCurrency(item.midPriceSnapshot, draftCurrency)}</span>
+                                      <span className="text-muted-foreground">
+                                        70% {formatCurrency(item.median70Snapshot, draftCurrency)}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        80% {formatCurrency(item.median80Snapshot, draftCurrency)}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Input
+                                      value={item.notes}
+                                      onChange={(event) =>
+                                        updateDraftItem(item.localId, {
+                                          notes: event.target.value,
+                                        })
+                                      }
+                                      placeholder="nota"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => removeDraftItem(item.localId)}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
                       </Table>
                     </div>
                   </CardContent>

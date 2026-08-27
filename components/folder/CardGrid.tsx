@@ -1,9 +1,10 @@
-import React from "react";
-import { Plus, Check, DollarSign, ExternalLink, Tag, Move, X } from "lucide-react";
+import React, { useState } from "react";
+import { Plus, Check, DollarSign, ExternalLink, Tag, Move, X, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
 import { convertForListDisplay } from "@/lib/lists/currency";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 interface CardGridProps {
   cards: GridCard[][];
@@ -79,6 +80,9 @@ export const CardGrid: React.FC<CardGridProps> = ({
   exchangeRate,
   onRemoveBackcard,
 }) => {
+  // Qué celda tiene su popover de "Opciones" abierto (una a la vez).
+  const [openOptionsId, setOpenOptionsId] = useState<string | null>(null);
+
   return (
     <div
       className="grid h-full"
@@ -92,6 +96,12 @@ export const CardGrid: React.FC<CardGridProps> = ({
         row.map((cell, colIndex) => {
           const actualRow = rowIndex + 1;
           const actualCol = colIndex + 1;
+          // Identidad estable de la celda para controlar qué popover de
+          // "Opciones" está abierto (una fila de UserListCard, o la posición
+          // si aún no hay fila real — ej. mientras se está agregando).
+          const rowKey = String(
+            cell?.existing?.id ?? `${currentPage}-${actualRow}-${actualCol}`
+          );
 
           const isDropTarget =
             dragOverPosition?.page === currentPage &&
@@ -261,108 +271,109 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         return null;
                       })()}
 
-                      {/* Status indicators for editing mode */}
-                      {isEditing && (
-                        <>
-                          {canEditPrice &&
-                            cell.existing &&
-                            !cell.existing.isOptimistic &&
-                            onEditPrice && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditPrice({ card: cell.card!, listCard: cell.existing });
-                              }}
-                              className="absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                              title="Editar precio"
+                      {/* Acciones de edición: un solo botón "Opciones" (⋮) con
+                          las acciones que se hacen una vez (editar precio,
+                          marcar vendida, ver en TCGplayer, eliminar), y aparte
+                          "Seleccionar" para la selección múltiple (mover /
+                          asignar consignatario). Antes eran 4-5 botones sueltos
+                          en las 4 esquinas, chocando con los badges — ahora
+                          los dos únicos botones viven apilados en una sola
+                          esquina, siempre visibles (no solo con hover, para
+                          que funcionen igual en mobile). */}
+                      {isEditing &&
+                        canEditPrice &&
+                        cell.existing &&
+                        !cell.existing.isOptimistic && (
+                        <div className="absolute bottom-2 right-2 z-20 flex flex-col items-center gap-1.5">
+                          {(onEditPrice || onToggleSold || cell.card?.tcgUrl || onPositionClick) && (
+                            <Popover
+                              open={openOptionsId === rowKey}
+                              onOpenChange={(open) => setOpenOptionsId(open ? rowKey : null)}
                             >
-                              <DollarSign className="h-4 w-4" />
-                            </button>
+                              <PopoverTrigger asChild>
+                                <button
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-8 h-8 flex items-center justify-center bg-slate-700/90 hover:bg-slate-800 text-white rounded-full shadow-lg"
+                                  title="Opciones"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="end"
+                                side="top"
+                                sideOffset={6}
+                                className="w-52 p-1.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {onEditPrice && (
+                                  <div
+                                    onClick={() => {
+                                      onEditPrice({ card: cell.card!, listCard: cell.existing });
+                                      setOpenOptionsId(null);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
+                                  >
+                                    <DollarSign className="h-4 w-4" />
+                                    <span>Editar precio</span>
+                                  </div>
+                                )}
+                                {onToggleSold && (
+                                  <div
+                                    onClick={() => {
+                                      onToggleSold({ card: cell.card!, listCard: cell.existing });
+                                      setOpenOptionsId(null);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
+                                  >
+                                    <Tag className="h-4 w-4" />
+                                    <span>
+                                      {cell.existing?.isSold
+                                        ? "Marcar como disponible"
+                                        : "Marcar como vendida"}
+                                    </span>
+                                  </div>
+                                )}
+                                {cell.card?.tcgUrl && (
+                                  <a
+                                    href={cell.card.tcgUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setOpenOptionsId(null)}
+                                    className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-700 cursor-pointer"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                    <span>Ver en TCGplayer</span>
+                                  </a>
+                                )}
+                                <div className="border-t border-slate-100 my-1" />
+                                <div
+                                  onClick={() => {
+                                    onPositionClick?.(actualRow, actualCol, currentPage);
+                                    setOpenOptionsId(null);
+                                  }}
+                                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Eliminar carta</span>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           )}
-                          {canEditPrice &&
-                            cell.existing &&
-                            !cell.existing.isOptimistic &&
-                            onToggleSold && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleSold({ card: cell.card!, listCard: cell.existing });
-                              }}
-                              className={cn(
-                                "absolute bottom-2 left-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-                                cell.existing?.isSold
-                                  ? "bg-slate-500 hover:bg-slate-600"
-                                  : "bg-emerald-600 hover:bg-emerald-700"
-                              )}
-                              title={
-                                cell.existing?.isSold
-                                  ? "Marcar como disponible"
-                                  : "Marcar como vendida"
-                              }
-                            >
-                              <Tag className="h-4 w-4" />
-                            </button>
-                          )}
-                          {/* Ir a TCGplayer (lado derecho) — si la carta está linkeada. */}
-                          {cell.card?.tcgUrl && (
-                            <a
-                              href={cell.card.tcgUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-sky-500 hover:bg-sky-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                              title="Ver en TCGplayer"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          )}
-                          {/* Delete Button (appears on hover) */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onPositionClick) {
-                                onPositionClick(
-                                  actualRow,
-                                  actualCol,
-                                  currentPage
-                                );
-                              }
-                            }}
-                            className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-8 h-8 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                            title="Eliminar carta"
-                          >
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
+
                           {/* Seleccionar: agrega/quita la carta de la selección
                               múltiple, usada tanto para moverla como para
                               asignarla a un consignatario (tap-to-select,
                               funciona igual en mobile que arrastrando con
-                              mouse; admite varias). Siempre visible (no solo
-                              al pasar el mouse) para que se descubra fácil —
-                              este botón solo lo ve el dueño (canEditPrice). */}
-                          {canEditPrice &&
-                            cell.existing &&
-                            !cell.existing.isOptimistic &&
-                            onToggleMove && (
+                              mouse; admite varias). */}
+                          {onToggleMove && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleMove({ card: cell.card!, listCard: cell.existing });
                               }}
                               className={cn(
-                                "absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-colors duration-200",
+                                "w-8 h-8 flex items-center justify-center text-white rounded-full shadow-lg transition-colors duration-200",
                                 // Comparar por el id de la FILA (cell.existing.id), no por el id
                                 // de catálogo (cell.card.id): la misma carta puede repetirse en
                                 // varias celdas, y comparar por catálogo resaltaría todas a la vez.
@@ -375,7 +386,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
                               <Move className="h-4 w-4" />
                             </button>
                           )}
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>

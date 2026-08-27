@@ -40,6 +40,7 @@ import {
   Users,
   Move,
   UserCog,
+  Palette,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -109,7 +110,12 @@ import {
 } from "@/lib/cardFilters";
 import { SnapshotsDrawer } from "@/components/lists/snapshots";
 import { CollectionReportDrawer } from "@/components/lists/report";
-import { ConsignorPicker, ConsignmentReportDrawer, type Consignor } from "@/components/lists/consignors";
+import {
+  ConsignorPicker,
+  ConsignmentReportDrawer,
+  ConsignorManagerDrawer,
+  type Consignor,
+} from "@/components/lists/consignors";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -179,6 +185,7 @@ const FolderOptionsMenu = ({
   onOpenSnapshots,
   onOpenReport,
   onOpenConsignmentReport,
+  onOpenConsignorManager,
   onToggleMoveMode,
   isMoveModeActive,
   onToggleAssignMode,
@@ -207,6 +214,8 @@ const FolderOptionsMenu = ({
   onOpenReport?: () => void;
   /** Solo dueño — reporte de venta agrupado por consignatario. */
   onOpenConsignmentReport?: () => void;
+  /** Solo dueño — panel para ver/gestionar consignatarios (color, totales, desligar, eliminar). */
+  onOpenConsignorManager?: () => void;
   /** Solo dueño, solo carpetas (isOrdered): activa/cancela el modo mover. */
   onToggleMoveMode?: () => void;
   isMoveModeActive?: boolean;
@@ -304,6 +313,16 @@ const FolderOptionsMenu = ({
             label: "Reporte de consignación",
             icon: <Users className="h-4 w-4" />,
             onClick: onOpenConsignmentReport,
+            hoverClass: "hover:bg-purple-50 hover:text-purple-700",
+          },
+        ]
+      : []),
+    ...(onOpenConsignorManager
+      ? [
+          {
+            label: "Consignatarios",
+            icon: <Palette className="h-4 w-4" />,
+            onClick: onOpenConsignorManager,
             hoverClass: "hover:bg-purple-50 hover:text-purple-700",
           },
         ]
@@ -818,6 +837,7 @@ const AddCardsPage = () => {
   const [showSnapshotsDrawer, setShowSnapshotsDrawer] = useState(false);
   const [showReportDrawer, setShowReportDrawer] = useState(false);
   const [showConsignmentReport, setShowConsignmentReport] = useState(false);
+  const [showConsignorManager, setShowConsignorManager] = useState(false);
   const goToSnapshot = (snapshotId: number | null) => {
     if (snapshotId != null) router.push(`/lists/${listId}?snapshot=${snapshotId}`);
   };
@@ -873,6 +893,43 @@ const AddCardsPage = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Error al quitar el consignatario");
     }
+  };
+
+  // Refleja en la grilla, sin refetch, un cambio de nombre/color hecho desde
+  // el panel de gestión de consignatarios (para que el anillo de color y el
+  // nombre en las cartas ya asignadas se actualicen al instante).
+  const handleConsignorUpdatedInGrid = (consignor: {
+    id: number;
+    name: string;
+    color: string | null;
+  }) => {
+    updateExistingCards((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (next[key]?.consignorId === consignor.id) {
+          next[key] = {
+            ...next[key],
+            consignor: { ...next[key].consignor, ...consignor },
+          };
+        }
+      });
+      return next;
+    });
+  };
+
+  // Tras desligar TODAS las cartas de un consignatario en esta carpeta (o
+  // eliminarlo por completo) desde el panel de gestión, sus cartas locales
+  // vuelven a contar como "Yo" sin necesidad de refetch.
+  const handleConsignorClearedFromFolder = (consignorId: number) => {
+    updateExistingCards((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (next[key]?.consignorId === consignorId) {
+          next[key] = { ...next[key], consignor: null, consignorId: null };
+        }
+      });
+      return next;
+    });
   };
 
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
@@ -3855,6 +3912,26 @@ const AddCardsPage = () => {
             >
               {showFab && <FAB onClick={handleScrollToTop} />}
 
+              {/* Mientras estás en modo asignar pero aún no tocas ninguna
+                  carta, mostramos un acceso directo a ver/gestionar
+                  consignatarios (colores, totales, desligar) — antes solo
+                  aparecía tras seleccionar al menos una carta. */}
+              {selectMode === "assign" && movingCards.length === 0 && !isMobile && isOwner && (
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                  <p className="text-xs text-purple-800">
+                    Toca cartas para agregarlas a la cola de asignación.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowConsignorManager(true)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md bg-purple-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-purple-700"
+                  >
+                    <Palette className="h-3.5 w-3.5" />
+                    Ver consignatarios
+                  </button>
+                </div>
+              )}
+
               {/* Selected Card(s) Indicator */}
               {movingCards.length > 0 && !isMobile && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -4438,6 +4515,9 @@ const AddCardsPage = () => {
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
                         }
+                        onOpenConsignorManager={
+                          isOwner ? () => setShowConsignorManager(true) : undefined
+                        }
                         onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
                         isMoveModeActive={selectMode === "move"}
                         onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
@@ -4511,6 +4591,9 @@ const AddCardsPage = () => {
                         onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
+                        }
+                        onOpenConsignorManager={
+                          isOwner ? () => setShowConsignorManager(true) : undefined
                         }
                         onToggleMoveMode={isOwner ? toggleMoveMode : undefined}
                         isMoveModeActive={selectMode === "move"}
@@ -4670,6 +4753,9 @@ const AddCardsPage = () => {
                         onOpenConsignmentReport={
                           isOwner ? () => setShowConsignmentReport(true) : undefined
                         }
+                        onOpenConsignorManager={
+                          isOwner ? () => setShowConsignorManager(true) : undefined
+                        }
                         onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
                         isAssignModeActive={selectMode === "assign"}
                         variant="labeled"
@@ -4718,6 +4804,9 @@ const AddCardsPage = () => {
                           onOpenReport={isAdmin ? () => setShowReportDrawer(true) : undefined}
                           onOpenConsignmentReport={
                             isOwner ? () => setShowConsignmentReport(true) : undefined
+                          }
+                          onOpenConsignorManager={
+                            isOwner ? () => setShowConsignorManager(true) : undefined
                           }
                           onToggleAssignMode={isOwner ? toggleAssignMode : undefined}
                           isAssignModeActive={selectMode === "assign"}
@@ -5378,6 +5467,22 @@ const AddCardsPage = () => {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {selectMode === "assign" && movingCards.length === 0 && isOwner && (
+                    <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                      <p className="text-xs text-purple-800">
+                        Toca cartas para agregarlas a la cola de asignación.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowConsignorManager(true)}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md bg-purple-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-purple-700"
+                      >
+                        <Palette className="h-3.5 w-3.5" />
+                        Ver consignatarios
+                      </button>
                     </div>
                   )}
 
@@ -6442,6 +6547,18 @@ const AddCardsPage = () => {
           onClose={() => setShowConsignmentReport(false)}
           listId={list.id}
           listName={list.name}
+        />
+      )}
+
+      {/* Gestión de consignatarios: colores, totales en la carpeta, desligar
+          y eliminar (solo dueño). */}
+      {list && isOwner && (
+        <ConsignorManagerDrawer
+          isOpen={showConsignorManager}
+          onClose={() => setShowConsignorManager(false)}
+          listId={list.id}
+          onConsignorUpdated={handleConsignorUpdatedInGrid}
+          onConsignorClearedFromFolder={handleConsignorClearedFromFolder}
         />
       )}
     </div>

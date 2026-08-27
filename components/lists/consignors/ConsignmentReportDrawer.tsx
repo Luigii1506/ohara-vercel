@@ -641,15 +641,15 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                   key={g.consignorId ?? "mine"}
                   className="rounded-xl border border-slate-200 p-3"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="mb-2 flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
                         className="h-3 w-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: g.color || (g.consignorId === null ? "#0f172a" : "#94a3b8") }}
                       />
                       <p className="truncate text-sm font-bold text-slate-900">{g.name}</p>
                     </div>
-                    <p className="text-sm font-bold text-slate-900 shrink-0">
+                    <p className="text-lg font-bold text-slate-900">
                       {formatCurrency(g.totalValue)}
                     </p>
                   </div>
@@ -728,11 +728,11 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
               ))}
 
               <div className="rounded-xl bg-slate-900 p-3 text-white">
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex flex-col gap-0.5">
                   <p className="text-sm font-bold">Total de la carpeta</p>
                   <p className="text-lg font-bold">{formatCurrency(data.grandTotal.totalValue)}</p>
                 </div>
-                <div className="flex gap-4 text-xs text-slate-300">
+                <div className="flex flex-col gap-1 text-xs text-slate-300">
                   <span>{data.grandTotal.totalCards} cartas</span>
                   <span>Vendido: {formatCurrency(data.grandTotal.soldValue)}</span>
                   <span>Disponible: {formatCurrency(data.grandTotal.availableValue)}</span>

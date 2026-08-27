@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Check, DollarSign, ExternalLink, Tag, X, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Check, DollarSign, ExternalLink, Tag, X, MoreVertical, Trash2, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardWithCollectionData } from "@/types";
 import { GridCard, FolderDimensions } from "./types";
@@ -55,6 +55,8 @@ interface CardGridProps {
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Agrega/quita esta carta de la selección múltiple (mover o asignar). */
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  /** Quita el consignatario de ESTA carta puntual (queda como "Yo"). */
+  onUnassignConsignor?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Campo de precio a mostrar en la esquina (por defecto marketPrice). */
   priceField?: "marketPrice" | "midPrice";
   /** Quita el backcard (reverso genérico o sleeve) de una casilla, sin abrir el modal. */
@@ -83,6 +85,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onEditPrice,
   onToggleSold,
   onToggleMove,
+  onUnassignConsignor,
   priceField = "marketPrice",
   displayCurrency,
   exchangeRate,
@@ -406,6 +409,19 @@ export const CardGrid: React.FC<CardGridProps> = ({
                                     <ExternalLink className="h-4 w-4" />
                                     <span>Ver en TCGplayer</span>
                                   </a>
+                                )}
+                                {cell.existing?.consignor && onUnassignConsignor && (
+                                  <div
+                                    onClick={() => {
+                                      onUnassignConsignor({ card: cell.card!, listCard: cell.existing });
+                                      setOpenOptionsId(null);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-purple-50 hover:text-purple-700 cursor-pointer"
+                                    title={`Quitar a ${cell.existing.consignor.name} de esta carta`}
+                                  >
+                                    <UserMinus className="h-4 w-4" />
+                                    <span>Quitar consignatario</span>
+                                  </div>
                                 )}
                                 <div className="border-t border-slate-100 my-1" />
                                 <div

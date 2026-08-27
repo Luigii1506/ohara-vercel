@@ -68,6 +68,7 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   const [data, setData] = useState<ConsignmentReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [unassigningId, setUnassigningId] = useState<number | null>(null);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -247,6 +248,35 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
     }
   }, [data, listName]);
 
+  // Deslinda TODAS las cartas de un consignatario en esta lista de golpe
+  // (no lo elimina — sigue disponible para reutilizarlo después).
+  const handleUnassignAll = useCallback(
+    async (consignorId: number, name: string) => {
+      if (
+        !window.confirm(
+          `¿Quitar a "${name}" de TODAS sus cartas en esta carpeta? Las cartas no se borran, solo vuelven a contar como tuyas.`
+        )
+      )
+        return;
+      setUnassigningId(consignorId);
+      try {
+        const res = await fetch(
+          `/api/lists/${listId}/consignors/${consignorId}/unassign-all`,
+          { method: "PUT" }
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Error al deslindar");
+        toast.success(`${body.updated ?? 0} carta(s) desligadas de ${name}`);
+        fetchReport();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Error al deslindar");
+      } finally {
+        setUnassigningId(null);
+      }
+    },
+    [listId, fetchReport]
+  );
+
   return (
     <BaseDrawer
       isOpen={isOpen}
@@ -365,6 +395,17 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       </p>
                     </div>
                   </div>
+                  {g.consignorId !== null && g.totalCards > 0 && (
+                    <button
+                      onClick={() => handleUnassignAll(g.consignorId as number, g.name)}
+                      disabled={unassigningId === g.consignorId}
+                      className="mt-2 w-full text-xs font-medium py-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 transition-colors"
+                    >
+                      {unassigningId === g.consignorId
+                        ? "Desligando…"
+                        : `Desligar todas sus cartas (${g.totalCards})`}
+                    </button>
+                  )}
                 </div>
               ))}
 

@@ -841,6 +841,40 @@ const AddCardsPage = () => {
     });
     cancelMovingCards();
   };
+
+  // Quita el consignatario de UNA sola carta puntual, desde el menú
+  // "Opciones" de esa carta (por si te equivocaste al asignar) — no borra
+  // la carta, solo desliga el vínculo; queda como "Yo".
+  const handleUnassignConsignor = async (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => {
+    if (!list || !entry.listCard?.id) return;
+    try {
+      const res = await fetch(`/api/lists/${listId}/cards/assign-consignor`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listCardIds: [entry.listCard.id], consignorId: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al quitar el consignatario");
+      }
+      updateExistingCards((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((key) => {
+          if (next[key]?.id === entry.listCard.id) {
+            next[key] = { ...next[key], consignor: null, consignorId: null };
+          }
+        });
+        return next;
+      });
+      toast.success("Consignatario quitado — esta carta vuelve a ser tuya");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al quitar el consignatario");
+    }
+  };
+
   const isSimpleModalDon = simpleModalBaseCard?.category === DON_CATEGORY;
   const primaryModalBaseCard =
     baseCard ?? simpleModalBaseCard ?? undefined;
@@ -4551,6 +4585,7 @@ const AddCardsPage = () => {
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
                         onToggleMove={toggleMovingCard}
+                        onUnassignConsignor={handleUnassignConsignor}
                         onRemoveBackcard={toggleBackcardAt}
                         priceField={
                           isAdmin && !showListedMedian ? "marketPrice" : "midPrice"

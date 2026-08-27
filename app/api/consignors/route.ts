@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import { pickConsignorColor } from "@/lib/consignors/colorPalette";
 
 // GET /api/consignors - Listar los consignatarios del usuario (compartidos
 // entre todas sus carpetas de venta).
@@ -48,8 +49,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Si no se pidió un color explícito, asignamos el siguiente de la
+    // paleta para que cada consignatario nuevo se vea distinto de los que
+    // ya tienes (en vez de todos cayendo al mismo gris por default).
+    let finalColor = color;
+    if (!finalColor) {
+      const existingCount = await prisma.consignor.count({
+        where: { userId: user.id },
+      });
+      finalColor = pickConsignorColor(existingCount);
+    }
+
     const consignor = await prisma.consignor.create({
-      data: { userId: user.id, name, notes, color },
+      data: { userId: user.id, name, notes, color: finalColor },
     });
 
     return NextResponse.json({ consignor }, { status: 201 });

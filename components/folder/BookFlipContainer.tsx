@@ -59,6 +59,7 @@ interface BookFlipContainerProps {
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  onUnassignConsignor?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   priceField?: "marketPrice" | "midPrice";
   displayCurrency?: string | null;
   exchangeRate?: number | string | null;
@@ -137,6 +138,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   onEditPrice,
   onToggleSold,
   onToggleMove,
+  onUnassignConsignor,
   priceField,
   displayCurrency,
   exchangeRate,
@@ -407,6 +409,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
             onToggleMove={onToggleMove}
+            onUnassignConsignor={onUnassignConsignor}
             priceField={priceField}
             onRemoveBackcard={onRemoveBackcard}
           />
@@ -448,6 +451,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
             onToggleMove={onToggleMove}
+            onUnassignConsignor={onUnassignConsignor}
             priceField={priceField}
             displayCurrency={displayCurrency}
             exchangeRate={exchangeRate}
@@ -482,6 +486,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
     movingCardIds,
     cardTapMode,
     onToggleMove,
+    onUnassignConsignor,
     displayCurrency,
     exchangeRate,
     onRemoveBackcard,

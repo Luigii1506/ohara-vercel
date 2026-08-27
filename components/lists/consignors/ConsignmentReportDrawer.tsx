@@ -34,6 +34,16 @@ interface SoldItem {
   soldAt: string | null;
 }
 
+interface AvailableItem {
+  listCardId: number;
+  cardId: number;
+  code: string;
+  name: string;
+  src: string;
+  quantity: number;
+  estimatedPrice: number;
+}
+
 interface ConsignmentGroup {
   consignorId: number | null;
   name: string;
@@ -48,6 +58,7 @@ interface ConsignmentGroup {
   availableValue: number;
   totalValue: number;
   soldItems: SoldItem[];
+  availableItems: AvailableItem[];
 }
 
 interface ConsignmentReportData {
@@ -89,6 +100,79 @@ const formatDate = (iso: string | null) => {
     year: "numeric",
   });
 };
+
+// Fila con la imagen real de la carta — la idea es poder hojear el reporte
+// viendo las cartas tal cual se ven en la carpeta, no solo un renglón de
+// texto con nombre y número.
+const CardThumbRow = ({
+  src,
+  name,
+  subtitle,
+  priceLabel,
+  priceClassName,
+  note,
+}: {
+  src: string;
+  name: string;
+  subtitle: string;
+  priceLabel: string;
+  priceClassName: string;
+  note?: string;
+}) => (
+  <div className="flex items-center gap-2 rounded-lg border border-slate-100 p-1.5">
+    {src ? (
+      <img
+        src={src}
+        alt={name}
+        className="h-14 w-14 flex-shrink-0 rounded object-cover bg-slate-100"
+      />
+    ) : (
+      <div className="h-14 w-14 flex-shrink-0 rounded bg-slate-100" />
+    )}
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-xs font-semibold text-slate-800">{name}</p>
+      <p className="truncate text-[11px] text-slate-400">{subtitle}</p>
+    </div>
+    <div className="shrink-0 text-right">
+      <p className={`text-xs font-bold ${priceClassName}`}>{priceLabel}</p>
+      {note && <p className="text-[10px] text-amber-500">{note}</p>}
+    </div>
+  </div>
+);
+
+// Sección expandible con galería de cartas (imagen + nombre + precio) — la
+// alternativa visual a los cuadros de totales de arriba.
+const ExpandableCardSection = ({
+  isExpanded,
+  onToggle,
+  label,
+  accentClass,
+  children,
+}: {
+  isExpanded: boolean;
+  onToggle: () => void;
+  label: string;
+  accentClass: string;
+  children: React.ReactNode;
+}) => (
+  <div className="mt-2">
+    <button
+      onClick={onToggle}
+      className={`flex w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${accentClass}`}
+    >
+      <span className="flex items-center gap-1.5">
+        <Tag className="h-3 w-3" />
+        {label}
+      </span>
+      {isExpanded ? (
+        <ChevronUp className="h-3.5 w-3.5" />
+      ) : (
+        <ChevronDown className="h-3.5 w-3.5" />
+      )}
+    </button>
+    {isExpanded && <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">{children}</div>}
+  </div>
+);
 
 const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
   isOpen,
@@ -158,6 +242,18 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         data.grandTotal.availableValue.toFixed(2),
         data.grandTotal.totalValue.toFixed(2),
       ],
+      [],
+      ["Cartas disponibles"],
+      ["Consignatario", "Carta", "Código", "Cantidad", "Precio estimado ($)"],
+      ...data.groups.flatMap((g) =>
+        g.availableItems.map((item) => [
+          g.name,
+          item.name,
+          item.code,
+          String(item.quantity),
+          item.estimatedPrice.toFixed(2),
+        ])
+      ),
       [],
       ["Detalle de ventas"],
       ["Consignatario", "Carta", "Código", "Cantidad", "Precio de venta ($)", "Estimado", "Fecha de venta"],
@@ -294,7 +390,70 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         y + 40
       );
 
-      // Detalle de ventas por consignatario, en página(s) aparte.
+      // Detalle de disponibles y de ventas por consignatario, en página(s) aparte.
+      const pageBottom = 280;
+      const ensureSpace = (needed: number) => {
+        if (y + needed > pageBottom) {
+          pdf.addPage();
+          y = 20;
+        }
+      };
+
+      const groupsWithAvailable = data.groups.filter((g) => g.availableItems.length > 0);
+      if (groupsWithAvailable.length > 0) {
+        pdf.addPage();
+        y = 20;
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Detalle de disponibles", margin, y);
+        y += 10;
+
+        groupsWithAvailable.forEach((g) => {
+          ensureSpace(16);
+          pdf.setFillColor(15, 23, 42);
+          pdf.rect(margin, y - 5, contentWidth, 8, "F");
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(9.5);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(
+            `${g.name}  ·  ${g.availableItems.length} carta(s)  ·  ${formatCurrency(g.availableValue)}`,
+            margin + 3,
+            y
+          );
+          y += 9;
+
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.setTextColor(71, 85, 105);
+          pdf.text("Carta", margin + 3, y);
+          pdf.text("Cant.", margin + 130, y);
+          pdf.text("Precio est.", margin + 150, y);
+          y += 5;
+          pdf.setDrawColor(226, 232, 240);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin, y - 3.5, margin + contentWidth, y - 3.5);
+
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          g.availableItems.forEach((item, idx) => {
+            ensureSpace(7);
+            if (idx % 2 === 0) {
+              pdf.setFillColor(248, 250, 252);
+              pdf.rect(margin, y - 4, contentWidth, 6.5, "F");
+            }
+            pdf.setTextColor(30, 41, 59);
+            const label = `${item.name} (${item.code})`;
+            pdf.text(label.length > 60 ? label.slice(0, 60) + "…" : label, margin + 3, y);
+            pdf.text(String(item.quantity), margin + 130, y);
+            pdf.setTextColor(217, 119, 6);
+            pdf.text(formatCurrency(item.estimatedPrice), margin + 150, y);
+            y += 6.5;
+          });
+          y += 6;
+        });
+      }
+
       const groupsWithSales = data.groups.filter((g) => g.soldItems.length > 0);
       if (groupsWithSales.length > 0) {
         pdf.addPage();
@@ -304,14 +463,6 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
         pdf.setFont("helvetica", "bold");
         pdf.text("Detalle de ventas", margin, y);
         y += 10;
-
-        const pageBottom = 280;
-        const ensureSpace = (needed: number) => {
-          if (y + needed > pageBottom) {
-            pdf.addPage();
-            y = 20;
-          }
-        };
 
         groupsWithSales.forEach((g) => {
           ensureSpace(16);
@@ -522,59 +673,45 @@ const ConsignmentReportDrawer: React.FC<ConsignmentReportDrawerProps> = ({
                       </p>
                     </div>
                   </div>
+                  {g.availableItems.length > 0 && (
+                    <ExpandableCardSection
+                      isExpanded={expandedGroups.has(`${g.consignorId ?? "mine"}-available`)}
+                      onToggle={() => toggleExpanded(`${g.consignorId ?? "mine"}-available`)}
+                      label={`Ver cartas disponibles (${g.availableItems.length})`}
+                      accentClass="border-amber-100 bg-amber-50/50 text-amber-700 hover:bg-amber-50"
+                    >
+                      {g.availableItems.map((item) => (
+                        <CardThumbRow
+                          key={item.listCardId}
+                          src={item.src}
+                          name={item.name}
+                          subtitle={`${item.code} · x${item.quantity}`}
+                          priceLabel={formatCurrency(item.estimatedPrice)}
+                          priceClassName="text-amber-700"
+                          note="est."
+                        />
+                      ))}
+                    </ExpandableCardSection>
+                  )}
                   {g.soldItems.length > 0 && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => toggleExpanded(String(g.consignorId ?? "mine"))}
-                        className="flex w-full items-center justify-between gap-1.5 rounded-md border border-emerald-100 bg-emerald-50/50 px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <Tag className="h-3 w-3" />
-                          Ver cartas vendidas ({g.soldItems.length})
-                        </span>
-                        {expandedGroups.has(String(g.consignorId ?? "mine")) ? (
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                      {expandedGroups.has(String(g.consignorId ?? "mine")) && (
-                        <div className="mt-1.5 space-y-1.5">
-                          {g.soldItems.map((item) => (
-                            <div
-                              key={item.listCardId}
-                              className="flex items-center gap-2 rounded-lg border border-slate-100 p-1.5"
-                            >
-                              {item.src ? (
-                                <img
-                                  src={item.src}
-                                  alt={item.name}
-                                  className="h-10 w-10 flex-shrink-0 rounded object-cover bg-slate-100"
-                                />
-                              ) : (
-                                <div className="h-10 w-10 flex-shrink-0 rounded bg-slate-100" />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-semibold text-slate-800">
-                                  {item.name}
-                                </p>
-                                <p className="truncate text-[11px] text-slate-400">
-                                  {item.code} · x{item.quantity} · {formatDate(item.soldAt)}
-                                </p>
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <p className="text-xs font-bold text-emerald-700">
-                                  {formatCurrency(item.soldPrice)}
-                                </p>
-                                {item.isEstimatedPrice && (
-                                  <p className="text-[10px] text-amber-500">est.</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <ExpandableCardSection
+                      isExpanded={expandedGroups.has(`${g.consignorId ?? "mine"}-sold`)}
+                      onToggle={() => toggleExpanded(`${g.consignorId ?? "mine"}-sold`)}
+                      label={`Ver cartas vendidas (${g.soldItems.length})`}
+                      accentClass="border-emerald-100 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      {g.soldItems.map((item) => (
+                        <CardThumbRow
+                          key={item.listCardId}
+                          src={item.src}
+                          name={item.name}
+                          subtitle={`${item.code} · x${item.quantity} · ${formatDate(item.soldAt)}`}
+                          priceLabel={formatCurrency(item.soldPrice)}
+                          priceClassName="text-emerald-700"
+                          note={item.isEstimatedPrice ? "est." : undefined}
+                        />
+                      ))}
+                    </ExpandableCardSection>
                   )}
                   {g.consignorId !== null && g.totalCards > 0 && (
                     <button

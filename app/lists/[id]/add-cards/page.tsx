@@ -581,6 +581,14 @@ const AddCardsPage = () => {
     () => new Set(movingCards.map((m) => m.card.id)),
     [movingCards]
   );
+  // Modo "Insertar": al tocar la casilla destino, las cartas seleccionadas
+  // ocupan esa casilla en adelante y TODO lo que ya estaba ahí (y lo que
+  // viene después en la carpeta) se recorre exactamente N posiciones para
+  // hacerles espacio — a diferencia del modo normal, que solo rellena
+  // huecos vacíos sin tocar cartas existentes. Pensado para reemplazar de
+  // golpe una hoja completa sin tener que vaciarla primero. Se apaga solo
+  // después de cada uso para evitar recorrer cartas por accidente.
+  const [insertMode, setInsertMode] = useState(false);
 
   // 🎴 Backcard state - Almacena las posiciones que tienen imagen de backcard,
   // mapeadas a la URL de imagen de sleeve elegida (null = reverso genérico).
@@ -2966,23 +2974,34 @@ const AddCardsPage = () => {
 
   const cancelMovingCards = () => {
     setMovingCards([]);
+    setInsertMode(false);
   };
 
-  // Mueve varias cartas ya colocadas a la vez: se acomodan en `to` y en
-  // adelante (orden de lectura), en el orden en que se seleccionaron,
-  // saltando cualquier casilla ocupada por OTRA carta sin eliminarla. Para
-  // una sola carta reusamos el flujo existente (mueve o intercambia).
+  // Mueve varias cartas ya colocadas a la vez.
+  //
+  // Modo normal (insert=false): se acomodan en `to` y en adelante (orden de
+  // lectura), en el orden en que se seleccionaron, saltando cualquier
+  // casilla ocupada por OTRA carta sin eliminarla. Para una sola carta
+  // reusamos el flujo existente (mueve o intercambia).
+  //
+  // Modo insertar (insert=true): las cartas seleccionadas ocupan `to` en
+  // adelante sin importar si ya había algo ahí, y TODO lo que estaba
+  // ocupando esas casillas (y lo que viene después en toda la carpeta) se
+  // recorre N posiciones. Como puede afectar celdas en páginas muy
+  // distintas a las visibles, reconciliamos con un refetch completo en vez
+  // de parchear el estado local celda por celda.
   const handleMoveCardsBatch = async (
     cards: Array<{
       card: CardWithCollectionData;
       listCardId: number;
       from: { page: number; row: number; column: number };
     }>,
-    to: { page: number; row: number; column: number }
+    to: { page: number; row: number; column: number },
+    insert: boolean = false
   ) => {
     if (!list?.isOrdered || !isOwner || cards.length === 0) return;
 
-    if (cards.length === 1) {
+    if (cards.length === 1 && !insert) {
       await handleMoveCardWithinFolder(cards[0].card, cards[0].from, to);
       return;
     }
@@ -2998,6 +3017,7 @@ const AddCardsPage = () => {
           toPage: to.page,
           toRow: to.row,
           toColumn: to.column,
+          ...(insert && { mode: "insert" }),
         }),
       });
 
@@ -3006,38 +3026,45 @@ const AddCardsPage = () => {
         throw new Error(data.error || "Error al mover las cartas");
       }
 
-      // Reubicar cada carta directo en el estado local (sin refetch: evita
-      // el parpadeo/skeleton de toda la página). Conservamos todos los
-      // campos de cada carta (precio custom, vendida, etc.), solo cambia
-      // su posición. Reconciliamos por id de FILA, no de catálogo, por la
-      // misma razón que arriba.
-      const entryByListCardId = new Map<string, any>();
-      updateExistingCards((prev) => {
-        const next = { ...prev };
-        cards.forEach((c) => {
-          const fromKey = `${c.from.page}-${c.from.row}-${c.from.column}`;
-          const entry = next[fromKey];
-          if (entry) entryByListCardId.set(String(c.listCardId), entry);
-          delete next[fromKey];
+      if (insert) {
+        // Potencialmente se recorrieron cartas en páginas lejos de la
+        // vista actual: releer todo en vez de intentar adivinar qué celdas
+        // cambiaron.
+        await Promise.all([fetchExistingCards(), fetchBackcards()]);
+      } else {
+        // Reubicar cada carta directo en el estado local (sin refetch: evita
+        // el parpadeo/skeleton de toda la página). Conservamos todos los
+        // campos de cada carta (precio custom, vendida, etc.), solo cambia
+        // su posición. Reconciliamos por id de FILA, no de catálogo, por la
+        // misma razón que arriba.
+        const entryByListCardId = new Map<string, any>();
+        updateExistingCards((prev) => {
+          const next = { ...prev };
+          cards.forEach((c) => {
+            const fromKey = `${c.from.page}-${c.from.row}-${c.from.column}`;
+            const entry = next[fromKey];
+            if (entry) entryByListCardId.set(String(c.listCardId), entry);
+            delete next[fromKey];
+          });
+
+          (data.assignments || []).forEach(
+            (a: {
+              cardId: number;
+              rowId: number;
+              page: number;
+              row: number;
+              column: number;
+            }) => {
+              const entry = entryByListCardId.get(String(a.rowId));
+              if (!entry) return;
+              const toKey = `${a.page}-${a.row}-${a.column}`;
+              next[toKey] = { ...entry, page: a.page, row: a.row, column: a.column };
+            }
+          );
+
+          return next;
         });
-
-        (data.assignments || []).forEach(
-          (a: {
-            cardId: number;
-            rowId: number;
-            page: number;
-            row: number;
-            column: number;
-          }) => {
-            const entry = entryByListCardId.get(String(a.rowId));
-            if (!entry) return;
-            const toKey = `${a.page}-${a.row}-${a.column}`;
-            next[toKey] = { ...entry, page: a.page, row: a.row, column: a.column };
-          }
-        );
-
-        return next;
-      });
+      }
 
       if (list && data.totalPages > (list.totalPages || 1)) {
         setList((prev: any) =>
@@ -3045,7 +3072,11 @@ const AddCardsPage = () => {
         );
       }
 
-      toast.success(`${cards.length} cartas movidas`);
+      toast.success(
+        insert && data.shiftedCount
+          ? `${cards.length} carta(s) insertada(s), ${data.shiftedCount} existente(s) recorrida(s)`
+          : `${cards.length} cartas movidas`
+      );
     } catch (error: any) {
       console.error("Error moviendo cartas:", error);
       toast.error(error.message || "Error al mover las cartas");
@@ -3338,6 +3369,7 @@ const AddCardsPage = () => {
     if (movingCards.length > 0) {
       const to = { page: targetPage, row, column: col };
       const cardsToMove = movingCards;
+      const shouldInsert = insertMode;
       cancelMovingCards();
 
       if (
@@ -3349,7 +3381,7 @@ const AddCardsPage = () => {
         return; // Tocó la misma casilla de origen: cancelar sin hacer nada
       }
 
-      await handleMoveCardsBatch(cardsToMove, to);
+      await handleMoveCardsBatch(cardsToMove, to, shouldInsert);
       return;
     }
 
@@ -3660,7 +3692,9 @@ const AddCardsPage = () => {
                           : `${movingCards.length} cartas seleccionadas`}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {movingCards.length === 1
+                        {insertMode
+                          ? "Modo insertar: lo que haya en la casilla destino se recorrerá"
+                          : movingCards.length === 1
                           ? "Moviendo esta carta — toca la casilla destino"
                           : "Toca la casilla inicial: se acomodan en ese orden"}
                       </p>
@@ -3672,6 +3706,20 @@ const AddCardsPage = () => {
                       <X className="h-4 w-4 text-blue-600" />
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setInsertMode((prev) => !prev)}
+                    className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
+                      insertMode
+                        ? "bg-indigo-600 border-indigo-600 text-white"
+                        : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
+                    }`}
+                    title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
+                  >
+                    {insertMode
+                      ? "✓ Insertar (recorre lo existente)"
+                      : "Insertar (recorre lo existente)"}
+                  </button>
                 </div>
               )}
 
@@ -5088,7 +5136,9 @@ const AddCardsPage = () => {
                           : `${movingCards.length} cartas seleccionadas`}
                       </p>
                       <p className="text-xs text-blue-700">
-                        {movingCards.length === 1
+                        {insertMode
+                          ? "Modo insertar: lo que haya en la casilla destino se recorrerá"
+                          : movingCards.length === 1
                           ? "Moviendo esta carta — toca la casilla destino"
                           : "Toca la casilla inicial: se acomodan en ese orden"}
                       </p>
@@ -5100,6 +5150,20 @@ const AddCardsPage = () => {
                       <X className="h-4 w-4 text-blue-600" />
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setInsertMode((prev) => !prev)}
+                    className={`mt-2 w-full text-xs font-medium py-1.5 rounded-md border transition-colors ${
+                      insertMode
+                        ? "bg-indigo-600 border-indigo-600 text-white"
+                        : "bg-white border-blue-200 text-blue-700 hover:bg-blue-100"
+                    }`}
+                    title="En vez de acomodar en huecos vacíos, inserta aquí y recorre lo que ya había"
+                  >
+                    {insertMode
+                      ? "✓ Insertar (recorre lo existente)"
+                      : "Insertar (recorre lo existente)"}
+                  </button>
                 </div>
               )}
 

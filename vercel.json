@@ -17,15 +17,15 @@
       "schedule": "20 */6 * * *"
     },
     {
-      "path": "/api/cron/official-sync?region=JP",
+      "path": "/api/cron/official-sync?region=JP&dryRun=1",
       "schedule": "40 */6 * * *"
     },
     {
-      "path": "/api/cron/official-sync?region=EN",
+      "path": "/api/cron/official-sync?region=EN&dryRun=1",
       "schedule": "45 */6 * * *"
     },
     {
-      "path": "/api/cron/official-sync?region=FR",
+      "path": "/api/cron/official-sync?region=FR&dryRun=1",
       "schedule": "50 */6 * * *"
     },
     {

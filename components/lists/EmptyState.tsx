@@ -8,12 +8,22 @@ interface EmptyStateProps {
   hasFilters: boolean;
   onClearFilters: () => void;
   onCreateCollection: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  filteredEmptyTitle?: string;
+  filteredEmptyDescription?: string;
+  createLabel?: string;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
   hasFilters,
   onClearFilters,
   onCreateCollection,
+  emptyTitle = "No tienes listas aún",
+  emptyDescription = "Crea tu primera lista para organizar y gestionar tus cartas de One Piece",
+  filteredEmptyTitle = "No se encontraron listas",
+  filteredEmptyDescription = "Intenta ajustar tus filtros o crear una nueva lista para comenzar",
+  createLabel = "Crear Primera Lista",
 }) => {
   if (hasFilters) {
     return (
@@ -28,11 +38,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         </div>
 
         <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 text-center">
-          No se encontraron colecciones
+          {filteredEmptyTitle}
         </h3>
 
         <p className="text-slate-500 text-center max-w-md mb-8 text-sm sm:text-base">
-          Intenta ajustar tus filtros o crear una nueva colección para comenzar
+          {filteredEmptyDescription}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -48,7 +58,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             className="h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Nueva Colección
+            {createLabel}
           </Button>
         </div>
       </div>
@@ -67,12 +77,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       </div>
 
       <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 text-center">
-        No tienes colecciones aún
+        {emptyTitle}
       </h3>
 
       <p className="text-slate-500 text-center max-w-md mb-8 text-sm sm:text-base">
-        Crea tu primera colección para organizar y gestionar tus cartas de One
-        Piece
+        {emptyDescription}
       </p>
 
       <Button
@@ -80,7 +89,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         className="h-12 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-base font-medium shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200 transition-all duration-300"
       >
         <Plus className="w-5 h-5 mr-2" />
-        Crear Primera Colección
+        {createLabel}
       </Button>
     </div>
   );

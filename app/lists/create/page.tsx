@@ -24,7 +24,7 @@ import {
   Check,
   DollarSign,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import { FolderContainer } from "@/components/folder";
@@ -33,11 +33,13 @@ import { useFolderDimensions } from "@/hooks/useFolderDimensions";
 import {
   LIST_PURPOSE_LABELS,
   USER_CREATABLE_LIST_PURPOSES,
+  normalizeListPurpose,
   type ListPurpose,
 } from "@/lib/lists/purpose";
 
 const CreateFolderPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -54,6 +56,18 @@ const CreateFolderPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const requestedPurpose = searchParams?.get("purpose");
+    if (!requestedPurpose) return;
+    const normalizedPurpose = normalizeListPurpose(requestedPurpose);
+    if (normalizedPurpose === "PERSONAL_COLLECTION") return;
+    setFormData((prev) =>
+      prev.purpose === normalizedPurpose
+        ? prev
+        : { ...prev, purpose: normalizedPurpose }
+    );
+  }, [searchParams]);
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(
@@ -151,6 +165,58 @@ const CreateFolderPage = () => {
     { value: "#6B7280", name: "Gris", bg: "bg-gray-500" },
   ];
 
+  const purposeMeta: Record<
+    ListPurpose,
+    {
+      pageTitle: string;
+      pageSubtitle: string;
+      nameLabel: string;
+      namePlaceholder: string;
+      descriptionPlaceholder: string;
+      colorLabel: string;
+      previewName: string;
+    }
+  > = {
+    GENERAL: {
+      pageTitle: "Nueva Carpeta",
+      pageSubtitle: "Configura tu carpeta y ve el preview en tiempo real",
+      nameLabel: "Nombre de la carpeta *",
+      namePlaceholder: "Ej: Binder de torneo, Alt arts favoritas",
+      descriptionPlaceholder: "Describe el propósito de esta carpeta...",
+      colorLabel: "Color de la carpeta",
+      previewName: "Nueva Carpeta",
+    },
+    INVENTORY: {
+      pageTitle: "Nuevo Inventario",
+      pageSubtitle: "Configura tu inventario para separar stock y precios",
+      nameLabel: "Nombre del inventario *",
+      namePlaceholder: "Ej: Stock OP09, Binder de venta premium",
+      descriptionPlaceholder: "Describe qué cartas o stock manejarás aquí...",
+      colorLabel: "Color del inventario",
+      previewName: "Nuevo Inventario",
+    },
+    WISHLIST: {
+      pageTitle: "Nueva Wishlist",
+      pageSubtitle: "Organiza cartas y objetivos que quieres conseguir",
+      nameLabel: "Nombre de la wishlist *",
+      namePlaceholder: "Ej: Master sets pendientes, Want list de eventos",
+      descriptionPlaceholder: "Describe qué buscas completar o conseguir...",
+      colorLabel: "Color de la wishlist",
+      previewName: "Nueva Wishlist",
+    },
+    PERSONAL_COLLECTION: {
+      pageTitle: "Nueva Carpeta",
+      pageSubtitle: "Configura tu carpeta y ve el preview en tiempo real",
+      nameLabel: "Nombre de la carpeta *",
+      namePlaceholder: "Ej: Binder de torneo, Alt arts favoritas",
+      descriptionPlaceholder: "Describe el propósito de esta carpeta...",
+      colorLabel: "Color de la carpeta",
+      previewName: "Nueva Carpeta",
+    },
+  };
+
+  const currentPurposeMeta = purposeMeta[formData.purpose];
+
   // Helper functions for FolderContainer
   const createGrid = (): GridCard[][] => {
     const maxRows = formData.maxRows || 3;
@@ -183,10 +249,10 @@ const CreateFolderPage = () => {
               </Button>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">
-                  Nueva Carpeta
+                  {currentPurposeMeta.pageTitle}
                 </h1>
                 <p className="text-xs text-gray-500">
-                  Configura tu carpeta y ve el preview en tiempo real
+                  {currentPurposeMeta.pageSubtitle}
                 </p>
               </div>
             </div>
@@ -209,14 +275,14 @@ const CreateFolderPage = () => {
                     htmlFor="name"
                     className="text-sm font-medium text-gray-700"
                   >
-                    Nombre de la carpeta *
+                    {currentPurposeMeta.nameLabel}
                   </Label>
                   <Input
                     id="name"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    placeholder="Ej: Mi Colección de Mugiwaras"
+                    placeholder={currentPurposeMeta.namePlaceholder}
                     required
                     className="h-10"
                   />
@@ -234,7 +300,7 @@ const CreateFolderPage = () => {
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    placeholder="Describe el propósito de esta carpeta..."
+                    placeholder={currentPurposeMeta.descriptionPlaceholder}
                     className="min-h-[80px] resize-none"
                     rows={3}
                   />
@@ -558,7 +624,7 @@ const CreateFolderPage = () => {
                 <div className="flex items-center gap-2">
                   <Palette className="h-4 w-4 text-purple-600" />
                   <Label className="text-sm font-medium text-gray-700">
-                    Color de la carpeta
+                    {currentPurposeMeta.colorLabel}
                   </Label>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -636,7 +702,7 @@ const CreateFolderPage = () => {
               <div className="flex-1 min-h-0 flex items-center justify-center">
                 <div className="w-full h-full flex items-center justify-center">
                   <FolderContainer
-                    name={formData.name || "Nueva Carpeta"}
+                    name={formData.name || currentPurposeMeta.previewName}
                     color={formData.color || "#10B981"}
                     dimensions={folderDimensions}
                     currentPage={currentPage}

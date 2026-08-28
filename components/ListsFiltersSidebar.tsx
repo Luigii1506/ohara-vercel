@@ -81,6 +81,7 @@ interface ListsFiltersSidebarProps {
   // Sort
   sortBy: string;
   setSortBy: (sort: string) => void;
+  lockedPurpose?: string | null;
 }
 
 const ListsFiltersSidebar = forwardRef<
@@ -107,12 +108,14 @@ const ListsFiltersSidebar = forwardRef<
       setSelectedCardsRange,
       sortBy,
       setSortBy,
+      lockedPurpose,
     },
     ref
   ) => {
+    const purposeBaseline = lockedPurpose ?? "all";
     const hasActiveFilters =
       selectedType !== "all" ||
-      selectedPurpose !== "all" ||
+      selectedPurpose !== purposeBaseline ||
       selectedVisibility !== "all" ||
       selectedStatus !== "all" ||
       selectedColors.length > 0 ||
@@ -121,7 +124,7 @@ const ListsFiltersSidebar = forwardRef<
 
     const clearAllFilters = () => {
       setSelectedType("all");
-      setSelectedPurpose("all");
+      setSelectedPurpose(purposeBaseline);
       setSelectedVisibility("all");
       setSelectedStatus("all");
       setSelectedColors([]);
@@ -234,12 +237,19 @@ const ListsFiltersSidebar = forwardRef<
                     }
                     size="sm"
                     onClick={() => setSelectedPurpose(purpose)}
+                    disabled={Boolean(lockedPurpose)}
                     className="justify-start"
                   >
                     {LIST_PURPOSE_LABELS[purpose as ListPurpose]}
                   </Button>
                 ))}
               </div>
+              {lockedPurpose && (
+                <p className="text-xs text-gray-500">
+                  Esta vista está fija en{" "}
+                  {LIST_PURPOSE_LABELS[lockedPurpose as ListPurpose]}.
+                </p>
+              )}
             </div>
 
             {/* Visibility Filter */}

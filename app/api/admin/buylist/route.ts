@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import {
+  validateBuylistSourceList,
+  validateOwnedOperationalList,
+} from "@/lib/buylist/session";
 
 export const dynamic = "force-dynamic";
 const db = prisma as any;
@@ -21,6 +25,22 @@ export async function GET(_request: NextRequest) {
     const sessions = await db.buylistSession.findMany({
       where: { userId: user.id },
       include: {
+        sourceList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
+        resultList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
         items: {
           include: {
             card: {
@@ -99,6 +119,38 @@ export async function POST(request: NextRequest) {
       typeof body?.currency === "string" && body.currency.trim()
         ? body.currency.trim().toUpperCase()
         : "USD";
+    const sourceListResult =
+      body?.sourceListId === null || body?.sourceListId === undefined || body?.sourceListId === ""
+        ? { list: null }
+        : await validateBuylistSourceList(body?.sourceListId, user.id);
+    const resultListResult = await validateOwnedOperationalList(
+      body?.resultListId,
+      user.id
+    );
+
+    if (
+      ("error" in sourceListResult && sourceListResult.error === "invalid") ||
+      ("error" in resultListResult && resultListResult.error === "invalid")
+    ) {
+      return NextResponse.json(
+        { error: "ID de carpeta inválido" },
+        { status: 400 }
+      );
+    }
+
+    if ("error" in sourceListResult || "error" in resultListResult) {
+      return NextResponse.json(
+        { error: "Carpeta no encontrada o sin permisos" },
+        { status: 404 }
+      );
+    }
+
+    if (resultListResult.list && resultListResult.list.isOrdered) {
+      return NextResponse.json(
+        { error: "El inventario destino no puede ser una carpeta ordenada" },
+        { status: 400 }
+      );
+    }
 
     const existingEmptyDraft = await db.buylistSession.findFirst({
       where: {
@@ -107,7 +159,25 @@ export async function POST(request: NextRequest) {
         totalItems: 0,
         totalQuantity: 0,
       },
-      include: { items: true },
+      include: {
+        sourceList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
+        resultList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
+        items: true,
+      },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     });
 
@@ -121,12 +191,32 @@ export async function POST(request: NextRequest) {
     const session = await db.buylistSession.create({
       data: {
         userId: user.id,
+        sourceListId: sourceListResult.list?.id ?? null,
+        resultListId: resultListResult.list?.id ?? null,
         title,
         customerName,
         sourceType,
         currency,
       },
-      include: { items: true },
+      include: {
+        sourceList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
+        resultList: {
+          select: {
+            id: true,
+            name: true,
+            purpose: true,
+            isOrdered: true,
+          },
+        },
+        items: true,
+      },
     });
 
     return NextResponse.json({ session }, { status: 201 });

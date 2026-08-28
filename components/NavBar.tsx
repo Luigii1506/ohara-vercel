@@ -43,6 +43,8 @@ import {
   MoreHorizontal,
   List,
   Sparkles,
+  Archive,
+  Heart,
 } from "lucide-react";
 import {
   siInstagram,
@@ -214,8 +216,10 @@ const NavBar = () => {
   // Items privados (solo usuarios logueados)
   const privateMenuItems: MenuItem[] = [
     { href: "/lists", label: "My Lists", icon: List, priority: 1 },
-    { href: "/collection", label: t("nav.collection"), icon: FolderOpen, priority: 2 },
-    { href: "/decks", label: t("nav.decks"), icon: FolderOpen, priority: 3 },
+    { href: "/inventory", label: "Inventory", icon: Archive, priority: 2 },
+    { href: "/wishlist", label: "Wishlist", icon: Heart, priority: 3 },
+    { href: "/collection", label: t("nav.collection"), icon: FolderOpen, priority: 4 },
+    { href: "/decks", label: t("nav.decks"), icon: FolderOpen, priority: 5 },
   ];
 
   const showPrivateMenus = Boolean(userId);

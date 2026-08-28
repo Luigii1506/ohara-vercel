@@ -721,6 +721,8 @@ model UserList {
   cards           UserListCard[]
   backcards       UserListBackcard[] // 🎴 Relación con backcards
   snapshots       UserListSnapshot[]
+  buylistSources  BuylistSession[]   @relation("BuylistSourceList")
+  buylistResults  BuylistSession[]   @relation("BuylistResultList")
 
   @@unique([userId, name])
   @@index([userId, isPublic])
@@ -811,6 +813,8 @@ enum BuylistSourceType {
 model BuylistSession {
   id             Int                  @id @default(autoincrement())
   userId         Int
+  sourceListId   Int?
+  resultListId   Int?
   title          String
   customerName   String?
   sourceType     BuylistSourceType    @default(MIXED)
@@ -829,9 +833,13 @@ model BuylistSession {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceList     UserList?            @relation("BuylistSourceList", fields: [sourceListId], references: [id], onDelete: SetNull)
+  resultList     UserList?            @relation("BuylistResultList", fields: [resultListId], references: [id], onDelete: SetNull)
   items          BuylistItem[]
 
   @@index([userId, status, updatedAt])
+  @@index([sourceListId])
+  @@index([resultListId])
 }
 
 model BuylistItem {

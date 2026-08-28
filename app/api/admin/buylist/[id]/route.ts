@@ -1,47 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import {
+  BUYLIST_SESSION_INCLUDE,
+  computeBuylistTotals,
+  roundCurrency,
+  toNumber,
+  validateBuylistSourceList,
+  validateOwnedOperationalList,
+  type NormalizedBuylistItem,
+} from "@/lib/buylist/session";
 
 export const dynamic = "force-dynamic";
 const db = prisma as any;
-
-type NormalizedBuylistItem = {
-  cardId: number | null;
-  productId: number | null;
-  quantity: number;
-  condition: string | null;
-  purchasePrice: number;
-  purchaseCurrency: string;
-  marketPriceSnapshot: number;
-  midPriceSnapshot: number;
-  market70Snapshot: number;
-  market80Snapshot: number;
-  median70Snapshot: number;
-  median80Snapshot: number;
-  notes: string | null;
-};
-
-type BuylistTotals = {
-  totalItems: number;
-  totalQuantity: number;
-  totalPaid: number;
-  totalMarket: number;
-  totalMedian: number;
-  totalMarket70: number;
-  totalMarket80: number;
-  totalMedian70: number;
-  totalMedian80: number;
-};
-
-function roundCurrency(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-function toNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") return 0;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
-}
 
 async function assertSessionOwnership(sessionId: number, userId: number) {
   return db.buylistSession.findFirst({
@@ -100,6 +71,35 @@ export async function PATCH(
       typeof body?.currency === "string" && body.currency.trim()
         ? body.currency.trim().toUpperCase()
         : "USD";
+    const sourceListResult =
+      body?.sourceListId === null || body?.sourceListId === undefined || body?.sourceListId === ""
+        ? { list: null }
+        : await validateBuylistSourceList(body?.sourceListId, user.id);
+    const resultListResult = await validateOwnedOperationalList(
+      body?.resultListId,
+      user.id
+    );
+
+    if ("error" in sourceListResult || "error" in resultListResult) {
+      const invalid =
+        ("error" in sourceListResult && sourceListResult.error === "invalid") ||
+        ("error" in resultListResult && resultListResult.error === "invalid");
+      return NextResponse.json(
+        {
+          error: invalid
+            ? "ID de carpeta inválido"
+            : "Carpeta no encontrada o sin permisos",
+        },
+        { status: invalid ? 400 : 404 }
+      );
+    }
+
+    if (resultListResult.list && resultListResult.list.isOrdered) {
+      return NextResponse.json(
+        { error: "El inventario destino no puede ser una carpeta ordenada" },
+        { status: 400 }
+      );
+    }
 
     const normalizedItems = items
       .map(
@@ -145,31 +145,7 @@ export async function PATCH(
           (item.productId !== null && item.productId > 0)
       );
 
-    const totals = normalizedItems.reduce(
-      (acc: BuylistTotals, item: NormalizedBuylistItem) => {
-        acc.totalItems += 1;
-        acc.totalQuantity += item.quantity;
-        acc.totalPaid += item.purchasePrice * item.quantity;
-        acc.totalMarket += item.marketPriceSnapshot * item.quantity;
-        acc.totalMedian += item.midPriceSnapshot * item.quantity;
-        acc.totalMarket70 += item.market70Snapshot * item.quantity;
-        acc.totalMarket80 += item.market80Snapshot * item.quantity;
-        acc.totalMedian70 += item.median70Snapshot * item.quantity;
-        acc.totalMedian80 += item.median80Snapshot * item.quantity;
-        return acc;
-      },
-      {
-        totalItems: 0,
-        totalQuantity: 0,
-        totalPaid: 0,
-        totalMarket: 0,
-        totalMedian: 0,
-        totalMarket70: 0,
-        totalMarket80: 0,
-        totalMedian70: 0,
-        totalMedian80: 0,
-      }
-    );
+    const totals = computeBuylistTotals(normalizedItems);
 
     const updated = await prisma.$transaction(async (tx) => {
       await (tx as any).buylistItem.deleteMany({
@@ -188,6 +164,8 @@ export async function PATCH(
       await (tx as any).buylistSession.update({
         where: { id: sessionId },
         data: {
+          sourceListId: sourceListResult.list?.id ?? null,
+          resultListId: resultListResult.list?.id ?? null,
           title,
           customerName,
           notes,
@@ -205,44 +183,7 @@ export async function PATCH(
 
       return (tx as any).buylistSession.findUnique({
         where: { id: sessionId },
-        include: {
-          items: {
-            include: {
-              card: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                  src: true,
-                  rarity: true,
-                  setCode: true,
-                  region: true,
-                  midPrice: true,
-                  marketPrice: true,
-                  priceCurrency: true,
-                  alternateArt: true,
-                  sets: {
-                    take: 1,
-                    include: { set: { select: { title: true } } },
-                  },
-                },
-              },
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  imageUrl: true,
-                  thumbnailUrl: true,
-                  productType: true,
-                  marketPrice: true,
-                  lowPrice: true,
-                  priceCurrency: true,
-                },
-              },
-            },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          },
-        },
+        include: BUYLIST_SESSION_INCLUDE,
       });
     });
 

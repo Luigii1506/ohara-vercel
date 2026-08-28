@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface ListsHeaderProps {
+  title?: string;
+  createLabel?: string;
   count: number;
   totalCount?: number;
   hasFilters: boolean;
@@ -16,6 +18,8 @@ interface ListsHeaderProps {
 }
 
 export const ListsHeader: React.FC<ListsHeaderProps> = ({
+  title = "Mis Listas",
+  createLabel = "Nueva Lista",
   count,
   totalCount,
   hasFilters,
@@ -36,7 +40,7 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Mis Listas
+                {title}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge
@@ -91,7 +95,7 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
               className="h-11 px-4 sm:px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200 transition-all duration-300"
             >
               <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Nueva Lista</span>
+              <span className="hidden sm:inline">{createLabel}</span>
               <span className="sm:hidden">Nueva</span>
             </Button>
           </div>

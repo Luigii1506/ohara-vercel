@@ -63,3 +63,4 @@ main.sql
 .env*.tmp
 bot-test-*.png
 .claude/
+.cache/

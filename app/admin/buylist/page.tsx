@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { Oswald } from "next/font/google";
 import { toast } from "react-toastify";
 import {
+  ArrowDownToLine,
+  ArrowRightLeft,
   BarChart3,
   ClipboardList,
+  ExternalLink,
+  Link2,
   Loader2,
   Minus,
   Package,
@@ -61,6 +65,7 @@ import {
   getFilteredAlternates,
   cardMatchesActiveFilters,
 } from "@/lib/cardFilters";
+import { UserList } from "@/types";
 
 const oswald = Oswald({
   weight: ["200", "300", "400", "500", "600", "700"],
@@ -127,6 +132,18 @@ type BuylistItemDraft = {
 
 type BuylistSession = {
   id: number;
+  sourceList: {
+    id: number;
+    name: string;
+    purpose: string;
+    isOrdered: boolean;
+  } | null;
+  resultList: {
+    id: number;
+    name: string;
+    purpose: string;
+    isOrdered: boolean;
+  } | null;
   title: string;
   customerName: string | null;
   sourceType: "SINGLES" | "BINDER" | "MIXED";
@@ -337,6 +354,14 @@ export default function AdminBuylistPage() {
   const [draftStatus, setDraftStatus] =
     useState<BuylistSession["status"]>("DRAFT");
   const [draftItems, setDraftItems] = useState<BuylistItemDraft[]>([]);
+  const [draftSourceListId, setDraftSourceListId] = useState<string>("none");
+  const [draftResultListId, setDraftResultListId] = useState<string>("none");
+  const [listReference, setListReference] = useState("");
+  const [availableLists, setAvailableLists] = useState<UserList[]>([]);
+  const [listsLoading, setListsLoading] = useState(true);
+  const [importingList, setImportingList] = useState(false);
+  const [applyingInventory, setApplyingInventory] = useState(false);
+  const [replaceImportMode, setReplaceImportMode] = useState(true);
   // true mientras el draft* viene de re-hidratar `selectedSession` (carga
   // inicial, cambio de sesión, o el eco que regresa el propio autoguardado)
   // — evita que ese re-render dispare otro autoguardado en cadena.
@@ -370,9 +395,24 @@ export default function AdminBuylistPage() {
     }
   };
 
+  const loadAvailableLists = async () => {
+    setListsLoading(true);
+    try {
+      const response = await fetch("/api/lists");
+      if (!response.ok) throw new Error("Failed to load lists");
+      const data = await response.json();
+      setAvailableLists((data.lists ?? []) as UserList[]);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setListsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (role === "ADMIN") {
       void loadSessions();
+      void loadAvailableLists();
     }
   }, [role]);
 
@@ -392,6 +432,9 @@ export default function AdminBuylistPage() {
     setDraftSourceType(selectedSession?.sourceType ?? "MIXED");
     setDraftStatus(selectedSession?.status ?? "DRAFT");
     setDraftItems(hydrateDraftItems(selectedSession));
+    setDraftSourceListId(selectedSession?.sourceList?.id?.toString() ?? "none");
+    setDraftResultListId(selectedSession?.resultList?.id?.toString() ?? "none");
+    setListReference(selectedSession?.sourceList?.id?.toString() ?? "");
   }, [selectedSession]);
 
   // Autoguardado: cualquier cambio real del usuario en el draft (agregar
@@ -449,6 +492,22 @@ export default function AdminBuylistPage() {
       }
     );
   }, [draftItems]);
+
+  const importableLists = useMemo(
+    () => availableLists.filter((list) => !list.isCollection),
+    [availableLists]
+  );
+
+  const inventoryLists = useMemo(
+    () =>
+      availableLists.filter(
+        (list) =>
+          !list.isCollection &&
+          !list.isOrdered &&
+          (list.purpose === "INVENTORY" || list.purpose === "GENERAL")
+      ),
+    [availableLists]
+  );
 
   // Confirmación del modal "Agregar cartas": agrega cada carta/producto
   // elegido como su propia línea (con la cantidad acumulada en el modal),
@@ -518,6 +577,10 @@ export default function AdminBuylistPage() {
           currency: draftCurrency,
           sourceType: draftSourceType,
           status: draftStatus,
+          sourceListId:
+            draftSourceListId !== "none" ? Number(draftSourceListId) : null,
+          resultListId:
+            draftResultListId !== "none" ? Number(draftResultListId) : null,
           items: draftItems.map((item) => ({
             cardId: item.cardId,
             productId: item.productId,
@@ -553,6 +616,96 @@ export default function AdminBuylistPage() {
         saveQueuedRef.current = false;
         void saveSession();
       }
+    }
+  };
+
+  const replaceSession = (nextSession: BuylistSession) => {
+    setSessions((prev) =>
+      prev.some((session) => session.id === nextSession.id)
+        ? prev.map((session) => (session.id === nextSession.id ? nextSession : session))
+        : [nextSession, ...prev]
+    );
+    setSelectedSessionId(nextSession.id);
+  };
+
+  const importFromList = async () => {
+    if (!selectedSessionId) return;
+    const reference =
+      listReference.trim() || (draftSourceListId !== "none" ? draftSourceListId : "");
+
+    if (!reference) {
+      toast.error("Pega una URL/ID o elige una carpeta");
+      return;
+    }
+
+    setImportingList(true);
+    try {
+      const response = await fetch(`/api/admin/buylist/${selectedSessionId}/import-list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference,
+          replaceExisting: replaceImportMode,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "No se pudo importar la carpeta");
+      }
+      replaceSession(data.session as BuylistSession);
+      setDraftSourceListId(data.session?.sourceList?.id?.toString() ?? "none");
+      setListReference(data.session?.sourceList?.id?.toString() ?? reference);
+      toast.success(
+        `${data.replaceExisting ? "Se reemplazó" : "Se agregó"} ${
+          data.importedCards ?? 0
+        } cartas desde ${data.sourceList?.name || "la carpeta"}`
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "No se pudo importar la carpeta");
+    } finally {
+      setImportingList(false);
+    }
+  };
+
+  const applyToInventory = async (markCompleted = false) => {
+    if (!selectedSessionId) return;
+    setApplyingInventory(true);
+    try {
+      const response = await fetch(
+        `/api/admin/buylist/${selectedSessionId}/apply-inventory`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetListId:
+              draftResultListId !== "none" ? Number(draftResultListId) : null,
+            markCompleted,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "No se pudo enviar la compra a inventario");
+      }
+      replaceSession(data.session as BuylistSession);
+      setDraftResultListId(data.targetList?.id?.toString() ?? "none");
+      await loadAvailableLists();
+      toast.success(
+        `Inventario actualizado: ${data.createdCount ?? 0} nuevas, ${data.updatedCount ?? 0} sumadas`
+      );
+      if ((data.skippedProducts ?? 0) > 0) {
+        toast.info(
+          `${data.skippedProducts} producto(s) no se mandaron al inventario de cartas`
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo enviar la compra a inventario"
+      );
+    } finally {
+      setApplyingInventory(false);
     }
   };
 
@@ -900,6 +1053,137 @@ export default function AdminBuylistPage() {
                           </SelectContent>
                         </Select>
                       </DetailField>
+                      <DetailField label="Carpeta origen">
+                        <Select
+                          value={draftSourceListId}
+                          onValueChange={(value) => {
+                            setDraftSourceListId(value);
+                            setListReference(value === "none" ? "" : value);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={listsLoading ? "Cargando carpetas..." : "Sin carpeta"}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin carpeta vinculada</SelectItem>
+                            {importableLists.map((list) => (
+                              <SelectItem key={list.id} value={String(list.id)}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </DetailField>
+                      <DetailField label="Inventario destino">
+                        <Select
+                          value={draftResultListId}
+                          onValueChange={setDraftResultListId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                listsLoading
+                                  ? "Cargando inventarios..."
+                                  : "Crear uno automático al aplicar"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Crear inventario automático</SelectItem>
+                            {inventoryLists.map((list) => (
+                              <SelectItem key={list.id} value={String(list.id)}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </DetailField>
+                      <div className="md:col-span-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <LinkedFlowCard
+                            label="Origen vinculado"
+                            title={selectedSession.sourceList?.name || "Sin carpeta"}
+                            subtitle="Carpeta usada para importar cartas a esta compra."
+                            ctaLabel={selectedSession.sourceList ? "Abrir carpeta" : null}
+                            onClick={
+                              selectedSession.sourceList
+                                ? () => router.push(`/lists/${selectedSession.sourceList?.id}`)
+                                : undefined
+                            }
+                          />
+                          <LinkedFlowCard
+                            label="Inventario vinculado"
+                            title={selectedSession.resultList?.name || "Sin inventario"}
+                            subtitle="Destino donde se suman las cartas compradas."
+                            ctaLabel={
+                              selectedSession.resultList ? "Abrir inventario" : null
+                            }
+                            onClick={
+                              selectedSession.resultList
+                                ? () => router.push(`/lists/${selectedSession.resultList?.id}`)
+                                : undefined
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <DetailField label="Importar desde URL o ID">
+                          <div className="flex flex-col gap-2 lg:flex-row">
+                            <div className="flex-1">
+                              <Input
+                                value={listReference}
+                                onChange={(event) => setListReference(event.target.value)}
+                                placeholder="https://www.oharatcg.com/lists/207"
+                              />
+                            </div>
+                            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                              <button
+                                type="button"
+                                onClick={() => setReplaceImportMode(true)}
+                                className={cn(
+                                  "rounded-lg px-3 py-2 text-xs font-semibold transition",
+                                  replaceImportMode
+                                    ? "bg-slate-950 text-white"
+                                    : "text-slate-600"
+                                )}
+                              >
+                                Reemplazar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setReplaceImportMode(false)}
+                                className={cn(
+                                  "rounded-lg px-3 py-2 text-xs font-semibold transition",
+                                  !replaceImportMode
+                                    ? "bg-slate-950 text-white"
+                                    : "text-slate-600"
+                                )}
+                              >
+                                Agregar
+                              </button>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void importFromList()}
+                              disabled={importingList}
+                              className="gap-2"
+                            >
+                              {importingList ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Link2 className="h-4 w-4" />
+                              )}
+                              Importar carpeta
+                            </Button>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            `Reemplazar` limpia el draft actual antes de importar. Si no eliges inventario destino, se crea uno nuevo automáticamente.
+                          </p>
+                        </DetailField>
+                      </div>
                       <div className="md:col-span-2">
                         <DetailField label="Notas internas">
                           <Textarea
@@ -919,6 +1203,35 @@ export default function AdminBuylistPage() {
                         ) : (
                           "Los cambios se guardan solos"
                         )}
+                      </div>
+                      <div className="md:col-span-2 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+                        <Button
+                          type="button"
+                          onClick={() => void applyToInventory(false)}
+                          disabled={applyingInventory || draftItems.length === 0}
+                          variant="outline"
+                          className="gap-2"
+                        >
+                          {applyingInventory ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ArrowRightLeft className="h-4 w-4" />
+                          )}
+                          Aplicar a inventario
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => void applyToInventory(true)}
+                          disabled={applyingInventory || draftItems.length === 0}
+                          className="gap-2 bg-slate-950 text-white hover:bg-slate-800"
+                        >
+                          {applyingInventory ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ArrowDownToLine className="h-4 w-4" />
+                          )}
+                          Aplicar y completar
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1181,6 +1494,40 @@ function DetailField({
         {label}
       </p>
       {children}
+    </div>
+  );
+}
+
+function LinkedFlowCard({
+  label,
+  title,
+  subtitle,
+  ctaLabel,
+  onClick,
+}: {
+  label: string;
+  title: string;
+  subtitle: string;
+  ctaLabel?: string | null;
+  onClick?: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>
+      {ctaLabel && onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700 transition hover:text-slate-950"
+        >
+          {ctaLabel}
+          <ExternalLink className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }

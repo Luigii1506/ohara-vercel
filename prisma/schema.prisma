@@ -81,6 +81,7 @@ model Card {
   cameoSourceEntries    CharacterCameoSourceEntry[] @relation("MatchedCameoCard")
   sources               CardSource[]
   priceStat             CardPriceStat?
+  tcgCatalogLinks       TcgCatalogProduct[]
 
   @@index([baseCardId]) // Índice para búsquedas rápidas
   @@index([code, isFirstEdition]) // Índice compuesto para buscar cartas base por code
@@ -1489,6 +1490,9 @@ model TcgCatalogProduct {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   linkedCardId    Int?
+  // Relación real (antes era un Int suelto sin FK) — si la Card vinculada se
+  // borra, este vínculo se limpia solo (SetNull) en vez de quedar colgando.
+  linkedCard      Card?     @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
   linkedProductId Int? // Link to Product model (for sealed products, playmats, etc.)
   linkedAt        DateTime?
   linkedById      Int?

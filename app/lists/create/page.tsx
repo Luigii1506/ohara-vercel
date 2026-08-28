@@ -59,6 +59,7 @@ function CreateFolderPageContent() {
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
   const [currentPage, setCurrentPage] = useState(1);
   const creatablePurposes = getCreatableListPurposesForRole(role);
+  const isAdmin = role === "ADMIN";
 
   useEffect(() => {
     const requestedPurpose = searchParams?.get("purpose");
@@ -81,6 +82,17 @@ function CreateFolderPageContent() {
     if (creatablePurposes.includes(formData.purpose)) return;
     setFormData((prev) => ({ ...prev, purpose: creatablePurposes[0] ?? "GENERAL" }));
   }, [creatablePurposes, formData.purpose]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    setFormData((prev) => ({
+      ...prev,
+      purpose: "GENERAL",
+      hideTcgLink: false,
+      displayCurrency: "USD",
+      exchangeRate: "",
+    }));
+  }, [isAdmin]);
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(
@@ -319,42 +331,44 @@ function CreateFolderPageContent() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Propósito
-                  </Label>
-                  <div className="grid gap-2">
-                  {creatablePurposes.map((purpose) => (
-                      <Button
-                        key={purpose}
-                        type="button"
-                        variant={
-                          formData.purpose === purpose ? "default" : "outline"
-                        }
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            purpose,
-                          }))
-                        }
-                        className={`h-11 justify-between ${
-                          formData.purpose === purpose
-                            ? "bg-slate-900 hover:bg-slate-800 text-white"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span>{LIST_PURPOSE_LABELS[purpose]}</span>
-                        {formData.purpose === purpose && (
-                          <Check className="h-4 w-4" />
-                        )}
-                      </Button>
-                    ))}
+                {isAdmin ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Propósito
+                    </Label>
+                    <div className="grid gap-2">
+                    {creatablePurposes.map((purpose) => (
+                        <Button
+                          key={purpose}
+                          type="button"
+                          variant={
+                            formData.purpose === purpose ? "default" : "outline"
+                          }
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              purpose,
+                            }))
+                          }
+                          className={`h-11 justify-between ${
+                            formData.purpose === purpose
+                              ? "bg-slate-900 hover:bg-slate-800 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span>{LIST_PURPOSE_LABELS[purpose]}</span>
+                          {formData.purpose === purpose && (
+                            <Check className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      General para binders, master sets y faltantes. Venta para
+                      stock comercial y seguimiento de cartas vendidas.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    General para binders, master sets y faltantes. Venta para
-                    stock comercial y seguimiento de cartas vendidas.
-                  </p>
-                </div>
+                ) : null}
               </div>
             </div>
 
@@ -536,101 +550,105 @@ function CreateFolderPageContent() {
               </div>
 
               {/* Carpeta de venta: ocultar link de TCGplayer */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
-                  <div className="space-y-0.5 pr-3">
-                    <Label className="text-sm font-medium text-gray-900">
-                      Ocultar link de TCGplayer
-                    </Label>
-                    <p className="text-xs text-gray-500">
-                      Muestra solo tu precio, sin redirigir a TCGplayer. Ideal
-                      para carpetas de venta.
-                    </p>
+              {isAdmin ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
+                    <div className="space-y-0.5 pr-3">
+                      <Label className="text-sm font-medium text-gray-900">
+                        Ocultar link de TCGplayer
+                      </Label>
+                      <p className="text-xs text-gray-500">
+                        Muestra solo tu precio, sin redirigir a TCGplayer. Ideal
+                        para carpetas de venta.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.hideTcgLink}
+                      onCheckedChange={(checked) =>
+                        handleSwitchChange("hideTcgLink", checked)
+                      }
+                      className="touch-manipulation"
+                    />
                   </div>
-                  <Switch
-                    checked={formData.hideTcgLink}
-                    onCheckedChange={(checked) =>
-                      handleSwitchChange("hideTcgLink", checked)
-                    }
-                    className="touch-manipulation"
-                  />
                 </div>
-              </div>
+              ) : null}
 
               {/* Moneda de precios */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-emerald-600" />
-                  <h3 className="font-medium text-gray-900">
-                    Moneda de precios
-                  </h3>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    type="button"
-                    variant={
-                      formData.displayCurrency === "USD" ? "default" : "outline"
-                    }
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        displayCurrency: "USD",
-                      }))
-                    }
-                    className={`h-12 ${
-                      formData.displayCurrency === "USD"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Dólares (USD)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={
-                      formData.displayCurrency === "MXN" ? "default" : "outline"
-                    }
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        displayCurrency: "MXN",
-                      }))
-                    }
-                    className={`h-12 ${
-                      formData.displayCurrency === "MXN"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Pesos (MXN)
-                  </Button>
-                </div>
-                {formData.displayCurrency === "MXN" && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Tipo de cambio (1 USD = ? MXN)
-                    </Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ej. 18.50"
-                      value={formData.exchangeRate}
-                      onChange={(e) =>
+              {isAdmin ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                    <h3 className="font-medium text-gray-900">
+                      Moneda de precios
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      variant={
+                        formData.displayCurrency === "USD" ? "default" : "outline"
+                      }
+                      onClick={() =>
                         setFormData((prev) => ({
                           ...prev,
-                          exchangeRate: e.target.value,
+                          displayCurrency: "USD",
                         }))
                       }
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Los precios de las cartas (en USD) se mostrarán
-                      convertidos a pesos con este tipo de cambio.
-                    </p>
+                      className={`h-12 ${
+                        formData.displayCurrency === "USD"
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Dólares (USD)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        formData.displayCurrency === "MXN" ? "default" : "outline"
+                      }
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          displayCurrency: "MXN",
+                        }))
+                      }
+                      className={`h-12 ${
+                        formData.displayCurrency === "MXN"
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Pesos (MXN)
+                    </Button>
                   </div>
-                )}
-              </div>
+                  {formData.displayCurrency === "MXN" && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                        Tipo de cambio (1 USD = ? MXN)
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ej. 18.50"
+                        value={formData.exchangeRate}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            exchangeRate: e.target.value,
+                          }))
+                        }
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Los precios de las cartas (en USD) se mostrarán
+                        convertidos a pesos con este tipo de cambio.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               {/* Selector de color */}
               <div className="space-y-3">

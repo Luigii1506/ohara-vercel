@@ -69,6 +69,7 @@ const EditListPage = () => {
   const router = useRouter();
   const { role } = useUser();
   const listId = params.id as string;
+  const isAdmin = role === "ADMIN";
 
   const [list, setList] = useState<UserList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +148,17 @@ const EditListPage = () => {
       [name]: Math.max(1, Math.min(value, 10)),
     }));
   };
+
+  useEffect(() => {
+    if (isAdmin) return;
+    setFormData((prev) => ({
+      ...prev,
+      purpose: "GENERAL",
+      hideTcgLink: false,
+      displayCurrency: "USD",
+      exchangeRate: "",
+    }));
+  }, [isAdmin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -481,42 +493,44 @@ const EditListPage = () => {
                   />
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold text-slate-900">
-                    Uso de la carpeta
-                  </Label>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {creatablePurposes.map((purpose) => (
-                      <Button
-                        key={purpose}
-                        type="button"
-                        variant={
-                          formData.purpose === purpose ? "default" : "outline"
-                        }
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            purpose,
-                          }))
-                        }
-                        className={`h-12 justify-between ${
-                          formData.purpose === purpose
-                            ? "bg-slate-900 hover:bg-slate-800 text-white"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span>{LIST_PURPOSE_LABELS[purpose]}</span>
-                        {formData.purpose === purpose && (
-                          <Tag className="h-4 w-4" />
-                        )}
-                      </Button>
-                    ))}
+                {isAdmin ? (
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold text-slate-900">
+                      Uso de la carpeta
+                    </Label>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {creatablePurposes.map((purpose) => (
+                        <Button
+                          key={purpose}
+                          type="button"
+                          variant={
+                            formData.purpose === purpose ? "default" : "outline"
+                          }
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              purpose,
+                            }))
+                          }
+                          className={`h-12 justify-between ${
+                            formData.purpose === purpose
+                              ? "bg-slate-900 hover:bg-slate-800 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span>{LIST_PURPOSE_LABELS[purpose]}</span>
+                          {formData.purpose === purpose && (
+                            <Tag className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      Usa General para binders, proyectos y faltantes. El modo
+                      de venta solo está disponible para administradores.
+                    </p>
                   </div>
-                  <p className="text-sm text-slate-500">
-                    Usa General para binders, proyectos y faltantes. El modo
-                    de venta solo está disponible para administradores.
-                  </p>
-                </div>
+                ) : null}
               </div>
 
               {/* Configuration Cards */}
@@ -736,115 +750,119 @@ const EditListPage = () => {
                 </Card>
 
                 {/* Carpeta de venta: ocultar link de TCGplayer */}
-                <Card className="border border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <Tag className="h-5 w-5 text-slate-500" />
-                          <h3 className="text-lg font-semibold text-slate-900">
-                            Ocultar link de TCGplayer
-                          </h3>
-                        </div>
-                        <p className="text-slate-600">
-                          {formData.hideTcgLink
-                            ? "Solo se mostrará tu precio, sin redirigir a TCGplayer"
-                            : "Se mostrará el link para ver la carta en TCGplayer"}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={formData.hideTcgLink}
-                        onCheckedChange={(checked) =>
-                          handleSwitchChange("hideTcgLink", checked)
-                        }
-                        className="touch-manipulation"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Moneda de precios */}
-                <Card className="border border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <DollarSign className="h-5 w-5 text-emerald-600" />
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          Moneda de precios
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button
-                          type="button"
-                          variant={
-                            formData.displayCurrency === "USD"
-                              ? "default"
-                              : "outline"
-                          }
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              displayCurrency: "USD",
-                            }))
-                          }
-                          className={`h-12 touch-manipulation ${
-                            formData.displayCurrency === "USD"
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          Dólares (USD)
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={
-                            formData.displayCurrency === "MXN"
-                              ? "default"
-                              : "outline"
-                          }
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              displayCurrency: "MXN",
-                            }))
-                          }
-                          className={`h-12 touch-manipulation ${
-                            formData.displayCurrency === "MXN"
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          Pesos (MXN)
-                        </Button>
-                      </div>
-                      {formData.displayCurrency === "MXN" && (
-                        <div>
-                          <Label className="text-sm font-medium text-slate-700 mb-1 block">
-                            Tipo de cambio (1 USD = ? MXN)
-                          </Label>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            min="0"
-                            placeholder="Ej. 18.50"
-                            value={formData.exchangeRate}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                exchangeRate: e.target.value,
-                              }))
-                            }
-                          />
-                          <p className="mt-1 text-xs text-slate-500">
-                            Los precios de las cartas (en USD) se mostrarán
-                            convertidos a pesos con este tipo de cambio.
+                {isAdmin ? (
+                  <Card className="border border-slate-200 shadow-sm">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <Tag className="h-5 w-5 text-slate-500" />
+                            <h3 className="text-lg font-semibold text-slate-900">
+                              Ocultar link de TCGplayer
+                            </h3>
+                          </div>
+                          <p className="text-slate-600">
+                            {formData.hideTcgLink
+                              ? "Solo se mostrará tu precio, sin redirigir a TCGplayer"
+                              : "Se mostrará el link para ver la carta en TCGplayer"}
                           </p>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <Switch
+                          checked={formData.hideTcgLink}
+                          onCheckedChange={(checked) =>
+                            handleSwitchChange("hideTcgLink", checked)
+                          }
+                          className="touch-manipulation"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {/* Moneda de precios */}
+                {isAdmin ? (
+                  <Card className="border border-slate-200 shadow-sm">
+                    <CardContent className="p-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="h-5 w-5 text-emerald-600" />
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            Moneda de precios
+                          </h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button
+                            type="button"
+                            variant={
+                              formData.displayCurrency === "USD"
+                                ? "default"
+                                : "outline"
+                            }
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                displayCurrency: "USD",
+                              }))
+                            }
+                            className={`h-12 touch-manipulation ${
+                              formData.displayCurrency === "USD"
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            Dólares (USD)
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              formData.displayCurrency === "MXN"
+                                ? "default"
+                                : "outline"
+                            }
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                displayCurrency: "MXN",
+                              }))
+                            }
+                            className={`h-12 touch-manipulation ${
+                              formData.displayCurrency === "MXN"
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            Pesos (MXN)
+                          </Button>
+                        </div>
+                        {formData.displayCurrency === "MXN" && (
+                          <div>
+                            <Label className="text-sm font-medium text-slate-700 mb-1 block">
+                              Tipo de cambio (1 USD = ? MXN)
+                            </Label>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              min="0"
+                              placeholder="Ej. 18.50"
+                              value={formData.exchangeRate}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  exchangeRate: e.target.value,
+                                }))
+                              }
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                              Los precios de las cartas (en USD) se mostrarán
+                              convertidos a pesos con este tipo de cambio.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 {/* Color Selection Card */}
                 <Card className="border border-slate-200 shadow-sm">

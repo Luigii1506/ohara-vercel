@@ -53,6 +53,10 @@ interface CardGridProps {
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  onToggleMissing?: (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => void;
   /** Agrega/quita esta carta de la selección múltiple (mover o asignar). */
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   /** Quita el consignatario de ESTA carta puntual (queda como "Yo"). */
@@ -84,6 +88,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   canEditPrice = false,
   onEditPrice,
   onToggleSold,
+  onToggleMissing,
   onToggleMove,
   onUnassignConsignor,
   priceField = "marketPrice",
@@ -235,6 +240,13 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         />
                       </div>
 
+                      {/* Faltante - prioridad visual sobre venta para carpetas objetivo */}
+                      {cell.existing?.isMissing && (
+                        <div className="pointer-events-none absolute left-1 top-1 z-10 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-md">
+                          Faltante
+                        </div>
+                      )}
+
                       {/* Vendida - Cinta diagonal, visible en cualquier vista */}
                       {cell.existing?.isSold && (
                         <div className="pointer-events-none absolute inset-x-[-15%] top-[38%] z-10 -rotate-[18deg] bg-slate-900/85 py-1 text-center text-[10px] font-black uppercase tracking-widest text-white shadow-md">
@@ -349,7 +361,11 @@ export const CardGrid: React.FC<CardGridProps> = ({
                         cell.existing &&
                         !cell.existing.isOptimistic && (
                         <div className="absolute bottom-2 right-2 z-20 flex flex-col items-center gap-1.5">
-                          {(onEditPrice || onToggleSold || cell.card?.tcgUrl || onPositionClick) && (
+                          {(onEditPrice ||
+                            onToggleSold ||
+                            onToggleMissing ||
+                            cell.card?.tcgUrl ||
+                            onPositionClick) && (
                             <Popover
                               open={openOptionsId === rowKey}
                               onOpenChange={(open) => setOpenOptionsId(open ? rowKey : null)}
@@ -395,6 +411,25 @@ export const CardGrid: React.FC<CardGridProps> = ({
                                       {cell.existing?.isSold
                                         ? "Marcar como disponible"
                                         : "Marcar como vendida"}
+                                    </span>
+                                  </div>
+                                )}
+                                {onToggleMissing && (
+                                  <div
+                                    onClick={() => {
+                                      onToggleMissing({
+                                        card: cell.card!,
+                                        listCard: cell.existing,
+                                      });
+                                      setOpenOptionsId(null);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                    <span>
+                                      {cell.existing?.isMissing
+                                        ? "Marcar como conseguida"
+                                        : "Marcar como faltante"}
                                     </span>
                                   </div>
                                 )}

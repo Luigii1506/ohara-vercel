@@ -58,6 +58,10 @@ interface BookFlipContainerProps {
   canEditPrice?: boolean;
   onEditPrice?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onToggleSold?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
+  onToggleMissing?: (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => void;
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onUnassignConsignor?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   priceField?: "marketPrice" | "midPrice";
@@ -137,6 +141,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
   canEditPrice,
   onEditPrice,
   onToggleSold,
+  onToggleMissing,
   onToggleMove,
   onUnassignConsignor,
   priceField,
@@ -408,6 +413,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
+            onToggleMissing={onToggleMissing}
             onToggleMove={onToggleMove}
             onUnassignConsignor={onUnassignConsignor}
             priceField={priceField}
@@ -450,6 +456,7 @@ export const BookFlipContainer: React.FC<BookFlipContainerProps> = ({
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
+            onToggleMissing={onToggleMissing}
             onToggleMove={onToggleMove}
             onUnassignConsignor={onUnassignConsignor}
             priceField={priceField}

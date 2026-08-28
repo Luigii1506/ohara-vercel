@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { useUser } from "@/app/context/UserContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,8 +32,8 @@ import { FolderContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
 import {
+  getCreatableListPurposesForRole,
   LIST_PURPOSE_LABELS,
-  USER_CREATABLE_LIST_PURPOSES,
   normalizeListPurpose,
   type ListPurpose,
 } from "@/lib/lists/purpose";
@@ -40,6 +41,7 @@ import {
 function CreateFolderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { role } = useUser();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -56,18 +58,29 @@ function CreateFolderPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 1920, height: 1080 });
   const [currentPage, setCurrentPage] = useState(1);
+  const creatablePurposes = getCreatableListPurposesForRole(role);
 
   useEffect(() => {
     const requestedPurpose = searchParams?.get("purpose");
     if (!requestedPurpose) return;
     const normalizedPurpose = normalizeListPurpose(requestedPurpose);
-    if (normalizedPurpose === "PERSONAL_COLLECTION") return;
+    if (
+      normalizedPurpose === "PERSONAL_COLLECTION" ||
+      !creatablePurposes.includes(normalizedPurpose)
+    ) {
+      return;
+    }
     setFormData((prev) =>
       prev.purpose === normalizedPurpose
         ? prev
         : { ...prev, purpose: normalizedPurpose }
     );
-  }, [searchParams]);
+  }, [creatablePurposes, searchParams]);
+
+  useEffect(() => {
+    if (creatablePurposes.includes(formData.purpose)) return;
+    setFormData((prev) => ({ ...prev, purpose: creatablePurposes[0] ?? "GENERAL" }));
+  }, [creatablePurposes, formData.purpose]);
 
   // Use the shared hook for folder dimensions
   const folderDimensions = useFolderDimensions(
@@ -192,17 +205,17 @@ function CreateFolderPageContent() {
       nameLabel: "Nombre del inventario *",
       namePlaceholder: "Ej: Stock OP09, Binder de venta premium",
       descriptionPlaceholder: "Describe qué cartas o stock manejarás aquí...",
-      colorLabel: "Color del inventario",
-      previewName: "Nuevo Inventario",
+      colorLabel: "Color de la carpeta de venta",
+      previewName: "Nueva Carpeta de Venta",
     },
     WISHLIST: {
-      pageTitle: "Nueva Wishlist",
-      pageSubtitle: "Organiza cartas y objetivos que quieres conseguir",
-      nameLabel: "Nombre de la wishlist *",
-      namePlaceholder: "Ej: Master sets pendientes, Want list de eventos",
-      descriptionPlaceholder: "Describe qué buscas completar o conseguir...",
-      colorLabel: "Color de la wishlist",
-      previewName: "Nueva Wishlist",
+      pageTitle: "Nueva Carpeta",
+      pageSubtitle: "Configura tu carpeta y ve el preview en tiempo real",
+      nameLabel: "Nombre de la carpeta *",
+      namePlaceholder: "Ej: Binder de torneo, Alt arts favoritas",
+      descriptionPlaceholder: "Describe el propósito de esta carpeta...",
+      colorLabel: "Color de la carpeta",
+      previewName: "Nueva Carpeta",
     },
     PERSONAL_COLLECTION: {
       pageTitle: "Nueva Carpeta",
@@ -311,7 +324,7 @@ function CreateFolderPageContent() {
                     Propósito
                   </Label>
                   <div className="grid gap-2">
-                    {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                  {creatablePurposes.map((purpose) => (
                       <Button
                         key={purpose}
                         type="button"
@@ -338,8 +351,8 @@ function CreateFolderPageContent() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-500">
-                    Inventario para stock de venta, Wishlist para objetivos y
-                    General para binders o listas flexibles.
+                    General para binders, master sets y faltantes. Venta para
+                    stock comercial y seguimiento de cartas vendidas.
                   </p>
                 </div>
               </div>

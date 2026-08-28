@@ -34,6 +34,7 @@ interface ListCard {
   column: number | null;
   customPrice?: number | string | null;
   customCurrency?: string | null;
+  isMissing?: boolean;
   isSold?: boolean;
   soldAt?: string | null;
   soldPrice?: number | string | null;
@@ -101,6 +102,7 @@ const ListDetailPage = () => {
       column: c.column,
       customPrice: c.customPrice,
       customCurrency: c.customCurrency,
+      isMissing: c.isMissing,
       isSold: c.isSold,
       soldAt: c.soldAt,
       soldPrice: c.soldPrice,
@@ -718,6 +720,11 @@ const ListDetailPage = () => {
                           listCard.isSold ? "grayscale opacity-50" : ""
                         }`}
                       />
+                      {listCard.isMissing && (
+                        <div className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-950 shadow-md">
+                          Faltante
+                        </div>
+                      )}
                       {listCard.isSold && (
                         <div className="pointer-events-none absolute inset-x-[-15%] top-[38%] -rotate-[18deg] bg-slate-900/85 py-1 text-center text-[10px] font-black uppercase tracking-widest text-white shadow-md">
                           Vendida
@@ -753,10 +760,16 @@ const ListDetailPage = () => {
                                 className={`text-sm font-bold ${
                                   listCard.isSold
                                     ? "text-slate-500"
-                                    : "text-emerald-600"
+                                    : listCard.isMissing
+                                      ? "text-amber-600"
+                                      : "text-emerald-600"
                                 }`}
                               >
-                                {listCard.isSold && "Vendida en "}
+                                {listCard.isSold
+                                  ? "Vendida en "
+                                  : listCard.isMissing
+                                    ? "Objetivo "
+                                    : ""}
                                 {formatCurrency(
                                   priceValue,
                                   listCard.customCurrency ||

@@ -139,6 +139,7 @@ interface UserList {
   userId?: number;
   isOrdered: boolean;
   isCollection: boolean;
+  purpose?: "GENERAL" | "INVENTORY" | "PERSONAL_COLLECTION";
   maxRows: number | null;
   maxColumns: number | null;
   totalPages: number;
@@ -2348,6 +2349,67 @@ const AddCardsPage = () => {
       );
     } finally {
       setIsSoldEditSaving(false);
+    }
+  };
+
+  const handleToggleMissingStatus = async (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => {
+    if (!list || !isOwner) return;
+    if (list.purpose !== "GENERAL") {
+      toast.error("Los faltantes solo se manejan en carpetas generales");
+      return;
+    }
+
+    const nextIsMissing = !Boolean(entry.listCard?.isMissing);
+
+    try {
+      const response = await fetch(`/api/lists/${listId}/cards/${entry.listCard.cardId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listCardId: entry.listCard.id,
+          isMissing: nextIsMissing,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al actualizar faltante");
+      }
+
+      if (entry.listCard.page && entry.listCard.row && entry.listCard.column) {
+        const key = `${entry.listCard.page}-${entry.listCard.row}-${entry.listCard.column}`;
+        updateExistingCards((prev) => {
+          if (!prev[key]) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...prev[key],
+              isMissing: nextIsMissing,
+              ...(nextIsMissing
+                ? {
+                    isSold: false,
+                    soldAt: null,
+                    soldPrice: null,
+                  }
+                : {}),
+            },
+          };
+        });
+      }
+
+      toast.success(
+        nextIsMissing
+          ? "Carta marcada como faltante"
+          : "Carta marcada como conseguida"
+      );
+    } catch (error) {
+      console.error("Error actualizando faltante:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Error al actualizar faltante"
+      );
     }
   };
 
@@ -4672,6 +4734,11 @@ const AddCardsPage = () => {
                         canEditPrice={Boolean(isOwner)}
                         onEditPrice={openPriceEdit}
                         onToggleSold={openSoldEdit}
+                        onToggleMissing={
+                          list.purpose === "GENERAL"
+                            ? handleToggleMissingStatus
+                            : undefined
+                        }
                         onToggleMove={toggleMovingCard}
                         onUnassignConsignor={handleUnassignConsignor}
                         onRemoveBackcard={toggleBackcardAt}

@@ -7,7 +7,10 @@ import {
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
-import { normalizeListPurpose } from "@/lib/lists/purpose";
+import {
+  isListPurposeAllowedForRole,
+  normalizeListPurpose,
+} from "@/lib/lists/purpose";
 
 // GET /api/lists/[id] - Obtener lista específica con sus cartas
 export async function GET(
@@ -202,6 +205,7 @@ export async function GET(
     // Preparar respuesta con datos seguros
     const responseList = {
       ...list,
+      purpose: normalizeListPurpose(list.purpose),
       totalPages,
       maxRows: list.maxRows || (list.isOrdered ? 3 : null),
       maxColumns: list.maxColumns || (list.isOrdered ? 3 : null),
@@ -401,6 +405,16 @@ export async function PUT(
             "Ese propósito está reservado para la colección principal del usuario",
         },
         { status: 400 }
+      );
+    }
+
+    if (
+      normalizedPurpose !== undefined &&
+      !isListPurposeAllowedForRole(user.role, normalizedPurpose)
+    ) {
+      return NextResponse.json(
+        { error: "No tienes permiso para usar ese tipo de carpeta" },
+        { status: 403 }
       );
     }
 

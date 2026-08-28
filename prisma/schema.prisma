@@ -743,6 +743,7 @@ model UserListCard {
   condition      String?
   customPrice    Decimal?
   customCurrency String?
+  isMissing      Boolean   @default(false)
   isSold         Boolean   @default(false)
   soldAt         DateTime?
   soldPrice      Decimal?
@@ -758,6 +759,7 @@ model UserListCard {
   @@unique([listId, page, row, column], name: "unique_physical_position")
   @@index([listId, cardId])
   @@index([listId, sortOrder])
+  @@index([listId, isMissing])
   @@index([listId, isSold])
   @@index([cardId])
   @@index([consignorId])

@@ -7,6 +7,7 @@ import {
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
+import { supportsMissingStateForListPurpose } from "@/lib/lists/purpose";
 
 const parseCustomPrice = (value: any) => {
   if (value === null || value === undefined || value === "") return null;
@@ -179,6 +180,7 @@ export async function POST(
         column,
         customPrice,
         customCurrency,
+        isMissing,
         // Ignorar id si viene en el input
         id: _ignoredId,
         ...otherFields
@@ -186,6 +188,11 @@ export async function POST(
       const parsedCustomPrice = parseCustomPrice(customPrice);
       const hasCustomPrice = customPrice !== undefined;
       const hasCustomCurrency = customCurrency !== undefined;
+      const hasIsMissing =
+        typeof isMissing === "boolean" &&
+        supportsMissingStateForListPurpose(list.purpose);
+      const parsedIsMissing =
+        hasIsMissing && isMissing === true;
 
       // Verificar que la carta existe
       const card = await prisma.card.findUnique({
@@ -236,6 +243,18 @@ export async function POST(
               quantity: 1, // Siempre 1 en listas ordenadas
               notes: notes || existingCard.notes,
               condition: condition || existingCard.condition,
+              ...(hasIsMissing
+                ? {
+                    isMissing: parsedIsMissing,
+                    ...(parsedIsMissing
+                      ? {
+                          isSold: false,
+                          soldAt: null,
+                          soldPrice: null,
+                        }
+                      : {}),
+                  }
+                : {}),
               ...(hasCustomPrice && { customPrice: parsedCustomPrice }),
               ...(hasCustomCurrency && {
                 customCurrency: customCurrency || null,
@@ -264,6 +283,18 @@ export async function POST(
               quantity: existingCard.quantity + quantity,
               notes: notes || existingCard.notes,
               condition: condition || existingCard.condition,
+              ...(hasIsMissing
+                ? {
+                    isMissing: parsedIsMissing,
+                    ...(parsedIsMissing
+                      ? {
+                          isSold: false,
+                          soldAt: null,
+                          soldPrice: null,
+                        }
+                      : {}),
+                  }
+                : {}),
               ...(hasCustomPrice && { customPrice: parsedCustomPrice }),
               ...(hasCustomCurrency && {
                 customCurrency: customCurrency || null,
@@ -297,6 +328,14 @@ export async function POST(
         condition: condition || "Near Mint",
         customPrice: parsedCustomPrice,
         customCurrency: customCurrency || null,
+        isMissing: parsedIsMissing,
+        ...(parsedIsMissing
+          ? {
+              isSold: false,
+              soldAt: null,
+              soldPrice: null,
+            }
+          : {}),
       };
 
       // Asegurarse de que no se pase 'id' del input

@@ -58,6 +58,10 @@ interface FolderPageProps {
     card: CardWithCollectionData;
     listCard: any;
   }) => void;
+  onToggleMissing?: (entry: {
+    card: CardWithCollectionData;
+    listCard: any;
+  }) => void;
   onToggleMove?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   onUnassignConsignor?: (entry: { card: CardWithCollectionData; listCard: any }) => void;
   priceField?: "marketPrice" | "midPrice";
@@ -95,6 +99,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
   canEditPrice,
   onEditPrice,
   onToggleSold,
+  onToggleMissing,
   onToggleMove,
   onUnassignConsignor,
   priceField,
@@ -174,6 +179,7 @@ export const FolderPage: React.FC<FolderPageProps> = ({
             canEditPrice={canEditPrice}
             onEditPrice={onEditPrice}
             onToggleSold={onToggleSold}
+            onToggleMissing={onToggleMissing}
             onToggleMove={onToggleMove}
             onUnassignConsignor={onUnassignConsignor}
             priceField={priceField}

@@ -7,6 +7,7 @@ import {
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
+import { supportsMissingStateForListPurpose } from "@/lib/lists/purpose";
 
 const parseCustomPrice = (value: any) => {
   if (value === null || value === undefined || value === "") return null;
@@ -48,6 +49,7 @@ export async function PUT(
       position,
       customPrice,
       customCurrency,
+      isMissing,
       isSold,
       soldPrice,
       listCardId,
@@ -116,10 +118,37 @@ export async function PUT(
       updateData.customCurrency = customCurrency || null;
     }
 
+    if (isMissing !== undefined) {
+      if (typeof isMissing !== "boolean") {
+        return NextResponse.json(
+          { error: "isMissing debe ser verdadero o falso" },
+          { status: 400 }
+        );
+      }
+      if (!supportsMissingStateForListPurpose(list.purpose) && isMissing) {
+        return NextResponse.json(
+          { error: "Solo las carpetas generales pueden marcar faltantes" },
+          { status: 400 }
+        );
+      }
+      updateData.isMissing = isMissing;
+      if (isMissing) {
+        updateData.isSold = false;
+        updateData.soldAt = null;
+        updateData.soldPrice = null;
+      }
+    }
+
     if (isSold !== undefined) {
       if (typeof isSold !== "boolean") {
         return NextResponse.json(
           { error: "isSold debe ser verdadero o falso" },
+          { status: 400 }
+        );
+      }
+      if ((updateData.isMissing ?? listCard.isMissing) && isSold) {
+        return NextResponse.json(
+          { error: "No puedes vender una carta marcada como faltante" },
           { status: 400 }
         );
       }

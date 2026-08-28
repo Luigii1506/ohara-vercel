@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
 import {
   DEFAULT_LIST_PURPOSE,
+  isListPurposeAllowedForRole,
   normalizeListPurpose,
 } from "@/lib/lists/purpose";
 
@@ -72,6 +73,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...list,
+        purpose: normalizeListPurpose(list.purpose),
         totalValue,
         currency,
         cards: undefined, // No enviar las cartas completas al frontend
@@ -140,6 +142,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Ese propósito solo se puede usar para la colección principal" },
         { status: 400 }
+      );
+    }
+
+    if (!isListPurposeAllowedForRole(user.role, normalizedPurpose)) {
+      return NextResponse.json(
+        { error: "No tienes permiso para crear ese tipo de carpeta" },
+        { status: 403 }
       );
     }
 

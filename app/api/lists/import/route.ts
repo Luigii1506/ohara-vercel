@@ -7,7 +7,10 @@ import {
   handleAuthError,
   validateListAccess,
 } from "@/lib/auth-helpers";
-import { normalizeListPurpose } from "@/lib/lists/purpose";
+import {
+  isListPurposeAllowedForRole,
+  normalizeListPurpose,
+} from "@/lib/lists/purpose";
 
 const parseListId = (value: string | number | undefined | null) => {
   if (value === null || value === undefined) return null;
@@ -95,6 +98,16 @@ export async function POST(request: NextRequest) {
     }
 
     const newListName = await getUniqueListName(user.id, sourceList.name);
+    const importedPurpose =
+      sourceList.isCollection || sourceList.purpose === "PERSONAL_COLLECTION"
+        ? normalizeListPurpose("GENERAL")
+        : normalizeListPurpose(sourceList.purpose);
+    const normalizedImportedPurpose = isListPurposeAllowedForRole(
+      user.role,
+      importedPurpose
+    )
+      ? importedPurpose
+      : normalizeListPurpose("GENERAL");
 
     const result = await prisma.$transaction(async (tx) => {
       const createdList = await tx.userList.create({
@@ -110,14 +123,12 @@ export async function POST(request: NextRequest) {
           isPublic: false,
           isDeletable: true,
           isCollection: false,
-          purpose:
-            sourceList.isCollection || sourceList.purpose === "PERSONAL_COLLECTION"
-              ? normalizeListPurpose("GENERAL")
-              : normalizeListPurpose(sourceList.purpose),
+          purpose: normalizedImportedPurpose,
         },
       });
 
       if (sourceList.cards.length) {
+        const sourceWasWishlist = sourceList.purpose === "WISHLIST";
         await tx.userListCard.createMany({
           data: sourceList.cards.map((card) => ({
             listId: createdList.id,
@@ -131,6 +142,11 @@ export async function POST(request: NextRequest) {
             condition: card.condition ?? null,
             customPrice: card.customPrice ?? null,
             customCurrency: card.customCurrency ?? null,
+            isMissing: card.isMissing ?? sourceWasWishlist,
+            isSold: card.isSold ?? false,
+            soldAt: card.isSold ? card.soldAt ?? null : null,
+            soldPrice: card.isSold ? card.soldPrice ?? null : null,
+            consignorId: null,
           })),
         });
       }

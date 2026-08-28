@@ -18,8 +18,8 @@ interface ListsHeaderProps {
 }
 
 export const ListsHeader: React.FC<ListsHeaderProps> = ({
-  title = "Mis Listas",
-  createLabel = "Nueva Lista",
+  title = "Mis Carpetas",
+  createLabel = "Nueva Carpeta",
   count,
   totalCount,
   hasFilters,
@@ -105,15 +105,15 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
         <div className="hidden sm:flex items-center gap-6 mt-4 pt-4 border-t border-slate-100">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span>Carpetas organizadas</span>
+            <span>Binders y carpetas</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Listas flexibles</span>
+            <span>Master sets y temáticas</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Inventario y wishlist</span>
+            <span>Faltantes y objetivos dentro de carpetas</span>
           </div>
         </div>
       </div>

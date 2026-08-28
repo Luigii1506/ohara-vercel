@@ -48,8 +48,7 @@ const visibilityLabels: Record<string, string> = {
 
 const purposeLabels: Record<string, string> = {
   GENERAL: "General",
-  INVENTORY: "Inventario",
-  WISHLIST: "Wishlist",
+  INVENTORY: "Venta",
 };
 
 const statusLabels: Record<string, string> = {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { forwardRef } from "react";
+import { useUser } from "@/app/context/UserContext";
 import {
   X,
   FilterX,
@@ -18,8 +19,8 @@ import BaseDrawer from "@/components/ui/BaseDrawer";
 // import { Slider } from "@/components/ui/slider"; // Not available
 import SingleSelect from "./SingleSelect";
 import {
+  getCreatableListPurposesForRole,
   LIST_PURPOSE_LABELS,
-  USER_CREATABLE_LIST_PURPOSES,
   type ListPurpose,
 } from "@/lib/lists/purpose";
 
@@ -112,6 +113,8 @@ const ListsFiltersSidebar = forwardRef<
     },
     ref
   ) => {
+    const { role } = useUser();
+    const creatablePurposes = getCreatableListPurposesForRole(role);
     const purposeBaseline = lockedPurpose ?? "all";
     const hasActiveFilters =
       selectedType !== "all" ||
@@ -160,10 +163,10 @@ const ListsFiltersSidebar = forwardRef<
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Filtros de Listas
+                  Filtros de Carpetas
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Personaliza tu vista de carpetas, inventario y wishlist
+                  Personaliza tu vista de binders, carpetas temáticas y venta
                 </p>
               </div>
             </div>
@@ -218,7 +221,7 @@ const ListsFiltersSidebar = forwardRef<
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <Package className="w-4 h-4" />
-                Propósito
+                Uso
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <Button
@@ -229,7 +232,7 @@ const ListsFiltersSidebar = forwardRef<
                 >
                   Todos
                 </Button>
-                {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                {creatablePurposes.map((purpose) => (
                   <Button
                     key={purpose}
                     variant={

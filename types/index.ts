@@ -304,6 +304,7 @@ export interface UserListCard {
   condition?: string;
   customPrice?: number | string | null;
   customCurrency?: string | null;
+  isMissing?: boolean;
   isSold?: boolean;
   soldAt?: Date | string | null;
   soldPrice?: number | string | null;

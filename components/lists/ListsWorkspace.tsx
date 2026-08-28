@@ -36,7 +36,7 @@ import { CollectionCard } from "@/components/lists/CollectionCard";
 import { EmptyState } from "@/components/lists/EmptyState";
 import { ActiveFilters } from "@/components/lists/ActiveFilters";
 import { ListsHeader } from "@/components/lists/ListsHeader";
-import { LIST_PURPOSE_LABELS, type ListPurpose } from "@/lib/lists/purpose";
+import { type ListPurpose } from "@/lib/lists/purpose";
 
 type ListsWorkspaceProps = {
   title: string;
@@ -468,32 +468,6 @@ export function ListsWorkspace({
           onClearAll={clearAllFilters}
         />
 
-        {!lockedPurpose && (
-          <div className="mb-5 flex flex-wrap gap-2">
-            <Button
-              variant={selectedPurpose === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedPurpose("all")}
-              className="rounded-full"
-            >
-              Todas
-            </Button>
-            {(["GENERAL", "INVENTORY", "WISHLIST"] as ListPurpose[]).map(
-              (purpose) => (
-                <Button
-                  key={purpose}
-                  variant={selectedPurpose === purpose ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedPurpose(purpose)}
-                  className="rounded-full"
-                >
-                  {LIST_PURPOSE_LABELS[purpose]}
-                </Button>
-              )
-            )}
-          </div>
-        )}
-
         {filteredAndSortedLists.length === 0 ? (
           <EmptyState
             hasFilters={hasActiveFilters}
@@ -579,10 +553,10 @@ export function ListsWorkspace({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-blue-500" />
-              Importar lista
+              Importar carpeta
             </DialogTitle>
             <DialogDescription>
-              Pega el URL de una lista de Ohara para crear una copia en tu cuenta.
+              Pega el URL de una carpeta de Ohara para crear una copia en tu cuenta.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -593,7 +567,7 @@ export function ListsWorkspace({
               className="h-11"
             />
             <p className="text-xs text-slate-500">
-              También puedes ingresar solo el número ID de la lista.
+              También puedes ingresar solo el número ID de la carpeta.
             </p>
           </div>
           <DialogFooter className="gap-2">
@@ -621,10 +595,10 @@ export function ListsWorkspace({
                   });
                   if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || "Error al importar la lista");
+                    throw new Error(errorData.error || "Error al importar la carpeta");
                   }
                   const data = await response.json();
-                  toast.success("Lista importada");
+                  toast.success("Carpeta importada");
                   setImportModalOpen(false);
                   setImportUrl("");
                   await fetchLists();
@@ -633,7 +607,7 @@ export function ListsWorkspace({
                   }
                 } catch (error: any) {
                   console.error("Error importing list:", error);
-                  toast.error(error?.message || "Error al importar la lista");
+                  toast.error(error?.message || "Error al importar la carpeta");
                 } finally {
                   setIsImporting(false);
                 }

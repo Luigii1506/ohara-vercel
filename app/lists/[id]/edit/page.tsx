@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useUser } from "@/app/context/UserContext";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +36,8 @@ import Link from "next/link";
 import { toast } from "react-toastify";
 import { PageSkeleton } from "@/components/skeletons";
 import {
+  getCreatableListPurposesForRole,
   LIST_PURPOSE_LABELS,
-  USER_CREATABLE_LIST_PURPOSES,
   type ListPurpose,
 } from "@/lib/lists/purpose";
 
@@ -66,6 +67,7 @@ interface UserList {
 const EditListPage = () => {
   const params = (useParams() ?? {}) as Record<string, string>;
   const router = useRouter();
+  const { role } = useUser();
   const listId = params.id as string;
 
   const [list, setList] = useState<UserList | null>(null);
@@ -83,6 +85,7 @@ const EditListPage = () => {
     maxRows: 3,
     maxColumns: 3,
   });
+  const creatablePurposes = getCreatableListPurposesForRole(role);
 
   useEffect(() => {
     fetchList();
@@ -365,7 +368,7 @@ const EditListPage = () => {
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-3 leading-tight">
-                  Editar Lista
+                  Editar Carpeta
                 </h1>
 
                 <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
@@ -394,7 +397,7 @@ const EditListPage = () => {
                 </div>
 
                 <p className="text-slate-600 text-lg leading-relaxed max-w-2xl mx-auto">
-                  Modifica la configuración de tu lista
+                  Modifica la configuración y el uso de tu carpeta
                 </p>
               </div>
 
@@ -447,14 +450,14 @@ const EditListPage = () => {
                     htmlFor="name"
                     className="text-base font-semibold text-slate-900"
                   >
-                    Nombre de la lista *
+                    Nombre de la carpeta *
                   </Label>
                   <Input
                     id="name"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    placeholder="Ej: Mi mazo favorito, Cartas especiales..."
+                    placeholder="Ej: Binder de torneo, Master set de Ace..."
                     className="h-12 text-base"
                     required
                   />
@@ -480,10 +483,10 @@ const EditListPage = () => {
 
                 <div className="space-y-3">
                   <Label className="text-base font-semibold text-slate-900">
-                    Propósito de la lista
+                    Uso de la carpeta
                   </Label>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                    {creatablePurposes.map((purpose) => (
                       <Button
                         key={purpose}
                         type="button"
@@ -510,8 +513,8 @@ const EditListPage = () => {
                     ))}
                   </div>
                   <p className="text-sm text-slate-500">
-                    Inventario sirve para venta y Wishlist para seguimiento de
-                    pendientes. La colección principal sigue protegida.
+                    Usa General para binders, proyectos y faltantes. El modo
+                    de venta solo está disponible para administradores.
                   </p>
                 </div>
               </div>

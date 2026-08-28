@@ -3,7 +3,11 @@ import * as cheerio from "cheerio";
 import sharp from "sharp";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
-import { officialVariantTokens, normalizeOfficialVariantToken } from "@/lib/cards/officialVariant";
+import {
+  officialVariantTokens,
+  normalizeOfficialVariantToken,
+  inferOfficialVariantCode,
+} from "@/lib/cards/officialVariant";
 
 /**
  * Sincronización con los sitios OFICIALES (plataforma Bandai): en/asia-en/jp/fr.
@@ -447,6 +451,34 @@ async function findRegionBase(code: string, region: string) {
   });
 }
 
+/**
+ * Alterna YA EXISTENTE de un código+región para el token de variante dado
+ * (ej. "p1"/"r2"), si la hay. La gran mayoría del catálogo pre-existente
+ * (import original de TCGplayer) nunca tuvo `officialVariantCode` asignado
+ * — comparar solo por ese campo dejaría pasar esas filas como "no existe" y
+ * el cron volvería a crear la misma alterna que ya tenemos (la causa real
+ * de la duplicación masiva reportada). Por eso, para las filas sin ese
+ * campo, se infiere el token desde alias/nombre de archivo del src
+ * (`inferOfficialVariantCode` — mismo patrón "_pN"/"_rN" que ya usan estas
+ * imágenes) antes de concluir que de verdad falta.
+ */
+async function findRegionAlternate(
+  code: string,
+  region: string,
+  variantToken: string | null
+) {
+  if (!variantToken) return null;
+  const candidates = await prisma.card.findMany({
+    where: { code, region, baseCardId: { not: null } },
+    select: { id: true, alias: true, src: true, officialVariantCode: true },
+  });
+  for (const c of candidates) {
+    const token = c.officialVariantCode?.toLowerCase() || inferOfficialVariantCode(c);
+    if (token === variantToken) return c;
+  }
+  return null;
+}
+
 type PersistArgs = {
   region: string; // región REAL de la carta (Card.region) — puede diferir de la fuente escaneada
   source: string; // fuente escaneada (CardSource.source), para trazabilidad
@@ -633,6 +665,25 @@ export async function applyOfficialItem(
       });
       base = { id: baseId };
     }
+
+    // Antes de crear, chequear si esta alterna YA existe (ver
+    // findRegionAlternate) — sin esto, cualquier alterna pre-existente sin
+    // `officialVariantCode` asignado (la mayoría del catálogo importado de
+    // TCGplayer) se vuelve a crear cada vez que el scan la marca como
+    // "faltante", generando duplicados.
+    const variantToken = normalizeOfficialVariantToken(item.variant);
+    const existingAlt = await findRegionAlternate(item.code, cardRegion, variantToken);
+    if (existingAlt) {
+      if (variantToken && !existingAlt.officialVariantCode) {
+        await prisma.card.update({
+          where: { id: existingAlt.id },
+          data: { officialVariantCode: variantToken },
+        });
+      }
+      await markApplied(existingAlt.id);
+      return { cardId: existingAlt.id };
+    }
+
     const altId = await persistCard({
       region: cardRegion, source: item.region, language, code: item.code, setCode,
       cardId: item.cardId, variant: item.variant, isAlternate: true,

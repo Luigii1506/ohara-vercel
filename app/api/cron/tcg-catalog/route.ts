@@ -46,13 +46,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      status: "active",
-      description:
-        "POST with Authorization header to sync the One Piece catalog from TCGplayer",
-    },
-    { status: 200 }
-  );
+export async function GET(request: NextRequest) {
+  // Vercel Cron invoca por GET con el Authorization header — sin este
+  // passthrough (igual que catalog-reconcile y tcgplayer-price-sync) el cron
+  // programado nunca llegaba a correr syncTcgCatalog, solo devolvía este
+  // placeholder. Por eso el mirror llevaba días sin sincronizarse.
+  const hasAuth = Boolean(request.headers.get("authorization"));
+  if (!hasAuth) {
+    return NextResponse.json(
+      {
+        status: "active",
+        description:
+          "POST (o GET con Authorization header) para sincronizar el catálogo de One Piece desde TCGplayer",
+      },
+      { status: 200 }
+    );
+  }
+  return POST(request);
 }

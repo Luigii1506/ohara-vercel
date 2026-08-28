@@ -277,7 +277,7 @@ function isSealedProduct(product: CatalogProductResult) {
   if (keywords.some((keyword) => name.includes(keyword))) {
     return true;
   }
-  return true;
+  return false;
 }
 
 function delay(ms: number) {

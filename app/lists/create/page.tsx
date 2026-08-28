@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,7 @@ import {
   type ListPurpose,
 } from "@/lib/lists/purpose";
 
-const CreateFolderPage = () => {
+function CreateFolderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
@@ -732,6 +732,21 @@ const CreateFolderPage = () => {
       </div>
     </div>
   );
-};
+}
 
-export default CreateFolderPage;
+export default function CreateFolderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando creador de carpeta...
+          </div>
+        </div>
+      }
+    >
+      <CreateFolderPageContent />
+    </Suspense>
+  );
+}

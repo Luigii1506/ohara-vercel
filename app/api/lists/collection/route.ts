@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import { normalizeListPurpose } from "@/lib/lists/purpose";
 
 // GET /api/lists/collection - Obtener o crear la lista "Colección" del usuario
 export async function GET(request: NextRequest) {
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
             isOrdered: false,
             isDeletable: false,
             isCollection: true,
+            purpose: normalizeListPurpose("PERSONAL_COLLECTION"),
             isPublic: false,
             totalPages: 1,
           },

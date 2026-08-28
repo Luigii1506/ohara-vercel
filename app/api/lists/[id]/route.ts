@@ -7,6 +7,7 @@ import {
   handleAuthError,
   validateListOwnership,
 } from "@/lib/auth-helpers";
+import { normalizeListPurpose } from "@/lib/lists/purpose";
 
 // GET /api/lists/[id] - Obtener lista específica con sus cartas
 export async function GET(
@@ -275,6 +276,7 @@ export async function PUT(
       color,
       isPublic,
       hideTcgLink,
+      purpose,
       displayCurrency,
       exchangeRate,
       maxRows,
@@ -317,6 +319,9 @@ export async function PUT(
         { status: 400 }
       );
     }
+
+    const normalizedPurpose =
+      purpose !== undefined ? normalizeListPurpose(purpose) : undefined;
 
     // Moneda de despliegue de precios: USD (default, sin conversión) o
     // cualquier otra (ej. MXN) con un tipo de cambio fijo requerido.
@@ -375,6 +380,25 @@ export async function PUT(
       return NextResponse.json(
         {
           error: "No se puede cambiar el nombre de la lista de colección",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (currentList.isCollection && normalizedPurpose) {
+      return NextResponse.json(
+        {
+          error: "No se puede cambiar el propósito de la colección principal",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedPurpose === "PERSONAL_COLLECTION") {
+      return NextResponse.json(
+        {
+          error:
+            "Ese propósito está reservado para la colección principal del usuario",
         },
         { status: 400 }
       );
@@ -478,6 +502,7 @@ export async function PUT(
         isPublic: typeof isPublic === "boolean" ? isPublic : undefined,
         hideTcgLink:
           typeof hideTcgLink === "boolean" ? hideTcgLink : undefined,
+        purpose: normalizedPurpose,
         displayCurrency: normalizedDisplayCurrency,
         exchangeRate: normalizedExchangeRate,
         maxRows: maxRows || undefined,

@@ -30,12 +30,18 @@ import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import { FolderContainer } from "@/components/folder";
 import { GridCard } from "@/components/folder/types";
 import { useFolderDimensions } from "@/hooks/useFolderDimensions";
+import {
+  LIST_PURPOSE_LABELS,
+  USER_CREATABLE_LIST_PURPOSES,
+  type ListPurpose,
+} from "@/lib/lists/purpose";
 
 const CreateFolderPage = () => {
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    purpose: "GENERAL" as ListPurpose,
     isPublic: false,
     hideTcgLink: false,
     displayCurrency: "USD" as "USD" | "MXN",
@@ -232,6 +238,43 @@ const CreateFolderPage = () => {
                     className="min-h-[80px] resize-none"
                     rows={3}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Propósito
+                  </Label>
+                  <div className="grid gap-2">
+                    {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                      <Button
+                        key={purpose}
+                        type="button"
+                        variant={
+                          formData.purpose === purpose ? "default" : "outline"
+                        }
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            purpose,
+                          }))
+                        }
+                        className={`h-11 justify-between ${
+                          formData.purpose === purpose
+                            ? "bg-slate-900 hover:bg-slate-800 text-white"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{LIST_PURPOSE_LABELS[purpose]}</span>
+                        {formData.purpose === purpose && (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Inventario para stock de venta, Wishlist para objetivos y
+                    General para binders o listas flexibles.
+                  </p>
                 </div>
               </div>
             </div>

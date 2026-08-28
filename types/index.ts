@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import type { ListPurpose } from "@/lib/lists/purpose";
 
 declare module "next-auth" {
   interface Session {
@@ -271,6 +272,7 @@ export interface UserList {
   isOrdered: boolean;
   isDeletable: boolean;
   isCollection: boolean;
+  purpose: ListPurpose;
   maxRows?: number;
   maxColumns?: number;
   totalPages: number;

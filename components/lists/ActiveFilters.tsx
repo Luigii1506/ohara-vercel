@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 interface ActiveFiltersProps {
   searchTerm: string;
   selectedType: string;
+  selectedPurpose: string;
   selectedVisibility: string;
   selectedStatus: string;
   selectedColors: string[];
@@ -15,6 +16,7 @@ interface ActiveFiltersProps {
   sortBy: string;
   onClearSearch: () => void;
   onClearType: () => void;
+  onClearPurpose: () => void;
   onClearVisibility: () => void;
   onClearStatus: () => void;
   onClearColor: (color: string) => void;
@@ -44,6 +46,12 @@ const visibilityLabels: Record<string, string> = {
   private: "Privadas",
 };
 
+const purposeLabels: Record<string, string> = {
+  GENERAL: "General",
+  INVENTORY: "Inventario",
+  WISHLIST: "Wishlist",
+};
+
 const statusLabels: Record<string, string> = {
   "with-cards": "Con cartas",
   empty: "Vacías",
@@ -71,6 +79,7 @@ const sortLabels: Record<string, string> = {
 export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
   searchTerm,
   selectedType,
+  selectedPurpose,
   selectedVisibility,
   selectedStatus,
   selectedColors,
@@ -78,6 +87,7 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
   sortBy,
   onClearSearch,
   onClearType,
+  onClearPurpose,
   onClearVisibility,
   onClearStatus,
   onClearColor,
@@ -88,6 +98,7 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
   const hasActiveFilters =
     searchTerm.trim() !== "" ||
     selectedType !== "all" ||
+    selectedPurpose !== "all" ||
     selectedVisibility !== "all" ||
     selectedStatus !== "all" ||
     selectedColors.length > 0 ||
@@ -132,6 +143,17 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
             onClick={onClearType}
           >
             {typeLabels[selectedType] || selectedType}
+            <X className="w-3 h-3 ml-2" />
+          </Badge>
+        )}
+
+        {selectedPurpose !== "all" && (
+          <Badge
+            variant="secondary"
+            className="px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 cursor-pointer transition-colors"
+            onClick={onClearPurpose}
+          >
+            {purposeLabels[selectedPurpose] || selectedPurpose}
             <X className="w-3 h-3 ml-2" />
           </Badge>
         )}

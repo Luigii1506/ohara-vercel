@@ -7,6 +7,7 @@ import {
   handleAuthError,
   validateListAccess,
 } from "@/lib/auth-helpers";
+import { normalizeListPurpose } from "@/lib/lists/purpose";
 
 const parseListId = (value: string | number | undefined | null) => {
   if (value === null || value === undefined) return null;
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
           isPublic: false,
           isDeletable: true,
           isCollection: false,
+          purpose:
+            sourceList.isCollection || sourceList.purpose === "PERSONAL_COLLECTION"
+              ? normalizeListPurpose("GENERAL")
+              : normalizeListPurpose(sourceList.purpose),
         },
       });
 

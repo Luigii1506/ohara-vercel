@@ -41,6 +41,7 @@ import { CollectionCard } from "@/components/lists/CollectionCard";
 import { EmptyState } from "@/components/lists/EmptyState";
 import { ActiveFilters } from "@/components/lists/ActiveFilters";
 import { ListsHeader } from "@/components/lists/ListsHeader";
+import { LIST_PURPOSE_LABELS, type ListPurpose } from "@/lib/lists/purpose";
 
 interface ListsPageProps {}
 
@@ -56,6 +57,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isInputClear, setIsInputClear] = useState(false);
   const [selectedType, setSelectedType] = useState("all");
+  const [selectedPurpose, setSelectedPurpose] = useState("all");
   const [selectedVisibility, setSelectedVisibility] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
@@ -91,6 +93,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     return (
       searchTerm.trim() !== "" ||
       selectedType !== "all" ||
+      selectedPurpose !== "all" ||
       selectedVisibility !== "all" ||
       selectedStatus !== "all" ||
       selectedColors.length > 0 ||
@@ -100,6 +103,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
   }, [
     searchTerm,
     selectedType,
+    selectedPurpose,
     selectedVisibility,
     selectedStatus,
     selectedColors,
@@ -112,6 +116,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     let count = 0;
     if (searchTerm.trim() !== "") count += 1;
     if (selectedType !== "all") count += 1;
+    if (selectedPurpose !== "all") count += 1;
     if (selectedVisibility !== "all") count += 1;
     if (selectedStatus !== "all") count += 1;
     count += selectedColors.length;
@@ -121,6 +126,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
   }, [
     searchTerm,
     selectedType,
+    selectedPurpose,
     selectedVisibility,
     selectedStatus,
     selectedColors.length,
@@ -143,6 +149,9 @@ const ListsPage: React.FC<ListsPageProps> = () => {
         selectedType === "all" ||
         (selectedType === "folder" && list.isOrdered) ||
         (selectedType === "list" && !list.isOrdered);
+
+      const matchesPurpose =
+        selectedPurpose === "all" || list.purpose === selectedPurpose;
 
       // Visibility filter
       const matchesVisibility =
@@ -178,6 +187,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
       return (
         matchesSearch &&
         matchesType &&
+        matchesPurpose &&
         matchesVisibility &&
         matchesStatus &&
         matchesColor &&
@@ -219,6 +229,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     lists,
     searchTerm,
     selectedType,
+    selectedPurpose,
     selectedVisibility,
     selectedStatus,
     selectedColors,
@@ -262,6 +273,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
     setSearchTerm("");
     setIsInputClear(true);
     setSelectedType("all");
+    setSelectedPurpose("all");
     setSelectedVisibility("all");
     setSelectedStatus("all");
     setSelectedColors([]);
@@ -497,7 +509,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
               <DropdownSearch
                 search={searchTerm}
                 setSearch={setSearchTerm}
-                placeholder="Buscar colecciones..."
+                placeholder="Buscar listas..."
                 isInputClear={isInputClear}
                 setIsInputClear={setIsInputClear}
               />
@@ -556,6 +568,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
         <ActiveFilters
           searchTerm={searchTerm}
           selectedType={selectedType}
+          selectedPurpose={selectedPurpose}
           selectedVisibility={selectedVisibility}
           selectedStatus={selectedStatus}
           selectedColors={selectedColors}
@@ -563,6 +576,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
           sortBy={sortBy}
           onClearSearch={() => setSearchTerm("")}
           onClearType={() => setSelectedType("all")}
+          onClearPurpose={() => setSelectedPurpose("all")}
           onClearVisibility={() => setSelectedVisibility("all")}
           onClearStatus={() => setSelectedStatus("all")}
           onClearColor={(color) =>
@@ -572,6 +586,30 @@ const ListsPage: React.FC<ListsPageProps> = () => {
           onClearSort={() => setSortBy("date-desc")}
           onClearAll={clearAllFilters}
         />
+
+        <div className="mb-5 flex flex-wrap gap-2">
+          <Button
+            variant={selectedPurpose === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedPurpose("all")}
+            className="rounded-full"
+          >
+            Todas
+          </Button>
+          {(["GENERAL", "INVENTORY", "WISHLIST"] as ListPurpose[]).map(
+            (purpose) => (
+              <Button
+                key={purpose}
+                variant={selectedPurpose === purpose ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedPurpose(purpose)}
+                className="rounded-full"
+              >
+                {LIST_PURPOSE_LABELS[purpose]}
+              </Button>
+            )
+          )}
+        </div>
 
         {/* Collections Grid */}
         {filteredAndSortedLists.length === 0 ? (
@@ -607,6 +645,8 @@ const ListsPage: React.FC<ListsPageProps> = () => {
         setSearchTerm={setSearchTerm}
         selectedType={selectedType}
         setSelectedType={setSelectedType}
+        selectedPurpose={selectedPurpose}
+        setSelectedPurpose={setSelectedPurpose}
         selectedVisibility={selectedVisibility}
         setSelectedVisibility={setSelectedVisibility}
         selectedStatus={selectedStatus}
@@ -686,21 +726,21 @@ const ListsPage: React.FC<ListsPageProps> = () => {
                   <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
                     <Globe className="w-4 h-4 text-emerald-600" />
                   </div>
-                  Compartir colección
+                  Compartir lista
                 </>
               ) : (
                 <>
                   <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
                     <Lock className="w-4 h-4 text-amber-600" />
                   </div>
-                  Colección privada
+                  Lista privada
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
               {shareModal.list?.isPublic
                 ? `Comparte "${shareModal.list?.name}" con otros usuarios`
-                : `Esta colección es privada. Cámbiala a pública para compartirla.`}
+                : `Esta lista es privada. Cámbiala a pública para compartirla.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -708,7 +748,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
             {shareModal.list?.isPublic ? (
               <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
                 <p className="text-sm text-emerald-800 mb-2">
-                  ✨ Esta colección es pública y puede ser vista por cualquiera
+                  ✨ Esta lista es pública y puede ser vista por cualquiera
                 </p>
                 <p className="text-xs text-emerald-600">
                   Copia el enlace para compartirla
@@ -717,7 +757,7 @@ const ListsPage: React.FC<ListsPageProps> = () => {
             ) : (
               <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
                 <p className="text-sm text-amber-800 mb-2">
-                  🔒 Esta colección es privada
+                  🔒 Esta lista es privada
                 </p>
                 <p className="text-xs text-amber-600">
                   Ve a configuración para hacerla pública

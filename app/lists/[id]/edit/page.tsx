@@ -34,6 +34,11 @@ import {
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { PageSkeleton } from "@/components/skeletons";
+import {
+  LIST_PURPOSE_LABELS,
+  USER_CREATABLE_LIST_PURPOSES,
+  type ListPurpose,
+} from "@/lib/lists/purpose";
 
 interface UserList {
   id: number;
@@ -41,6 +46,7 @@ interface UserList {
   description: string | null;
   isOrdered: boolean;
   isCollection: boolean;
+  purpose: ListPurpose;
   isDeletable: boolean;
   isPublic: boolean;
   hideTcgLink: boolean;
@@ -68,6 +74,7 @@ const EditListPage = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    purpose: "GENERAL" as ListPurpose,
     isPublic: false,
     hideTcgLink: false,
     displayCurrency: "USD" as "USD" | "MXN",
@@ -90,6 +97,7 @@ const EditListPage = () => {
         setFormData({
           name: data.list.name,
           description: data.list.description || "",
+          purpose: data.list.purpose || "GENERAL",
           isPublic: data.list.isPublic,
           hideTcgLink: data.list.hideTcgLink || false,
           displayCurrency:
@@ -364,6 +372,10 @@ const EditListPage = () => {
                   <Badge className={`${typeConfig.badgeColor} border`}>
                     {typeConfig.label}
                   </Badge>
+                  <Badge variant="outline" className="border-slate-300">
+                    <Tag className="h-3 w-3 mr-1" />
+                    {LIST_PURPOSE_LABELS[formData.purpose]}
+                  </Badge>
                   {formData.isPublic && (
                     <Badge variant="outline" className="border-slate-300">
                       <Eye className="h-3 w-3 mr-1" />
@@ -464,6 +476,43 @@ const EditListPage = () => {
                     className="min-h-[100px] text-base resize-none"
                     rows={4}
                   />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold text-slate-900">
+                    Propósito de la lista
+                  </Label>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                      <Button
+                        key={purpose}
+                        type="button"
+                        variant={
+                          formData.purpose === purpose ? "default" : "outline"
+                        }
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            purpose,
+                          }))
+                        }
+                        className={`h-12 justify-between ${
+                          formData.purpose === purpose
+                            ? "bg-slate-900 hover:bg-slate-800 text-white"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{LIST_PURPOSE_LABELS[purpose]}</span>
+                        {formData.purpose === purpose && (
+                          <Tag className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Inventario sirve para venta y Wishlist para seguimiento de
+                    pendientes. La colección principal sigue protegida.
+                  </p>
                 </div>
               </div>
 

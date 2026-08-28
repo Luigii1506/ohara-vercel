@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Lock, Globe, MoreHorizontal } from "lucide-react";
 import { UserList } from "@/types";
+import { getListPurposeLabel } from "@/lib/lists/purpose";
 
 interface CollectionCardProps {
   list: UserList;
@@ -60,6 +61,9 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({
               </h3>
               
               <div className="flex items-center gap-2 sm:gap-3 mt-1 text-sm text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  {getListPurposeLabel(list.purpose)}
+                </span>
                 <span>{cardCount} cartas</span>
                 {list.totalPages && (
                   <>

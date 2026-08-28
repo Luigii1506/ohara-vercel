@@ -706,6 +706,7 @@ model UserList {
   isOrdered       Boolean            @default(false)
   isDeletable     Boolean            @default(true)
   isCollection    Boolean            @default(false)
+  purpose         String             @default("GENERAL")
   maxRows         Int?
   maxColumns      Int?
   totalPages      Int                @default(1)
@@ -724,6 +725,7 @@ model UserList {
   @@unique([userId, name])
   @@index([userId, isPublic])
   @@index([userId, isCollection])
+  @@index([userId, purpose])
 }
 
 model UserListCard {

@@ -3,6 +3,10 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, handleAuthError } from "@/lib/auth-helpers";
+import {
+  DEFAULT_LIST_PURPOSE,
+  normalizeListPurpose,
+} from "@/lib/lists/purpose";
 
 // GET /api/lists - Obtener todas las listas del usuario
 export async function GET(request: NextRequest) {
@@ -95,10 +99,12 @@ export async function POST(request: NextRequest) {
       color,
       isPublic = false,
       isCollection = false, // Agregar este campo por seguridad
+      purpose = DEFAULT_LIST_PURPOSE,
       hideTcgLink = false,
       displayCurrency = "USD",
       exchangeRate,
     } = body;
+    const normalizedPurpose = normalizeListPurpose(purpose);
 
     // Moneda de despliegue de precios: USD (default, sin conversión) o
     // cualquier otra (ej. MXN) con un tipo de cambio fijo requerido.
@@ -126,6 +132,13 @@ export async function POST(request: NextRequest) {
     if (isCollection === true) {
       return NextResponse.json(
         { error: "No se pueden crear listas de colección manualmente" },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedPurpose === "PERSONAL_COLLECTION") {
+      return NextResponse.json(
+        { error: "Ese propósito solo se puede usar para la colección principal" },
         { status: 400 }
       );
     }
@@ -205,6 +218,7 @@ export async function POST(request: NextRequest) {
           exchangeRate: normalizedExchangeRate,
           isDeletable: true,
           isCollection: false, // Siempre false para listas normales
+          purpose: normalizedPurpose,
         },
         include: {
           _count: {
@@ -252,6 +266,7 @@ export async function POST(request: NextRequest) {
               exchangeRate: normalizedExchangeRate,
               isDeletable: true,
               isCollection: false,
+              purpose: normalizedPurpose,
             },
             include: {
               _count: {

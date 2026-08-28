@@ -36,14 +36,14 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Mis Colecciones
+                Mis Listas
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge
                   variant="secondary"
                   className="text-xs font-medium bg-slate-100 text-slate-700"
                 >
-                  {count} {count === 1 ? "colección" : "colecciones"}
+                  {count} {count === 1 ? "lista" : "listas"}
                 </Badge>
                 {hasFilters && totalCount !== undefined && (
                   <span className="text-xs text-slate-500">
@@ -91,7 +91,7 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
               className="h-11 px-4 sm:px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200 transition-all duration-300"
             >
               <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Nueva Colección</span>
+              <span className="hidden sm:inline">Nueva Lista</span>
               <span className="sm:hidden">Nueva</span>
             </Button>
           </div>
@@ -109,7 +109,7 @@ export const ListsHeader: React.FC<ListsHeaderProps> = ({
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Comparte con la comunidad</span>
+            <span>Inventario y wishlist</span>
           </div>
         </div>
       </div>

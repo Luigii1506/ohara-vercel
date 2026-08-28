@@ -17,6 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import BaseDrawer from "@/components/ui/BaseDrawer";
 // import { Slider } from "@/components/ui/slider"; // Not available
 import SingleSelect from "./SingleSelect";
+import {
+  LIST_PURPOSE_LABELS,
+  USER_CREATABLE_LIST_PURPOSES,
+  type ListPurpose,
+} from "@/lib/lists/purpose";
 
 // Color options for folders
 const colorOptions = [
@@ -54,6 +59,9 @@ interface ListsFiltersSidebarProps {
   selectedType: string; // "all", "folder", "list"
   setSelectedType: (type: string) => void;
 
+  selectedPurpose: string;
+  setSelectedPurpose: (purpose: string) => void;
+
   // Visibility filter
   selectedVisibility: string; // "all", "public", "private"
   setSelectedVisibility: (visibility: string) => void;
@@ -87,6 +95,8 @@ const ListsFiltersSidebar = forwardRef<
       setSearchTerm,
       selectedType,
       setSelectedType,
+      selectedPurpose,
+      setSelectedPurpose,
       selectedVisibility,
       setSelectedVisibility,
       selectedStatus,
@@ -102,6 +112,7 @@ const ListsFiltersSidebar = forwardRef<
   ) => {
     const hasActiveFilters =
       selectedType !== "all" ||
+      selectedPurpose !== "all" ||
       selectedVisibility !== "all" ||
       selectedStatus !== "all" ||
       selectedColors.length > 0 ||
@@ -110,6 +121,7 @@ const ListsFiltersSidebar = forwardRef<
 
     const clearAllFilters = () => {
       setSelectedType("all");
+      setSelectedPurpose("all");
       setSelectedVisibility("all");
       setSelectedStatus("all");
       setSelectedColors([]);
@@ -145,10 +157,10 @@ const ListsFiltersSidebar = forwardRef<
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Filtros de Colecciones
+                  Filtros de Listas
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Personaliza tu vista de colecciones y listas
+                  Personaliza tu vista de carpetas, inventario y wishlist
                 </p>
               </div>
             </div>
@@ -168,7 +180,7 @@ const ListsFiltersSidebar = forwardRef<
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <Folder className="w-4 h-4" />
-                Tipo de colección
+                Tipo de lista
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <Button
@@ -186,7 +198,7 @@ const ListsFiltersSidebar = forwardRef<
                   className="justify-start"
                 >
                   <Folder className="w-3 h-3 mr-1" />
-                  Colecciones
+                  Carpetas
                 </Button>
                 <Button
                   variant={selectedType === "list" ? "default" : "outline"}
@@ -197,6 +209,36 @@ const ListsFiltersSidebar = forwardRef<
                   <List className="w-3 h-3 mr-1" />
                   Listas
                 </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                Propósito
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={selectedPurpose === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedPurpose("all")}
+                  className="justify-start"
+                >
+                  Todos
+                </Button>
+                {USER_CREATABLE_LIST_PURPOSES.map((purpose) => (
+                  <Button
+                    key={purpose}
+                    variant={
+                      selectedPurpose === purpose ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setSelectedPurpose(purpose)}
+                    className="justify-start"
+                  >
+                    {LIST_PURPOSE_LABELS[purpose as ListPurpose]}
+                  </Button>
+                ))}
               </div>
             </div>
 

@@ -129,7 +129,17 @@ export async function fetchOfficialSeries(baseUrl: string) {
 export async function fetchOfficialCards(
   baseUrl: string,
   series: string,
-  seriesLabel: string
+  seriesLabel: string,
+  // Código de la SERIE (ej. "PRB-01", "ST-31"), solo cuando esa página tiene
+  // su propio corchete de producto dedicado (`hasBracketCode`). Sin esto, una
+  // carta escaneada de una página promo/bonus (una reimpresión especial de un
+  // starter deck que sale en un booster distinto, o un alt-art de evento)
+  // quedaba con `setCode = code.split("-")[0]` — el prefijo de SU PROPIO
+  // código — asignándole siempre el set base de origen aunque la página real
+  // de la que se scrapeó sea un producto totalmente distinto (ver ST31-004:
+  // el especial que sale en OP17 se filiaba mal como si fuera "Romance Dawn").
+  seriesSetCode?: string,
+  seriesHasBracketCode?: boolean
 ): Promise<OfficialScrapedCard[]> {
   const { data } = await axios.get(`${baseUrl}${CARDLIST_PATH}?series=${series}`, {
     headers: { "User-Agent": UA },
@@ -165,7 +175,15 @@ export async function fetchOfficialCards(
       isAlternate: Boolean(variant),
       name: $m.find(".cardName").text().trim(),
       imageUrl: abs(baseUrl, imgPath),
-      setCode: code.split("-")[0],
+      // La página de la que se scrapeó SÍ tiene su propio código de producto
+      // dedicado (bracket) -> usarlo, es la señal correcta de "de qué caja
+      // física viene este print exacto". Si no (una página bolsa-de-promos
+      // sin bracket propio), no hay mejor señal que el prefijo del código de
+      // la carta.
+      setCode:
+        seriesHasBracketCode && seriesSetCode
+          ? seriesSetCode.replace(/-/g, "").toUpperCase()
+          : code.split("-")[0],
       seriesLabel,
       // ASIA-TC trae la rareza con texto pegado (ej. "SP卡" = "SP" + 卡
       // "carta") en vez del código limpio que usan JP/EN/FR — se toma solo
@@ -237,7 +255,7 @@ export async function scanOfficialRegion(
 
   for (const s of series) {
     try {
-      const cards = await fetchOfficialCards(cfg.baseUrl, s.series, s.label);
+      const cards = await fetchOfficialCards(cfg.baseUrl, s.series, s.label, s.setCode, s.hasBracketCode);
       all.push(...cards);
 
       if (s.hasBracketCode && cards.length) {

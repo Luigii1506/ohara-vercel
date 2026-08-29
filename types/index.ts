@@ -482,8 +482,18 @@ export interface CardSalesReportItem {
   lastSales: TCGSaleRecord[];
   /** Promedio de las últimas 3 ventas reales. */
   top3Average: number | null;
-  /** Precio más bajo actualmente listado en TCGPlayer (Card.lowPrice). */
+  /**
+   * Precio más bajo actualmente listado en TCGPlayer de un vendedor Gold
+   * Star (feedback >= 99.5%) en la condición elegida. Con "Combined" cae al
+   * agregado de Card.lowPrice si no hay ningún Gold Seller — pero con una
+   * condición específica (Near Mint/Lightly Played) NUNCA cae a ese
+   * agregado (mezcla todas las condiciones): si no hay Gold Seller en esa
+   * condición exacta, queda `null` en vez de meter un precio de otra
+   * condición al blend.
+   */
   lowPrice: number | null;
+  /** true si `lowPrice` vino de un listado Gold Seller real; false si es el fallback agregado de Card.lowPrice (solo posible con "Combined"). */
+  lowPriceIsGoldSeller: boolean;
   /** "Listed Median" (Card.midPrice). */
   midPrice: number | null;
   marketPrice: number | null;

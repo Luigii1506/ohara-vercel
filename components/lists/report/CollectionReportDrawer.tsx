@@ -480,9 +480,13 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
         data.condition === "Combined"
           ? "the last 3 real TCGPlayer sales (any condition)"
           : `the last 3 real TCGPlayer sales in ${data.condition} condition`;
+      const lowListedNote =
+        data.condition === "Combined"
+          ? "the current lowest TCGPlayer listing from a Gold Star seller (English, ungraded), falling back to TCGPlayer's aggregate low price if no Gold Star listing is found"
+          : `the current lowest TCGPlayer listing from a Gold Star seller in ${data.condition} condition (English, ungraded) — left blank for a card if no Gold Star seller lists it in that exact condition, rather than mixing in a different condition's price`;
       const methodologyText = [
-        `Avg + Low Blend = average of (a) ${conditionNote} and (b) the current lowest TCGPlayer listing (English, ungraded).`,
-        "Listed Median and Market Price are TCGPlayer's own reference prices, aggregated across all conditions (TCGPlayer does not publish these two split by condition).",
+        `Avg + Low Blend = average of (a) ${conditionNote} and (b) ${lowListedNote}.`,
+        "Listed Median and Market Price are TCGPlayer's own reference prices, aggregated across all conditions and sellers (TCGPlayer does not publish these two split by condition or seller rating).",
         "Percentages scale each of the 3 totals from 120% down to 50%.",
       ];
       methodologyText.forEach((line, i) => {
@@ -589,11 +593,17 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
               ? Math.max(...card.lastSales.map((s) => s.purchasePrice))
               : null;
 
+          const lowListedLabel =
+            card.lowPrice === null
+              ? "Low Listed"
+              : card.lowPriceIsGoldSeller
+                ? "Low Listed (Gold Seller)"
+                : "Low Listed (aggregate)";
           pdf.setFontSize(7);
           pdf.setFont("helvetica", "normal");
           pdf.setTextColor(100, 116, 139);
           pdf.text(
-            `Low Listed: ${formatCurrency(card.lowPrice)}   High Sale: ${formatCurrency(highSalePrice)}`,
+            `${lowListedLabel}: ${formatCurrency(card.lowPrice)}   High Sale: ${formatCurrency(highSalePrice)}`,
             infoX,
             y + 23
           );
@@ -920,9 +930,13 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
                 ))}
               </div>
               <p className="text-[11px] text-slate-400 mt-2">
-                Filters the recent-sales average used in "Avg + Low Blend".
-                Listed Median and Market Price are TCGPlayer's aggregate
-                (all-conditions) prices either way.
+                Filters the recent-sales average and the "Low Listed" price
+                (Gold Star sellers only, feedback ≥ 99.5%) used in "Avg + Low
+                Blend" — if picking Near Mint or Lightly Played, a card with
+                no Gold Star seller in that exact condition shows "N/A"
+                instead of mixing in a different condition's price. Listed
+                Median and Market Price stay TCGPlayer's aggregate (all
+                conditions/sellers) either way.
               </p>
             </div>
 

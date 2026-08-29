@@ -102,6 +102,88 @@ async function fetchLatestSales(
   }
 }
 
+// ============================================================================
+// TCGPlayer Active Listings (para "Low Listed" filtrado por condición +
+// Gold Star Seller — https://mp-search-api.tcgplayer.com, la misma API
+// interna que usa la propia página de producto para su grid de listados)
+// ============================================================================
+
+const TCGPLAYER_LISTINGS_API_BASE =
+  "https://mp-search-api.tcgplayer.com/v1/product";
+
+interface TCGPlayerListing {
+  price: number;
+  shippingPrice: number;
+  condition: string;
+  sellerName: string;
+  sellerRating: number;
+  /** Insignia "Gold Star Seller" de TCGplayer (feedback >= 99.5%) — ya viene calculada por ellos. */
+  goldSeller: boolean;
+  quantity: number;
+}
+
+interface TCGPlayerListingsResponse {
+  errors: unknown[];
+  results: Array<{ totalResults: number; results: TCGPlayerListing[] }>;
+}
+
+/**
+ * Precio más bajo actualmente listado, restringido a vendedores Gold Star
+ * (feedback TCGplayer >= 99.5%, el mismo criterio que la insignia dorada de
+ * su sitio) y a la condición seleccionada. Pide más resultados de los
+ * necesarios (size=50) ordenados por precio ascendente porque los primeros
+ * N listados más baratos no siempre son de un Gold Seller — se filtra
+ * localmente y se toma el primero que sí lo sea.
+ */
+async function fetchGoldSellerLowPrice(
+  productId: number,
+  condition: ReportConditionFilter
+): Promise<number | null> {
+  try {
+    const body = {
+      filters: {
+        term: {
+          sellerStatus: "Live",
+          channelId: 0,
+          language: ["English"],
+          ...(condition !== "Combined" ? { condition: [condition] } : {}),
+        },
+        range: { quantity: { gte: 1 } },
+        exclude: { channelExclusion: 0 },
+      },
+      from: 0,
+      size: 50,
+      sort: { field: "price+shipping", order: "asc" },
+      context: { shippingCountry: "US", cart: {} },
+    };
+
+    const response = await fetch(
+      `${TCGPLAYER_LISTINGS_API_BASE}/${productId}/listings?mpfev=5496`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/plain, */*",
+          "User-Agent": TCGPLAYER_HEADERS["User-Agent"],
+          Origin: "https://www.tcgplayer.com",
+          Referer: `https://www.tcgplayer.com/product/${productId}`,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data: TCGPlayerListingsResponse = await response.json();
+    const listings = data.results?.[0]?.results ?? [];
+    const goldListing = listings.find((l) => l.goldSeller);
+    return goldListing ? goldListing.price : null;
+  } catch (error) {
+    console.error(`Error fetching gold-seller listings for product ${productId}:`, error);
+    return null;
+  }
+}
+
 // TCGPlayer devuelve la condición como texto libre ("Near Mint", "NM",
 // "Lightly Played", "LP"...) según el endpoint/momento — se normaliza a un
 // puñado de alias conocidos en vez de comparar el string tal cual, para no
@@ -294,11 +376,12 @@ export async function GET(
       }
     }
 
-    // 6. Fetch sales data for each unique productId
+    // 6. Fetch sales data + gold-seller low listing for each unique productId
     const salesCache = new Map<
       string,
       { sales: TCGSaleRecord[]; average: number | null }
     >();
+    const goldLowCache = new Map<string, number | null>();
 
     for (const productId of Array.from(productIdsToFetch)) {
       // Fetch sales from TCGPlayer
@@ -322,6 +405,12 @@ export async function GET(
 
       // Cache the results
       salesCache.set(productId, { sales: filteredSales, average: top3Average });
+
+      // "Low Listed" real: precio más bajo de un vendedor Gold Star (feedback
+      // TCGplayer >= 99.5%) en la condición elegida — no el low agregado de
+      // Card.lowPrice, que mezcla cualquier vendedor sin importar reputación.
+      const goldLow = await fetchGoldSellerLowPrice(parseInt(productId), condition);
+      goldLowCache.set(productId, goldLow);
 
       // Small delay to be nice to the API (100ms)
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -356,9 +445,23 @@ export async function GET(
         failedLookups++;
       }
 
+      // "Low Listed" preferido: el más barato de un vendedor Gold Star en la
+      // condición elegida. Si TCGplayer no devolvió ninguno (ej. producto sin
+      // listados activos de un Gold Seller en esa condición específica), NO
+      // se cae al agregado de Card.lowPrice cuando hay una condición
+      // específica seleccionada — ese agregado mezcla todas las condiciones,
+      // y meterlo al blend contaminaría un reporte que se pidió "solo Near
+      // Mint" o "solo Lightly Played" con un número que no es de esa
+      // condición. El fallback al agregado solo tiene sentido en "Combined",
+      // donde "cualquier condición" es exactamente lo que se pidió.
+      const goldSellerLow = productId ? (goldLowCache.get(productId) ?? null) : null;
+      const effectiveLowPrice =
+        goldSellerLow ?? (condition === "Combined" ? lowPrice : null);
+      const lowPriceIsGoldSeller = goldSellerLow !== null;
+
       // "Average last sales" + "Low listed" — si falta uno de los dos se usa
       // el otro solo, en vez de castigar el promedio contra null.
-      const blendedValue = blendValues(top3Average, lowPrice);
+      const blendedValue = blendValues(top3Average, effectiveLowPrice);
 
       const subtotalBlended = (blendedValue ?? 0) * quantity;
       const subtotalMidPrice = (midPrice ?? 0) * quantity;
@@ -377,7 +480,8 @@ export async function GET(
         quantity,
         lastSales: filteredSales,
         top3Average,
-        lowPrice,
+        lowPrice: effectiveLowPrice,
+        lowPriceIsGoldSeller,
         midPrice,
         marketPrice,
         blendedValue,

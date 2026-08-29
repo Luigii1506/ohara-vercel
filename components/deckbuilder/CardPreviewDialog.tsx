@@ -234,7 +234,7 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
     displayedCard?.tcgUrl && displayedCard.tcgUrl !== ""
       ? displayedCard.tcgUrl
       : `https://www.tcgplayer.com/search/one-piece-card-game/product?productLineName=one-piece-card-game&page=1&view=grid&q=${encodeURIComponent(
-          infoCard.name
+          displayedCard.name
         )}&Rarity=${encodeURIComponent(
           displayedCard.rarity ?? infoCard.rarity ?? ""
         )}&Color=${encodeURIComponent(
@@ -277,16 +277,19 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
                 <span
                   className={`${oswald.className} font-medium text-slate-700`}
                 >
-                  {infoCard.code}
+                  {displayedCard.code}
                 </span>
                 <span className="text-slate-300">•</span>
                 <span>{displayedCard.rarity ?? infoCard.rarity}</span>
                 <span className="text-slate-300">•</span>
                 <span>{infoCard.category}</span>
               </div>
-              {/* Name */}
+              {/* Name — identidad: siempre la variante mostrada, no la
+                  "representativa de familia" (crítico para DON!!, ver
+                  DonModal.tsx: muchas cartas DON comparten código genérico
+                  sin ser variantes entre sí). */}
               <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                {infoCard.name}
+                {displayedCard.name}
               </h2>
               {/* Types - from base card */}
               {infoCard.types && infoCard.types.length > 0 && (
@@ -685,11 +688,11 @@ const CardPreviewDialog: React.FC<CardPreviewDialogProps> = ({
               <img
                 src={getOptimizedImageUrl(displayedCard.src, "large")}
                 className="max-w-full max-h-[calc(100dvh-150px)] object-contain rounded-lg shadow-2xl"
-                alt={infoCard.name}
+                alt={displayedCard.name}
               />
               <div className="text-white text-center">
                 <span className={`${oswald.className} font-medium text-lg`}>
-                  {infoCard.code}
+                  {displayedCard.code}
                 </span>
                 {displayedCard.sets && displayedCard.sets.length > 0 && (
                   <p className="block text-white/70 text-sm mt-1">

@@ -64,14 +64,40 @@ export async function GET(
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
     }
 
-    const card =
-      cardsByCode.find((item) => item.isFirstEdition) ??
-      cardsByCode.find((item) => item.baseCardId === null) ??
-      cardsByCode[0];
+    // Las cartas DON!! comparten un código genérico ("DON-001") entre decenas
+    // de productos físicamente distintos y sin relación entre sí (confirmado:
+    // cada una isFirstEdition=true, baseCardId=null, sin jerarquía real) — a
+    // diferencia de una carta normal, donde "mismo código" SÍ significa
+    // "misma carta, distintas ediciones/alternas". Agruparlas como familia
+    // hacía que SIEMPRE se mostrara la primera creada (id más bajo) sin
+    // importar cuál se pidió, y que las ~70 restantes aparecieran como
+    // "variantes" de ella. Para DON, cada fila es su propia familia de una
+    // sola carta — se usa la específicamente pedida (por cardId) y no se
+    // arma ninguna lista de alternas.
+    const isDonFamily = cardsByCode.every((item) => item.category === "DON");
+    const requestedCardId = req.nextUrl.searchParams.get("cardId");
 
+    let card: (typeof cardsByCode)[number];
     let alternates: typeof cardsByCode = [];
-    if (includeAlternatesBool) {
-      alternates = cardsByCode.filter((item) => item.id !== card.id);
+
+    if (isDonFamily) {
+      card =
+        (requestedCardId &&
+          cardsByCode.find((item) => String(item.id) === requestedCardId)) ||
+        cardsByCode[0];
+    } else {
+      // Comportamiento sin cambios para cartas normales: "card" es siempre
+      // el ancla de la familia (first edition / base), no la variante
+      // específicamente clickeada — eso es lo que espera el resto del flujo
+      // (ej. la etiqueta "(Base)" en la lista de variantes).
+      card =
+        cardsByCode.find((item) => item.isFirstEdition) ??
+        cardsByCode.find((item) => item.baseCardId === null) ??
+        cardsByCode[0];
+
+      if (includeAlternatesBool) {
+        alternates = cardsByCode.filter((item) => item.id !== card.id);
+      }
     }
 
     // Retornar la carta base y sus alternas si corresponde

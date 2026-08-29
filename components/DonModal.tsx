@@ -62,7 +62,12 @@ const DonModal: React.FC<DonModalProps> = ({
       ? `${primarySet.code} · ${primarySet.title}`
       : primarySet.title
     : "Sin set";
-  const headerCard = baseCard;
+  // El encabezado (nombre/set) es de identidad — debe ser SIEMPRE la variante
+  // realmente abierta (activeCard), no la "representativa de la familia"
+  // (baseCard). Para DON!! esto importaba especialmente: muchas cartas DON
+  // distintas comparten el mismo código genérico "DON-001", así que baseCard
+  // terminaba siendo siempre la misma fila sin importar cuál se abrió.
+  const headerCard = activeCard;
 
   return (
     <div className="w-full max-w-[950px] max-h-[96dvh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden transition-shadow duration-300 relative">

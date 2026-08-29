@@ -1124,7 +1124,7 @@ const CardListClient = ({
           const response = await fetch(
             `/api/admin/cards/code/${encodeURIComponent(base.code)}?includeAlternates=true&region=${encodeURIComponent(
               selectedRegion || "US"
-            )}`,
+            )}&cardId=${encodeURIComponent(String(card.id))}`,
             { cache: "no-store" }
           );
           if (!response.ok) {

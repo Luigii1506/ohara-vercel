@@ -51,6 +51,10 @@ model Card {
   region                String? // US, JP, CN, KR, TH, FR
   language              String? // en, ja, zh-Hans, zh-Hant, ko, th, fr
   isRegionalExclusive   Boolean             @default(false)
+  // true = `src` es el placeholder de dorso, TCGplayer todavía no tiene subida
+  // la foto real de este producto (visto en listados recién agregados) — un
+  // cron reintenta la subida real periódicamente y limpia esta marca al lograrlo.
+  pendingImage          Boolean             @default(false)
   baseCardId            Int? // NULL si es carta base, ID de la base si es alternativa
   baseCard              Card?               @relation("CardAlternates", fields: [baseCardId], references: [id], onDelete: Cascade)
   colors                CardColor[]

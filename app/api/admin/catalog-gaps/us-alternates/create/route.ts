@@ -3,7 +3,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { uploadCardImageToR2 } from "@/lib/r2/uploadCardImage";
+import { uploadTcgplayerCardImage } from "@/lib/services/pendingCardImage";
 import {
   tcgplayerFetch,
   getTcgplayerProductPricing,
@@ -144,16 +144,11 @@ export async function POST(req: NextRequest) {
     // Imagen: subir a R2 la de ALTA resolución (1000x1000) con fallback a 400w.
     // Nombre ÚNICO (con sufijo) para evitar el caché immutable de R2/CDN: si se
     // re-crea la carta, la URL cambia y no sirve una imagen vieja cacheada.
+    // Si TCGplayer todavía no tiene ninguna imagen (producto recién listado),
+    // no falla la creación — queda con el placeholder de dorso y
+    // `pendingImage: true` para que el cron la reintente después.
     const filename = `${code}-tcg${pid}-${Date.now().toString(36)}`;
-    const hiRes = `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_in_1000x1000.jpg`;
-    const loRes =
-      prod.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_400w.jpg`;
-    let r2Url: string;
-    try {
-      ({ r2Url } = await uploadCardImageToR2(hiRes, filename, true));
-    } catch {
-      ({ r2Url } = await uploadCardImageToR2(loRes, filename, true));
-    }
+    const { src: r2Url, pendingImage } = await uploadTcgplayerCardImage(pid, filename);
 
     // Precio: traerlo de TCGplayer al momento (para ver la data al instante, sin
     // esperar al sync). Elegimos la entrada con market/mid disponible.
@@ -203,6 +198,7 @@ export async function POST(req: NextRequest) {
           code: base.code,
           setCode: base.setCode,
           src: r2Url,
+          pendingImage,
           imageKey: null,
           cost: base.cost,
           power: base.power,
@@ -251,6 +247,7 @@ export async function POST(req: NextRequest) {
           code: parsed.code,
           setCode: parsed.setCode,
           src: r2Url,
+          pendingImage,
           imageKey: null,
           cost: parsed.cost,
           power: parsed.power,
@@ -292,6 +289,7 @@ export async function POST(req: NextRequest) {
       alternateArt: base ? classifyAlternateArt(prod.name, disclaimer, prod.rarity) : null,
       hasPrice: priceData.marketPrice != null,
       hasDisclaimer: Boolean(disclaimer),
+      pendingImage,
     });
   } catch (error: any) {
     console.error("[us-alternates/create] failed:", error);

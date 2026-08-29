@@ -38,6 +38,19 @@ const JAPANESE_INDICATORS = [
   "japan ver",
 ];
 
+// Indicators for filtering out Chinese versions (simplified or traditional)
+const CHINESE_INDICATORS = [
+  "chinese",
+  "china ver",
+  "chn ver",
+  "cn ver",
+  "tc ver",
+  "traditional chinese",
+  "simplified chinese",
+];
+
+const NON_ENGLISH_INDICATORS = [...JAPANESE_INDICATORS, ...CHINESE_INDICATORS];
+
 // Indicators for filtering out graded cards
 const GRADED_INDICATORS = [
   "psa ",
@@ -115,11 +128,21 @@ interface TCGPlayerListing {
   price: number;
   shippingPrice: number;
   condition: string;
+  language: string;
   sellerName: string;
   sellerRating: number;
   /** Insignia "Gold Star Seller" de TCGplayer (feedback >= 99.5%) — ya viene calculada por ellos. */
   goldSeller: boolean;
   quantity: number;
+  listingType: string;
+  /**
+   * Nota libre del vendedor en listados "custom" — aquí es donde se cuela
+   * "Japanese"/"Chinese" cuando el vendedor vende una versión no-inglesa
+   * bajo la página del producto en inglés: el campo estructurado `language`
+   * de ese listado puede seguir diciendo "English" (dato mal cargado por el
+   * vendedor), así que no basta con filtrar por `language` en la request.
+   */
+  customData?: { title?: string; description?: string };
 }
 
 interface TCGPlayerListingsResponse {
@@ -176,12 +199,25 @@ async function fetchGoldSellerLowPrice(
 
     const data: TCGPlayerListingsResponse = await response.json();
     const listings = data.results?.[0]?.results ?? [];
-    const goldListing = listings.find((l) => l.goldSeller);
+    const englishListings = listings.filter((l) => !isNonEnglishListing(l));
+    const goldListing = englishListings.find((l) => l.goldSeller);
     return goldListing ? goldListing.price : null;
   } catch (error) {
     console.error(`Error fetching gold-seller listings for product ${productId}:`, error);
     return null;
   }
+}
+
+// El filtro `language: ["English"]` de la request no alcanza: un listado
+// "custom" puede traer el campo estructurado `language` en "English" (mal
+// cargado por el vendedor) mientras la nota libre del propio vendedor
+// (`customData.title`/`description`) dice "Japanese Version" o similar —
+// visto en producción con listados Gold Seller reales. Se revisa ese texto
+// libre además del campo estructurado antes de aceptar un listado.
+function isNonEnglishListing(listing: TCGPlayerListing): boolean {
+  if (listing.language && listing.language !== "English") return true;
+  const freeText = `${listing.customData?.title ?? ""} ${listing.customData?.description ?? ""}`.toLowerCase();
+  return NON_ENGLISH_INDICATORS.some((indicator) => freeText.includes(indicator));
 }
 
 // TCGPlayer devuelve la condición como texto libre ("Near Mint", "NM",

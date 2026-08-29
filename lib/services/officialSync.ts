@@ -702,26 +702,30 @@ export async function applyOfficialItem(
       return { cardId: existingAlt.id };
     }
 
-    // Guard de "TCGplayer ya cubre este código" — solo aplica a la región US,
-    // donde el mirror local de TCGplayer (TcgCatalogProduct) es la fuente de
-    // verdad de cuántos prints reales existen. Si TODOS sus productos para
-    // este código ya están vinculados a una Card, esta alterna scrapeada (sin
-    // su propio tcgplayerProductId) casi seguro es un re-scrape de algo que
-    // ya tenemos bajo otra numeración "p"/"r" — el sitio oficial no numera
-    // sus variantes de forma estable entre escaneos, y una misma carta puede
-    // aparecer con índices distintos en pasadas distintas, o estar listada en
-    // más de una página (ver Vergo OP03-079: "r1"/"r2" resultaron ser el
-    // Reprint/Jolly Roger Foil/alterna de ST19 que ya teníamos, confirmado
-    // contra TCGplayer). Se deja PENDIENTE para revisión manual en vez de
-    // crear otro duplicado.
+    // Guard de "ya tenemos contenido real para este código" — solo aplica a
+    // la región US. El sitio oficial no numera sus variantes "p"/"r" de forma
+    // estable entre escaneos (una misma carta puede reaparecer con otro
+    // índice, o estar listada en más de una página con su propio índice
+    // local) — si YA existe alguna alterna de este código con un
+    // tcgplayerProductId real, una alterna nueva SIN su propio link casi
+    // seguro es un re-scrape de esa misma carta bajo otra numeración, no
+    // contenido genuinamente nuevo (confirmado repetidas veces: Vergo
+    // OP03-079, Silvers Rayleigh OP09-005, Kawamatsu OP12-023, Makino
+    // OP02-015 — todas re-scrapes pixel-idénticos de una alterna que ya
+    // teníamos). Ojo: NO alcanza con chequear "¿TCGplayer tiene algún
+    // producto sin vincular para este código?" — es común que TCGplayer
+    // tenga un gap real pero AJENO (un mazo preconstruido tipo "Zoro Deck",
+    // un Judge/Winner Pack) que coincide en el mismo código sin tener nada
+    // que ver con esta alterna scrapeada. Se deja PENDIENTE para revisión
+    // manual en vez de crear otro duplicado.
     if (cardRegion === "US") {
-      const tcgProducts = await prisma.tcgCatalogProduct.findMany({
-        where: { number: item.code },
-        select: { linkedCardId: true },
+      const linkedAlternate = await prisma.card.findFirst({
+        where: { code: item.code, region: cardRegion, baseCardId: { not: null }, tcgplayerProductId: { not: null } },
+        select: { id: true },
       });
-      if (tcgProducts.length > 0 && tcgProducts.every((prod) => prod.linkedCardId !== null)) {
+      if (linkedAlternate) {
         throw new Error(
-          `TCGplayer ya tiene ${tcgProducts.length} producto(s) para ${item.code}, todos ya vinculados — probable re-scrape duplicado, requiere revisión manual.`
+          `${item.code} ya tiene al menos una alterna con link real de TCGplayer (carta #${linkedAlternate.id}) — probable re-scrape duplicado, requiere revisión manual.`
         );
       }
     }

@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { X, Check, FileDown, DollarSign, AlertCircle } from "lucide-react";
 import { showSuccessToast, showErrorToast } from "@/lib/toastify";
 import BaseDrawer from "@/components/ui/BaseDrawer";
-import type { CollectionReportData } from "@/types";
+import type { CollectionReportData, ReportConditionFilter } from "@/types";
+
+const CONDITION_OPTIONS: { value: ReportConditionFilter; label: string }[] = [
+  { value: "Near Mint", label: "Near Mint" },
+  { value: "Lightly Played", label: "Lightly Played" },
+  { value: "Combined", label: "Combinado" },
+];
 
 // Simple Modal wrapper for desktop (avoids drag handler issues)
 const DesktopModal: React.FC<{
@@ -133,6 +139,8 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedCondition, setSelectedCondition] =
+    useState<ReportConditionFilter>("Near Mint");
 
   // Detect mobile on mount and resize
   useEffect(() => {
@@ -259,7 +267,9 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
 
     try {
       // 1. Fetch report data from API
-      const response = await fetch(`/api/lists/${listId}/sales-report`);
+      const response = await fetch(
+        `/api/lists/${listId}/sales-report?condition=${encodeURIComponent(selectedCondition)}`
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -364,6 +374,17 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       pdf.setFont("helvetica", "normal");
       pdf.text(data.listName, margin, 45);
 
+      // Condition badge (top-right of header band)
+      const conditionLabel =
+        data.condition === "Combined" ? "Combined (all conditions)" : data.condition;
+      pdf.setFillColor(245, 158, 11); // amber-500
+      const badgeWidth = pdf.getTextWidth(conditionLabel) + 12;
+      pdf.roundedRect(pageWidth - margin - badgeWidth, 20, badgeWidth, 10, 2, 2, "F");
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(conditionLabel, pageWidth - margin - badgeWidth + 6, 26.5);
+
       // Date
       pdf.setFontSize(10);
       pdf.setTextColor(148, 163, 184); // slate-400
@@ -455,9 +476,14 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       pdf.setTextColor(100, 116, 139); // slate-500
       pdf.setFontSize(7.5);
       pdf.setFont("helvetica", "normal");
+      const conditionNote =
+        data.condition === "Combined"
+          ? "the last 3 real TCGPlayer sales (any condition)"
+          : `the last 3 real TCGPlayer sales in ${data.condition} condition`;
       const methodologyText = [
-        "Avg + Low Blend = average of (a) the last 3 real TCGPlayer sales and (b) the current lowest TCGPlayer listing (English, ungraded).",
-        "Listed Median and Market Price are TCGPlayer's own reference prices. Percentages scale each of the 3 totals from 120% down to 50%.",
+        `Avg + Low Blend = average of (a) ${conditionNote} and (b) the current lowest TCGPlayer listing (English, ungraded).`,
+        "Listed Median and Market Price are TCGPlayer's own reference prices, aggregated across all conditions (TCGPlayer does not publish these two split by condition).",
+        "Percentages scale each of the 3 totals from 120% down to 50%.",
       ];
       methodologyText.forEach((line, i) => {
         pdf.text(line, margin, y + i * 4);
@@ -799,7 +825,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       setError(err.message || "Unknown error occurred");
       showErrorToast(err.message || "Error generating report");
     }
-  }, [listId, loadImageWithProxy]);
+  }, [listId, loadImageWithProxy, selectedCondition]);
 
   // Download PDF
   const downloadPDF = useCallback(() => {
@@ -808,12 +834,13 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
     const link = document.createElement("a");
     link.href = URL.createObjectURL(pdfBlob);
     const safeName = listName.replace(/[^a-z0-9]/gi, "-").toLowerCase();
-    link.download = `collection-report-${safeName}.pdf`;
+    const safeCondition = selectedCondition.replace(/[^a-z0-9]/gi, "-").toLowerCase();
+    link.download = `collection-report-${safeName}-${safeCondition}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     showSuccessToast("Report downloaded!");
-  }, [pdfBlob, listName]);
+  }, [pdfBlob, listName, selectedCondition]);
 
   // Reset state
   const resetState = useCallback(() => {
@@ -870,6 +897,35 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
               (recent sales blend, listed median, market price) and a
               120%&nbsp;→&nbsp;50% reference table for the whole collection.
             </p>
+
+            {/* Condition selector */}
+            <div className="mb-6 text-left max-w-xs mx-auto">
+              <label className="text-xs font-semibold text-slate-500 mb-2 block">
+                Sales condition (recent sales average)
+              </label>
+              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                {CONDITION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedCondition(opt.value)}
+                    className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-colors ${
+                      selectedCondition === opt.value
+                        ? "bg-white text-amber-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-2">
+                Filters the recent-sales average used in "Avg + Low Blend".
+                Listed Median and Market Price are TCGPlayer's aggregate
+                (all-conditions) prices either way.
+              </p>
+            </div>
+
             <Button
               onClick={generateReport}
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl"
@@ -926,9 +982,14 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
             <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
               <Check className="w-10 h-10 text-green-600" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">
               Report Ready!
             </h3>
+            <p className="text-xs font-semibold text-amber-600 mb-3">
+              {reportData.condition === "Combined"
+                ? "Combined (all conditions)"
+                : reportData.condition}
+            </p>
 
             {/* Quick stats */}
             <div className="bg-slate-50 rounded-xl p-4 mb-4 text-left">

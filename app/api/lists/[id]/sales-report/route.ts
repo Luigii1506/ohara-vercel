@@ -7,6 +7,7 @@ import type {
   TCGSaleRecord,
   CardSalesReportItem,
   CollectionReportData,
+  ReportConditionFilter,
 } from "@/types";
 
 // ============================================================================
@@ -101,9 +102,29 @@ async function fetchLatestSales(
   }
 }
 
+// TCGPlayer devuelve la condición como texto libre ("Near Mint", "NM",
+// "Lightly Played", "LP"...) según el endpoint/momento — se normaliza a un
+// puñado de alias conocidos en vez de comparar el string tal cual, para no
+// perder ventas reales solo por una abreviatura distinta.
+const CONDITION_ALIASES: Record<ReportConditionFilter, string[]> = {
+  "Near Mint": ["near mint", "nm", "mint"],
+  "Lightly Played": ["lightly played", "lp", "light play", "light played"],
+  Combined: [],
+};
+
+function matchesCondition(
+  saleCondition: string | undefined,
+  filter: ReportConditionFilter
+): boolean {
+  if (filter === "Combined") return true;
+  const normalized = (saleCondition || "").trim().toLowerCase();
+  return CONDITION_ALIASES[filter].some((alias) => normalized === alias);
+}
+
 function filterSales(
   sales: TCGPlayerSale[],
-  language: string = "English"
+  language: string = "English",
+  condition: ReportConditionFilter = "Combined"
 ): TCGPlayerSale[] {
   return sales.filter((sale) => {
     const titleLower = (sale.title || "").toLowerCase();
@@ -113,6 +134,8 @@ function filterSales(
       titleLower.includes(indicator)
     );
     if (isGraded) return false;
+
+    if (!matchesCondition(sale.condition, condition)) return false;
 
     // For English, exclude Japanese version indicators in title
     if (language === "English") {
@@ -184,6 +207,11 @@ export async function GET(
       10,
       Math.max(1, parseInt(searchParams.get("salesToAverage") || "3"))
     );
+    const conditionParam = searchParams.get("condition");
+    const condition: ReportConditionFilter =
+      conditionParam === "Near Mint" || conditionParam === "Lightly Played"
+        ? conditionParam
+        : "Combined";
 
     // 4. Fetch the list with all cards
     const list = await prisma.userList.findUnique({
@@ -280,7 +308,7 @@ export async function GET(
       let top3Average: number | null = null;
 
       if (salesResponse && salesResponse.data) {
-        const filtered = filterSales(salesResponse.data, language);
+        const filtered = filterSales(salesResponse.data, language, condition);
         filteredSales = filtered.slice(0, salesToAverage).map((sale) => ({
           condition: sale.condition,
           variant: sale.variant,
@@ -378,6 +406,7 @@ export async function GET(
       listName: list.name,
       listId: list.id,
       generatedAt: new Date().toISOString(),
+      condition,
       totalCards: reportCards.length,
       totalQuantity,
       successfulLookups,

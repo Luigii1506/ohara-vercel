@@ -460,6 +460,9 @@ export interface ReorderCardsRequest {
 // Collection Report Types (for TCGPlayer sales-based valuation)
 // ============================================================================
 
+/** Filtro de condición para el reporte — "Combined" no filtra (todas mezcladas, comportamiento previo). */
+export type ReportConditionFilter = "Near Mint" | "Lightly Played" | "Combined";
+
 export interface TCGSaleRecord {
   condition: string;
   variant: string;
@@ -508,6 +511,8 @@ export interface CollectionReportData {
   listName: string;
   listId: number;
   generatedAt: string;
+  /** Condición usada para filtrar las ventas recientes (top3Average/blendedValue). */
+  condition: ReportConditionFilter;
   totalCards: number;
   totalQuantity: number;
   successfulLookups: number;

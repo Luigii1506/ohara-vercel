@@ -702,6 +702,30 @@ export async function applyOfficialItem(
       return { cardId: existingAlt.id };
     }
 
+    // Guard de "TCGplayer ya cubre este código" — solo aplica a la región US,
+    // donde el mirror local de TCGplayer (TcgCatalogProduct) es la fuente de
+    // verdad de cuántos prints reales existen. Si TODOS sus productos para
+    // este código ya están vinculados a una Card, esta alterna scrapeada (sin
+    // su propio tcgplayerProductId) casi seguro es un re-scrape de algo que
+    // ya tenemos bajo otra numeración "p"/"r" — el sitio oficial no numera
+    // sus variantes de forma estable entre escaneos, y una misma carta puede
+    // aparecer con índices distintos en pasadas distintas, o estar listada en
+    // más de una página (ver Vergo OP03-079: "r1"/"r2" resultaron ser el
+    // Reprint/Jolly Roger Foil/alterna de ST19 que ya teníamos, confirmado
+    // contra TCGplayer). Se deja PENDIENTE para revisión manual en vez de
+    // crear otro duplicado.
+    if (cardRegion === "US") {
+      const tcgProducts = await prisma.tcgCatalogProduct.findMany({
+        where: { number: item.code },
+        select: { linkedCardId: true },
+      });
+      if (tcgProducts.length > 0 && tcgProducts.every((prod) => prod.linkedCardId !== null)) {
+        throw new Error(
+          `TCGplayer ya tiene ${tcgProducts.length} producto(s) para ${item.code}, todos ya vinculados — probable re-scrape duplicado, requiere revisión manual.`
+        );
+      }
+    }
+
     const altId = await persistCard({
       region: cardRegion, source: item.region, language, code: item.code, setCode,
       cardId: item.cardId, variant: item.variant, isAlternate: true,

@@ -94,6 +94,11 @@ export class OverlayRoom {
   private tiktokReconnectAttempts = 0;
   private tiktokReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private giftCatalog: Map<number, { name: string; diamondCount: number }> | null = null;
+  // --- Salud de la conexión (diagnóstico) ---
+  private tiktokConnectedAt: number | null = null;
+  private tiktokLastMessageAt: number | null = null;
+  private tiktokReconnectCount = 0;
+  private tiktokHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -202,6 +207,9 @@ export class OverlayRoom {
             ok: true,
             connected: !!this.tiktokWs,
             username: this.tiktokUsername,
+            connectedSince: this.tiktokConnectedAt,
+            lastMessageAt: this.tiktokLastMessageAt,
+            reconnectCount: this.tiktokReconnectCount,
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
@@ -264,6 +272,7 @@ export class OverlayRoom {
 
   private disconnectTikTok() {
     this.tiktokStopped = true;
+    this.stopTikTokHeartbeat();
     if (this.tiktokReconnectTimer) {
       clearTimeout(this.tiktokReconnectTimer);
       this.tiktokReconnectTimer = null;
@@ -277,11 +286,15 @@ export class OverlayRoom {
       this.tiktokWs = null;
     }
     this.tiktokUsername = null;
+    this.tiktokConnectedAt = null;
+    this.tiktokLastMessageAt = null;
+    this.tiktokReconnectCount = 0;
   }
 
   private scheduleTikTokReconnect() {
     if (this.tiktokStopped || !this.tiktokUsername) return;
     this.tiktokReconnectAttempts += 1;
+    this.tiktokReconnectCount += 1;
     const delay = Math.min(
       30000,
       2000 * Math.pow(2, Math.min(this.tiktokReconnectAttempts, 4))
@@ -293,6 +306,32 @@ export class OverlayRoom {
         });
       }
     }, delay);
+  }
+
+  /**
+   * Si no llega NINGÚN mensaje en 45s con la conexión "abierta", puede ser un
+   * socket zombie (se cerró raro y no disparó el evento `close`). Forzamos
+   * una reconexión en vez de quedarnos esperando para siempre.
+   */
+  private startTikTokHeartbeat() {
+    this.stopTikTokHeartbeat();
+    this.tiktokHeartbeatTimer = setInterval(() => {
+      if (!this.tiktokLastMessageAt || this.tiktokStopped || !this.tiktokUsername) return;
+      const silentMs = Date.now() - this.tiktokLastMessageAt;
+      if (silentMs > 45000) {
+        console.error("[tiktok] sin mensajes hace", silentMs, "ms — forzando reconexión");
+        this.connectTikTok(this.tiktokUsername).catch(() => {
+          // el próximo intento lo reprograma scheduleTikTokReconnect
+        });
+      }
+    }, 15000);
+  }
+
+  private stopTikTokHeartbeat() {
+    if (this.tiktokHeartbeatTimer) {
+      clearInterval(this.tiktokHeartbeatTimer);
+      this.tiktokHeartbeatTimer = null;
+    }
   }
 
   private async connectTikTok(
@@ -348,9 +387,15 @@ export class OverlayRoom {
     ws.accept();
     this.tiktokWs = ws;
     this.tiktokReconnectAttempts = 0;
+    this.tiktokConnectedAt = Date.now();
+    // Sembramos lastMessageAt al conectar: si nunca llega ni un mensaje, el
+    // heartbeat lo detecta igual como silencio a partir de este momento.
+    this.tiktokLastMessageAt = Date.now();
+    this.startTikTokHeartbeat();
     console.log("[tiktok] conectado a Eulerstream para", username);
 
     ws.addEventListener("message", (evt: MessageEvent) => {
+      this.tiktokLastMessageAt = Date.now();
       this.handleTikTokMessage(String(evt.data)).catch((err) => {
         console.error("[tiktok] error procesando mensaje:", String(err));
       });

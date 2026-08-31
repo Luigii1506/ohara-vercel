@@ -88,6 +88,16 @@ const getSetTitleForCard = (card: CardWithCollectionData) => {
   return card.sets[0]?.set?.title ?? null;
 };
 
+/** "hace 12s" / "hace 3m" — para mostrar salud de la conexión de TikTok sin adivinar. */
+const formatAgo = (ms: number | null): string => {
+  if (!ms) return "—";
+  const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (diffSec < 60) return `hace ${diffSec}s`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `hace ${diffMin}m`;
+  return `hace ${Math.round(diffMin / 60)}h`;
+};
+
 const normalizePrice = (value?: number | string | null) => {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -191,6 +201,15 @@ export default function LiveDeskClient({
   const [tiktokUsername, setTiktokUsername] = useState("");
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokConnectedUser, setTiktokConnectedUser] = useState<string | null>(null);
+  // Salud de la conexión: para diagnosticar huecos de silencio sin adivinar.
+  const [tiktokHealth, setTiktokHealth] = useState<{
+    connectedSince: number | null;
+    lastMessageAt: number | null;
+    reconnectCount: number;
+  } | null>(null);
+  // Forzamos un re-render cada segundo mientras el panel está montado, así
+  // "hace Xs" se actualiza solo (los timestamps son absolutos, no cambian).
+  const [, forceTick] = useState(0);
   const [tiktokLoading, setTiktokLoading] = useState(false);
   const [tiktokError, setTiktokError] = useState<string | null>(null);
   // Debug: seguir en vivo el conteo de likes/gifts de UN usuario específico,
@@ -466,11 +485,11 @@ export default function LiveDeskClient({
     [overlayToken]
   );
 
-  // TikTok LIVE: consulta el estado de la conexión al abrir/cambiar de token.
+  // TikTok LIVE: consulta el estado de la conexión (y su salud) cada 5s.
   useEffect(() => {
     if (!overlayToken) return;
     let cancelled = false;
-    (async () => {
+    const poll = async () => {
       try {
         const response = await fetch(
           `/api/admin/live-overlay/tiktok-control?token=${encodeURIComponent(overlayToken)}`
@@ -479,14 +498,33 @@ export default function LiveDeskClient({
         if (cancelled) return;
         setTiktokConnected(!!data.connected);
         setTiktokConnectedUser(data.username ?? null);
+        setTiktokHealth(
+          data.connected
+            ? {
+                connectedSince: data.connectedSince ?? null,
+                lastMessageAt: data.lastMessageAt ?? null,
+                reconnectCount: data.reconnectCount ?? 0,
+              }
+            : null
+        );
       } catch {
         // silencioso: el panel simplemente muestra "desconectado"
       }
-    })();
+    };
+    poll();
+    const interval = window.setInterval(poll, 5000);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, [overlayToken]);
+
+  // Repinta cada 1s mientras hay conexión, para que "hace Xs" se vea en vivo.
+  useEffect(() => {
+    if (!tiktokConnected) return;
+    const interval = window.setInterval(() => forceTick((t) => t + 1), 1000);
+    return () => window.clearInterval(interval);
+  }, [tiktokConnected]);
 
   // Debug: mientras haya un usuario a seguir, reconsulta su conteo cada 1.5s.
   useEffect(() => {
@@ -1236,6 +1274,24 @@ export default function LiveDeskClient({
             </span>
           )}
         </div>
+        {tiktokConnected && tiktokHealth ? (
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-slate-500">
+            <span>Conectado {formatAgo(tiktokHealth.connectedSince)}</span>
+            <span
+              className={
+                tiktokHealth.lastMessageAt &&
+                Date.now() - tiktokHealth.lastMessageAt > 45000
+                  ? "font-bold text-rose-600"
+                  : ""
+              }
+            >
+              Último evento {formatAgo(tiktokHealth.lastMessageAt)}
+            </span>
+            {tiktokHealth.reconnectCount > 0 ? (
+              <span>🔁 {tiktokHealth.reconnectCount}</span>
+            ) : null}
+          </div>
+        ) : null}
         {!tiktokConnected ? (
           <>
             <input

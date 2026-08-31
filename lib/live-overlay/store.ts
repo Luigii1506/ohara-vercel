@@ -4,6 +4,7 @@ import type {
   LiveOverlayBracket,
   LiveOverlayBracketData,
   LiveOverlayCard,
+  LiveOverlayChatItem,
   LiveOverlayRarityCounterKey,
   LiveOverlayRarityCounters,
   LiveOverlayScene,
@@ -12,6 +13,7 @@ import type {
   LiveOverlayVideoClip,
 } from "@/lib/live-overlay/types";
 import {
+  LIVE_OVERLAY_CHAT_FEED_MAX,
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   LIVE_OVERLAY_SCENE_TYPES,
   createEmptyBracket,
@@ -37,6 +39,8 @@ const createDefaultState = (): LiveOverlayState => ({
   scenes: [],
   bracket: null,
   videoClips: [],
+  chatFeed: [],
+  likeCount: 0,
   updatedAt: new Date(0).toISOString(),
 });
 
@@ -64,6 +68,28 @@ const normalizeVideoClips = (raw: unknown): LiveOverlayVideoClip[] => {
     });
   }
   return clips;
+};
+
+/** Normaliza el feed de chat: descarta lo inválido y recorta al máximo. */
+const normalizeChatFeed = (raw: unknown): LiveOverlayChatItem[] => {
+  if (!Array.isArray(raw)) return [];
+  const items: LiveOverlayChatItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const id = typeof r.id === "string" ? r.id : "";
+    const user = typeof r.user === "string" ? r.user : "";
+    const text = typeof r.text === "string" ? r.text : "";
+    if (!id || !text) continue;
+    items.push({
+      id,
+      user,
+      text,
+      receivedAt:
+        typeof r.receivedAt === "string" ? r.receivedAt : new Date(0).toISOString(),
+    });
+  }
+  return items.slice(-LIVE_OVERLAY_CHAT_FEED_MAX);
 };
 
 /** Normaliza el bracket persistido (o null). */
@@ -135,6 +161,11 @@ export const getLiveOverlayState = async (
     scenes: normalizeScenes((row as { scenes?: unknown }).scenes),
     bracket: normalizeBracket((row as { bracket?: unknown }).bracket),
     videoClips: normalizeVideoClips((row as { videoClips?: unknown }).videoClips),
+    chatFeed: normalizeChatFeed((row as { chatFeed?: unknown }).chatFeed),
+    likeCount:
+      typeof (row as { likeCount?: unknown }).likeCount === "number"
+        ? Math.max(0, (row as { likeCount: number }).likeCount)
+        : 0,
     updatedAt: row.updatedAt.toISOString(),
   };
 };
@@ -145,6 +176,8 @@ type PersistPayload = {
   scenes: LiveOverlayScene[];
   bracket: LiveOverlayBracket | null;
   videoClips: LiveOverlayVideoClip[];
+  chatFeed: LiveOverlayChatItem[];
+  likeCount: number;
 };
 
 const persist = async (
@@ -162,6 +195,8 @@ const persist = async (
       ? Prisma.JsonNull
       : (next.bracket as unknown as Prisma.InputJsonValue);
   const videoClipsJson = next.videoClips as unknown as Prisma.InputJsonValue;
+  const chatFeedJson = next.chatFeed as unknown as Prisma.InputJsonValue;
+  const likeCount = Math.max(0, Math.trunc(next.likeCount));
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
@@ -172,6 +207,8 @@ const persist = async (
       scenes: scenesJson,
       bracket: bracketJson,
       videoClips: videoClipsJson,
+      chatFeed: chatFeedJson,
+      likeCount,
     },
     update: {
       currentCard: currentCardJson,
@@ -179,6 +216,8 @@ const persist = async (
       scenes: scenesJson,
       bracket: bracketJson,
       videoClips: videoClipsJson,
+      chatFeed: chatFeedJson,
+      likeCount,
     },
   });
   return {
@@ -189,6 +228,8 @@ const persist = async (
     videoClips: normalizeVideoClips(
       (saved as { videoClips?: unknown }).videoClips
     ),
+    chatFeed: normalizeChatFeed((saved as { chatFeed?: unknown }).chatFeed),
+    likeCount: Math.max(0, (saved as { likeCount: number }).likeCount ?? 0),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
@@ -208,6 +249,8 @@ const updateState = async (
     scenes: patch.scenes ?? current.scenes,
     bracket: patch.bracket !== undefined ? patch.bracket : current.bracket,
     videoClips: patch.videoClips ?? current.videoClips,
+    chatFeed: patch.chatFeed ?? current.chatFeed,
+    likeCount: patch.likeCount ?? current.likeCount,
   });
 };
 
@@ -435,6 +478,81 @@ export const applyLiveOverlayCombo = (token: string, comboId: string) =>
       scenes,
     };
   });
+
+// ---------------------------------------------------------------------------
+// Interacción en vivo de TikTok (alertas de gift/follow en cola, chat, likes)
+// ---------------------------------------------------------------------------
+
+const LIVE_OVERLAY_ALERT_TTL_MS_DEFAULT = 4000;
+
+/**
+ * Dispara una alerta (gift/follow) como escena `alert` con id ÚNICO por
+ * evento (a diferencia de las demás escenas one-shot, que son singletons por
+ * `id = type`). Así varias alertas seguidas se muestran en cola en vez de
+ * pisarse. Al mismo tiempo purga del stack las alertas ya vencidas, para que
+ * el array no crezca sin límite.
+ */
+export const triggerLiveOverlayAlert = (
+  token: string,
+  alert: { emoji?: string; text: string; subtitle?: string; accent?: string },
+  ttlMs: number = LIVE_OVERLAY_ALERT_TTL_MS_DEFAULT
+) =>
+  updateState(token, (state) => {
+    const now = Date.now();
+    const alive = state.scenes.filter((s) => {
+      if (s.type !== "alert") return true;
+      if (!s.triggeredAt || !s.ttlMs) return false;
+      return now - Date.parse(s.triggeredAt) < s.ttlMs;
+    });
+    const id = `alert-${now}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      currentCard: state.currentCard,
+      rarityCounters: state.rarityCounters,
+      scenes: [
+        ...alive,
+        {
+          id,
+          type: "alert" as LiveOverlaySceneType,
+          z: 60,
+          visible: true,
+          props: {
+            emoji: alert.emoji ?? "",
+            text: alert.text,
+            subtitle: alert.subtitle ?? "",
+            accent: alert.accent ?? "",
+          },
+          triggeredAt: new Date(now).toISOString(),
+          ttlMs,
+        },
+      ].sort((a, b) => a.z - b.z),
+    };
+  });
+
+/** Agrega un mensaje al feed de chat (recorta al máximo definido). */
+export const appendLiveOverlayChatItem = (
+  token: string,
+  item: { user: string; text: string }
+) =>
+  updateState(token, (state) => ({
+    chatFeed: [
+      ...state.chatFeed,
+      {
+        id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        user: item.user,
+        text: item.text.slice(0, 300),
+        receivedAt: new Date().toISOString(),
+      },
+    ].slice(-LIVE_OVERLAY_CHAT_FEED_MAX),
+  }));
+
+/** Fija el contador de likes al total acumulado que reporta TikTok. */
+export const setLiveOverlayLikeCount = (token: string, total: number) =>
+  updateState(token, () => ({
+    likeCount: Math.max(0, Math.trunc(total)),
+  }));
+
+export const resetLiveOverlayLikeCount = (token: string) =>
+  updateState(token, () => ({ likeCount: 0 }));
 
 /** Guarda/actualiza los NOMBRES del bracket (preserva la visibilidad `active`). */
 export const setLiveOverlayBracket = (

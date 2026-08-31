@@ -1391,6 +1391,8 @@ model LiveOverlayState {
   scenes         Json?
   bracket        Json?
   videoClips     Json?
+  chatFeed       Json?
+  likeCount      Int      @default(0)
   updatedAt      DateTime @updatedAt
 }
 

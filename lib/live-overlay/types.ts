@@ -45,6 +45,7 @@ export const LIVE_OVERLAY_SCENE_TYPES = [
   "video",
   "fx",
   "shine",
+  "alert",
 ] as const;
 
 export type LiveOverlaySceneType = (typeof LIVE_OVERLAY_SCENE_TYPES)[number];
@@ -104,12 +105,30 @@ export type LiveOverlayVideoClip = {
 export const inferClipKind = (url: string): "audio" | "video" =>
   /\.(mp3|m4a|ogg|wav|aac)(\?|#|$)/i.test(url) ? "audio" : "video";
 
+// ===========================================================================
+// Interacción en vivo de TikTok (chat + likes acumulados)
+// ---------------------------------------------------------------------------
+// Los gifts/follows se muestran como escenas `alert` (una por evento, en cola,
+// ver triggerLiveOverlayAlert). El chat y el contador de likes son datos que no
+// encajan en el modelo de escena-por-slot, así que viven como campos propios.
+// ===========================================================================
+export type LiveOverlayChatItem = {
+  id: string;
+  user: string;
+  text: string;
+  receivedAt: string;
+};
+
+export const LIVE_OVERLAY_CHAT_FEED_MAX = 12;
+
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;
   rarityCounters: LiveOverlayRarityCounters;
   scenes: LiveOverlayScene[];
   bracket: LiveOverlayBracket | null;
   videoClips: LiveOverlayVideoClip[];
+  chatFeed: LiveOverlayChatItem[];
+  likeCount: number;
   updatedAt: string;
 };
 
@@ -137,6 +156,11 @@ export const normalizeLiveOverlayState = (
     scenes: Array.isArray(s?.scenes) ? s!.scenes! : [],
     bracket: s?.bracket ?? null,
     videoClips: Array.isArray(s?.videoClips) ? s!.videoClips! : [],
+    chatFeed: Array.isArray(s?.chatFeed) ? s!.chatFeed! : [],
+    likeCount:
+      typeof s?.likeCount === "number" && Number.isFinite(s.likeCount)
+        ? s.likeCount
+        : 0,
     updatedAt:
       typeof s?.updatedAt === "string"
         ? s!.updatedAt!

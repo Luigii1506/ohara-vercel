@@ -75,6 +75,8 @@ const EMPTY_STATE: LiveOverlayState = {
   scenes: [],
   bracket: null,
   videoClips: [],
+  chatFeed: [],
+  likeCount: 0,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -182,6 +184,12 @@ export default function LiveDeskClient({
   >("cards");
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
+  // TikTok LIVE: usuario a escuchar + estado de la conexión (worker ↔ Eulerstream).
+  const [tiktokUsername, setTiktokUsername] = useState("");
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [tiktokConnectedUser, setTiktokConnectedUser] = useState<string | null>(null);
+  const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [tiktokError, setTiktokError] = useState<string | null>(null);
   const [goalLabel, setGoalLabel] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalUnit, setGoalUnit] = useState("");
@@ -450,6 +458,76 @@ export default function LiveDeskClient({
     },
     [overlayToken]
   );
+
+  // TikTok LIVE: consulta el estado de la conexión al abrir/cambiar de token.
+  useEffect(() => {
+    if (!overlayToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/live-overlay/tiktok-control?token=${encodeURIComponent(overlayToken)}`
+        );
+        const data = await response.json();
+        if (cancelled) return;
+        setTiktokConnected(!!data.connected);
+        setTiktokConnectedUser(data.username ?? null);
+      } catch {
+        // silencioso: el panel simplemente muestra "desconectado"
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayToken]);
+
+  const connectTikTokLive = useCallback(async () => {
+    if (!overlayToken || !tiktokUsername.trim()) return;
+    setTiktokLoading(true);
+    setTiktokError(null);
+    try {
+      const response = await fetch("/api/admin/live-overlay/tiktok-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: overlayToken,
+          action: "connect",
+          username: tiktokUsername.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "No se pudo conectar");
+      setTiktokConnected(true);
+      setTiktokConnectedUser(data.username ?? tiktokUsername.trim());
+    } catch (error) {
+      setTiktokError(error instanceof Error ? error.message : "Error al conectar");
+    } finally {
+      setTiktokLoading(false);
+    }
+  }, [overlayToken, tiktokUsername]);
+
+  const disconnectTikTokLive = useCallback(async () => {
+    if (!overlayToken) return;
+    setTiktokLoading(true);
+    setTiktokError(null);
+    try {
+      const response = await fetch("/api/admin/live-overlay/tiktok-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: overlayToken, action: "disconnect" }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.error || "No se pudo desconectar");
+      }
+      setTiktokConnected(false);
+      setTiktokConnectedUser(null);
+    } catch (error) {
+      setTiktokError(error instanceof Error ? error.message : "Error al desconectar");
+    } finally {
+      setTiktokLoading(false);
+    }
+  }, [overlayToken]);
 
   const handleCopyOverlayUrl = useCallback(async () => {
     if (!overlayUrl) return;
@@ -1103,6 +1181,58 @@ export default function LiveDeskClient({
             Ocultar
           </button>
         </div>
+      </div>
+
+      {/* TikTok LIVE */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            TikTok LIVE
+          </span>
+          {tiktokConnected ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> @
+              {tiktokConnectedUser}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+              Desconectado
+            </span>
+          )}
+        </div>
+        {!tiktokConnected ? (
+          <>
+            <input
+              value={tiktokUsername}
+              onChange={(e) => setTiktokUsername(e.target.value)}
+              placeholder="@usuario de TikTok"
+              className="mb-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            />
+            <button
+              type="button"
+              onClick={connectTikTokLive}
+              disabled={!tiktokUsername.trim() || tiktokLoading}
+              className="h-11 w-full rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+            >
+              {tiktokLoading ? "Conectando…" : "Conectar"}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={disconnectTikTokLive}
+            disabled={tiktokLoading}
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 active:bg-slate-50 disabled:opacity-40"
+          >
+            {tiktokLoading ? "Desconectando…" : "Desconectar"}
+          </button>
+        )}
+        {tiktokError ? (
+          <p className="mt-2 text-xs font-semibold text-rose-600">{tiktokError}</p>
+        ) : null}
+        <p className="mt-2 text-[11px] leading-snug text-slate-400">
+          Chat, likes, gifts y follows del live aparecen solos en el overlay.
+        </p>
       </div>
     </div>
   );

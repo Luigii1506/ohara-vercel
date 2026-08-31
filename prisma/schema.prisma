@@ -1397,6 +1397,7 @@ model LiveOverlayState {
   topGifters     Json?
   likerTallies   Json?
   gifterTallies  Json?
+  viewerCount    Int      @default(0)
   updatedAt      DateTime @updatedAt
 }
 

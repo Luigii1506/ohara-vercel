@@ -33,6 +33,7 @@ const EMPTY_STATE: LiveOverlayState = {
   likeCount: 0,
   topLikers: [],
   topGifters: [],
+  viewerCount: 0,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -90,7 +91,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // singleton como las demás), así que se muestran en cola — una por cada
   // evento, apiladas, cada una se auto-quita sola tras su ttl.
   const [alertQueue, setAlertQueue] = useState<
-    { id: string; emoji: string; text: string; subtitle: string }[]
+    { id: string; emoji: string; text: string; subtitle: string; avatar: string }[]
   >([]);
   const knownAlertIds = useRef<Set<string>>(new Set());
 
@@ -318,6 +319,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           emoji: String(a.props?.emoji ?? ""),
           text: String(a.props?.text ?? ""),
           subtitle: String(a.props?.subtitle ?? ""),
+          avatar: String(a.props?.avatar ?? ""),
         },
       ]);
       window.setTimeout(() => {
@@ -689,6 +691,16 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         ) : null}
 
+        {/* Viewers en vivo */}
+        {state.viewerCount > 0 ? (
+          <div className="absolute left-4 top-6 z-30 flex items-center gap-2 rounded-full border-[3px] border-cyan-300 bg-black/80 px-5 py-2 shadow-[0_6px_22px_rgba(0,0,0,0.45)]">
+            <span className="text-2xl leading-none">👁</span>
+            <span className="text-2xl font-black tabular-nums leading-none text-white">
+              {state.viewerCount.toLocaleString("es-MX")}
+            </span>
+          </div>
+        ) : null}
+
         {/* Ranking de la sesión: top likers / top regaladores (por cantidad) */}
         {state.topLikers.length > 0 || state.topGifters.length > 0 ? (
           <div className="absolute right-4 top-24 z-30 flex max-w-[220px] flex-col gap-2">
@@ -702,8 +714,18 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                     key={e.user}
                     className="flex items-center justify-between gap-2 text-xs font-bold text-white"
                   >
-                    <span className="truncate">
-                      {i + 1}. {e.user}
+                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                      {e.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={e.avatar}
+                          alt=""
+                          className="h-4 w-4 shrink-0 rounded-full object-cover"
+                        />
+                      ) : null}
+                      <span className="truncate">
+                        {i + 1}. {e.user}
+                      </span>
                     </span>
                     <span className="shrink-0 tabular-nums text-white/70">
                       {e.count.toLocaleString("es-MX")}
@@ -722,11 +744,21 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                     key={e.user}
                     className="flex items-center justify-between gap-2 text-xs font-bold text-white"
                   >
-                    <span className="truncate">
-                      {i + 1}. {e.user}
+                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                      {e.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={e.avatar}
+                          alt=""
+                          className="h-4 w-4 shrink-0 rounded-full object-cover"
+                        />
+                      ) : null}
+                      <span className="truncate">
+                        {i + 1}. {e.user}
+                      </span>
                     </span>
                     <span className="shrink-0 tabular-nums text-white/70">
-                      {e.count.toLocaleString("es-MX")}
+                      💎{e.count.toLocaleString("es-MX")}
                     </span>
                   </div>
                 ))}
@@ -746,11 +778,19 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                 key={a.id}
                 className="flex items-center gap-3 rounded-2xl border-[3px] border-amber-300 bg-black/85 px-5 py-3 shadow-[0_10px_36px_rgba(0,0,0,0.5)] [animation:overlay-mode-in_0.4s_cubic-bezier(0.34,1.56,0.64,1)]"
               >
-                {a.emoji ? (
+                {a.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={a.avatar}
+                    alt=""
+                    className="h-10 w-10 shrink-0 rounded-full border-2 border-white/40 object-cover"
+                  />
+                ) : a.emoji ? (
                   <span className="text-3xl leading-none">{a.emoji}</span>
                 ) : null}
                 <div className="flex flex-col">
                   <span className="text-lg font-black leading-tight text-white">
+                    {a.avatar && a.emoji ? `${a.emoji} ` : ""}
                     {a.text}
                   </span>
                   {a.subtitle ? (
@@ -765,10 +805,20 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             {[...state.chatFeed].slice(-4).map((c) => (
               <div
                 key={c.id}
-                className="rounded-xl bg-black/70 px-3 py-1.5 text-sm leading-tight text-white backdrop-blur"
+                className="flex items-center gap-2 rounded-xl bg-black/70 px-3 py-1.5 text-sm leading-tight text-white backdrop-blur"
               >
-                <span className="font-black text-cyan-300">{c.user}: </span>
-                <span className="font-medium">{c.text}</span>
+                {c.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.avatar}
+                    alt=""
+                    className="h-5 w-5 shrink-0 rounded-full object-cover"
+                  />
+                ) : null}
+                <span>
+                  <span className="font-black text-cyan-300">{c.user}: </span>
+                  <span className="font-medium">{c.text}</span>
+                </span>
               </div>
             ))}
           </div>

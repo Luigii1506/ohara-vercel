@@ -45,6 +45,7 @@ const createDefaultState = (): LiveOverlayState => ({
   likeCount: 0,
   topLikers: [],
   topGifters: [],
+  viewerCount: 0,
   updatedAt: new Date(0).toISOString(),
 });
 
@@ -52,22 +53,33 @@ const createDefaultState = (): LiveOverlayState => ({
  * El ranking se deriva de un tally COMPLETO por usuario (no capado), guardado
  * en `likerTallies`/`gifterTallies`. Si guardáramos solo el top N y alguien se
  * cae de la lista, su conteo anterior se pierde — la próxima tanda de likes
- * arrancaría de 0 en vez de sumar a lo que ya había dado.
+ * arrancaría de 0 en vez de sumar a lo que ya había dado. Cada entrada guarda
+ * también el avatar más reciente que vimos de ese usuario.
  */
-const normalizeTally = (raw: unknown): Record<string, number> => {
+type TallyEntry = { count: number; avatar: string };
+
+const normalizeTally = (raw: unknown): Record<string, TallyEntry> => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const tally: Record<string, number> = {};
-  for (const [user, count] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof count === "number" && Number.isFinite(count) && count > 0) {
-      tally[user] = count;
+  const tally: Record<string, TallyEntry> = {};
+  for (const [user, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "number") {
+      // Compat con datos guardados antes de agregar avatar (solo era un número).
+      if (Number.isFinite(value) && value > 0) tally[user] = { count: value, avatar: "" };
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const v = value as Record<string, unknown>;
+      const count = typeof v.count === "number" && Number.isFinite(v.count) ? v.count : 0;
+      const avatar = typeof v.avatar === "string" ? v.avatar : "";
+      if (count > 0) tally[user] = { count, avatar };
     }
   }
   return tally;
 };
 
-const topFromTally = (tally: Record<string, number>): LiveOverlayLeaderboardEntry[] =>
+const topFromTally = (tally: Record<string, TallyEntry>): LiveOverlayLeaderboardEntry[] =>
   Object.entries(tally)
-    .map(([user, count]) => ({ user, count }))
+    .map(([user, v]) => ({ user, count: v.count, avatar: v.avatar }))
     .sort((a, b) => b.count - a.count)
     .slice(0, LIVE_OVERLAY_LEADERBOARD_SIZE);
 
@@ -111,6 +123,7 @@ const normalizeChatFeed = (raw: unknown): LiveOverlayChatItem[] => {
     items.push({
       id,
       user,
+      avatar: typeof r.avatar === "string" ? r.avatar : "",
       text,
       receivedAt:
         typeof r.receivedAt === "string" ? r.receivedAt : new Date(0).toISOString(),
@@ -195,6 +208,10 @@ export const getLiveOverlayState = async (
         : 0,
     topLikers: topFromTally(normalizeTally((row as { likerTallies?: unknown }).likerTallies)),
     topGifters: topFromTally(normalizeTally((row as { gifterTallies?: unknown }).gifterTallies)),
+    viewerCount:
+      typeof (row as { viewerCount?: unknown }).viewerCount === "number"
+        ? Math.max(0, (row as { viewerCount: number }).viewerCount)
+        : 0,
     updatedAt: row.updatedAt.toISOString(),
   };
 };
@@ -207,6 +224,7 @@ type PersistPayload = {
   videoClips: LiveOverlayVideoClip[];
   chatFeed: LiveOverlayChatItem[];
   likeCount: number;
+  viewerCount: number;
 };
 
 const persist = async (
@@ -226,6 +244,7 @@ const persist = async (
   const videoClipsJson = next.videoClips as unknown as Prisma.InputJsonValue;
   const chatFeedJson = next.chatFeed as unknown as Prisma.InputJsonValue;
   const likeCount = Math.max(0, Math.trunc(next.likeCount));
+  const viewerCount = Math.max(0, Math.trunc(next.viewerCount));
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
@@ -238,6 +257,7 @@ const persist = async (
       videoClips: videoClipsJson,
       chatFeed: chatFeedJson,
       likeCount,
+      viewerCount,
     },
     update: {
       currentCard: currentCardJson,
@@ -247,6 +267,7 @@ const persist = async (
       videoClips: videoClipsJson,
       chatFeed: chatFeedJson,
       likeCount,
+      viewerCount,
     },
   });
   return {
@@ -261,6 +282,7 @@ const persist = async (
     likeCount: Math.max(0, (saved as { likeCount: number }).likeCount ?? 0),
     topLikers: topFromTally(normalizeTally((saved as { likerTallies?: unknown }).likerTallies)),
     topGifters: topFromTally(normalizeTally((saved as { gifterTallies?: unknown }).gifterTallies)),
+    viewerCount: Math.max(0, (saved as { viewerCount: number }).viewerCount ?? 0),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
@@ -282,6 +304,7 @@ const updateState = async (
     videoClips: patch.videoClips ?? current.videoClips,
     chatFeed: patch.chatFeed ?? current.chatFeed,
     likeCount: patch.likeCount ?? current.likeCount,
+    viewerCount: patch.viewerCount ?? current.viewerCount,
   });
 };
 
@@ -525,7 +548,7 @@ const LIVE_OVERLAY_ALERT_TTL_MS_DEFAULT = 4000;
  */
 export const triggerLiveOverlayAlert = (
   token: string,
-  alert: { emoji?: string; text: string; subtitle?: string; accent?: string },
+  alert: { emoji?: string; text: string; subtitle?: string; accent?: string; avatar?: string },
   ttlMs: number = LIVE_OVERLAY_ALERT_TTL_MS_DEFAULT
 ) =>
   updateState(token, (state) => {
@@ -551,6 +574,7 @@ export const triggerLiveOverlayAlert = (
             text: alert.text,
             subtitle: alert.subtitle ?? "",
             accent: alert.accent ?? "",
+            avatar: alert.avatar ?? "",
           },
           triggeredAt: new Date(now).toISOString(),
           ttlMs,
@@ -562,7 +586,7 @@ export const triggerLiveOverlayAlert = (
 /** Agrega un mensaje al feed de chat (recorta al máximo definido). */
 export const appendLiveOverlayChatItem = (
   token: string,
-  item: { user: string; text: string }
+  item: { user: string; avatar?: string; text: string }
 ) =>
   updateState(token, (state) => ({
     chatFeed: [
@@ -570,6 +594,7 @@ export const appendLiveOverlayChatItem = (
       {
         id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user: item.user,
+        avatar: item.avatar ?? "",
         text: item.text.slice(0, 300),
         receivedAt: new Date().toISOString(),
       },
@@ -585,6 +610,12 @@ export const setLiveOverlayLikeCount = (token: string, total: number) =>
 export const resetLiveOverlayLikeCount = (token: string) =>
   updateState(token, () => ({ likeCount: 0 }));
 
+/** Fija el conteo de viewers en vivo. */
+export const setLiveOverlayViewerCount = (token: string, count: number) =>
+  updateState(token, () => ({
+    viewerCount: Math.max(0, Math.trunc(count)),
+  }));
+
 /**
  * Suma `amount` al tally COMPLETO del usuario (no solo al top N mostrado) y
  * persiste directo en la columna correspondiente — bypasea updateState/
@@ -595,11 +626,16 @@ const bumpTikTokTally = async (
   token: string,
   column: "likerTallies" | "gifterTallies",
   user: string,
-  amount: number
+  amount: number,
+  avatar: string
 ): Promise<LiveOverlayState> => {
   const row = await prisma.liveOverlayState.findUnique({ where: { token } });
   const tally = normalizeTally(row ? (row as Record<string, unknown>)[column] : null);
-  tally[user] = (tally[user] ?? 0) + amount;
+  const prev = tally[user];
+  tally[user] = {
+    count: (prev?.count ?? 0) + amount,
+    avatar: avatar || prev?.avatar || "",
+  };
   const tallyJson = tally as unknown as Prisma.InputJsonValue;
 
   if (!row) {
@@ -620,11 +656,11 @@ const bumpTikTokTally = async (
   return getLiveOverlayState(token);
 };
 
-export const bumpLiveOverlayTopLikers = (token: string, user: string, amount: number) =>
-  bumpTikTokTally(token, "likerTallies", user, amount);
+export const bumpLiveOverlayTopLikers = (token: string, user: string, amount: number, avatar = "") =>
+  bumpTikTokTally(token, "likerTallies", user, amount, avatar);
 
-export const bumpLiveOverlayTopGifters = (token: string, user: string, amount: number) =>
-  bumpTikTokTally(token, "gifterTallies", user, amount);
+export const bumpLiveOverlayTopGifters = (token: string, user: string, amount: number, avatar = "") =>
+  bumpTikTokTally(token, "gifterTallies", user, amount, avatar);
 
 /**
  * Conteo de UN usuario específico (esté o no en el top N mostrado) — para
@@ -638,7 +674,7 @@ export const getLiveOverlayUserTally = async (
   const row = await prisma.liveOverlayState.findUnique({ where: { token } });
   const likerTally = normalizeTally(row ? (row as Record<string, unknown>).likerTallies : null);
   const gifterTally = normalizeTally(row ? (row as Record<string, unknown>).gifterTallies : null);
-  return { likes: likerTally[user] ?? 0, gifts: gifterTally[user] ?? 0 };
+  return { likes: likerTally[user]?.count ?? 0, gifts: gifterTally[user]?.count ?? 0 };
 };
 
 /** Limpia ambos rankings (tally completo) — se llama al conectar a un nuevo live. */
@@ -668,6 +704,7 @@ export const clearLiveOverlayTikTokInteraction = async (
   await updateState(token, (state) => ({
     chatFeed: [],
     likeCount: 0,
+    viewerCount: 0,
     scenes: state.scenes.filter((s) => s.type !== "alert"),
   }));
   return resetLiveOverlayLeaderboards(token);

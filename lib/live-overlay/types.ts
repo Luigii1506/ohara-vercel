@@ -115,14 +115,19 @@ export const inferClipKind = (url: string): "audio" | "video" =>
 export type LiveOverlayChatItem = {
   id: string;
   user: string;
+  avatar: string;
   text: string;
   receivedAt: string;
 };
 
 export const LIVE_OVERLAY_CHAT_FEED_MAX = 12;
 
-/** Ranking de la sesión: top likers / top regaladores (por cantidad, no valor). */
-export type LiveOverlayLeaderboardEntry = { user: string; count: number };
+/**
+ * Ranking de la sesión: top likers (por cantidad de likes) / top regaladores
+ * (por DIAMANTES gastados, no por cantidad de regalos — un regalo caro pesa
+ * más que varios baratos).
+ */
+export type LiveOverlayLeaderboardEntry = { user: string; count: number; avatar: string };
 
 export const LIVE_OVERLAY_LEADERBOARD_SIZE = 5;
 
@@ -136,6 +141,7 @@ export type LiveOverlayState = {
   likeCount: number;
   topLikers: LiveOverlayLeaderboardEntry[];
   topGifters: LiveOverlayLeaderboardEntry[];
+  viewerCount: number;
   updatedAt: string;
 };
 
@@ -170,6 +176,10 @@ export const normalizeLiveOverlayState = (
         : 0,
     topLikers: Array.isArray(s?.topLikers) ? s!.topLikers! : [],
     topGifters: Array.isArray(s?.topGifters) ? s!.topGifters! : [],
+    viewerCount:
+      typeof s?.viewerCount === "number" && Number.isFinite(s.viewerCount)
+        ? s.viewerCount
+        : 0,
     updatedAt:
       typeof s?.updatedAt === "string"
         ? s!.updatedAt!

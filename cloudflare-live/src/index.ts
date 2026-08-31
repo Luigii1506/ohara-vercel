@@ -93,6 +93,7 @@ export class OverlayRoom {
   private tiktokStopped = true;
   private tiktokReconnectAttempts = 0;
   private tiktokReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private giftCatalog: Map<number, { name: string; diamondCount: number }> | null = null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -314,6 +315,8 @@ export class OverlayRoom {
       return { connected: false, error };
     }
 
+    await this.ensureGiftCatalog();
+
     const wsUrl = `https://ws.eulerstream.com?uniqueId=${encodeURIComponent(
       username
     )}&apiKey=${encodeURIComponent(this.env.EULERSTREAM_API_KEY)}`;
@@ -370,6 +373,53 @@ export class OverlayRoom {
     return { connected: true };
   }
 
+  /**
+   * Catálogo GLOBAL de regalos de TikTok (id → nombre + valor en diamantes),
+   * gratis vía la API de Eulerstream (no requiere plan Business). Se cachea en
+   * memoria una sola vez por conexión — no cambia seguido.
+   */
+  private async ensureGiftCatalog(): Promise<void> {
+    if (this.giftCatalog) return;
+    try {
+      const listResp = await fetch(
+        `https://api.eulerstream.com/webcast/gifts?apiKey=${encodeURIComponent(
+          this.env.EULERSTREAM_API_KEY
+        )}`
+      );
+      const listJson = (await listResp.json()) as { url?: string };
+      if (!listJson.url) return;
+
+      const fileResp = await fetch(listJson.url);
+      const file = (await fileResp.json()) as {
+        data?: { gifts?: Array<{ id: number; name: string; diamond_count: number }> };
+      };
+      const gifts = file.data?.gifts ?? [];
+      const map = new Map<number, { name: string; diamondCount: number }>();
+      for (const g of gifts) {
+        if (typeof g.id === "number") {
+          map.set(g.id, { name: g.name || "", diamondCount: g.diamond_count || 0 });
+        }
+      }
+      this.giftCatalog = map;
+      console.log("[tiktok] catálogo de regalos cacheado:", map.size, "regalos");
+    } catch (err) {
+      console.error("[tiktok] no se pudo cargar el catálogo de regalos:", String(err));
+    }
+  }
+
+  /** Extrae la primera URL de avatar disponible, sin importar la forma exacta del campo. */
+  private extractAvatar(user: Record<string, any> | undefined): string {
+    if (!user) return "";
+    const pic = user.profilePicture;
+    if (typeof pic === "string") return pic;
+    if (Array.isArray(pic?.url) && pic.url[0]) return pic.url[0];
+    if (Array.isArray(pic?.urlList) && pic.urlList[0]) return pic.urlList[0];
+    if (Array.isArray(user.avatarThumb?.urlList) && user.avatarThumb.urlList[0]) {
+      return user.avatarThumb.urlList[0];
+    }
+    return "";
+  }
+
   private async handleTikTokMessage(raw: string) {
     let parsed: { messages?: TikTokWebcastMessage[] };
     try {
@@ -402,6 +452,7 @@ export class OverlayRoom {
         return {
           type: "chat",
           user: data.user?.uniqueId || "",
+          userAvatar: this.extractAvatar(data.user),
           text: data.comment || "",
         };
 
@@ -410,16 +461,22 @@ export class OverlayRoom {
           type: "like",
           total: Number(data.totalLikeCount) || 0,
           user: data.user?.uniqueId || "",
+          userAvatar: this.extractAvatar(data.user),
           count: Number(data.likeCount) || 0,
         };
 
-      case "WebcastSocialMessage":
-        // action "1" = follow (confirmado empíricamente). Otros valores
-        // (share, etc.) se ignoran por ahora.
+      case "WebcastSocialMessage": {
+        const avatar = this.extractAvatar(data.user);
+        // action "1" = follow (confirmado empíricamente). Un share no trae
+        // followCount pero sí shareCount/shareType distinto de "0".
         if (String(data.action) === "1") {
-          return { type: "follow", user: data.user?.uniqueId || "" };
+          return { type: "follow", user: data.user?.uniqueId || "", userAvatar: avatar };
+        }
+        if (Number(data.shareCount) > 0 || String(data.shareType ?? "0") !== "0") {
+          return { type: "share", user: data.user?.uniqueId || "", userAvatar: avatar };
         }
         return null;
+      }
 
       case "WebcastGiftMessage": {
         const repeatCount = Number(data.repeatCount) || 1;
@@ -427,13 +484,29 @@ export class OverlayRoom {
         // Mientras el combo de un mismo regalo sigue subiendo, esperamos a
         // que termine el streak (repeatEnd === 1) para no spamear alertas.
         if (repeatCount > 1 && repeatEnd !== 1) return null;
+        const giftId = Number(data.giftId) || 0;
+        const catalogEntry = this.giftCatalog?.get(giftId);
         return {
           type: "gift",
           user: data.user?.uniqueId || "",
-          giftName: data.gift?.name || "",
+          userAvatar: this.extractAvatar(data.user),
+          giftName: catalogEntry?.name || data.gift?.name || "",
           giftId: data.giftId || "",
+          diamondCount: catalogEntry?.diamondCount ?? 0,
           repeatCount,
         };
+      }
+
+      case "roomInfo": {
+        const viewers = Number((data as any).roomInfo?.currentViewers);
+        if (!Number.isFinite(viewers)) return null;
+        return { type: "viewerCount", count: viewers };
+      }
+
+      case "WebcastRoomUserSeqMessage": {
+        const viewers = Number(data.total);
+        if (!Number.isFinite(viewers)) return null;
+        return { type: "viewerCount", count: viewers };
       }
 
       default:

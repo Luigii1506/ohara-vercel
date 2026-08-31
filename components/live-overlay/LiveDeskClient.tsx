@@ -79,6 +79,7 @@ const EMPTY_STATE: LiveOverlayState = {
   likeCount: 0,
   topLikers: [],
   topGifters: [],
+  viewerCount: 0,
   updatedAt: new Date(0).toISOString(),
 };
 

@@ -82,6 +82,9 @@ type TikTokWebcastMessage = { type?: string; data?: Record<string, unknown> };
  * recién abierto pinta de inmediato sin esperar el siguiente comando).
  */
 export class OverlayRoom {
+  private static readonly TIKTOK_HEALTH_CHECK_MS = 20000; // chequeo de rutina cuando todo anda bien
+  private static readonly TIKTOK_STALE_MS = 45000; // sin mensajes en esto = asumir socket zombie
+
   private state: DurableObjectState;
   private env: Env;
   private lastState: string | null = null;
@@ -92,17 +95,70 @@ export class OverlayRoom {
   private tiktokUsername: string | null = null;
   private tiktokStopped = true;
   private tiktokReconnectAttempts = 0;
-  private tiktokReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private giftCatalog: Map<number, { name: string; diamondCount: number }> | null = null;
+  // Cola de reenvío a Next.js: procesa un evento a la vez, EN ORDEN, aunque
+  // lleguen varias tandas de mensajes casi juntas. Evita que dos escrituras
+  // concurrentes a la misma fila de Postgres (leer→sumar→guardar) se pisen
+  // entre sí y se pierda una suma — sin bloquear la lectura del socket.
+  private tiktokForwardQueue: Promise<void> = Promise.resolve();
   // --- Salud de la conexión (diagnóstico) ---
   private tiktokConnectedAt: number | null = null;
   private tiktokLastMessageAt: number | null = null;
   private tiktokReconnectCount = 0;
-  private tiktokHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+    // Si Cloudflare recicla este Durable Object (poco frecuente pero pasa),
+    // los campos en memoria (tiktokUsername, token, etc.) se pierden — pero
+    // el Alarm que programamos SÍ sobrevive y va a disparar `alarm()` en la
+    // instancia nueva. Sin esto, esa instancia nueva no sabría a quién debía
+    // estar reconectándose. blockConcurrencyWhile pausa cualquier fetch()
+    // entrante hasta que termine de restaurar el estado.
+    this.state.blockConcurrencyWhile(async () => {
+      const [savedToken, savedUsername] = await Promise.all([
+        this.state.storage.get<string>("tiktokToken"),
+        this.state.storage.get<string>("tiktokUsername"),
+      ]);
+      if (savedToken) this.token = savedToken;
+      if (savedUsername) {
+        this.tiktokUsername = savedUsername;
+        this.tiktokStopped = false;
+      }
+    });
+  }
+
+  /**
+   * Disparado por Cloudflare cuando llega la hora del Alarm programado (ver
+   * scheduleTikTokReconnect / connectTikTok). A diferencia de setTimeout/
+   * setInterval, esto se garantiza que corre aunque el Durable Object haya
+   * sido reciclado en el medio — es el único mecanismo que realmente
+   * sobrevive, así que TODA la lógica de reconexión pasa por acá.
+   */
+  async alarm() {
+    if (this.tiktokStopped || !this.tiktokUsername) return;
+
+    const isMissing = !this.tiktokWs;
+    const isStale =
+      !!this.tiktokLastMessageAt &&
+      Date.now() - this.tiktokLastMessageAt > OverlayRoom.TIKTOK_STALE_MS;
+
+    if (isMissing || isStale) {
+      console.error("[tiktok] alarm detectó problema, reconectando", { isMissing, isStale });
+      const result = await this.connectTikTok(this.tiktokUsername).catch((err) => ({
+        connected: false,
+        error: String(err),
+      }));
+      if (!result.connected) {
+        // connectTikTok ya programó el próximo alarm (con backoff) si falló.
+        return;
+      }
+    }
+
+    // Todo bien (o se acaba de reconectar): programa el próximo chequeo de rutina.
+    if (!this.tiktokStopped && this.tiktokUsername) {
+      await this.state.storage.setAlarm(Date.now() + OverlayRoom.TIKTOK_HEALTH_CHECK_MS);
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -183,6 +239,8 @@ export class OverlayRoom {
           return new Response("username required", { status: 400 });
         }
         this.token = token;
+        await this.state.storage.put("tiktokToken", token);
+        await this.state.storage.put("tiktokUsername", username);
         const result = await this.connectTikTok(username);
         return new Response(
           JSON.stringify({ ok: result.connected, username, error: result.error }),
@@ -194,7 +252,7 @@ export class OverlayRoom {
       }
 
       if (subAction === "disconnect") {
-        this.disconnectTikTok();
+        await this.disconnectTikTok();
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -265,18 +323,15 @@ export class OverlayRoom {
   // Conexión SALIENTE (no usa la Hibernation API — se mantiene mientras el
   // socket esté abierto). Cada evento normalizado se reenvía a Next.js, que es
   // quien decide qué escena disparar y persiste en Postgres (fuente de verdad).
-  // Reconexión con backoff simple si se corta; no sobrevive a que el propio DO
-  // sea desalojado durante el backoff (caso raro: solo pasa si además no hay
-  // ningún cliente de overlay conectado en ese instante).
+  // TODA la reconexión (backoff Y el chequeo de "¿sigo vivo?") pasa por
+  // Alarms de Cloudflare (ver alarm() arriba), no por setTimeout/setInterval,
+  // así sobrevive aunque el Durable Object se recicle en el medio.
   // ===========================================================================
 
-  private disconnectTikTok() {
+  private async disconnectTikTok() {
     this.tiktokStopped = true;
-    this.stopTikTokHeartbeat();
-    if (this.tiktokReconnectTimer) {
-      clearTimeout(this.tiktokReconnectTimer);
-      this.tiktokReconnectTimer = null;
-    }
+    await this.state.storage.deleteAlarm();
+    await this.state.storage.delete(["tiktokToken", "tiktokUsername"]);
     if (this.tiktokWs) {
       try {
         this.tiktokWs.close();
@@ -291,7 +346,8 @@ export class OverlayRoom {
     this.tiktokReconnectCount = 0;
   }
 
-  private scheduleTikTokReconnect() {
+  /** Programa el próximo intento de reconexión (backoff exponencial) vía Alarm. */
+  private async scheduleTikTokReconnect() {
     if (this.tiktokStopped || !this.tiktokUsername) return;
     this.tiktokReconnectAttempts += 1;
     this.tiktokReconnectCount += 1;
@@ -299,39 +355,7 @@ export class OverlayRoom {
       30000,
       2000 * Math.pow(2, Math.min(this.tiktokReconnectAttempts, 4))
     );
-    this.tiktokReconnectTimer = setTimeout(() => {
-      if (this.tiktokUsername && !this.tiktokStopped) {
-        this.connectTikTok(this.tiktokUsername).catch(() => {
-          // el próximo intento lo reprograma scheduleTikTokReconnect
-        });
-      }
-    }, delay);
-  }
-
-  /**
-   * Si no llega NINGÚN mensaje en 45s con la conexión "abierta", puede ser un
-   * socket zombie (se cerró raro y no disparó el evento `close`). Forzamos
-   * una reconexión en vez de quedarnos esperando para siempre.
-   */
-  private startTikTokHeartbeat() {
-    this.stopTikTokHeartbeat();
-    this.tiktokHeartbeatTimer = setInterval(() => {
-      if (!this.tiktokLastMessageAt || this.tiktokStopped || !this.tiktokUsername) return;
-      const silentMs = Date.now() - this.tiktokLastMessageAt;
-      if (silentMs > 45000) {
-        console.error("[tiktok] sin mensajes hace", silentMs, "ms — forzando reconexión");
-        this.connectTikTok(this.tiktokUsername).catch(() => {
-          // el próximo intento lo reprograma scheduleTikTokReconnect
-        });
-      }
-    }, 15000);
-  }
-
-  private stopTikTokHeartbeat() {
-    if (this.tiktokHeartbeatTimer) {
-      clearInterval(this.tiktokHeartbeatTimer);
-      this.tiktokHeartbeatTimer = null;
-    }
+    await this.state.storage.setAlarm(Date.now() + delay);
   }
 
   private async connectTikTok(
@@ -366,7 +390,7 @@ export class OverlayRoom {
     } catch (err) {
       const error = `fetch a Eulerstream falló: ${String(err)}`;
       console.error("[tiktok]", error);
-      this.scheduleTikTokReconnect();
+      await this.scheduleTikTokReconnect();
       return { connected: false, error };
     }
 
@@ -380,7 +404,7 @@ export class OverlayRoom {
       }
       const error = `Eulerstream no devolvió upgrade a WebSocket (status ${resp.status}): ${bodyText.slice(0, 300)}`;
       console.error("[tiktok]", error);
-      this.scheduleTikTokReconnect();
+      await this.scheduleTikTokReconnect();
       return { connected: false, error };
     }
 
@@ -389,9 +413,9 @@ export class OverlayRoom {
     this.tiktokReconnectAttempts = 0;
     this.tiktokConnectedAt = Date.now();
     // Sembramos lastMessageAt al conectar: si nunca llega ni un mensaje, el
-    // heartbeat lo detecta igual como silencio a partir de este momento.
+    // próximo chequeo de rutina (alarm) lo detecta igual como silencio.
     this.tiktokLastMessageAt = Date.now();
-    this.startTikTokHeartbeat();
+    await this.state.storage.setAlarm(Date.now() + OverlayRoom.TIKTOK_HEALTH_CHECK_MS);
     console.log("[tiktok] conectado a Eulerstream para", username);
 
     ws.addEventListener("message", (evt: MessageEvent) => {
@@ -404,7 +428,9 @@ export class OverlayRoom {
     ws.addEventListener("close", (evt: CloseEvent) => {
       console.log("[tiktok] socket cerrado", evt.code, evt.reason);
       if (this.tiktokWs === ws) this.tiktokWs = null;
-      this.scheduleTikTokReconnect();
+      this.scheduleTikTokReconnect().catch((err) => {
+        console.error("[tiktok] no se pudo programar la reconexión:", String(err));
+      });
     });
 
     ws.addEventListener("error", () => {
@@ -481,8 +507,19 @@ export class OverlayRoom {
     );
     for (const m of messages) {
       const event = this.mapTikTokEvent(m);
-      if (event) await this.forwardTikTokEvent(event);
+      if (event) this.queueTikTokForward(event);
     }
+  }
+
+  /**
+   * Encola el reenvío a Next.js sin bloquear la lectura del socket: cada
+   * llamada se ejecuta recién cuando la anterior terminó, así los writes a
+   * Postgres quedan en orden estricto (uno a la vez) en vez de competir.
+   */
+  private queueTikTokForward(event: Record<string, unknown>) {
+    this.tiktokForwardQueue = this.tiktokForwardQueue.then(() =>
+      this.forwardTikTokEvent(event)
+    );
   }
 
   /** Traduce un mensaje crudo de Eulerstream a un evento normalizado, o null si se ignora. */
@@ -501,14 +538,25 @@ export class OverlayRoom {
           text: data.comment || "",
         };
 
-      case "WebcastLikeMessage":
+      case "WebcastLikeMessage": {
+        const uniqueId = data.user?.uniqueId || "";
+        // DEBUG temporal: confirmar si el evento llega SIN usuario (issue
+        // documentado en la librería tiktok-live-connector #300) en vez de
+        // no llegar directamente.
+        if (!uniqueId) {
+          console.error(
+            "[tiktok][debug-like-no-user]",
+            JSON.stringify({ hasUser: !!data.user, userKeys: data.user ? Object.keys(data.user) : null, count: data.likeCount })
+          );
+        }
         return {
           type: "like",
           total: Number(data.totalLikeCount) || 0,
-          user: data.user?.uniqueId || "",
+          user: uniqueId,
           userAvatar: this.extractAvatar(data.user),
           count: Number(data.likeCount) || 0,
         };
+      }
 
       case "WebcastSocialMessage": {
         const avatar = this.extractAvatar(data.user);
@@ -559,6 +607,12 @@ export class OverlayRoom {
     }
   }
 
+  /**
+   * Reenvía un evento a Next.js con reintentos cortos: una red lenta o un
+   * cold start de Vercel no debería perder el evento en silencio. No
+   * reintenta indefinidamente (el orden de la cola no debe trabarse mucho
+   * tiempo por un solo evento problemático).
+   */
   private async forwardTikTokEvent(event: Record<string, unknown>) {
     if (
       !this.token ||
@@ -571,18 +625,38 @@ export class OverlayRoom {
       );
       return;
     }
-    try {
-      const resp = await fetch(this.env.NEXTJS_TIKTOK_EVENT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.env.TIKTOK_EVENT_SECRET}`,
-        },
-        body: JSON.stringify({ token: this.token, ...event }),
-      });
-      console.log("[tiktok] forward", event.type, "->", resp.status);
-    } catch (err) {
-      console.error("[tiktok] forward falló:", String(err));
+
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const resp = await fetch(this.env.NEXTJS_TIKTOK_EVENT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.env.TIKTOK_EVENT_SECRET}`,
+          },
+          body: JSON.stringify({ token: this.token, ...event }),
+        });
+        if (resp.ok) {
+          console.log("[tiktok] forward", event.type, "->", resp.status);
+          return;
+        }
+        console.error(
+          "[tiktok] forward respondió",
+          resp.status,
+          `(intento ${attempt}/${maxAttempts})`,
+          event.type
+        );
+      } catch (err) {
+        console.error(
+          `[tiktok] forward falló (intento ${attempt}/${maxAttempts}):`,
+          String(err)
+        );
+      }
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+      }
     }
+    console.error("[tiktok] forward ABANDONADO tras", maxAttempts, "intentos:", event.type);
   }
 }

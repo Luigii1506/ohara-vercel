@@ -29,6 +29,18 @@ import { findLiveOverlayCombo } from "@/lib/live-overlay/combos";
  * el mismo estado. En DB funciona confiable entre instancias.
  */
 
+// NOTA sobre concurrencia: se probó envolver las escrituras en una
+// transacción con "SELECT ... FOR UPDATE" (bloqueo real de fila) para que
+// ninguna escritura pudiera pisar a otra. Bajo carga real (ráfagas de
+// eventos de TikTok) esto resultó PEOR: Prisma mata la transacción a los 5s
+// si tiene que esperar la fila bloqueada, y el evento se pierde con un error
+// en vez de solo tardar un poco más — cambia una pérdida silenciosa rara por
+// fallas duras frecuentes. La cola en orden del worker (cloudflare-live)
+// ya serializa los eventos de TikTok entre sí, que es la fuente de la
+// inmensa mayoría de escrituras concurrentes; una acción de Live Desk
+// coincidiendo exactamente con un evento de TikTok es rara y se
+// autocorrige con el siguiente evento, así que no vale la pena el riesgo.
+
 const createDefaultRarityCounters = (): LiveOverlayRarityCounters =>
   LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce((accumulator, key) => {
     accumulator[key] = 0;
@@ -289,6 +301,10 @@ const persist = async (
 
 // El updater devuelve un PARCIAL; lo mezclamos con el estado actual, así los
 // updaters existentes (que no tocan bracket) lo preservan automáticamente.
+// TODO el ciclo leer→mezclar→guardar corre bajo el lock de fila (withRowLock):
+// una acción de Live Desk y un evento de TikTok que lleguen casi juntos ya no
+// pueden pisarse — el segundo espera a que el primero termine y parte del
+// estado ya actualizado, no de uno viejo.
 const updateState = async (
   token: string,
   updater: (state: LiveOverlayState) => Partial<PersistPayload>

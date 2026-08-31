@@ -626,6 +626,21 @@ export const bumpLiveOverlayTopLikers = (token: string, user: string, amount: nu
 export const bumpLiveOverlayTopGifters = (token: string, user: string, amount: number) =>
   bumpTikTokTally(token, "gifterTallies", user, amount);
 
+/**
+ * Conteo de UN usuario específico (esté o no en el top N mostrado) — para
+ * verificar en vivo si sus eventos están llegando bien, sin depender de que
+ * aparezca en el ranking.
+ */
+export const getLiveOverlayUserTally = async (
+  token: string,
+  user: string
+): Promise<{ likes: number; gifts: number }> => {
+  const row = await prisma.liveOverlayState.findUnique({ where: { token } });
+  const likerTally = normalizeTally(row ? (row as Record<string, unknown>).likerTallies : null);
+  const gifterTally = normalizeTally(row ? (row as Record<string, unknown>).gifterTallies : null);
+  return { likes: likerTally[user] ?? 0, gifts: gifterTally[user] ?? 0 };
+};
+
 /** Limpia ambos rankings (tally completo) — se llama al conectar a un nuevo live. */
 export const resetLiveOverlayLeaderboards = async (token: string): Promise<LiveOverlayState> => {
   await prisma.liveOverlayState.upsert({

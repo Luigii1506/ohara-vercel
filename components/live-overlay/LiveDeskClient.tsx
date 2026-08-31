@@ -192,6 +192,10 @@ export default function LiveDeskClient({
   const [tiktokConnectedUser, setTiktokConnectedUser] = useState<string | null>(null);
   const [tiktokLoading, setTiktokLoading] = useState(false);
   const [tiktokError, setTiktokError] = useState<string | null>(null);
+  // Debug: seguir en vivo el conteo de likes/gifts de UN usuario específico,
+  // esté o no en el top del ranking — para confirmar que sus eventos llegan.
+  const [watchUsername, setWatchUsername] = useState("");
+  const [watchCounts, setWatchCounts] = useState<{ likes: number; gifts: number } | null>(null);
   const [goalLabel, setGoalLabel] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalUnit, setGoalUnit] = useState("");
@@ -482,6 +486,35 @@ export default function LiveDeskClient({
       cancelled = true;
     };
   }, [overlayToken]);
+
+  // Debug: mientras haya un usuario a seguir, reconsulta su conteo cada 1.5s.
+  useEffect(() => {
+    const user = watchUsername.trim().replace(/^@/, "");
+    if (!overlayToken || !user) {
+      setWatchCounts(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/live-overlay/tiktok-control?token=${encodeURIComponent(
+            overlayToken
+          )}&watchUser=${encodeURIComponent(user)}`
+        );
+        const data = await response.json();
+        if (!cancelled && data.watch) setWatchCounts(data.watch);
+      } catch {
+        // silencioso: reintenta en el próximo tick
+      }
+    };
+    poll();
+    const interval = window.setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [overlayToken, watchUsername]);
 
   const connectTikTokLive = useCallback(async () => {
     if (!overlayToken || !tiktokUsername.trim()) return;
@@ -1235,6 +1268,24 @@ export default function LiveDeskClient({
         <p className="mt-2 text-[11px] leading-snug text-slate-400">
           Chat, likes, gifts y follows del live aparecen solos en el overlay.
         </p>
+
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            Debug: seguir a un usuario en vivo
+          </span>
+          <input
+            value={watchUsername}
+            onChange={(e) => setWatchUsername(e.target.value)}
+            placeholder="@usuario a seguir"
+            className="mb-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+          />
+          {watchUsername.trim() ? (
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800">
+              <span>❤️ likes: {watchCounts?.likes ?? "…"}</span>
+              <span>🎁 gifts: {watchCounts?.gifts ?? "…"}</span>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

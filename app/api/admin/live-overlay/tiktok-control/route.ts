@@ -8,6 +8,7 @@ import {
 } from "@/lib/live-overlay/tiktokControl";
 import {
   clearLiveOverlayTikTokInteraction,
+  getLiveOverlayUserTally,
   resetLiveOverlayLeaderboards,
 } from "@/lib/live-overlay/store";
 import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
@@ -32,12 +33,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid overlay token" }, { status: 400 });
   }
 
+  const watchUser = request.nextUrl.searchParams
+    .get("watchUser")
+    ?.trim()
+    .replace(/^@/, "");
+  const watch = watchUser
+    ? await getLiveOverlayUserTally(token!, watchUser)
+    : null;
+
   try {
     const status = await getTikTokStatus(token!);
-    return NextResponse.json(status);
+    return NextResponse.json({ ...status, watchUser: watchUser || null, watch });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, connected: false, username: null, error: String(error) },
+      {
+        ok: false,
+        connected: false,
+        username: null,
+        watchUser: watchUser || null,
+        watch,
+        error: String(error),
+      },
       { status: 200 }
     );
   }

@@ -6,7 +6,10 @@ import {
   disconnectTikTok,
   getTikTokStatus,
 } from "@/lib/live-overlay/tiktokControl";
-import { resetLiveOverlayLeaderboards } from "@/lib/live-overlay/store";
+import {
+  clearLiveOverlayTikTokInteraction,
+  resetLiveOverlayLeaderboards,
+} from "@/lib/live-overlay/store";
 import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +73,10 @@ export async function POST(request: NextRequest) {
 
     if (body.action === "disconnect") {
       const result = await disconnectTikTok(token!);
+      // Limpia chat/alertas/likes/ranking del overlay: no debe quedar nada
+      // del live anterior mostrándose una vez desconectado.
+      const nextState = await clearLiveOverlayTikTokInteraction(token!);
+      await broadcastLiveOverlayState(token!, nextState);
       return NextResponse.json({ ok: true, ...result });
     }
 

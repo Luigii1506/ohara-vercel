@@ -1393,6 +1393,8 @@ model LiveOverlayState {
   videoClips     Json?
   chatFeed       Json?
   likeCount      Int      @default(0)
+  topLikers      Json?
+  topGifters     Json?
   updatedAt      DateTime @updatedAt
 }
 

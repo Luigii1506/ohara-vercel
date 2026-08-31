@@ -31,6 +31,8 @@ const EMPTY_STATE: LiveOverlayState = {
   videoClips: [],
   chatFeed: [],
   likeCount: 0,
+  topLikers: [],
+  topGifters: [],
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -684,6 +686,52 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             <span className="text-2xl font-black tabular-nums leading-none text-white">
               {state.likeCount.toLocaleString("es-MX")}
             </span>
+          </div>
+        ) : null}
+
+        {/* Ranking de la sesión: top likers / top regaladores (por cantidad) */}
+        {state.topLikers.length > 0 || state.topGifters.length > 0 ? (
+          <div className="absolute right-4 top-24 z-30 flex max-w-[220px] flex-col gap-2">
+            {state.topLikers.length > 0 ? (
+              <div className="rounded-xl bg-black/75 px-3 py-2 backdrop-blur">
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-[#ff2d6f]">
+                  ❤️ Top Likes
+                </div>
+                {state.topLikers.slice(0, 3).map((e, i) => (
+                  <div
+                    key={e.user}
+                    className="flex items-center justify-between gap-2 text-xs font-bold text-white"
+                  >
+                    <span className="truncate">
+                      {i + 1}. {e.user}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-white/70">
+                      {e.count.toLocaleString("es-MX")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {state.topGifters.length > 0 ? (
+              <div className="rounded-xl bg-black/75 px-3 py-2 backdrop-blur">
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-amber-300">
+                  🎁 Top Regalos
+                </div>
+                {state.topGifters.slice(0, 3).map((e, i) => (
+                  <div
+                    key={e.user}
+                    className="flex items-center justify-between gap-2 text-xs font-bold text-white"
+                  >
+                    <span className="truncate">
+                      {i + 1}. {e.user}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-white/70">
+                      {e.count.toLocaleString("es-MX")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

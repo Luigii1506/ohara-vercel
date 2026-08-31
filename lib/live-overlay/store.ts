@@ -5,6 +5,7 @@ import type {
   LiveOverlayBracketData,
   LiveOverlayCard,
   LiveOverlayChatItem,
+  LiveOverlayLeaderboardEntry,
   LiveOverlayRarityCounterKey,
   LiveOverlayRarityCounters,
   LiveOverlayScene,
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/live-overlay/types";
 import {
   LIVE_OVERLAY_CHAT_FEED_MAX,
+  LIVE_OVERLAY_LEADERBOARD_SIZE,
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
   LIVE_OVERLAY_SCENE_TYPES,
   createEmptyBracket,
@@ -41,8 +43,25 @@ const createDefaultState = (): LiveOverlayState => ({
   videoClips: [],
   chatFeed: [],
   likeCount: 0,
+  topLikers: [],
+  topGifters: [],
   updatedAt: new Date(0).toISOString(),
 });
+
+/** Normaliza un ranking: descarta lo inválido, ordena desc, recorta al top N. */
+const normalizeLeaderboard = (raw: unknown): LiveOverlayLeaderboardEntry[] => {
+  if (!Array.isArray(raw)) return [];
+  const entries: LiveOverlayLeaderboardEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const user = typeof r.user === "string" ? r.user : "";
+    const count = typeof r.count === "number" ? r.count : 0;
+    if (!user) continue;
+    entries.push({ user, count });
+  }
+  return entries.sort((a, b) => b.count - a.count).slice(0, LIVE_OVERLAY_LEADERBOARD_SIZE);
+};
 
 /** Normaliza la biblioteca de clips de video. */
 const normalizeVideoClips = (raw: unknown): LiveOverlayVideoClip[] => {
@@ -166,6 +185,8 @@ export const getLiveOverlayState = async (
       typeof (row as { likeCount?: unknown }).likeCount === "number"
         ? Math.max(0, (row as { likeCount: number }).likeCount)
         : 0,
+    topLikers: normalizeLeaderboard((row as { topLikers?: unknown }).topLikers),
+    topGifters: normalizeLeaderboard((row as { topGifters?: unknown }).topGifters),
     updatedAt: row.updatedAt.toISOString(),
   };
 };
@@ -178,6 +199,8 @@ type PersistPayload = {
   videoClips: LiveOverlayVideoClip[];
   chatFeed: LiveOverlayChatItem[];
   likeCount: number;
+  topLikers: LiveOverlayLeaderboardEntry[];
+  topGifters: LiveOverlayLeaderboardEntry[];
 };
 
 const persist = async (
@@ -197,6 +220,8 @@ const persist = async (
   const videoClipsJson = next.videoClips as unknown as Prisma.InputJsonValue;
   const chatFeedJson = next.chatFeed as unknown as Prisma.InputJsonValue;
   const likeCount = Math.max(0, Math.trunc(next.likeCount));
+  const topLikersJson = next.topLikers as unknown as Prisma.InputJsonValue;
+  const topGiftersJson = next.topGifters as unknown as Prisma.InputJsonValue;
 
   const saved = await prisma.liveOverlayState.upsert({
     where: { token },
@@ -209,6 +234,8 @@ const persist = async (
       videoClips: videoClipsJson,
       chatFeed: chatFeedJson,
       likeCount,
+      topLikers: topLikersJson,
+      topGifters: topGiftersJson,
     },
     update: {
       currentCard: currentCardJson,
@@ -218,6 +245,8 @@ const persist = async (
       videoClips: videoClipsJson,
       chatFeed: chatFeedJson,
       likeCount,
+      topLikers: topLikersJson,
+      topGifters: topGiftersJson,
     },
   });
   return {
@@ -230,6 +259,8 @@ const persist = async (
     ),
     chatFeed: normalizeChatFeed((saved as { chatFeed?: unknown }).chatFeed),
     likeCount: Math.max(0, (saved as { likeCount: number }).likeCount ?? 0),
+    topLikers: normalizeLeaderboard((saved as { topLikers?: unknown }).topLikers),
+    topGifters: normalizeLeaderboard((saved as { topGifters?: unknown }).topGifters),
     updatedAt: saved.updatedAt.toISOString(),
   };
 };
@@ -251,6 +282,8 @@ const updateState = async (
     videoClips: patch.videoClips ?? current.videoClips,
     chatFeed: patch.chatFeed ?? current.chatFeed,
     likeCount: patch.likeCount ?? current.likeCount,
+    topLikers: patch.topLikers ?? current.topLikers,
+    topGifters: patch.topGifters ?? current.topGifters,
   });
 };
 
@@ -553,6 +586,33 @@ export const setLiveOverlayLikeCount = (token: string, total: number) =>
 
 export const resetLiveOverlayLikeCount = (token: string) =>
   updateState(token, () => ({ likeCount: 0 }));
+
+/** Suma `amount` al tally del usuario en el ranking (likes o gifts), top N. */
+const bumpLeaderboard = (
+  list: LiveOverlayLeaderboardEntry[],
+  user: string,
+  amount: number
+): LiveOverlayLeaderboardEntry[] => {
+  const rest = list.filter((e) => e.user !== user);
+  const prevCount = list.find((e) => e.user === user)?.count ?? 0;
+  return [...rest, { user, count: prevCount + amount }]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, LIVE_OVERLAY_LEADERBOARD_SIZE);
+};
+
+export const bumpLiveOverlayTopLikers = (token: string, user: string, amount: number) =>
+  updateState(token, (state) => ({
+    topLikers: bumpLeaderboard(state.topLikers, user, amount),
+  }));
+
+export const bumpLiveOverlayTopGifters = (token: string, user: string, amount: number) =>
+  updateState(token, (state) => ({
+    topGifters: bumpLeaderboard(state.topGifters, user, amount),
+  }));
+
+/** Limpia ambos rankings — se llama al conectar a un nuevo live. */
+export const resetLiveOverlayLeaderboards = (token: string) =>
+  updateState(token, () => ({ topLikers: [], topGifters: [] }));
 
 /** Guarda/actualiza los NOMBRES del bracket (preserva la visibilidad `active`). */
 export const setLiveOverlayBracket = (

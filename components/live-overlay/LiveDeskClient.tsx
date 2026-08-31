@@ -77,6 +77,8 @@ const EMPTY_STATE: LiveOverlayState = {
   videoClips: [],
   chatFeed: [],
   likeCount: 0,
+  topLikers: [],
+  topGifters: [],
   updatedAt: new Date(0).toISOString(),
 };
 

@@ -177,11 +177,14 @@ export class OverlayRoom {
           return new Response("username required", { status: 400 });
         }
         this.token = token;
-        await this.connectTikTok(username);
-        return new Response(JSON.stringify({ ok: true, username }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        const result = await this.connectTikTok(username);
+        return new Response(
+          JSON.stringify({ ok: result.connected, username, error: result.error }),
+          {
+            status: result.connected ? 200 : 502,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
       }
 
       if (subAction === "disconnect") {
@@ -291,7 +294,9 @@ export class OverlayRoom {
     }, delay);
   }
 
-  private async connectTikTok(username: string) {
+  private async connectTikTok(
+    username: string
+  ): Promise<{ connected: boolean; error?: string }> {
     this.tiktokStopped = false;
     this.tiktokUsername = username;
     if (this.tiktokWs) {
@@ -303,6 +308,12 @@ export class OverlayRoom {
       this.tiktokWs = null;
     }
 
+    if (!this.env.EULERSTREAM_API_KEY) {
+      const error = "EULERSTREAM_API_KEY no configurada en el worker";
+      console.error("[tiktok]", error);
+      return { connected: false, error };
+    }
+
     const wsUrl = `https://ws.eulerstream.com?uniqueId=${encodeURIComponent(
       username
     )}&apiKey=${encodeURIComponent(this.env.EULERSTREAM_API_KEY)}`;
@@ -310,28 +321,40 @@ export class OverlayRoom {
     let resp: Response;
     try {
       resp = await fetch(wsUrl, { headers: { Upgrade: "websocket" } });
-    } catch {
+    } catch (err) {
+      const error = `fetch a Eulerstream falló: ${String(err)}`;
+      console.error("[tiktok]", error);
       this.scheduleTikTokReconnect();
-      return;
+      return { connected: false, error };
     }
 
     const ws = (resp as unknown as { webSocket?: WebSocket }).webSocket;
     if (!ws) {
+      let bodyText = "";
+      try {
+        bodyText = await resp.text();
+      } catch {
+        // ignore
+      }
+      const error = `Eulerstream no devolvió upgrade a WebSocket (status ${resp.status}): ${bodyText.slice(0, 300)}`;
+      console.error("[tiktok]", error);
       this.scheduleTikTokReconnect();
-      return;
+      return { connected: false, error };
     }
 
     ws.accept();
     this.tiktokWs = ws;
     this.tiktokReconnectAttempts = 0;
+    console.log("[tiktok] conectado a Eulerstream para", username);
 
     ws.addEventListener("message", (evt: MessageEvent) => {
-      this.handleTikTokMessage(String(evt.data)).catch(() => {
-        // un mensaje mal formado no debe tumbar la conexión
+      this.handleTikTokMessage(String(evt.data)).catch((err) => {
+        console.error("[tiktok] error procesando mensaje:", String(err));
       });
     });
 
-    ws.addEventListener("close", () => {
+    ws.addEventListener("close", (evt: CloseEvent) => {
+      console.log("[tiktok] socket cerrado", evt.code, evt.reason);
       if (this.tiktokWs === ws) this.tiktokWs = null;
       this.scheduleTikTokReconnect();
     });
@@ -343,6 +366,8 @@ export class OverlayRoom {
         // ignore
       }
     });
+
+    return { connected: true };
   }
 
   private async handleTikTokMessage(raw: string) {
@@ -353,6 +378,12 @@ export class OverlayRoom {
       return;
     }
     const messages = Array.isArray(parsed?.messages) ? parsed.messages : [];
+    console.log(
+      "[tiktok] recibidos",
+      messages.length,
+      "mensajes:",
+      messages.map((m) => m.type).join(",")
+    );
     for (const m of messages) {
       const event = this.mapTikTokEvent(m);
       if (event) await this.forwardTikTokEvent(event);
@@ -375,7 +406,12 @@ export class OverlayRoom {
         };
 
       case "WebcastLikeMessage":
-        return { type: "like", total: Number(data.totalLikeCount) || 0 };
+        return {
+          type: "like",
+          total: Number(data.totalLikeCount) || 0,
+          user: data.user?.uniqueId || "",
+          count: Number(data.likeCount) || 0,
+        };
 
       case "WebcastSocialMessage":
         // action "1" = follow (confirmado empíricamente). Otros valores
@@ -411,10 +447,14 @@ export class OverlayRoom {
       !this.env.NEXTJS_TIKTOK_EVENT_URL ||
       !this.env.TIKTOK_EVENT_SECRET
     ) {
+      console.error(
+        "[tiktok] forward abortado: falta token/NEXTJS_TIKTOK_EVENT_URL/TIKTOK_EVENT_SECRET",
+        { hasToken: !!this.token }
+      );
       return;
     }
     try {
-      await fetch(this.env.NEXTJS_TIKTOK_EVENT_URL, {
+      const resp = await fetch(this.env.NEXTJS_TIKTOK_EVENT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -422,8 +462,9 @@ export class OverlayRoom {
         },
         body: JSON.stringify({ token: this.token, ...event }),
       });
-    } catch {
-      // best-effort; el próximo evento puede llegar bien
+      console.log("[tiktok] forward", event.type, "->", resp.status);
+    } catch (err) {
+      console.error("[tiktok] forward falló:", String(err));
     }
   }
 }

@@ -121,6 +121,11 @@ export type LiveOverlayChatItem = {
 
 export const LIVE_OVERLAY_CHAT_FEED_MAX = 12;
 
+/** Ranking de la sesión: top likers / top regaladores (por cantidad, no valor). */
+export type LiveOverlayLeaderboardEntry = { user: string; count: number };
+
+export const LIVE_OVERLAY_LEADERBOARD_SIZE = 5;
+
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;
   rarityCounters: LiveOverlayRarityCounters;
@@ -129,6 +134,8 @@ export type LiveOverlayState = {
   videoClips: LiveOverlayVideoClip[];
   chatFeed: LiveOverlayChatItem[];
   likeCount: number;
+  topLikers: LiveOverlayLeaderboardEntry[];
+  topGifters: LiveOverlayLeaderboardEntry[];
   updatedAt: string;
 };
 
@@ -161,6 +168,8 @@ export const normalizeLiveOverlayState = (
       typeof s?.likeCount === "number" && Number.isFinite(s.likeCount)
         ? s.likeCount
         : 0,
+    topLikers: Array.isArray(s?.topLikers) ? s!.topLikers! : [],
+    topGifters: Array.isArray(s?.topGifters) ? s!.topGifters! : [],
     updatedAt:
       typeof s?.updatedAt === "string"
         ? s!.updatedAt!

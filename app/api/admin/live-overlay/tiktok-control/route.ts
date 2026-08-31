@@ -6,6 +6,8 @@ import {
   disconnectTikTok,
   getTikTokStatus,
 } from "@/lib/live-overlay/tiktokControl";
+import { resetLiveOverlayLeaderboards } from "@/lib/live-overlay/store";
+import { broadcastLiveOverlayState } from "@/lib/live-overlay/broadcast";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,9 @@ export async function POST(request: NextRequest) {
       if (!username) {
         return NextResponse.json({ error: "username required" }, { status: 400 });
       }
+      // Ranking "por stream": arranca en 0 cada vez que te conectás a un live.
+      const nextState = await resetLiveOverlayLeaderboards(token!);
+      await broadcastLiveOverlayState(token!, nextState);
       const result = await connectTikTok(token!, username);
       return NextResponse.json({ ok: true, ...result });
     }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendLiveOverlayChatItem,
+  bumpLiveOverlayTopGifters,
+  bumpLiveOverlayTopLikers,
   setLiveOverlayLikeCount,
   triggerLiveOverlayAlert,
 } from "@/lib/live-overlay/store";
@@ -29,7 +31,7 @@ type TikTokEventBody =
       repeatCount?: number;
     }
   | { token: string; type: "follow"; user: string }
-  | { token: string; type: "like"; total: number };
+  | { token: string; type: "like"; total: number; user?: string; count?: number };
 
 export async function POST(request: NextRequest) {
   const secret = process.env.TIKTOK_EVENT_SECRET;
@@ -65,6 +67,9 @@ export async function POST(request: NextRequest) {
         typeof body.repeatCount === "number" && body.repeatCount > 1
           ? body.repeatCount
           : undefined;
+      if (user) {
+        await bumpLiveOverlayTopGifters(overlayToken, user, repeatCount ?? 1);
+      }
       nextState = await triggerLiveOverlayAlert(overlayToken, {
         emoji: "🎁",
         text: `${user || "Alguien"} regaló ${giftName || "un regalo"}`,
@@ -84,6 +89,11 @@ export async function POST(request: NextRequest) {
       const total = Number(body.total);
       if (!Number.isFinite(total)) {
         return NextResponse.json({ error: "total required" }, { status: 400 });
+      }
+      const user = String(body.user ?? "").trim();
+      const count = Number(body.count);
+      if (user && Number.isFinite(count) && count > 0) {
+        await bumpLiveOverlayTopLikers(overlayToken, user, count);
       }
       nextState = await setLiveOverlayLikeCount(overlayToken, total);
       break;

@@ -428,6 +428,21 @@ export class OverlayRoom {
     ws.addEventListener("close", (evt: CloseEvent) => {
       console.log("[tiktok] socket cerrado", evt.code, evt.reason);
       if (this.tiktokWs === ws) this.tiktokWs = null;
+
+      // Eulerstream cierra con este motivo cuando el live YA TERMINÓ — no es
+      // un corte transitorio, así que no tiene sentido seguir reintentando
+      // en loop (eso solo hacía parpadear el estado a "conectado" un
+      // instante en cada intento). Queda desconectado limpio.
+      const streamEnded =
+        evt.code === 4404 || /not currently live/i.test(evt.reason || "");
+      if (streamEnded) {
+        console.log("[tiktok] el live terminó — no se reintenta más");
+        this.disconnectTikTok().catch((err) => {
+          console.error("[tiktok] error limpiando tras fin de live:", String(err));
+        });
+        return;
+      }
+
       this.scheduleTikTokReconnect().catch((err) => {
         console.error("[tiktok] no se pudo programar la reconexión:", String(err));
       });

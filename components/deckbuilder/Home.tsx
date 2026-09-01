@@ -4,13 +4,10 @@ import { useRouter } from "next/navigation";
 import DeckBuilderLayout from "@/components/deckbuilder/DeckBuilderLayout";
 import { useDeckBuilder } from "@/hooks/useDeckBuilder";
 import { CardWithCollectionData } from "@/types";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import type { CardsFilters, CardsPage } from "@/lib/cards/types";
-import { serializeFiltersForKey } from "@/hooks/useCards";
+import type { CardsPage } from "@/lib/cards/types";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import { useRegion } from "@/components/region/RegionProvider";
-import { DEFAULT_REGION } from "@/lib/regions";
 
 interface DeckBuilderProps {
   initialData?: CardsPage;
@@ -18,42 +15,11 @@ interface DeckBuilderProps {
 
 const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
   const { t } = useI18n();
-  const { region } = useRegion();
   const router = useRouter();
   const { data: session } = useSession();
   const deckBuilder = useDeckBuilder();
   const [deckName, setDeckNameState] = useState(deckBuilder.deckName ?? "");
   const [isDeckNameManual, setIsDeckNameManual] = useState(false);
-
-  // Calcular filtros iniciales basados en si hay leader seleccionado
-  const initialFilters = useMemo<CardsFilters>(() => {
-    if (!deckBuilder.selectedLeader) {
-      return { categories: ["Leader"], region };
-    }
-    return { region };
-  }, [deckBuilder.selectedLeader, region]);
-
-  // Calcular initialQueryData para TanStack Query
-  const initialQueryData = useMemo(() => {
-    if (!initialData) return undefined;
-    if (region !== DEFAULT_REGION) return undefined;
-
-    // Solo usar initialData si los filtros coinciden (Leaders iniciales)
-    const initialFiltersSignature = serializeFiltersForKey({
-      categories: ["Leader"],
-      region,
-    });
-    const currentFiltersSignature = serializeFiltersForKey(initialFilters);
-
-    if (initialFiltersSignature !== currentFiltersSignature) {
-      return undefined;
-    }
-
-    return {
-      pages: [initialData],
-      pageParams: [null],
-    };
-  }, [initialData, initialFilters]);
 
   // Auto-set deck name based on leader
   useEffect(() => {
@@ -152,7 +118,7 @@ const DeckBuilder = ({ initialData }: DeckBuilderProps) => {
       useServerCards={true}
       deckName={deckName}
       setDeckName={handleDeckNameChange}
-      initialQueryData={initialQueryData}
+      initialData={initialData}
     />
   );
 };

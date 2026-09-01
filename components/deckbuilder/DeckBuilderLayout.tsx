@@ -59,8 +59,9 @@ import {
 import { matchesCardCode } from "@/lib/cardFilters";
 import { Badge } from "@/components/ui/badge";
 import SearchFilters from "@/components/home/SearchFilters";
-import type { CardsFilters } from "@/lib/cards/types";
-import { usePaginatedCards, useCardsCount } from "@/hooks/useCards";
+import type { CardsFilters, CardsPage } from "@/lib/cards/types";
+import { usePaginatedCards, useCardsCount, serializeFiltersForKey } from "@/hooks/useCards";
+import { DEFAULT_REGION } from "@/lib/regions";
 
 import DeckStats from "../../components/deckbuilder/DeckStatsPreview";
 import DeckBuilderDrawer from "./DeckBuilderDrawer";
@@ -104,10 +105,13 @@ interface CompleteDeckBuilderLayoutProps {
   setShopUrl?: (url: string) => void;
   isPublished?: boolean;
   setIsPublished?: (value: boolean) => void;
-  initialQueryData?: {
-    pages: any[];
-    pageParams: (number | null)[];
-  };
+  // Página SSR con la que arrancó el paso de selección de Leader (solo
+  // categories=["Leader"], sin búsqueda ni otros filtros). Se usa como
+  // initialData de React Query SOLO mientras los filtros activos sigan
+  // siendo exactamente esos — en cuanto el usuario escribe algo en el
+  // buscador (o cambia cualquier otro filtro), se deja de usar y se hace
+  // un fetch real. Ver initialFiltersSignature más abajo.
+  initialData?: CardsPage;
 }
 
 const CompleteDeckBuilderLayout = ({
@@ -127,7 +131,7 @@ const CompleteDeckBuilderLayout = ({
   setShopUrl,
   isPublished,
   setIsPublished,
-  initialQueryData,
+  initialData,
 }: CompleteDeckBuilderLayoutProps) => {
   const { t } = useI18n();
   const { region, selectedRegions } = useRegion();
@@ -471,6 +475,32 @@ const CompleteDeckBuilderLayout = ({
     (isFork
       ? deckBuilder.isDeckLoaded && deckBuilder.selectedLeader !== null
       : true);
+
+  // `initialData` (si vino) se cargó en el server con exactamente estos
+  // filtros — solo categoría Leader, sin búsqueda. Solo tiene sentido
+  // seedear React Query con esos datos mientras los filtros ACTIVOS sigan
+  // siendo esos mismos. Recalculamos esto en cada render a partir de
+  // cardsFilters (que ya incluye `search`), así que en cuanto se escribe
+  // algo en el buscador deja de coincidir y se dispara un fetch real —
+  // antes se comparaba en Home.tsx contra un objeto que nunca incluía
+  // `search` (vive acá), y por eso la búsqueda no filtraba en este paso.
+  const initialFiltersSignature = useMemo(
+    () =>
+      serializeFiltersForKey({
+        categories: ["Leader"],
+        region: DEFAULT_REGION,
+      }),
+    []
+  );
+  const matchesInitialFilters =
+    serializeFiltersForKey(cardsFilters) === initialFiltersSignature;
+  const initialQueryData = useMemo(() => {
+    if (!initialData || !matchesInitialFilters) return undefined;
+    return {
+      pages: [initialData],
+      pageParams: [null],
+    };
+  }, [initialData, matchesInitialFilters]);
 
   const {
     cards: serverCards,

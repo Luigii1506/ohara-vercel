@@ -507,6 +507,14 @@ export interface CardSalesReportItem {
   subtotalMarketPrice: number;
   customPrice?: number | null;
   error?: string;
+  /**
+   * true si la carta no tiene ninguna venta reciente real (top3Average
+   * null) — sin eso, blendedValue queda como solo el precio listado (no un
+   * promedio de ventas reales) y contamina el total. Estas cartas igual se
+   * muestran en Card Details (primero, para que se revisen) pero quedan
+   * fuera de los totales/tablas de Breakdown.
+   */
+  excludedFromReport: boolean;
 }
 
 /** Un renglón de la tabla de referencia: los 3 totales a un % dado (120%→50%). */

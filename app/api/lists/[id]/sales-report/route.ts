@@ -526,9 +526,20 @@ export async function GET(
       const subtotalMidPrice = (midPrice ?? 0) * quantity;
       const subtotalMarketPrice = (marketPrice ?? 0) * quantity;
 
-      totalBlended += subtotalBlended;
-      totalMidPrice += subtotalMidPrice;
-      totalMarketPrice += subtotalMarketPrice;
+      // Sin ventas reales (top3Average null), blendedValue termina siendo
+      // solo el precio listado — no un promedio de ventas reales — así que
+      // esta carta queda fuera de los totales/tablas de Breakdown en vez de
+      // contaminar la fórmula con ese dato parcial. Sigue apareciendo en
+      // Card Details (primero) para que se revise manualmente.
+      const excludedFromReport = top3Average === null;
+
+      if (!excludedFromReport) {
+        totalBlended += subtotalBlended;
+        totalMidPrice += subtotalMidPrice;
+        totalMarketPrice += subtotalMarketPrice;
+      }
+      // Total Quantity es un conteo de inventario (cartas que sí tienes),
+      // no un dato de precio — cuenta todas, tengan o no venta reciente.
       totalQuantity += quantity;
 
       reportCards.push({
@@ -549,6 +560,7 @@ export async function GET(
         subtotalMarketPrice,
         customPrice,
         error: productId ? undefined : "No TCGPlayer product ID",
+        excludedFromReport,
       });
     }
 

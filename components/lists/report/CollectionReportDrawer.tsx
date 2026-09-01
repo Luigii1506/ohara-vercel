@@ -494,17 +494,21 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       });
 
       // ========== CARD DETAILS PAGES ==========
-      // Primero las cartas sin datos de ventas (ni "Recent Sales" ni error) —
-      // necesitan revisión manual, así que interesa verlas de entrada. Del
-      // resto, de más cara a más barata por el Avg + Low Blend (la métrica
-      // principal del reporte). Las tablas de Breakdown más abajo siguen
-      // usando data.cards en su orden original (por código).
+      // Primero las cartas excluidas del reporte (sin venta real reciente:
+      // el servidor ya las marcó con excludedFromReport porque contarían un
+      // blendedValue contaminado) — necesitan revisión manual, así que
+      // interesa verlas de entrada. Del resto, de más cara a más barata por
+      // el Avg + Low Blend (la métrica principal del reporte).
       const cardDetailsCards = [...data.cards].sort((a, b) => {
-        const aNoSales = !(a.lastSales && a.lastSales.length > 0);
-        const bNoSales = !(b.lastSales && b.lastSales.length > 0);
-        if (aNoSales !== bNoSales) return aNoSales ? -1 : 1;
+        if (a.excludedFromReport !== b.excludedFromReport) {
+          return a.excludedFromReport ? -1 : 1;
+        }
         return (b.blendedValue ?? -Infinity) - (a.blendedValue ?? -Infinity);
       });
+      // Las tablas de Breakdown solo listan cartas que SÍ cuentan para el
+      // total (ver excludedFromReport) — así la suma de filas siempre
+      // cuadra con el TOTAL impreso al final de cada tabla.
+      const summaryCards = data.cards.filter((c) => !c.excludedFromReport);
       const cardsPerPage = 4;
       const cardImageWidth = 35;
       const cardImageHeight = 49;
@@ -514,7 +518,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       const cardDetailPageCount = Math.ceil(data.cards.length / cardsPerPage);
       const summaryPagesPerMetric = Math.max(
         1,
-        Math.ceil(data.cards.length / maxRowsPerPage)
+        Math.ceil(summaryCards.length / maxRowsPerPage)
       );
       const totalPages =
         1 + cardDetailPageCount + summaryPagesPerMetric * 3;
@@ -680,30 +684,44 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
           pdf.setLineWidth(0.3);
           pdf.line(boxX - 1, y + 14, boxX + 55, y + 14);
 
-          const metricRows: Array<{
-            label: string;
-            value: number | null;
-            subtotal: number;
-          }> = [
-            { label: "Blend", value: card.blendedValue, subtotal: card.subtotalBlended },
-            { label: "Median", value: card.midPrice, subtotal: card.subtotalMidPrice },
-            { label: "Market", value: card.marketPrice, subtotal: card.subtotalMarketPrice },
-          ];
-
-          metricRows.forEach((row, idx) => {
-            const rowY = y + 22 + idx * 11;
-            pdf.setFont("helvetica", "normal");
-            pdf.setFontSize(7);
-            pdf.setTextColor(71, 85, 105);
-            const prefix = `${row.label}: ${formatCurrency(row.value)} × ${card.quantity} = `;
-            pdf.text(prefix, boxX, rowY);
-            const prefixWidth = pdf.getTextWidth(prefix);
-
+          if (card.excludedFromReport) {
+            // Sin venta real reciente: no se muestra ningún subtotal para no
+            // insinuar un valor calculado con datos parciales/contaminados.
+            pdf.setTextColor(239, 68, 68); // red-500
             pdf.setFont("helvetica", "bold");
             pdf.setFontSize(8);
-            pdf.setTextColor(22, 163, 74); // green-600
-            pdf.text(formatCurrency(row.subtotal), boxX + prefixWidth, rowY);
-          });
+            pdf.text("SIN PRECIO", boxX, y + 24);
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(7);
+            pdf.text("Fuera del reporte —", boxX, y + 31);
+            pdf.text("sin venta real", boxX, y + 37);
+            pdf.text("reciente", boxX, y + 43);
+          } else {
+            const metricRows: Array<{
+              label: string;
+              value: number | null;
+              subtotal: number;
+            }> = [
+              { label: "Blend", value: card.blendedValue, subtotal: card.subtotalBlended },
+              { label: "Median", value: card.midPrice, subtotal: card.subtotalMidPrice },
+              { label: "Market", value: card.marketPrice, subtotal: card.subtotalMarketPrice },
+            ];
+
+            metricRows.forEach((row, idx) => {
+              const rowY = y + 22 + idx * 11;
+              pdf.setFont("helvetica", "normal");
+              pdf.setFontSize(7);
+              pdf.setTextColor(71, 85, 105);
+              const prefix = `${row.label}: ${formatCurrency(row.value)} × ${card.quantity} = `;
+              pdf.text(prefix, boxX, rowY);
+              const prefixWidth = pdf.getTextWidth(prefix);
+
+              pdf.setFont("helvetica", "bold");
+              pdf.setFontSize(8);
+              pdf.setTextColor(22, 163, 74); // green-600
+              pdf.text(formatCurrency(row.subtotal), boxX + prefixWidth, rowY);
+            });
+          }
 
           y += 65;
         }
@@ -773,7 +791,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
 
         let rowCount = 0;
 
-        for (const card of data.cards) {
+        for (const card of summaryCards) {
           if (rowCount >= maxRowsPerPage && rowCount > 0) {
             pdf.addPage();
             y = 15;

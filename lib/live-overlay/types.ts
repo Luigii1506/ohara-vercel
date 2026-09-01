@@ -129,7 +129,10 @@ export const LIVE_OVERLAY_CHAT_FEED_MAX = 12;
  */
 export type LiveOverlayLeaderboardEntry = { user: string; count: number; avatar: string };
 
-export const LIVE_OVERLAY_LEADERBOARD_SIZE = 5;
+// El overlay solo MUESTRA el top 3, pero guardamos más (10) porque el loop de
+// "batalla de gifters" (ver OverlayCanvasClient) necesita un plantel más
+// grande contra el que el campeón vaya peleando.
+export const LIVE_OVERLAY_LEADERBOARD_SIZE = 10;
 
 export type LiveOverlayState = {
   currentCard: LiveOverlayCard | null;

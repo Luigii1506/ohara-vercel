@@ -293,6 +293,53 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
 
   useEffect(() => () => window.clearTimeout(shineTimer.current), []);
 
+  // ===========================================================================
+  // Batalla de gifters: loop de exhibición, puramente visual (no toca el
+  // backend). El actual #1 del ranking de regalos (más diamantes) pelea cada
+  // ~5s contra el siguiente de la lista, en orden, y SIEMPRE gana — es
+  // determinista, no al azar. Al llegar al final vuelve a empezar desde el
+  // 2° lugar. Si cambia quién es el #1 real, el próximo tick ya pelea con el
+  // campeón nuevo.
+  // ===========================================================================
+  const BATTLE_INTERVAL_MS = 5000;
+  const BATTLE_VISIBLE_MS = 3000;
+  const challengerIndexRef = useRef(1);
+  const [battle, setBattle] = useState<{
+    key: string;
+    champion: { user: string; avatar: string };
+    challenger: { user: string; avatar: string };
+  } | null>(null);
+
+  // `state.topGifters` es un array NUEVO en cada actualización de estado
+  // (aunque el contenido no cambie) — si el intervalo dependiera de esa
+  // referencia, se reiniciaría en cada poll/mensaje del socket y nunca
+  // llegaría a completar los 5s. Por eso el intervalo se arma UNA sola vez
+  // (deps vacías) y lee siempre el valor más fresco desde una ref.
+  const latestGiftersRef = useRef(state.topGifters);
+  useEffect(() => {
+    latestGiftersRef.current = state.topGifters;
+  }, [state.topGifters]);
+
+  useEffect(() => {
+    const tick = () => {
+      const gifters = latestGiftersRef.current;
+      if (gifters.length < 2) return;
+      if (challengerIndexRef.current >= gifters.length) {
+        challengerIndexRef.current = 1;
+      }
+      const champion = gifters[0];
+      const challenger = gifters[challengerIndexRef.current];
+      challengerIndexRef.current += 1;
+      setBattle({
+        key: `${champion.user}-vs-${challenger.user}-${Date.now()}`,
+        champion: { user: champion.user, avatar: champion.avatar },
+        challenger: { user: challenger.user, avatar: challenger.avatar },
+      });
+      window.setTimeout(() => setBattle(null), BATTLE_VISIBLE_MS);
+    };
+    const interval = window.setInterval(tick, BATTLE_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
   useEffect(() => {
@@ -360,6 +407,35 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             20%  { transform: scale(1); }
             80%  { opacity: 1; transform: scale(1); }
             100% { opacity: 0; transform: scale(1.03); }
+          }
+          @keyframes overlay-battle-group {
+            0%   { opacity: 1; }
+            90%  { opacity: 1; }
+            100% { opacity: 0; }
+          }
+          @keyframes overlay-battle-champion {
+            0%   { opacity: 0; transform: translateX(-30px) scale(0.9); }
+            15%  { opacity: 1; transform: translateX(-8px) scale(1); }
+            35%  { transform: translateX(-8px) scale(1); }
+            42%  { transform: translateX(-8px) scale(1.25); }
+            50%  { transform: translateX(-8px) scale(1.05); }
+            58%  { transform: translateX(-8px) scale(1.15); }
+            100% { transform: translateX(-8px) scale(1.1); }
+          }
+          @keyframes overlay-battle-challenger {
+            0%   { opacity: 0; transform: translate(30px, 0) scale(0.9) rotate(0deg); }
+            15%  { opacity: 1; transform: translate(8px, 0) scale(1) rotate(0deg); }
+            35%  { transform: translate(8px, 0) scale(1) rotate(0deg); }
+            55%  { opacity: 1; transform: translate(8px, 10px) scale(0.9) rotate(-15deg); }
+            75%  { opacity: 0; transform: translate(8px, 60px) scale(0.5) rotate(-45deg); }
+            100% { opacity: 0; transform: translate(8px, 60px) scale(0.5) rotate(-45deg); }
+          }
+          @keyframes overlay-battle-impact {
+            0%   { opacity: 0; transform: scale(0.3) rotate(0deg); }
+            30%  { opacity: 0; transform: scale(0.3) rotate(0deg); }
+            38%  { opacity: 1; transform: scale(1.5) rotate(-10deg); }
+            55%  { opacity: 0; transform: scale(2) rotate(10deg); }
+            100% { opacity: 0; transform: scale(2) rotate(10deg); }
           }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
@@ -713,6 +789,50 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           </div>
         ) : null}
 
+        {/* Batalla de gifters: loop de exhibición (campeón = #1 en diamantes,
+            siempre gana). Zona libre entre la carta y el banner inferior. */}
+        {battle ? (
+          <div
+            key={battle.key}
+            className="pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 [animation:overlay-battle-group_3s_ease-out_forwards]"
+          >
+            <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-champion_3s_ease-out_forwards]">
+              {battle.champion.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={battle.champion.avatar}
+                  alt=""
+                  className="h-20 w-20 rounded-full border-4 border-amber-300 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)]"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full border-4 border-amber-300 bg-black/60" />
+              )}
+              <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-amber-300">
+                {battle.champion.user}
+              </span>
+            </div>
+
+            <span className="absolute text-6xl leading-none [animation:overlay-battle-impact_3s_ease-out_forwards]">
+              💥
+            </span>
+
+            <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-challenger_3s_ease-out_forwards]">
+              {battle.challenger.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={battle.challenger.avatar}
+                  alt=""
+                  className="h-20 w-20 rounded-full border-4 border-white/50 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)] grayscale"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full border-4 border-white/50 bg-black/60" />
+              )}
+              <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-white/70">
+                {battle.challenger.user}
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         {/* Aviso de audio bloqueado (solo hasta el primer clic; en OBS no sale) */}
         {!audioReady ? (

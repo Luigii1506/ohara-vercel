@@ -59,6 +59,7 @@ const GRADED_INDICATORS = [
   "cgc-",
   "bgs ",
   "bgs-",
+  "beckett",
   "sgc ",
   "sgc-",
   "graded",
@@ -199,8 +200,10 @@ async function fetchGoldSellerLowPrice(
 
     const data: TCGPlayerListingsResponse = await response.json();
     const listings = data.results?.[0]?.results ?? [];
-    const englishListings = listings.filter((l) => !isNonEnglishListing(l));
-    const goldListing = englishListings.find((l) => l.goldSeller);
+    const eligibleListings = listings.filter(
+      (l) => !isNonEnglishListing(l) && !isGradedListing(l)
+    );
+    const goldListing = eligibleListings.find((l) => l.goldSeller);
     return goldListing ? goldListing.price : null;
   } catch (error) {
     console.error(`Error fetching gold-seller listings for product ${productId}:`, error);
@@ -208,16 +211,33 @@ async function fetchGoldSellerLowPrice(
   }
 }
 
+// Nota libre del vendedor en listados "custom" (con foto) — confirmado con
+// datos reales de producción, ej. un listado con
+// customData.title = "Gol.D.Roger gold manga BGS 9.5 JAPANESE". Los listados
+// sin foto no traen customData.title/description, así que el string queda
+// vacío y ningún indicador matchea (no hay falsos positivos por eso).
+function listingFreeText(listing: TCGPlayerListing): string {
+  return `${listing.customData?.title ?? ""} ${listing.customData?.description ?? ""}`.toLowerCase();
+}
+
 // El filtro `language: ["English"]` de la request no alcanza: un listado
 // "custom" puede traer el campo estructurado `language` en "English" (mal
-// cargado por el vendedor) mientras la nota libre del propio vendedor
-// (`customData.title`/`description`) dice "Japanese Version" o similar —
-// visto en producción con listados Gold Seller reales. Se revisa ese texto
-// libre además del campo estructurado antes de aceptar un listado.
+// cargado por el vendedor) mientras la nota libre del propio vendedor dice
+// "Japanese Version"/"Chinese" o similar — visto en producción con listados
+// Gold Seller reales. Se revisa ese texto libre además del campo estructurado
+// antes de aceptar un listado.
 function isNonEnglishListing(listing: TCGPlayerListing): boolean {
   if (listing.language && listing.language !== "English") return true;
-  const freeText = `${listing.customData?.title ?? ""} ${listing.customData?.description ?? ""}`.toLowerCase();
+  const freeText = listingFreeText(listing);
   return NON_ENGLISH_INDICATORS.some((indicator) => freeText.includes(indicator));
+}
+
+// No queremos cartas gradeadas (PSA/BGS/CGC/SGC) en el "Low Listed": no hay
+// campo estructurado para esto en el endpoint de listados activos, así que
+// se revisa la misma nota libre del vendedor que ya se usa para idioma.
+function isGradedListing(listing: TCGPlayerListing): boolean {
+  const freeText = listingFreeText(listing);
+  return GRADED_INDICATORS.some((indicator) => freeText.includes(indicator));
 }
 
 // TCGPlayer devuelve la condición como texto libre ("Near Mint", "NM",
@@ -255,12 +275,15 @@ function filterSales(
 
     if (!matchesCondition(sale.condition, condition)) return false;
 
-    // For English, exclude Japanese version indicators in title
+    // For English, exclude Japanese AND Chinese version indicators in title.
+    // Bug real visto en producción: esta rama solo miraba JAPANESE_INDICATORS,
+    // así que una venta china con `sale.language` mal cargado como "English"
+    // (ej. título "*Chinese* MINT MonkeyDLuffy 003...") pasaba sin filtrar.
     if (language === "English") {
-      const hasJapaneseInTitle = JAPANESE_INDICATORS.some((indicator) =>
+      const hasNonEnglishInTitle = NON_ENGLISH_INDICATORS.some((indicator) =>
         titleLower.includes(indicator)
       );
-      return sale.language === language && !hasJapaneseInTitle;
+      return sale.language === language && !hasNonEnglishInTitle;
     }
 
     // For Japanese, include if language=Japanese OR has Japanese indicators

@@ -17,6 +17,81 @@ type OverlayCanvasClientProps = {
   token: string;
 };
 
+// Fighter de la variante "brawl" de la batalla de gifters: cuerpo de mono en
+// CSS puro (sin assets) con el avatar del usuario como cabeza. El challenger
+// es el mismo dibujo espejeado (scale-x en un wrapper aparte, no en el que
+// anima posición/rotación, para que ambos transforms no se pisen).
+function BrawlFighter({
+  role,
+  user,
+  avatar,
+}: {
+  role: "champion" | "challenger";
+  user: string;
+  avatar: string;
+}) {
+  const isChampion = role === "champion";
+  const bodyColor = isChampion ? "bg-amber-700" : "bg-slate-400";
+  const headBorder = isChampion ? "border-amber-300" : "border-white/50";
+  const nameColor = isChampion ? "text-amber-300" : "text-white/70";
+  // Nota: el nombre del keyframe va como STRING LITERAL completo en cada rama
+  // del ternario (no interpolado) porque Tailwind detecta las clases con
+  // [animation:...] escaneando el texto fuente tal cual — si se arma con una
+  // variable JS, nunca encuentra la clase completa y no genera el CSS.
+  const bodyAnimationClass = isChampion
+    ? "[animation:overlay-brawl-champion-body_3s_ease-out_forwards]"
+    : "[animation:overlay-brawl-challenger-body_3s_ease-out_forwards]";
+
+  return (
+    <div className={`flex flex-col items-center gap-1 ${bodyAnimationClass}`}>
+      <div className={`relative h-28 w-20 ${isChampion ? "" : "scale-x-[-1]"}`}>
+        <div className={`absolute left-0 top-2 h-5 w-5 rounded-full ${bodyColor}`} />
+        <div className={`absolute right-0 top-2 h-5 w-5 rounded-full ${bodyColor}`} />
+        <div
+          className={`absolute -bottom-1 left-1/2 h-8 w-2 origin-top -translate-x-1/2 rotate-45 rounded-full ${bodyColor}`}
+        />
+        <div className={`absolute left-2 top-[70px] h-6 w-3 rounded-full ${bodyColor}`} />
+        <div className={`absolute right-2 top-[70px] h-6 w-3 rounded-full ${bodyColor}`} />
+        <div
+          className={`absolute left-[-2px] top-11 h-3 w-7 origin-right rounded-full ${bodyColor}`}
+        />
+        <div
+          className={`absolute left-1/2 top-9 h-10 w-9 -translate-x-1/2 rounded-2xl ${bodyColor}`}
+        />
+        <div
+          className={`absolute right-[-6px] top-11 h-3 w-8 origin-left rounded-full ${bodyColor} ${
+            isChampion
+              ? "[animation:overlay-brawl-champion-arm_3s_ease-out_forwards]"
+              : "rotate-[10deg]"
+          }`}
+        />
+        <div
+          className={`absolute left-1/2 top-0 h-11 w-11 -translate-x-1/2 overflow-hidden rounded-full border-4 ${headBorder} shadow-[0_6px_16px_rgba(0,0,0,0.5)] ${
+            isChampion ? "" : "grayscale"
+          }`}
+        >
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full bg-black/60" />
+          )}
+        </div>
+        {!isChampion ? (
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-lg leading-none [animation:overlay-brawl-stars_3s_ease-out_forwards]">
+            💫
+          </span>
+        ) : null}
+      </div>
+      <span
+        className={`max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black ${nameColor}`}
+      >
+        {user}
+      </span>
+    </div>
+  );
+}
+
 const EMPTY_STATE: LiveOverlayState = {
   currentCard: null,
   rarityCounters: LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
@@ -300,7 +375,12 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // determinista, no al azar. Al llegar al final vuelve a empezar desde el
   // 2° lugar. Si cambia quién es el #1 real, el próximo tick ya pelea con el
   // campeón nuevo.
+  //
+  // Hay más de un estilo visual para la misma pelea (mismo estado, distinto
+  // render). Por ahora se elige a mano acá; más adelante esto será elegible
+  // desde el Live Desk.
   // ===========================================================================
+  const BATTLE_VISUAL_STYLE: "clash" | "brawl" = "brawl";
   const BATTLE_INTERVAL_MS = 5000;
   const BATTLE_VISIBLE_MS = 3000;
   const challengerIndexRef = useRef(1);
@@ -436,6 +516,39 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             38%  { opacity: 1; transform: scale(1.5) rotate(-10deg); }
             55%  { opacity: 0; transform: scale(2) rotate(10deg); }
             100% { opacity: 0; transform: scale(2) rotate(10deg); }
+          }
+          @keyframes overlay-brawl-champion-body {
+            0%   { opacity: 0; transform: translateX(-30px); }
+            15%  { opacity: 1; transform: translateX(-8px); }
+            35%  { transform: translateX(-8px); }
+            42%  { transform: translateX(6px); }
+            50%  { transform: translateX(-4px); }
+            100% { transform: translateX(-8px); }
+          }
+          @keyframes overlay-brawl-champion-arm {
+            0%   { transform: rotate(-15deg); }
+            35%  { transform: rotate(-15deg); }
+            42%  { transform: rotate(55deg); }
+            50%  { transform: rotate(10deg); }
+            100% { transform: rotate(-15deg); }
+          }
+          @keyframes overlay-brawl-challenger-body {
+            0%   { opacity: 0; transform: translate(30px, 0) rotate(0deg); }
+            15%  { opacity: 1; transform: translate(8px, 0) rotate(0deg); }
+            35%  { transform: translate(8px, 0) rotate(0deg); }
+            44%  { transform: translate(18px, -4px) rotate(8deg); }
+            55%  { opacity: 1; transform: translate(26px, 24px) rotate(75deg); }
+            75%  { opacity: 0.6; transform: translate(36px, 60px) rotate(150deg); }
+            90%  { opacity: 0; transform: translate(42px, 78px) rotate(180deg); }
+            100% { opacity: 0; transform: translate(42px, 78px) rotate(180deg); }
+          }
+          @keyframes overlay-brawl-stars {
+            0%   { opacity: 0; transform: translateY(0) scale(0.5) rotate(0deg); }
+            40%  { opacity: 0; transform: translateY(0) scale(0.5) rotate(0deg); }
+            46%  { opacity: 1; transform: translateY(-6px) scale(1) rotate(15deg); }
+            62%  { opacity: 1; transform: translateY(-10px) scale(1.05) rotate(-15deg); }
+            75%  { opacity: 0; transform: translateY(-14px) scale(0.9) rotate(15deg); }
+            100% { opacity: 0; transform: translateY(-14px) scale(0.9) rotate(15deg); }
           }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
@@ -796,41 +909,61 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             key={battle.key}
             className="pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 [animation:overlay-battle-group_3s_ease-out_forwards]"
           >
-            <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-champion_3s_ease-out_forwards]">
-              {battle.champion.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={battle.champion.avatar}
-                  alt=""
-                  className="h-20 w-20 rounded-full border-4 border-amber-300 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)]"
+            {BATTLE_VISUAL_STYLE === "brawl" ? (
+              <>
+                <BrawlFighter
+                  role="champion"
+                  user={battle.champion.user}
+                  avatar={battle.champion.avatar}
                 />
-              ) : (
-                <div className="h-20 w-20 rounded-full border-4 border-amber-300 bg-black/60" />
-              )}
-              <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-amber-300">
-                {battle.champion.user}
-              </span>
-            </div>
-
-            <span className="absolute text-6xl leading-none [animation:overlay-battle-impact_3s_ease-out_forwards]">
-              💥
-            </span>
-
-            <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-challenger_3s_ease-out_forwards]">
-              {battle.challenger.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={battle.challenger.avatar}
-                  alt=""
-                  className="h-20 w-20 rounded-full border-4 border-white/50 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)] grayscale"
+                <span className="absolute text-6xl leading-none [animation:overlay-battle-impact_3s_ease-out_forwards]">
+                  💥
+                </span>
+                <BrawlFighter
+                  role="challenger"
+                  user={battle.challenger.user}
+                  avatar={battle.challenger.avatar}
                 />
-              ) : (
-                <div className="h-20 w-20 rounded-full border-4 border-white/50 bg-black/60" />
-              )}
-              <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-white/70">
-                {battle.challenger.user}
-              </span>
-            </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-champion_3s_ease-out_forwards]">
+                  {battle.champion.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={battle.champion.avatar}
+                      alt=""
+                      className="h-20 w-20 rounded-full border-4 border-amber-300 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)]"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full border-4 border-amber-300 bg-black/60" />
+                  )}
+                  <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-amber-300">
+                    {battle.champion.user}
+                  </span>
+                </div>
+
+                <span className="absolute text-6xl leading-none [animation:overlay-battle-impact_3s_ease-out_forwards]">
+                  💥
+                </span>
+
+                <div className="flex flex-col items-center gap-1.5 [animation:overlay-battle-challenger_3s_ease-out_forwards]">
+                  {battle.challenger.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={battle.challenger.avatar}
+                      alt=""
+                      className="h-20 w-20 rounded-full border-4 border-white/50 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.55)] grayscale"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full border-4 border-white/50 bg-black/60" />
+                  )}
+                  <span className="max-w-[110px] truncate rounded-full bg-black/85 px-3 py-0.5 text-xs font-black text-white/70">
+                    {battle.challenger.user}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         ) : null}
 

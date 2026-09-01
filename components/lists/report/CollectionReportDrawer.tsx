@@ -494,12 +494,17 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       });
 
       // ========== CARD DETAILS PAGES ==========
-      // Ordenadas de más cara a más barata (por el Avg + Low Blend, la
-      // métrica principal del reporte); las tablas de Breakdown más abajo
-      // siguen usando data.cards en su orden original (por código).
-      const cardDetailsCards = [...data.cards].sort(
-        (a, b) => (b.blendedValue ?? -Infinity) - (a.blendedValue ?? -Infinity)
-      );
+      // Primero las cartas sin datos de ventas (ni "Recent Sales" ni error) —
+      // necesitan revisión manual, así que interesa verlas de entrada. Del
+      // resto, de más cara a más barata por el Avg + Low Blend (la métrica
+      // principal del reporte). Las tablas de Breakdown más abajo siguen
+      // usando data.cards en su orden original (por código).
+      const cardDetailsCards = [...data.cards].sort((a, b) => {
+        const aNoSales = !(a.lastSales && a.lastSales.length > 0);
+        const bNoSales = !(b.lastSales && b.lastSales.length > 0);
+        if (aNoSales !== bNoSales) return aNoSales ? -1 : 1;
+        return (b.blendedValue ?? -Infinity) - (a.blendedValue ?? -Infinity);
+      });
       const cardsPerPage = 4;
       const cardImageWidth = 35;
       const cardImageHeight = 49;

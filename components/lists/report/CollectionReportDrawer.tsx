@@ -494,6 +494,12 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       });
 
       // ========== CARD DETAILS PAGES ==========
+      // Ordenadas de más cara a más barata (por el Avg + Low Blend, la
+      // métrica principal del reporte); las tablas de Breakdown más abajo
+      // siguen usando data.cards en su orden original (por código).
+      const cardDetailsCards = [...data.cards].sort(
+        (a, b) => (b.blendedValue ?? -Infinity) - (a.blendedValue ?? -Infinity)
+      );
       const cardsPerPage = 4;
       const cardImageWidth = 35;
       const cardImageHeight = 49;
@@ -508,7 +514,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
       const totalPages =
         1 + cardDetailPageCount + summaryPagesPerMetric * 3;
 
-      for (let i = 0; i < data.cards.length; i += cardsPerPage) {
+      for (let i = 0; i < cardDetailsCards.length; i += cardsPerPage) {
         pdf.addPage();
 
         // Page header
@@ -531,7 +537,7 @@ const CollectionReportDrawer: React.FC<CollectionReportDrawerProps> = ({
 
         y = 35;
 
-        const pageCards = data.cards.slice(i, i + cardsPerPage);
+        const pageCards = cardDetailsCards.slice(i, i + cardsPerPage);
 
         for (const card of pageCards) {
           // Card container

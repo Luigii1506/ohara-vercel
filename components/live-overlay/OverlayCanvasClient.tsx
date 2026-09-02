@@ -92,6 +92,87 @@ function BrawlFighter({
   );
 }
 
+// Fighter de la variante "doodle": boceto simple (cabeza + cuerpo de líneas,
+// cara que cambia de neutral a golpeado) inspirado en los overlays de
+// batalla PK de TikTok LIVE (referencia: @zhe.77/video/7674405520719154452).
+// A diferencia de esa referencia NO tiene fondo de arena propio — el widget
+// se queda chico y transparente para no tapar la cámara del streamer.
+function DoodleFighter({
+  role,
+  user,
+  diamonds,
+  maxDiamonds,
+}: {
+  role: "champion" | "challenger";
+  user: string;
+  diamonds: number;
+  maxDiamonds: number;
+}) {
+  const isChampion = role === "champion";
+  const accent = isChampion ? "#fbbf24" : "#cbd5e1"; // amber-400 / slate-300
+  const nameColor = isChampion ? "text-amber-300" : "text-white/80";
+  const barPct = Math.max(
+    6,
+    Math.min(100, Math.round((diamonds / Math.max(maxDiamonds, 1)) * 100))
+  );
+  // Mismo timeline de posición/rotación que la variante "brawl" — solo
+  // cambia el dibujo de adentro, no la coreografía de entrada/choque/KO.
+  const bodyAnimationClass = isChampion
+    ? "[animation:overlay-brawl-champion-body_3s_ease-out_forwards]"
+    : "[animation:overlay-brawl-challenger-body_3s_ease-out_forwards]";
+
+  return (
+    <div className={`flex flex-col items-center gap-1 ${bodyAnimationClass}`}>
+      <span className="h-[18px] text-lg leading-none">{isChampion ? "👑" : ""}</span>
+      <div className={isChampion ? "" : "scale-x-[-1]"}>
+        <svg width="64" height="100" viewBox="0 0 80 130" style={{ overflow: "visible" }}>
+          <line x1="40" y1="38" x2="40" y2="80" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+          <line x1="40" y1="80" x2="26" y2="112" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+          <line x1="40" y1="80" x2="54" y2="112" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+          <line x1="40" y1="46" x2="20" y2="64" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+          <g
+            style={{ transformOrigin: "40px 46px" }}
+            className={isChampion ? "[animation:overlay-doodle-arm_3s_ease-out_forwards]" : undefined}
+          >
+            <line x1="40" y1="46" x2="62" y2="60" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+            <line x1="62" y1="60" x2="76" y2="42" stroke={accent} strokeWidth="3" strokeLinecap="round" />
+          </g>
+          <circle cx="40" cy="22" r="17" fill="rgba(0,0,0,0.55)" stroke={accent} strokeWidth="4" />
+          <g
+            className={
+              isChampion ? undefined : "[animation:overlay-doodle-face-neutral-out_3s_ease-out_forwards]"
+            }
+          >
+            <circle cx="34" cy="20" r="2" fill="white" />
+            <circle cx="46" cy="20" r="2" fill="white" />
+            <path d="M 33 28 Q 40 31 47 28" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" />
+          </g>
+          {!isChampion ? (
+            <g
+              style={{ opacity: 0 }}
+              className="[animation:overlay-doodle-face-hit-in_3s_ease-out_forwards]"
+            >
+              <path d="M 31 17 L 37 23 M 37 17 L 31 23" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              <path d="M 43 17 L 49 23 M 49 17 L 43 23" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              <path d="M 33 29 Q 40 24 47 29" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" />
+            </g>
+          ) : null}
+        </svg>
+      </div>
+      <div className="flex w-16 flex-col items-center gap-0.5">
+        <span
+          className={`max-w-[90px] truncate rounded-full bg-black/85 px-2 py-0.5 text-[10px] font-black ${nameColor}`}
+        >
+          {user}
+        </span>
+        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/60">
+          <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: accent }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_STATE: LiveOverlayState = {
   currentCard: null,
   rarityCounters: LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
@@ -380,14 +461,14 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // render). Por ahora se elige a mano acá; más adelante esto será elegible
   // desde el Live Desk.
   // ===========================================================================
-  const BATTLE_VISUAL_STYLE: "clash" | "brawl" = "brawl";
+  const BATTLE_VISUAL_STYLE: "clash" | "brawl" | "doodle" = "doodle";
   const BATTLE_INTERVAL_MS = 5000;
   const BATTLE_VISIBLE_MS = 3000;
   const challengerIndexRef = useRef(1);
   const [battle, setBattle] = useState<{
     key: string;
-    champion: { user: string; avatar: string };
-    challenger: { user: string; avatar: string };
+    champion: { user: string; avatar: string; diamonds: number };
+    challenger: { user: string; avatar: string; diamonds: number };
   } | null>(null);
 
   // `state.topGifters` es un array NUEVO en cada actualización de estado
@@ -412,8 +493,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       challengerIndexRef.current += 1;
       setBattle({
         key: `${champion.user}-vs-${challenger.user}-${Date.now()}`,
-        champion: { user: champion.user, avatar: champion.avatar },
-        challenger: { user: challenger.user, avatar: challenger.avatar },
+        champion: { user: champion.user, avatar: champion.avatar, diamonds: champion.count },
+        challenger: { user: challenger.user, avatar: challenger.avatar, diamonds: challenger.count },
       });
       window.setTimeout(() => setBattle(null), BATTLE_VISIBLE_MS);
     };
@@ -549,6 +630,25 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             62%  { opacity: 1; transform: translateY(-10px) scale(1.05) rotate(-15deg); }
             75%  { opacity: 0; transform: translateY(-14px) scale(0.9) rotate(15deg); }
             100% { opacity: 0; transform: translateY(-14px) scale(0.9) rotate(15deg); }
+          }
+          @keyframes overlay-doodle-arm {
+            0%   { transform: rotate(-10deg); }
+            35%  { transform: rotate(-10deg); }
+            42%  { transform: rotate(70deg); }
+            50%  { transform: rotate(15deg); }
+            100% { transform: rotate(-10deg); }
+          }
+          @keyframes overlay-doodle-face-neutral-out {
+            0%   { opacity: 1; }
+            40%  { opacity: 1; }
+            48%  { opacity: 0; }
+            100% { opacity: 0; }
+          }
+          @keyframes overlay-doodle-face-hit-in {
+            0%   { opacity: 0; }
+            40%  { opacity: 0; }
+            48%  { opacity: 1; }
+            100% { opacity: 1; }
           }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
@@ -909,7 +1009,25 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             key={battle.key}
             className="pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 [animation:overlay-battle-group_3s_ease-out_forwards]"
           >
-            {BATTLE_VISUAL_STYLE === "brawl" ? (
+            {BATTLE_VISUAL_STYLE === "doodle" ? (
+              <>
+                <DoodleFighter
+                  role="champion"
+                  user={battle.champion.user}
+                  diamonds={battle.champion.diamonds}
+                  maxDiamonds={battle.champion.diamonds}
+                />
+                <span className="absolute text-6xl leading-none [animation:overlay-battle-impact_3s_ease-out_forwards]">
+                  💥
+                </span>
+                <DoodleFighter
+                  role="challenger"
+                  user={battle.challenger.user}
+                  diamonds={battle.challenger.diamonds}
+                  maxDiamonds={battle.champion.diamonds}
+                />
+              </>
+            ) : BATTLE_VISUAL_STYLE === "brawl" ? (
               <>
                 <BrawlFighter
                   role="champion"

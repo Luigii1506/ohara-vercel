@@ -95,8 +95,15 @@ interface TCGPlayerLatestSalesResponse {
   data: TCGPlayerSale[];
 }
 
+// Un reporte grande dispara cientos de requests seguidos a TCGPlayer (2 por
+// carta, una lista de 193 cartas = ~386) — visto en producción: TCGPlayer
+// falla intermitentemente bajo esa ráfaga (probable rate limiting), y sin
+// reintento esa carta quedaba marcada "sin ventas" aunque sí tuviera ventas
+// reales (ej. Trafalgar Law SP, product 516554 — funciona aislado pero
+// fallaba dentro del loop completo del reporte).
 async function fetchLatestSales(
-  productId: number
+  productId: number,
+  attempt: number = 1
 ): Promise<TCGPlayerLatestSalesResponse | null> {
   try {
     const url = `${TCGPLAYER_API_BASE}/${productId}/latestsales`;
@@ -108,6 +115,10 @@ async function fetchLatestSales(
     });
 
     if (!response.ok) {
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        return fetchLatestSales(productId, attempt + 1);
+      }
       console.error(
         `TCGPlayer API error for product ${productId}: ${response.status}`
       );
@@ -116,6 +127,10 @@ async function fetchLatestSales(
 
     return response.json();
   } catch (error) {
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      return fetchLatestSales(productId, attempt + 1);
+    }
     console.error(`Error fetching sales for product ${productId}:`, error);
     return null;
   }
@@ -166,7 +181,8 @@ interface TCGPlayerListingsResponse {
  */
 async function fetchGoldSellerLowPrice(
   productId: number,
-  condition: ReportConditionFilter
+  condition: ReportConditionFilter,
+  attempt: number = 1
 ): Promise<number | null> {
   try {
     const body = {
@@ -201,7 +217,13 @@ async function fetchGoldSellerLowPrice(
       }
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        return fetchGoldSellerLowPrice(productId, condition, attempt + 1);
+      }
+      return null;
+    }
 
     const data: TCGPlayerListingsResponse = await response.json();
     const listings = data.results?.[0]?.results ?? [];
@@ -211,6 +233,10 @@ async function fetchGoldSellerLowPrice(
     const goldListing = eligibleListings.find((l) => l.goldSeller);
     return goldListing ? goldListing.price : null;
   } catch (error) {
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      return fetchGoldSellerLowPrice(productId, condition, attempt + 1);
+    }
     console.error(`Error fetching gold-seller listings for product ${productId}:`, error);
     return null;
   }
@@ -439,13 +465,17 @@ export async function GET(
     // 6. Fetch sales data + gold-seller low listing for each unique productId
     const salesCache = new Map<
       string,
-      { sales: TCGSaleRecord[]; average: number | null }
+      { sales: TCGSaleRecord[]; average: number | null; fetchFailed: boolean }
     >();
     const goldLowCache = new Map<string, number | null>();
 
     for (const productId of Array.from(productIdsToFetch)) {
       // Fetch sales from TCGPlayer
       const salesResponse = await fetchLatestSales(parseInt(productId));
+      // salesResponse null tras los reintentos = TCGPlayer nunca respondió
+      // (rate limiting bajo la ráfaga de un reporte grande) — distinto de
+      // "sí respondió y de verdad no hay ventas que califiquen".
+      const fetchFailed = salesResponse === null;
 
       let filteredSales: TCGSaleRecord[] = [];
       let top3Average: number | null = null;
@@ -464,7 +494,7 @@ export async function GET(
       }
 
       // Cache the results
-      salesCache.set(productId, { sales: filteredSales, average: top3Average });
+      salesCache.set(productId, { sales: filteredSales, average: top3Average, fetchFailed });
 
       // "Low Listed" real: precio más bajo de un vendedor Gold Star (feedback
       // TCGplayer >= 99.5%) en la condición elegida — no el low agregado de
@@ -490,12 +520,14 @@ export async function GET(
 
       let filteredSales: TCGSaleRecord[] = [];
       let top3Average: number | null = null;
+      let salesFetchFailed = false;
 
       if (productId) {
         const cached = salesCache.get(productId);
         if (cached) {
           filteredSales = cached.sales;
           top3Average = cached.average;
+          salesFetchFailed = cached.fetchFailed;
         }
       }
 
@@ -560,7 +592,11 @@ export async function GET(
         subtotalMidPrice,
         subtotalMarketPrice,
         customPrice,
-        error: productId ? undefined : "No TCGPlayer product ID",
+        error: !productId
+          ? "No TCGPlayer product ID"
+          : salesFetchFailed
+            ? "TCGPlayer no respondió (rate limit) — vuelve a generar el reporte"
+            : undefined,
         excludedFromReport,
       });
     }

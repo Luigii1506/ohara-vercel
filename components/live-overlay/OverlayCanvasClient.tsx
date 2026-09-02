@@ -597,6 +597,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // render). Por ahora se elige a mano acá; más adelante esto será elegible
   // desde el Live Desk.
   // ===========================================================================
+  // Apagada por ahora a pedido del usuario ("aún le falta mucho") — el motor
+  // y las 4 variantes visuales quedan intactos en el código, listos para
+  // retomar; solo se frena el loop para que no se dispare en el overlay.
+  const BATTLE_ENABLED = false;
   const BATTLE_VISUAL_STYLE: "clash" | "brawl" | "doodle" | "sprite" = "sprite";
   // La variante "sprite" es un loop CONTINUO, no ráfagas con huecos: el
   // campeón nunca desaparece, solo van entrando retadores uno tras otro sin
@@ -626,6 +630,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   }, [state.topGifters]);
 
   useEffect(() => {
+    if (!BATTLE_ENABLED) return;
     let cancelled = false;
     const timers: number[] = [];
     const schedule = (fn: () => void, ms: number) => {

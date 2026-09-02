@@ -51,20 +51,25 @@ const CHINESE_INDICATORS = [
 
 const NON_ENGLISH_INDICATORS = [...JAPANESE_INDICATORS, ...CHINESE_INDICATORS];
 
-// Indicators for filtering out graded cards
-const GRADED_INDICATORS = [
-  "psa ",
-  "psa-",
-  "cgc ",
-  "cgc-",
-  "bgs ",
-  "bgs-",
-  "beckett",
-  "sgc ",
-  "sgc-",
-  "graded",
-  "gem mint",
+// Indicadores de graded. Las siglas de la casa calificadora (PSA/BGS/CGC/SGC)
+// exigen un número de grado pegado al lado (ej. "PSA 10", "BGS-9.5") en vez
+// de un simple `.includes("psa ")` — visto en producción con una venta real
+// de "Monkey.D.Luffy (PSA Magazine)", una variante promocional OFICIAL de
+// One Piece TCG sin nada que ver con grading, que el `.includes` anterior
+// descartaba por error solo por tener "PSA" en el nombre.
+const GRADED_INDICATORS: RegExp[] = [
+  /\bpsa[\s-]*\d/i,
+  /\bbgs[\s-]*\d/i,
+  /\bcgc[\s-]*\d/i,
+  /\bsgc[\s-]*\d/i,
+  /\bbeckett\b/i,
+  /\bgraded\b/i,
+  /\bgem mint\b/i,
 ];
+
+function hasGradedIndicator(text: string): boolean {
+  return GRADED_INDICATORS.some((pattern) => pattern.test(text));
+}
 
 // ============================================================================
 // TCGPlayer API Functions
@@ -236,8 +241,7 @@ function isNonEnglishListing(listing: TCGPlayerListing): boolean {
 // campo estructurado para esto en el endpoint de listados activos, así que
 // se revisa la misma nota libre del vendedor que ya se usa para idioma.
 function isGradedListing(listing: TCGPlayerListing): boolean {
-  const freeText = listingFreeText(listing);
-  return GRADED_INDICATORS.some((indicator) => freeText.includes(indicator));
+  return hasGradedIndicator(listingFreeText(listing));
 }
 
 // TCGPlayer devuelve la condición como texto libre ("Near Mint", "NM",
@@ -268,10 +272,7 @@ function filterSales(
     const titleLower = (sale.title || "").toLowerCase();
 
     // Always exclude graded cards
-    const isGraded = GRADED_INDICATORS.some((indicator) =>
-      titleLower.includes(indicator)
-    );
-    if (isGraded) return false;
+    if (hasGradedIndicator(titleLower)) return false;
 
     if (!matchesCondition(sale.condition, condition)) return false;
 

@@ -95,7 +95,7 @@ export class OverlayRoom {
   private tiktokUsername: string | null = null;
   private tiktokStopped = true;
   private tiktokReconnectAttempts = 0;
-  private giftCatalog: Map<number, { name: string; diamondCount: number }> | null = null;
+  private giftCatalog: Map<number, { name: string; diamondCount: number; combo: boolean }> | null = null;
   // Cola de reenvío a Next.js: procesa un evento a la vez, EN ORDEN, aunque
   // lleguen varias tandas de mensajes casi juntas. Evita que dos escrituras
   // concurrentes a la misma fila de Postgres (leer→sumar→guardar) se pisen
@@ -477,13 +477,24 @@ export class OverlayRoom {
 
       const fileResp = await fetch(listJson.url);
       const file = (await fileResp.json()) as {
-        data?: { gifts?: Array<{ id: number; name: string; diamond_count: number }> };
+        data?: { gifts?: Array<{ id: number; name: string; diamond_count: number; combo?: boolean }> };
       };
       const gifts = file.data?.gifts ?? [];
-      const map = new Map<number, { name: string; diamondCount: number }>();
+      const map = new Map<number, { name: string; diamondCount: number; combo: boolean }>();
       for (const g of gifts) {
         if (typeof g.id === "number") {
-          map.set(g.id, { name: g.name || "", diamondCount: g.diamond_count || 0 });
+          map.set(g.id, {
+            name: g.name || "",
+            diamondCount: g.diamond_count || 0,
+            // Los regalos "combo" se pueden mandar en racha (ej. GG, Rose):
+            // TikTok manda un mensaje inicial con repeatCount:1/repeatEnd:0
+            // y luego el mensaje final con el repeatCount TOTAL real y
+            // repeatEnd:1 — solo ese último cuenta. Los que NO son combo
+            // (ej. "Heart Me") mandan un único mensaje con repeatEnd:0 y
+            // JAMÁS un repeatEnd:1 (confirmado en producción) — para esos
+            // ese único mensaje ES el envío completo.
+            combo: g.combo !== false,
+          });
         }
       }
       this.giftCatalog = map;
@@ -599,11 +610,23 @@ export class OverlayRoom {
       case "WebcastGiftMessage": {
         const repeatCount = Number(data.repeatCount) || 1;
         const repeatEnd = Number(data.repeatEnd);
-        // Mientras el combo de un mismo regalo sigue subiendo, esperamos a
-        // que termine el streak (repeatEnd === 1) para no spamear alertas.
-        if (repeatCount > 1 && repeatEnd !== 1) return null;
         const giftId = Number(data.giftId) || 0;
         const catalogEntry = this.giftCatalog?.get(giftId);
+        // BUG real corregido: antes se esperaba el streak completo solo si
+        // `repeatCount > 1`, pero el PRIMER mensaje de cualquier combo ya
+        // llega con repeatCount:1/repeatEnd:0 (indistinguible de un regalo
+        // no-combo) — ese primer mensaje pasaba el filtro y se contaba
+        // solo, y LUEGO se contaba otra vez completo con el repeatCount
+        // final → cada combo se pasaba de más por el valor de 1 tap extra.
+        // Ahora se decide por el flag `combo` del catálogo: si el regalo
+        // ES combo, se espera SIEMPRE el repeatEnd:1 (sin importar
+        // repeatCount); si NO es combo (ej. "Heart Me"), se procesa el
+        // único mensaje que manda (nunca llega un repeatEnd:1 para esos,
+        // confirmado en producción). Sin catálogo (giftId nuevo/regional
+        // que no tenemos cacheado) se asume combo=true — más seguro contra
+        // doble conteo que contra perder el regalo por completo.
+        const isComboGift = catalogEntry?.combo ?? true;
+        if (isComboGift && repeatEnd !== 1) return null;
         const uniqueId = data.user?.uniqueId || "";
         // DEBUG temporal (quitar después de diagnosticar): log de CADA
         // regalo que pasa el filtro de combo. Objetivo: confirmar si el
@@ -621,6 +644,7 @@ export class OverlayRoom {
             catalogHit: !!catalogEntry,
             catalogName: catalogEntry?.name ?? null,
             catalogDiamonds: catalogEntry?.diamondCount ?? null,
+            isComboGift,
             repeatCount,
             repeatEnd: data.repeatEnd,
           })

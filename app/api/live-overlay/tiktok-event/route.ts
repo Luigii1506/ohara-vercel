@@ -69,7 +69,12 @@ export async function POST(request: NextRequest) {
       const avatar = String(body.userAvatar ?? "").trim();
       const text = String(body.text ?? "").trim();
       if (!text) {
-        return NextResponse.json({ error: "text required" }, { status: 400 });
+        // TikTok a veces manda un WebcastChatMessage con comment vacío (ej.
+        // un comentario moderado/removido) — no es un error del worker, así
+        // que no se reintenta ni se cuenta como fallo: antes devolvía 400,
+        // y como el texto nunca deja de estar vacío, los 3 reintentos del
+        // worker fallaban igual y quedaba loggeado como evento abandonado.
+        return NextResponse.json({ ok: true, skipped: "empty text" });
       }
       nextState = await appendLiveOverlayChatItem(overlayToken, { user, avatar, text });
       break;

@@ -555,15 +555,25 @@ export class OverlayRoom {
 
       case "WebcastLikeMessage": {
         const uniqueId = data.user?.uniqueId || "";
-        // DEBUG temporal: confirmar si el evento llega SIN usuario (issue
-        // documentado en la librería tiktok-live-connector #300) en vez de
-        // no llegar directamente.
-        if (!uniqueId) {
-          console.error(
-            "[tiktok][debug-like-no-user]",
-            JSON.stringify({ hasUser: !!data.user, userKeys: data.user ? Object.keys(data.user) : null, count: data.likeCount })
-          );
-        }
+        // DEBUG temporal (quitar después de diagnosticar): log de CADA
+        // WebcastLikeMessage, no solo cuando falta el usuario. Objetivo:
+        // (a) confirmar si likeCount es un delta por mensaje o un
+        // acumulado por usuario en la sesión — afecta si sumar likeCount
+        // entre mensajes es correcto o duplica; (b) ver si un usuario que
+        // deja de sumar (ej. muito.jueginho estancado en 4428 mientras el
+        // total seguía subiendo) sigue mandando eventos que simplemente no
+        // se procesan, o si TikTok deja de mandarlos por completo (throttle
+        // anti-spam del lado de TikTok, fuera de nuestro control).
+        console.log(
+          "[tiktok][debug-like]",
+          JSON.stringify({
+            uniqueId: uniqueId || null,
+            hasUser: !!data.user,
+            userKeys: data.user ? Object.keys(data.user) : null,
+            likeCount: data.likeCount,
+            totalLikeCount: data.totalLikeCount,
+          })
+        );
         return {
           type: "like",
           total: Number(data.totalLikeCount) || 0,
@@ -594,9 +604,30 @@ export class OverlayRoom {
         if (repeatCount > 1 && repeatEnd !== 1) return null;
         const giftId = Number(data.giftId) || 0;
         const catalogEntry = this.giftCatalog?.get(giftId);
+        const uniqueId = data.user?.uniqueId || "";
+        // DEBUG temporal (quitar después de diagnosticar): log de CADA
+        // regalo que pasa el filtro de combo. Objetivo: confirmar si el
+        // "user" viene vacío en algunos regalos (visto en producción: 4
+        // regalos reenviados con éxito — 200 OK — sin mover el tally ni un
+        // diamante, solo posible si `user` llegó vacío) y si el giftId
+        // siempre está en el catálogo cacheado (catalogHit) o a veces no.
+        console.log(
+          "[tiktok][debug-gift]",
+          JSON.stringify({
+            uniqueId: uniqueId || null,
+            hasUser: !!data.user,
+            userKeys: data.user ? Object.keys(data.user) : null,
+            giftId,
+            catalogHit: !!catalogEntry,
+            catalogName: catalogEntry?.name ?? null,
+            catalogDiamonds: catalogEntry?.diamondCount ?? null,
+            repeatCount,
+            repeatEnd: data.repeatEnd,
+          })
+        );
         return {
           type: "gift",
-          user: data.user?.uniqueId || "",
+          user: uniqueId,
           userAvatar: this.extractAvatar(data.user),
           giftName: catalogEntry?.name || data.gift?.name || "",
           giftId: data.giftId || "",

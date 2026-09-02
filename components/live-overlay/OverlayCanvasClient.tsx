@@ -252,24 +252,33 @@ function StickSpriteFighter({
   const frameCount = STICK_SPRITE_FRAME_COUNTS[variant][clip] ?? 1;
   const loop = clip === "idle";
   const fps = loop ? 8 : 16;
-  const frame = useSpriteFrameIndex(frameCount, fps, loop, clip);
+  // Al cambiar de clip (ej. attack de 11 frames → idle de 8), el render de
+  // transición puede llegar ANTES de que el efecto del hook reinicie el
+  // frame a 0 — sin este clamp se pide un archivo que no existe (404, ej.
+  // "idle-11.png") por un frame.
+  const rawFrame = useSpriteFrameIndex(frameCount, fps, loop, clip);
+  const frame = Math.min(rawFrame, frameCount - 1);
   const size = STICK_SPRITE_NATURAL_SIZE[variant][clip] ?? { w: 180, h: 180 };
 
   return (
     <div className="flex flex-col items-center gap-1 [animation:overlay-sprite-fighter-in_3s_ease-out_forwards]">
       <span className="h-[18px] text-lg leading-none">{isChampion ? "👑" : ""}</span>
-      {/* Nadie se espejea: mirroreando la cara se veía "al revés". En vez de
-          eso, el campeón se renderiza del lado DERECHO (ver el JSX que arma
-          este par) porque su ataque natural (sin espejear) golpea hacia la
-          izquierda — así llega al retador con el arte tal cual la dibujó el
-          artista, sin distorsión. El retador (izquierda) también queda tal
-          cual: su caída natural es hacia la izquierda, o sea alejándose del
-          campeón. */}
+      {/* El clip "attack" tiene dos señales de dirección que NO coinciden en
+          el arte original: la mirada (un solo ojo visible durante el swing)
+          apunta a la derecha, pero el streak de movimiento de la espada se
+          extiende a la izquierda. Lo que el ojo humano nota más es hacia
+          dónde MIRA el personaje, no el streak — confirmado en producción:
+          tanto "campeón izquierda + espejeado" como "campeón derecha + sin
+          espejear" hacían que la mirada apuntara LEJOS del retador y se
+          reportó como "al revés" las dos veces, aunque en ambos casos la
+          espada sí llegaba bien. Por eso el campeón va a la DERECHA y SÍ se
+          espejea: así la mirada (espejeada, ahora hacia la izquierda) cae
+          sobre el retador aunque el streak quede técnicamente invertido. */}
       <img
         src={stickSpriteSrc(variant, clip, frame)}
         alt=""
         style={{ width: size.w * STICK_SPRITE_SCALE, height: size.h * STICK_SPRITE_SCALE }}
-        className="object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]"
+        className={`object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)] ${isChampion ? "scale-x-[-1]" : ""}`}
       />
       <div className="flex w-16 flex-col items-center gap-0.5">
         <span
@@ -1193,12 +1202,10 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           >
             {BATTLE_VISUAL_STYLE === "sprite" ? (
               <>
-                {/* Retador a la izquierda, campeón a la derecha — al revés
-                    del orden "natural" — porque ninguno de los dos se
-                    espejea (ver StickSpriteFighter): el ataque del campeón,
-                    sin espejear, golpea hacia la izquierda, así que tiene
-                    que estar del lado derecho para que el golpe llegue al
-                    retador. */}
+                {/* Retador a la izquierda, campeón a la derecha (y el
+                    campeón SÍ se espejea, ver StickSpriteFighter) — así su
+                    mirada durante el ataque cae sobre el retador en vez de
+                    verse hacia la orilla de la pantalla. */}
                 <StickSpriteFighter
                   key={battle.key}
                   role="challenger"

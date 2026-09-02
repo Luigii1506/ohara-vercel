@@ -173,6 +173,113 @@ function DoodleFighter({
   );
 }
 
+// ===========================================================================
+// Fighter de la variante "sprite": arte real en vez de dibujado a mano.
+// Pack "Animated Stick Figure Character 2D" de RGS_Dev (CC0, sin atribución
+// necesaria) — ver public/live-overlay/sprites/LICENSE.txt. Frames sueltos
+// (PNG) reproducidos por JS a un FPS fijo, sin sprite sheet ni CSS steps().
+// ===========================================================================
+type StickSpriteVariant = "sword" | "fighter";
+type StickSpriteClip = "idle" | "attack" | "hit" | "death";
+
+const STICK_SPRITE_FRAME_COUNTS: Record<StickSpriteVariant, Partial<Record<StickSpriteClip, number>>> = {
+  sword: { idle: 8, attack: 11 },
+  fighter: { idle: 8, hit: 4, death: 10 },
+};
+
+function stickSpriteSrc(variant: StickSpriteVariant, clip: StickSpriteClip, frameIndex: number): string {
+  const n = String(frameIndex + 1).padStart(2, "0");
+  return `/live-overlay/sprites/${variant}/${clip}-${n}.png`;
+}
+
+// Recorre los frames de UN clip a un FPS fijo. Si `loop` es false se congela
+// en el último frame (ej. death) en vez de reiniciar. `resetKey` fuerza
+// volver al frame 0 cuando cambia (ej. al pasar de "idle" a "attack").
+function useSpriteFrameIndex(frameCount: number, fps: number, loop: boolean, resetKey: string): number {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    setFrame(0);
+    const interval = window.setInterval(() => {
+      setFrame((f) => {
+        const next = f + 1;
+        if (next >= frameCount) return loop ? 0 : frameCount - 1;
+        return next;
+      });
+    }, 1000 / fps);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameCount, fps, loop, resetKey]);
+  return frame;
+}
+
+function StickSpriteFighter({
+  role,
+  user,
+  diamonds,
+  maxDiamonds,
+  clip,
+}: {
+  role: "champion" | "challenger";
+  user: string;
+  diamonds: number;
+  maxDiamonds: number;
+  clip: StickSpriteClip;
+}) {
+  const isChampion = role === "champion";
+  const variant: StickSpriteVariant = isChampion ? "sword" : "fighter";
+  const accent = isChampion ? "#fbbf24" : "#cbd5e1"; // amber-400 / slate-300
+  const nameColor = isChampion ? "text-amber-300" : "text-white/80";
+  const barPct = Math.max(
+    6,
+    Math.min(100, Math.round((diamonds / Math.max(maxDiamonds, 1)) * 100))
+  );
+  const frameCount = STICK_SPRITE_FRAME_COUNTS[variant][clip] ?? 1;
+  const loop = clip === "idle";
+  const fps = loop ? 8 : 16;
+  const frame = useSpriteFrameIndex(frameCount, fps, loop, clip);
+
+  return (
+    <div className="flex flex-col items-center gap-1 [animation:overlay-sprite-fighter-in_3s_ease-out_forwards]">
+      <span className="h-[18px] text-lg leading-none">{isChampion ? "👑" : ""}</span>
+      {/* Ambos peleadores se espejean: el campeón queda a la izquierda y su
+          animación de ataque embiste hacia la izquierda en el arte original,
+          así que se voltea para que el golpe vaya hacia el retador (derecha);
+          el retador cae desplomado hacia su izquierda en el arte original, y
+          espejeado cae alejándose del campeón en vez de hacia él. */}
+      <img
+        src={stickSpriteSrc(variant, clip, frame)}
+        alt=""
+        className="h-24 w-24 scale-x-[-1] object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]"
+      />
+      <div className="flex w-16 flex-col items-center gap-0.5">
+        <span
+          className={`max-w-[90px] truncate rounded-full bg-black/85 px-2 py-0.5 text-[10px] font-black ${nameColor}`}
+        >
+          {user}
+        </span>
+        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/60">
+          <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: accent }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Destello de impacto (4 frames, no-loop) del mismo pack, para el momento
+// del choque de la variante "sprite". `resetKey` se pasa desde afuera para
+// reiniciar el frame cada vez que aparece (una key nueva por ronda).
+function HitFlashSprite({ resetKey }: { resetKey: string }) {
+  const frame = useSpriteFrameIndex(4, 16, false, resetKey);
+  const n = String(frame + 1).padStart(2, "0");
+  return (
+    <img
+      src={`/live-overlay/sprites/hit-effect/flash-${n}.png`}
+      alt=""
+      className="pointer-events-none absolute h-20 w-20 object-contain"
+    />
+  );
+}
+
 const EMPTY_STATE: LiveOverlayState = {
   currentCard: null,
   rarityCounters: LIVE_OVERLAY_RARITY_COUNTER_KEYS.reduce(
@@ -461,12 +568,15 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // render). Por ahora se elige a mano acá; más adelante esto será elegible
   // desde el Live Desk.
   // ===========================================================================
-  const BATTLE_VISUAL_STYLE: "clash" | "brawl" | "doodle" = "doodle";
+  const BATTLE_VISUAL_STYLE: "clash" | "brawl" | "doodle" | "sprite" = "sprite";
   const BATTLE_INTERVAL_MS = 5000;
   const BATTLE_VISIBLE_MS = 3000;
   const challengerIndexRef = useRef(1);
   const [battle, setBattle] = useState<{
     key: string;
+    // Fases de la variante "sprite": entrance (idle/idle) → clash (ataque /
+    // golpe, ~900ms) → defeat (idle / muerte, hasta que se limpia el estado).
+    phase: "entrance" | "clash" | "defeat";
     champion: { user: string; avatar: string; diamonds: number };
     challenger: { user: string; avatar: string; diamonds: number };
   } | null>(null);
@@ -491,12 +601,24 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       const champion = gifters[0];
       const challenger = gifters[challengerIndexRef.current];
       challengerIndexRef.current += 1;
+      const key = `${champion.user}-vs-${challenger.user}-${Date.now()}`;
       setBattle({
-        key: `${champion.user}-vs-${challenger.user}-${Date.now()}`,
+        key,
+        phase: "entrance",
         champion: { user: champion.user, avatar: champion.avatar, diamonds: champion.count },
         challenger: { user: challenger.user, avatar: challenger.avatar, diamonds: challenger.count },
       });
-      window.setTimeout(() => setBattle(null), BATTLE_VISIBLE_MS);
+      // Solo aplica si sigue siendo la MISMA ronda (por key) — evita que un
+      // timer atrasado pise el estado de una ronda posterior.
+      window.setTimeout(
+        () => setBattle((b) => (b && b.key === key ? { ...b, phase: "clash" } : b)),
+        900
+      );
+      window.setTimeout(
+        () => setBattle((b) => (b && b.key === key ? { ...b, phase: "defeat" } : b)),
+        1500
+      );
+      window.setTimeout(() => setBattle((b) => (b && b.key === key ? null : b)), BATTLE_VISIBLE_MS);
     };
     const interval = window.setInterval(tick, BATTLE_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -649,6 +771,11 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             40%  { opacity: 0; }
             48%  { opacity: 1; }
             100% { opacity: 1; }
+          }
+          @keyframes overlay-sprite-fighter-in {
+            0%   { opacity: 0; transform: translateY(10px) scale(0.9); }
+            20%  { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
           }
         `}</style>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
@@ -1009,7 +1136,31 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             key={battle.key}
             className="pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 [animation:overlay-battle-group_3s_ease-out_forwards]"
           >
-            {BATTLE_VISUAL_STYLE === "doodle" ? (
+            {BATTLE_VISUAL_STYLE === "sprite" ? (
+              <>
+                <StickSpriteFighter
+                  role="champion"
+                  user={battle.champion.user}
+                  diamonds={battle.champion.diamonds}
+                  maxDiamonds={battle.champion.diamonds}
+                  clip={battle.phase === "clash" ? "attack" : "idle"}
+                />
+                {battle.phase === "clash" ? <HitFlashSprite resetKey={battle.key} /> : null}
+                <StickSpriteFighter
+                  role="challenger"
+                  user={battle.challenger.user}
+                  diamonds={battle.challenger.diamonds}
+                  maxDiamonds={battle.champion.diamonds}
+                  clip={
+                    battle.phase === "clash"
+                      ? "hit"
+                      : battle.phase === "defeat"
+                        ? "death"
+                        : "idle"
+                  }
+                />
+              </>
+            ) : BATTLE_VISUAL_STYLE === "doodle" ? (
               <>
                 <DoodleFighter
                   role="champion"

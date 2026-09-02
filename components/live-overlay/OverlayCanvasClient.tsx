@@ -258,18 +258,18 @@ function StickSpriteFighter({
   return (
     <div className="flex flex-col items-center gap-1 [animation:overlay-sprite-fighter-in_3s_ease-out_forwards]">
       <span className="h-[18px] text-lg leading-none">{isChampion ? "👑" : ""}</span>
-      {/* El arte original mira/embiste hacia la izquierda por defecto (el
-          ataque del campeón se estira hacia ese lado). El campeón queda a la
-          izquierda de la pantalla y debe encarar al retador (derecha), así
-          que SOLO el campeón se espejea; el retador (derecha) se deja tal
-          cual para que quede mirando hacia la izquierda, o sea hacia el
-          campeón — así quedan viéndose de frente en vez de los dos para el
-          mismo lado. */}
+      {/* Nadie se espejea: mirroreando la cara se veía "al revés". En vez de
+          eso, el campeón se renderiza del lado DERECHO (ver el JSX que arma
+          este par) porque su ataque natural (sin espejear) golpea hacia la
+          izquierda — así llega al retador con el arte tal cual la dibujó el
+          artista, sin distorsión. El retador (izquierda) también queda tal
+          cual: su caída natural es hacia la izquierda, o sea alejándose del
+          campeón. */}
       <img
         src={stickSpriteSrc(variant, clip, frame)}
         alt=""
         style={{ width: size.w * STICK_SPRITE_SCALE, height: size.h * STICK_SPRITE_SCALE }}
-        className={`object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)] ${isChampion ? "scale-x-[-1]" : ""}`}
+        className="object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]"
       />
       <div className="flex w-16 flex-col items-center gap-0.5">
         <span
@@ -1193,14 +1193,12 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
           >
             {BATTLE_VISUAL_STYLE === "sprite" ? (
               <>
-                <StickSpriteFighter
-                  role="champion"
-                  user={battle.champion.user}
-                  diamonds={battle.champion.diamonds}
-                  maxDiamonds={battle.champion.diamonds}
-                  clip={battle.phase === "clash" ? "attack" : "idle"}
-                />
-                {battle.phase === "clash" ? <HitFlashSprite resetKey={battle.key} /> : null}
+                {/* Retador a la izquierda, campeón a la derecha — al revés
+                    del orden "natural" — porque ninguno de los dos se
+                    espejea (ver StickSpriteFighter): el ataque del campeón,
+                    sin espejear, golpea hacia la izquierda, así que tiene
+                    que estar del lado derecho para que el golpe llegue al
+                    retador. */}
                 <StickSpriteFighter
                   key={battle.key}
                   role="challenger"
@@ -1214,6 +1212,14 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                         ? "death"
                         : "idle"
                   }
+                />
+                {battle.phase === "clash" ? <HitFlashSprite resetKey={battle.key} /> : null}
+                <StickSpriteFighter
+                  role="champion"
+                  user={battle.champion.user}
+                  diamonds={battle.champion.diamonds}
+                  maxDiamonds={battle.champion.diamonds}
+                  clip={battle.phase === "clash" ? "attack" : "idle"}
                 />
               </>
             ) : BATTLE_VISUAL_STYLE === "doodle" ? (

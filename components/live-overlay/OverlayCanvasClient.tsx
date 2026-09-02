@@ -187,6 +187,22 @@ const STICK_SPRITE_FRAME_COUNTS: Record<StickSpriteVariant, Partial<Record<Stick
   fighter: { idle: 8, hit: 4, death: 10 },
 };
 
+// Tamaño real (px) de cada frame YA RECORTADO (el pack original tiene mucho
+// padding transparente en un lienzo de 512x512 — se recortó por lote antes
+// de subirlo a public/). Se escala un multiplicador fijo en vez de forzar
+// todos los clips a una misma caja: "attack" es un lienzo más ancho que
+// "idle" porque el personaje se estira al atacar, así que si se metieran
+// ambos en el mismo cuadro el personaje se vería más chico durante el golpe.
+const STICK_SPRITE_NATURAL_SIZE: Record<StickSpriteVariant, Partial<Record<StickSpriteClip, { w: number; h: number }>>> = {
+  sword: { idle: { w: 180, h: 180 }, attack: { w: 340, h: 235 } },
+  fighter: {
+    idle: { w: 215, h: 265 },
+    hit: { w: 215, h: 265 },
+    death: { w: 215, h: 265 },
+  },
+};
+const STICK_SPRITE_SCALE = 0.55;
+
 function stickSpriteSrc(variant: StickSpriteVariant, clip: StickSpriteClip, frameIndex: number): string {
   const n = String(frameIndex + 1).padStart(2, "0");
   return `/live-overlay/sprites/${variant}/${clip}-${n}.png`;
@@ -237,19 +253,23 @@ function StickSpriteFighter({
   const loop = clip === "idle";
   const fps = loop ? 8 : 16;
   const frame = useSpriteFrameIndex(frameCount, fps, loop, clip);
+  const size = STICK_SPRITE_NATURAL_SIZE[variant][clip] ?? { w: 180, h: 180 };
 
   return (
     <div className="flex flex-col items-center gap-1 [animation:overlay-sprite-fighter-in_3s_ease-out_forwards]">
       <span className="h-[18px] text-lg leading-none">{isChampion ? "👑" : ""}</span>
-      {/* Ambos peleadores se espejean: el campeón queda a la izquierda y su
-          animación de ataque embiste hacia la izquierda en el arte original,
-          así que se voltea para que el golpe vaya hacia el retador (derecha);
-          el retador cae desplomado hacia su izquierda en el arte original, y
-          espejeado cae alejándose del campeón en vez de hacia él. */}
+      {/* El arte original mira/embiste hacia la izquierda por defecto (el
+          ataque del campeón se estira hacia ese lado). El campeón queda a la
+          izquierda de la pantalla y debe encarar al retador (derecha), así
+          que SOLO el campeón se espejea; el retador (derecha) se deja tal
+          cual para que quede mirando hacia la izquierda, o sea hacia el
+          campeón — así quedan viéndose de frente en vez de los dos para el
+          mismo lado. */}
       <img
         src={stickSpriteSrc(variant, clip, frame)}
         alt=""
-        className="h-24 w-24 scale-x-[-1] object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]"
+        style={{ width: size.w * STICK_SPRITE_SCALE, height: size.h * STICK_SPRITE_SCALE }}
+        className={`object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)] ${isChampion ? "scale-x-[-1]" : ""}`}
       />
       <div className="flex w-16 flex-col items-center gap-0.5">
         <span
@@ -275,7 +295,7 @@ function HitFlashSprite({ resetKey }: { resetKey: string }) {
     <img
       src={`/live-overlay/sprites/hit-effect/flash-${n}.png`}
       alt=""
-      className="pointer-events-none absolute h-20 w-20 object-contain"
+      className="pointer-events-none absolute h-32 w-auto object-contain"
     />
   );
 }
@@ -569,32 +589,49 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
   // desde el Live Desk.
   // ===========================================================================
   const BATTLE_VISUAL_STYLE: "clash" | "brawl" | "doodle" | "sprite" = "sprite";
-  const BATTLE_INTERVAL_MS = 5000;
-  const BATTLE_VISIBLE_MS = 3000;
+  // La variante "sprite" es un loop CONTINUO, no ráfagas con huecos: el
+  // campeón nunca desaparece, solo van entrando retadores uno tras otro sin
+  // corte — apenas termina la derrota de uno, arranca la entrada del
+  // siguiente en la misma cadena de timeouts (ver runNextChallenger).
+  const BATTLE_ENTRANCE_MS = 700;
+  const BATTLE_STANDOFF_MS = 2200;
+  const BATTLE_CLASH_MS = 900;
+  const BATTLE_DEFEAT_MS = 2200;
   const challengerIndexRef = useRef(1);
   const [battle, setBattle] = useState<{
     key: string;
-    // Fases de la variante "sprite": entrance (idle/idle) → clash (ataque /
-    // golpe, ~900ms) → defeat (idle / muerte, hasta que se limpia el estado).
-    phase: "entrance" | "clash" | "defeat";
+    // Fases de la variante "sprite": entrance (idle/idle) → standoff (idle/
+    // idle, más largo) → clash (ataque/golpe) → defeat (idle/muerte).
+    phase: "entrance" | "standoff" | "clash" | "defeat";
     champion: { user: string; avatar: string; diamonds: number };
     challenger: { user: string; avatar: string; diamonds: number };
   } | null>(null);
 
   // `state.topGifters` es un array NUEVO en cada actualización de estado
-  // (aunque el contenido no cambie) — si el intervalo dependiera de esa
-  // referencia, se reiniciaría en cada poll/mensaje del socket y nunca
-  // llegaría a completar los 5s. Por eso el intervalo se arma UNA sola vez
-  // (deps vacías) y lee siempre el valor más fresco desde una ref.
+  // (aunque el contenido no cambie) — si el loop dependiera de esa
+  // referencia, se reiniciaría en cada poll/mensaje del socket. Por eso lee
+  // siempre el valor más fresco desde una ref en vez de depender de él.
   const latestGiftersRef = useRef(state.topGifters);
   useEffect(() => {
     latestGiftersRef.current = state.topGifters;
   }, [state.topGifters]);
 
   useEffect(() => {
-    const tick = () => {
+    let cancelled = false;
+    const timers: number[] = [];
+    const schedule = (fn: () => void, ms: number) => {
+      timers.push(window.setTimeout(fn, ms));
+    };
+
+    const runNextChallenger = () => {
+      if (cancelled) return;
       const gifters = latestGiftersRef.current;
-      if (gifters.length < 2) return;
+      if (gifters.length < 2) {
+        // Todavía no hay suficientes gifters para pelear — reintenta pronto
+        // en vez de dejar el loop muerto para siempre.
+        schedule(runNextChallenger, 2000);
+        return;
+      }
       if (challengerIndexRef.current >= gifters.length) {
         challengerIndexRef.current = 1;
       }
@@ -610,18 +647,29 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
       });
       // Solo aplica si sigue siendo la MISMA ronda (por key) — evita que un
       // timer atrasado pise el estado de una ronda posterior.
-      window.setTimeout(
-        () => setBattle((b) => (b && b.key === key ? { ...b, phase: "clash" } : b)),
-        900
+      const withSameRound = (updater: (b: NonNullable<typeof battle>) => typeof battle) =>
+        setBattle((b) => (b && b.key === key ? updater(b) : b));
+
+      schedule(() => withSameRound((b) => ({ ...b, phase: "standoff" })), BATTLE_ENTRANCE_MS);
+      schedule(
+        () => withSameRound((b) => ({ ...b, phase: "clash" })),
+        BATTLE_ENTRANCE_MS + BATTLE_STANDOFF_MS
       );
-      window.setTimeout(
-        () => setBattle((b) => (b && b.key === key ? { ...b, phase: "defeat" } : b)),
-        1500
+      schedule(
+        () => withSameRound((b) => ({ ...b, phase: "defeat" })),
+        BATTLE_ENTRANCE_MS + BATTLE_STANDOFF_MS + BATTLE_CLASH_MS
       );
-      window.setTimeout(() => setBattle((b) => (b && b.key === key ? null : b)), BATTLE_VISIBLE_MS);
+      schedule(
+        runNextChallenger,
+        BATTLE_ENTRANCE_MS + BATTLE_STANDOFF_MS + BATTLE_CLASH_MS + BATTLE_DEFEAT_MS
+      );
     };
-    const interval = window.setInterval(tick, BATTLE_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+
+    runNextChallenger();
+    return () => {
+      cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, []);
 
   // Reproduce el SFX cuando su triggeredAt cambia (misma lógica de frescura).
@@ -1133,8 +1181,15 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             siempre gana). Zona libre entre la carta y el banner inferior. */}
         {battle ? (
           <div
-            key={battle.key}
-            className="pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 [animation:overlay-battle-group_3s_ease-out_forwards]"
+            // La variante "sprite" es un loop continuo: el campeón nunca se
+            // desmonta, así que este contenedor usa una key ESTABLE (no
+            // battle.key) y no lleva la animación de fade del grupo — solo
+            // el retador (key={battle.key} más abajo) se remonta cada ronda.
+            // Las demás variantes (legacy) mantienen el fade-in/out por ronda.
+            key={BATTLE_VISUAL_STYLE === "sprite" ? "sprite-stage" : battle.key}
+            className={`pointer-events-none absolute inset-x-0 top-[950px] z-40 flex items-center justify-center gap-6 ${
+              BATTLE_VISUAL_STYLE === "sprite" ? "" : "[animation:overlay-battle-group_3s_ease-out_forwards]"
+            }`}
           >
             {BATTLE_VISUAL_STYLE === "sprite" ? (
               <>
@@ -1147,6 +1202,7 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
                 />
                 {battle.phase === "clash" ? <HitFlashSprite resetKey={battle.key} /> : null}
                 <StickSpriteFighter
+                  key={battle.key}
                   role="challenger"
                   user={battle.challenger.user}
                   diamonds={battle.challenger.diamonds}

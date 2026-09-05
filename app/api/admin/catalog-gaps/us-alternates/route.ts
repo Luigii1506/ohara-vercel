@@ -173,12 +173,23 @@ export async function GET(req: NextRequest) {
       // ¿Ya la tenemos? Señales por orden de confianza:
       //   1) Variante normalizada: tenemos una alterna del mismo código con la
       //      misma variante canónica (treasure-cup, winner-version, serial…).
-      //   2) Fuzzy de texto (fallback para variantes sin clasificar).
+      //   2) Fuzzy de texto — SOLO como último recurso cuando el clasificador
+      //      no supo darle un nombre a esta variante ("alternate-art"). Si YA
+      //      hay una variante canónica bien clasificada (ej. "winner-version",
+      //      "top-player-version"), confiar solo en (1) — de lo contrario un
+      //      match de una sola palabra >4 letras ("event", "release"…) que
+      //      aparece en CASI cualquier texto de evento apaga alternas reales
+      //      que no tienen nada que ver (confirmado real: "Top Player Pack" y
+      //      "Finalist" de OP11-012 se ocultaban porque el evento se llama
+      //      "...Side Event Prize Wall" y ya teníamos un "Release event" de
+      //      otra carta completamente distinta — una sola palabra en común,
+      //      "event", bastaba para darlas por resueltas).
       const haveByVariant =
         variant !== "alternate-art" &&
         (ourVariantByCode.get(code)?.has(variant) ?? false);
       const haveByFuzzy =
         !haveByVariant &&
+        variant === "alternate-art" &&
         (ourAltByCode.get(code) ?? []).some((alt) => {
           const na = norm(alt);
           if (!na || na === "alternate art") return false;

@@ -2163,17 +2163,20 @@ async function detectSetsAndCards(
     }
   }
 
-  // 3) Bloques de imagen "component-opcg-cards" (galería de premios) y
+  // 3) Bloques de imagen "component-opcg-cards" (galería de premios),
   //    "component-photo-onepiececg" (foto individual — trophy cards, jumbo
-  //    card): en ambos el código NUNCA aparece como texto en la página, solo
-  //    en el nombre del archivo de imagen — el paso (2) de arriba los pierde
-  //    porque exige el código como texto suelto. Los tomamos directo del
-  //    filename (mismo `imageByCode` de arriba), usando el heading más
+  //    card) y ".cardPopupWrap" (galería "Featured Card List" de /topics/):
+  //    en los dos primeros el código NUNCA aparece como texto en la página,
+  //    solo en el nombre del archivo de imagen — el paso (2) de arriba los
+  //    pierde porque exige el código como texto suelto. Los tomamos directo
+  //    del filename (mismo `imageByCode` de arriba), usando el heading más
   //    cercano hacia atrás como contexto del título (ej. "CS 26-27 Event
   //    Pack", "CS 26ｰ27 1st Place Trophy Card"). Confirmado real en
   //    /events/26-27_Finals_Season_2.html — sin el segundo selector, las 4
   //    trophy/jumbo cards de esa página (fotos individuales, no galería) se
-  //    perdían igual que antes.
+  //    perdían igual que antes. En /topics/ es al revés: el archivo es un
+  //    número pelado ("01.png") y el código vive en el atributo alt — ver el
+  //    fallback más abajo.
   // El heading del bloque casi nunca es un hermano-anterior DIRECTO — vive
   // adentro de un contenedor hermano-anterior (ej. <div data-type="component-text">
   // <div class="text-area"><h5>Featured Card List</h5></div></div>). Por eso
@@ -2201,7 +2204,7 @@ async function detectSetsAndCards(
   // reales, pero sí sigue evitando duplicar el mismo código+título dos veces.
   const seenCodeTitle = new Set<string>();
   const cardBlocks = $(
-    '[data-type="component-opcg-cards"], [data-type="component-photo-onepiececg"]'
+    '[data-type="component-opcg-cards"], [data-type="component-photo-onepiececg"], .cardPopupWrap'
   ).toArray();
   for (const block of cardBlocks) {
     const $block = $(block);
@@ -2212,12 +2215,25 @@ async function detectSetsAndCards(
       if (!src) return;
       const fileName = src.split("/").pop() || "";
       const normalized = fileName.replace(/_/g, "-");
-      const codeInfo = extractCardCode(normalized);
+      const alt = $img.attr("alt")?.trim();
+      let codeInfo = extractCardCode(normalized);
+      if (!codeInfo && alt) {
+        // ".cardPopupWrap" (galería "Featured Card List" de /topics/): el
+        // archivo es un número pelado ("01.png"), el código vive SOLO en el
+        // alt ("OP14-014"). Se exige que el alt sea el código y nada más —
+        // el mismo widget también se reusa en otras secciones (ej. "Banned
+        // Cards") con alt descriptivo ("Card image of OP06-047 Charlotte
+        // Pudding"), pero esas ya traen el código en su propio filename y no
+        // necesitan este fallback.
+        const altCodeInfo = extractCardCode(alt);
+        if (altCodeInfo && alt.toUpperCase() === altCodeInfo.code) {
+          codeInfo = altCodeInfo;
+        }
+      }
       if (!codeInfo) return;
       if (existingCodes.has(codeInfo.code)) return;
 
       const resolved = resolveImageUrl(src, baseUrl);
-      const alt = $img.attr("alt")?.trim();
       const suffix = extractImageVariantSuffix(fileName, codeInfo.code);
       let title = headingText || alt || codeInfo.code;
       // Si no hay ningún texto útil (título = código pelado) pero el archivo

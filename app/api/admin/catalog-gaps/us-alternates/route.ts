@@ -164,12 +164,16 @@ export async function GET(req: NextRequest) {
       const eventTitles = m.events.map((e) => e.event.title).filter(Boolean).join(" ");
       const sourceUrl = m.events.map((e) => e.event.sourceUrl).find(Boolean) ?? null;
       const eventText = norm(`${eventTitles} ${m.title ?? ""}`);
-      // Distingue cartas encontradas en /news/ (campañas, anuncios) de las de
-      // /events/ (torneos) — mismo pipeline de scraping, fuente distinta para
-      // el filtro del panel.
+      // Distingue cartas encontradas en /news/ o /topics/ (campañas, anuncios)
+      // de las de /events/ (torneos) — mismo pipeline de scraping, fuente
+      // distinta para el filtro del panel. /topics/ se agrupa bajo el mismo
+      // filtro "news" (ambas son páginas de anuncio, no de torneo).
       const isNews =
         m.events.length > 0 &&
-        m.events.every((e) => (e.event.sourceUrl ?? "").includes("/news/"));
+        m.events.every((e) => {
+          const url = e.event.sourceUrl ?? "";
+          return url.includes("/news/") || url.includes("/topics/");
+        });
 
       // Variante canónica de la carta de evento (independiente del evento).
       const canonicalKey =

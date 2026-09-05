@@ -102,6 +102,15 @@ export function resolveEventCardSetId(
   return null;
 }
 
+/** El sitio oficial no es consistente con qué guion usa en "26-27" — a veces
+ * un hyphen normal, a veces un en-dash "–", a veces el signo de prolongación
+ * katakana halfwidth "ｰ" (confirmado real: generó dos sets duplicados, "CS
+ * 26-27 Celebration Pack" y "CS 26–27 Celebration Pack", por esta sola
+ * diferencia). Normaliza cualquiera de esos a un hyphen simple para comparar. */
+export function normalizeDashes(text: string): string {
+  return text.replace(/[‐-―ｰ]/g, "-");
+}
+
 /** Limpia el título de un evento para usarlo como nombre de set. */
 export function cleanEventTitleForSet(title: string | null): string {
   return (title ?? "Event")

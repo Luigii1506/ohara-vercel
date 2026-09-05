@@ -211,6 +211,19 @@ export function classifyAlternateArt(
   if (/\[participant\]|participation/.test(n)) return "Participation Version";
   if (/top ?player/.test(n)) return "Top Player Version";
   if (/\bjudge\b/.test(n)) return "Judge";
+  // Las trophy cards de 1er/2do/3er lugar comparten el MISMO código de carta
+  // (es el mismo print base) pero son objetos distintos — cada una lleva un
+  // estampado propio de su lugar. Hay que distinguirlas ANTES del catch-all
+  // genérico de "trophy", si no, la 2da y 3ra colisionan con la 1ra en la
+  // cola de revisión y solo se ve una.
+  if (/\b(1st|first)\s*place\b.*\btrophy\b|\btrophy\b.*\b(1st|first)\s*place\b/.test(n))
+    return "1st Place Trophy Card";
+  if (/\b(2nd|second)\s*place\b.*\btrophy\b|\btrophy\b.*\b(2nd|second)\s*place\b/.test(n))
+    return "2nd Place Trophy Card";
+  if (/\b(3rd|third)\s*place\b.*\btrophy\b|\btrophy\b.*\b(3rd|third)\s*place\b/.test(n))
+    return "3rd Place Trophy Card";
+  if (/\btrophy\b/.test(n)) return "Trophy Card";
+  if (/\bjumbo\b/.test(n)) return "Jumbo Card";
   if (/treasure cup/.test(n)) return "Treasure Cup";
   if (/treasure rare/.test(n)) return "Treasure Rare";
   if (/serial/.test(n)) return "Serial";
@@ -397,11 +410,30 @@ export function eventCardVariant(eventText: string | null): string {
  * intrínseco (Serial, Winner, Judge…) gana sobre el nombre del evento. Solo si
  * el texto de la carta no revela variante se usa `eventContext` como respaldo
  * (útil para layouts viejos donde el <li> solo trae el nombre de la carta).
+ *
+ * `variantHint` es el ÚLTIMO recurso: un sufijo tomado del nombre de archivo
+ * de la imagen (ej. "_win", "_p1", "_3" en batch_OP14-069_3.webp). Solo se usa
+ * cuando ni el texto de la carta NI el contexto del evento dieron una
+ * variante reconocible (cayeron en el balde genérico "alternate-art") — sin
+ * esto, dos cartas con el MISMO código pero print distinto que ninguna
+ * clasificación de texto sabe nombrar terminan compartiendo llave canónica y
+ * la revisión de una "resuelve" la otra aunque sean físicamente distintas.
  */
+/** Recorta el boilerplate del <title> de la página ("[Ended]", " | ONE PIECE
+ * CARD GAME - Official Web Site", etc.) antes de usarlo como variante — si no,
+ * el mismo evento produce una llave distinta apenas Bandai le agrega
+ * "[Ended]" al título cuando termina. */
+const stripEventTitleBoilerplate = (title: string): string =>
+  title
+    .replace(/^\[ended\]\s*/i, "")
+    .replace(/\s*[|｜]\s*one piece card game.*$/i, "")
+    .trim();
+
 export function buildCardIdentityKey(
   code: string,
   cardText: string | null,
-  eventContext?: string | null
+  eventContext?: string | null,
+  variantHint?: string | null
 ): string {
   const c = (code ?? "").toUpperCase().trim();
   let variant = variantSlug(eventCardVariant(cardText));
@@ -410,6 +442,22 @@ export function buildCardIdentityKey(
       eventCardVariant(`${eventContext} ${cardText ?? ""}`)
     );
     if (fallback) variant = fallback;
+  }
+  if ((!variant || variant === "alternate-art") && variantHint) {
+    const hintSlug = variantSlug(variantHint);
+    if (hintSlug) variant = hintSlug;
+  }
+  // Último respaldo: nada reconoció un nombre de variante Y el archivo no
+  // trae sufijo — usa el TÍTULO DEL EVENTO (ej. "Flame-Flame Fruit Coliseum")
+  // en vez de un "alternate-art" genérico. Bandai inventa nombres de promo
+  // nuevos todo el tiempo; sin esto, dos promos DISTINTAS que la lista de
+  // keywords no conoce ninguna terminan compartiendo llave — aprobar la de
+  // un evento "resuelve" la de otro evento sin que sea la misma carta
+  // (confirmado real: Flame-Flame Fruit Coliseum colisionaba con Pirates
+  // Party porque ambas cayeron en el mismo balde genérico).
+  if ((!variant || variant === "alternate-art") && eventContext) {
+    const eventSlug = variantSlug(stripEventTitleBoilerplate(eventContext));
+    if (eventSlug) variant = eventSlug;
   }
   return `${c}|${variant || "alternate-art"}`;
 }

@@ -8,6 +8,7 @@ import {
   classifyEventAlternate,
   resolveEventCardSetId,
   cleanEventTitleForSet,
+  normalizeDashes,
 } from "@/lib/services/events/eventAltArt";
 
 /**
@@ -23,13 +24,18 @@ import {
  *  - deja la carta linkeada y marca el MissingCard como aprobado (sale del queue).
  */
 
-/** Encuentra (o crea) un set a partir del título de un evento. */
+/**
+ * Encuentra (o crea) un set a partir de un título. Compara ignorando el tipo
+ * de guion — el sitio oficial no es consistente entre hyphen normal, en-dash
+ * y el signo de prolongación katakana halfwidth para años tipo "26-27"
+ * (confirmado real: sin esto se creaban sets duplicados por esa sola
+ * diferencia de caracter).
+ */
 async function findOrCreateEventSet(rawTitle: string | null): Promise<number> {
   const title = cleanEventTitleForSet(rawTitle);
-  const existing = await prisma.set.findFirst({
-    where: { title: { equals: title, mode: "insensitive" } },
-    select: { id: true },
-  });
+  const target = normalizeDashes(title).toLowerCase();
+  const candidates = await prisma.set.findMany({ select: { id: true, title: true } });
+  const existing = candidates.find((s) => normalizeDashes(s.title).toLowerCase() === target);
   if (existing) return existing.id;
   const created = await prisma.set.create({
     data: { title, image: "", code: null, releaseDate: new Date(), isOpen: false },
@@ -45,6 +51,14 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(mcId)) {
       return NextResponse.json({ error: "missingCardId inválido" }, { status: 400 });
     }
+    // Overrides del modal: el operador puede elegir un set existente, escribir
+    // uno nuevo, o corregir el arte alterno detectado — en vez de confiar
+    // ciegamente en la clasificación automática.
+    const overrideSetId = Number(body.overrideSetId);
+    const overrideSetTitle =
+      typeof body.overrideSetTitle === "string" ? body.overrideSetTitle.trim() : "";
+    const overrideAlternateArt =
+      typeof body.overrideAlternateArt === "string" ? body.overrideAlternateArt.trim() : "";
 
     const mc = await prisma.missingCard.findUnique({
       where: { id: mcId },
@@ -101,18 +115,26 @@ export async function POST(req: NextRequest) {
     const primaryEvent = events[0] ?? null;
     const eventTitle = primaryEvent?.title ?? "";
 
-    // 1) Variante (tipo de alterna).
-    const variant = classifyEventAlternate(mc.title, eventTitle, mc.imageUrl);
+    // 1) Variante (tipo de alterna) — el operador puede corregirla a mano.
+    const variant = overrideAlternateArt || classifyEventAlternate(mc.title, eventTitle, mc.imageUrl);
 
-    // 2) Set: busca un pack real que matchee la variante en cualquier evento;
-    //    si no hay, usa un set derivado del nombre del evento más reciente.
+    // 2) Set: si el operador ya eligió uno (existente o nombre nuevo), se usa
+    // tal cual. Si no, la heurística automática: busca un pack real que
+    // matchee la variante en cualquier evento; si no hay, usa un set
+    // derivado del nombre del evento más reciente.
     let setId: number | null = null;
-    for (const ev of events) {
-      const evSets = ev.sets.map((es) => ({ id: es.set.id, title: es.set.title }));
-      setId = resolveEventCardSetId(variant, evSets);
-      if (setId) break;
+    if (Number.isFinite(overrideSetId) && overrideSetId > 0) {
+      setId = overrideSetId;
+    } else if (overrideSetTitle) {
+      setId = await findOrCreateEventSet(overrideSetTitle);
+    } else {
+      for (const ev of events) {
+        const evSets = ev.sets.map((es) => ({ id: es.set.id, title: es.set.title }));
+        setId = resolveEventCardSetId(variant, evSets);
+        if (setId) break;
+      }
+      if (!setId) setId = await findOrCreateEventSet(eventTitle);
     }
-    if (!setId) setId = await findOrCreateEventSet(eventTitle);
 
     // 3) Imagen del evento → R2 (nombre único para bustear el caché immutable).
     if (!mc.imageUrl) {

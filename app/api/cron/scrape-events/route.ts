@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   scrapeEvents,
   DEFAULT_EVENT_LIST_SOURCES,
+  PAST_EVENT_LIST_SOURCES,
 } from "@/lib/services/scraper/eventScraper";
+
+export const maxDuration = 300;
 
 /**
  * API Route para scraping de eventos mediante Cron Job
@@ -40,8 +43,17 @@ async function runScrape(request: NextRequest) {
   console.log("🤖 Cron job: Starting event scraper...");
   const startTime = Date.now();
 
+  // Además de la lista de eventos ACTUALES, incluye las páginas de archivo
+  // (list_end.php / list_archive.php) — ya estaban configuradas como fuente
+  // pero el cron nunca las usaba, así que eventos viejos sin link visible en
+  // la lista principal se quedaban sin scrapear. maxEvents sube para que el
+  // cupo de "actuales" no se lo coman las URLs de archivo (current va primero
+  // en el array y siempre tiene prioridad si el cupo se llenara).
   const result = await scrapeEvents({
-    sources: DEFAULT_EVENT_LIST_SOURCES.map((source) => ({ ...source })),
+    sources: [...DEFAULT_EVENT_LIST_SOURCES, ...PAST_EVENT_LIST_SOURCES].map(
+      (source) => ({ ...source })
+    ),
+    maxEvents: 80,
   });
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);

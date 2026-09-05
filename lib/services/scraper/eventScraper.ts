@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { createHash } from "crypto";
 import { prisma } from "../../prisma";
 import {
   setCodes as rawSetCodes,
@@ -1406,6 +1407,29 @@ function extractCardCode(
   return null;
 }
 
+/**
+ * El texto que sigue al código DENTRO del nombre de archivo de imagen suele
+ * ser un marcador real de variante (no un id random — eso vive en la carpeta,
+ * no en el filename): "_1/_2/_3" = trophy card por lugar, "_win" = versión
+ * ganador, "_p1/_p2" = numeración de alterna estilo JP. Cuando el heading/alt
+ * de la página no dice nada útil, este sufijo es la única pista de que dos
+ * imágenes con el MISMO código son en realidad objetos distintos — ej.
+ * batch_OP14-069_1.webp vs _2.webp vs _3.webp (3 trophy cards, 1 por lugar).
+ */
+export function extractImageVariantSuffix(
+  fileName: string,
+  code: string
+): string | null {
+  const withoutExt = fileName.replace(/\.[a-zA-Z0-9]+$/, "");
+  const [prefix, number] = code.split("-");
+  if (!prefix || !number) return null;
+  const escapedPrefix = prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const pattern = new RegExp(`${escapedPrefix}[-_]?${number}[-_]?(.*)$`, "i");
+  const match = withoutExt.match(pattern);
+  const suffix = match?.[1]?.replace(/^[-_]+/, "").trim();
+  return suffix || null;
+}
+
 function extractCardTitle(
   rawText: string,
   codeMatch: string,
@@ -1600,6 +1624,12 @@ export async function syncEventMissingCardsInDb(
   eventId: number,
   candidates: DetectedCardCandidate[]
 ) {
+  // Sin imagen no hay nada que un admin pueda comparar contra el catálogo
+  // para aprobar/vincular — no tiene sentido meterla a la cola de revisión.
+  // Se filtra ANTES de todo lo demás: ni siquiera compite por una llave
+  // canónica con una carta real que sí tenga foto.
+  const withImage = candidates.filter((candidate) => !!candidate.image);
+
   // El título del evento da contexto de variante ("Treasure Cup" → variante
   // "Treasure Cup") para construir la identidad canónica de cada carta.
   const eventRow = await prisma.event.findUnique({
@@ -1609,16 +1639,24 @@ export async function syncEventMissingCardsInDb(
   const eventTitle = eventRow?.title ?? "";
 
   // Enriquece cada candidato con imagen + llave canónica (independiente del evento).
-  const enriched = candidates.map((candidate) => ({
-    code: candidate.code,
-    title: candidate.title,
-    imageUrl: candidate.image || "",
-    canonicalKey: buildCardIdentityKey(
-      candidate.code,
-      candidate.title,
-      eventTitle
-    ),
-  }));
+  // El sufijo del archivo de imagen (batch_OP14-069_3.webp → "3") entra como
+  // último respaldo de variante — solo pesa cuando ni el texto de la carta ni
+  // el del evento supieron nombrar una (ver buildCardIdentityKey).
+  const enriched = withImage.map((candidate) => {
+    const imageFileName = (candidate.image || "").split("/").pop() || "";
+    const variantHint = extractImageVariantSuffix(imageFileName, candidate.code);
+    return {
+      code: candidate.code,
+      title: candidate.title,
+      imageUrl: candidate.image || "",
+      canonicalKey: buildCardIdentityKey(
+        candidate.code,
+        candidate.title,
+        eventTitle,
+        variantHint
+      ),
+    };
+  });
 
   if (enriched.length === 0) {
     await prisma.eventMissingCard.deleteMany({ where: { eventId } });
@@ -1626,6 +1664,80 @@ export async function syncEventMissingCardsInDb(
       where: { isApproved: false, events: { none: {} } },
     });
     return;
+  }
+
+  // FASE 0 — reuso por identidad de imagen, la única señal 100% confiable.
+  // Bandai a veces re-sube la MISMA carta bajo una carpeta random distinta
+  // (y a veces sin el prefijo "batch_" que sí trae la subida "oficial") para
+  // un evento diferente — confirmado real: el mismo "Top 64 Nami" de
+  // Regionals y de Finals, imagen idéntica, pero la llave de texto salía
+  // distinta por evento y terminaba duplicada. Si el nombre de archivo
+  // (ignorando el prefijo "batch_") ya existe para este código, se adopta
+  // ESA identidad tal cual — sin importar qué llave de texto/evento le
+  // hubiera tocado a esta carta — y se prefiere la URL con "batch_" si solo
+  // una de las dos la tiene.
+  const normalizeImageIdentity = (imageUrl: string): string =>
+    (imageUrl.split("/").pop() || "").replace(/^batch_/i, "").toLowerCase();
+  const byCode = new Map<string, typeof enriched>();
+  for (const cand of enriched) {
+    const list = byCode.get(cand.code);
+    if (list) list.push(cand);
+    else byCode.set(cand.code, [cand]);
+  }
+  for (const [code, group] of Array.from(byCode.entries())) {
+    const existingRows = await prisma.missingCard.findMany({ where: { code } });
+    for (const cand of group) {
+      const candIdentity = normalizeImageIdentity(cand.imageUrl);
+      // Guarda de seguridad: algunos eventos viejos usan nombres GENÉRICOS
+      // ("card_01.png") repetidos en carpetas propias por evento — ese nombre
+      // NO identifica la carta, solo coincide por casualidad. Únicamente
+      // confía en el nombre de archivo cuando de verdad trae el código
+      // (ej. "OP15-108.webp", "EB02-054_F.webp") — si no, no es señal 100%
+      // confiable y se deja que la llave de texto/evento decida como antes.
+      if (!candIdentity || !candIdentity.includes(cand.code.toLowerCase())) continue;
+      const match = existingRows.find(
+        (r) => normalizeImageIdentity(r.imageUrl) === candIdentity
+      );
+      if (!match || !match.canonicalKey) continue;
+      cand.canonicalKey = match.canonicalKey;
+      if (/\/batch_/i.test(match.imageUrl) || !/\/batch_/i.test(cand.imageUrl)) {
+        cand.imageUrl = match.imageUrl;
+      }
+    }
+  }
+
+  // La llave canónica es una ADIVINANZA de texto (código + variante deducida
+  // del título/evento) — nunca 100% confiable por sí sola: dos cartas
+  // FÍSICAMENTE DISTINTAS pueden caer en la misma adivinanza si ninguna trae
+  // texto que el clasificador reconozca (bug real confirmado: "Usopp" y
+  // "Lucy" de Flame-Flame Fruit Coliseum colisionaban con cartas de otro
+  // evento por esto — aprobar una "resolvía" la otra sin ser la misma carta).
+  // La única señal en la que SÍ podemos confiar al 100% es la URL de la
+  // imagen. Agrupa por llave original — tanto dentro de ESTE lote como contra
+  // lo que ya hay en la base — y a cualquier imagen que NO coincida con la
+  // "imagen principal" de ese grupo se le desambigua la llave con un hash de
+  // su propia URL, para que tenga identidad propia de ahora en más (sin
+  // perder la deduplicación real cuando SÍ es exactamente la misma imagen,
+  // incluso repetida en otro evento). El hash es de la imagen, no del orden,
+  // así que vuelve a dar la misma llave si se re-scrapea la misma página.
+  const byOriginalKey = new Map<string, typeof enriched>();
+  for (const cand of enriched) {
+    const group = byOriginalKey.get(cand.canonicalKey);
+    if (group) group.push(cand);
+    else byOriginalKey.set(cand.canonicalKey, [cand]);
+  }
+  for (const [originalKey, group] of Array.from(byOriginalKey.entries())) {
+    const existingRow = await prisma.missingCard.findFirst({
+      where: { canonicalKey: originalKey },
+      orderBy: { id: "asc" },
+    });
+    const primaryImage =
+      existingRow?.imageUrl || group.find((c) => c.imageUrl)?.imageUrl || "";
+    for (const cand of group) {
+      if (!cand.imageUrl || !primaryImage || cand.imageUrl === primaryImage) continue;
+      const imageHash = createHash("sha1").update(cand.imageUrl).digest("hex").slice(0, 10);
+      cand.canonicalKey = `${originalKey}#${imageHash}`;
+    }
   }
 
   const canonicalSet = new Set(enriched.map((e) => e.canonicalKey));
@@ -1687,8 +1799,13 @@ export async function syncEventMissingCardsInDb(
           canonicalKey: cand.canonicalKey,
         },
       });
-    } else if (!missingCard.imageUrl && cand.imageUrl) {
-      // Rellena la imagen si el primer evento no la traía y este sí.
+    } else if (
+      cand.imageUrl &&
+      (!missingCard.imageUrl ||
+        (!/\/batch_/i.test(missingCard.imageUrl) && /\/batch_/i.test(cand.imageUrl)))
+    ) {
+      // Rellena la imagen si el primer evento no la traía, o la mejora si la
+      // que ya teníamos no era la versión "batch_" (subida oficial) y esta sí.
       missingCard = await prisma.missingCard.update({
         where: { id: missingCard.id },
         data: { imageUrl: cand.imageUrl },
@@ -2020,6 +2137,84 @@ async function detectSetsAndCards(
       modernByCode.set(codeInfo.code, { code: codeInfo.code, title, image });
     }
   }
+
+  // 3) Bloques de imagen "component-opcg-cards" (galería de premios) y
+  //    "component-photo-onepiececg" (foto individual — trophy cards, jumbo
+  //    card): en ambos el código NUNCA aparece como texto en la página, solo
+  //    en el nombre del archivo de imagen — el paso (2) de arriba los pierde
+  //    porque exige el código como texto suelto. Los tomamos directo del
+  //    filename (mismo `imageByCode` de arriba), usando el heading más
+  //    cercano hacia atrás como contexto del título (ej. "CS 26-27 Event
+  //    Pack", "CS 26ｰ27 1st Place Trophy Card"). Confirmado real en
+  //    /events/26-27_Finals_Season_2.html — sin el segundo selector, las 4
+  //    trophy/jumbo cards de esa página (fotos individuales, no galería) se
+  //    perdían igual que antes.
+  // El heading del bloque casi nunca es un hermano-anterior DIRECTO — vive
+  // adentro de un contenedor hermano-anterior (ej. <div data-type="component-text">
+  // <div class="text-area"><h5>Featured Card List</h5></div></div>). Por eso
+  // busca tanto "el hermano ES un heading" como "el hermano CONTIENE uno".
+  const closestPrecedingHeading = ($el: cheerio.Cheerio<any>): string => {
+    let $cur = $el;
+    for (let depth = 0; depth < 6 && $cur.length > 0; depth += 1) {
+      const siblings = $cur.prevAll().toArray();
+      for (const sib of siblings) {
+        const $sib = $(sib);
+        const heading = $sib.is("h1,h2,h3,h4,h5,h6")
+          ? $sib
+          : $sib.find("h1,h2,h3,h4,h5,h6").first();
+        if (heading.length > 0) return extractHeadingText(heading);
+      }
+      $cur = $cur.parent();
+    }
+    return "";
+  };
+  // Ojo: distintos bloques pueden compartir CÓDIGO pero ser objetos físicos
+  // distintos (las trophy card de 1er/2do/3er lugar son el mismo print base
+  // pero cada una con su propio estampado de lugar) — por eso este pase NO
+  // reutiliza `modernByCode` con el código pelado como llave (eso colapsaría
+  // 2do/3er lugar contra el 1ro); usa código+título para no perder variantes
+  // reales, pero sí sigue evitando duplicar el mismo código+título dos veces.
+  const seenCodeTitle = new Set<string>();
+  const cardBlocks = $(
+    '[data-type="component-opcg-cards"], [data-type="component-photo-onepiececg"]'
+  ).toArray();
+  for (const block of cardBlocks) {
+    const $block = $(block);
+    const headingText = closestPrecedingHeading($block);
+    $block.find("img").each((_, img) => {
+      const $img = $(img);
+      const src = $img.attr("src") || $img.attr("data-src");
+      if (!src) return;
+      const fileName = src.split("/").pop() || "";
+      const normalized = fileName.replace(/_/g, "-");
+      const codeInfo = extractCardCode(normalized);
+      if (!codeInfo) return;
+      if (existingCodes.has(codeInfo.code)) return;
+
+      const resolved = resolveImageUrl(src, baseUrl);
+      const alt = $img.attr("alt")?.trim();
+      const suffix = extractImageVariantSuffix(fileName, codeInfo.code);
+      let title = headingText || alt || codeInfo.code;
+      // Si no hay ningún texto útil (título = código pelado) pero el archivo
+      // sí trae un sufijo de variante, úsalo — mejor "OP14-069 (3)" que
+      // perder la carta por colisionar con otra imagen del mismo código.
+      if (title === codeInfo.code && suffix) {
+        title = `${codeInfo.code} (${suffix})`;
+      }
+      // El sufijo entra SIEMPRE a la llave de dedupe (no solo al título): dos
+      // imágenes del mismo código con el mismo heading pero distinto archivo
+      // (_1 vs _2 vs _3) no deben colapsar aunque el título coincida.
+      const dedupeKey = `${codeInfo.code}::${title.toLowerCase()}::${suffix ?? ""}`;
+      if (seenCodeTitle.has(dedupeKey)) return;
+      seenCodeTitle.add(dedupeKey);
+      modernByCode.set(`block:${dedupeKey}`, {
+        code: codeInfo.code,
+        title,
+        image: resolved ?? imageByCode.get(codeInfo.code) ?? null,
+      });
+    });
+  }
+
   for (const candidate of Array.from(modernByCode.values())) {
     cardCandidates.push(candidate);
   }

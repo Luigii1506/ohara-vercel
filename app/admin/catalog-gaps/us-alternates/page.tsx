@@ -66,6 +66,20 @@ type SyncHealth = {
   issues: string[];
 };
 
+type EventSuggestion = {
+  code: string;
+  cardTitle: string;
+  eventTitle: string;
+  suggestedAlternateArt: string;
+  suggestedSetTitle: string;
+  isGenericPack: boolean;
+  existingSetId: number | null;
+  existingSetTitle: string | null;
+  siblingCount: number;
+};
+
+type SetOption = { id: number; title: string; code: string | null };
+
 type CompareSetOption = {
   setId: number | null;
   title: string;
@@ -159,6 +173,24 @@ export default function UsAlternatesPage() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareData, setCompareData] = useState<ComparePayload | null>(null);
   const [selectedSetKey, setSelectedSetKey] = useState<string | null>(null);
+
+  // Picker de set + arte alterno para cartas de EVENTO (prize cards): elegir
+  // el set sugerido (el pack real, ej. "CS 26-27 Event Pack"), uno existente
+  // buscándolo, o crear uno nuevo — y corregir el arte alterno detectado.
+  const [eventSuggestion, setEventSuggestion] = useState<EventSuggestion | null>(null);
+  const [eventSuggestionLoading, setEventSuggestionLoading] = useState(false);
+  const [eventAltArt, setEventAltArt] = useState("");
+  const [eventSetMode, setEventSetMode] = useState<"suggested" | "existing" | "new">("suggested");
+  const [eventExistingSetId, setEventExistingSetId] = useState<number | null>(null);
+  const [eventNewSetTitle, setEventNewSetTitle] = useState("");
+  const [pickSetRaw, setPickSetRaw] = useState("");
+  const pickSetQuery = useDebounced(pickSetRaw, 300);
+  const [setSearchResults, setSetSearchResults] = useState<SetOption[]>([]);
+  const [setSearchLoading, setSetSearchLoading] = useState(false);
+  // Recuerda el set elegido la última vez para cada "pack" (mc.title) — así,
+  // si vienes procesando 8 cartas del mismo "CS 26-27 Event Pack" seguidas,
+  // la siguiente ya abre con ese mismo set preseleccionado.
+  const [lastSetByPack, setLastSetByPack] = useState<Record<string, SetOption>>({});
 
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [onlyCorroborated, setOnlyCorroborated] = useState(false);
@@ -302,6 +334,80 @@ export default function UsAlternatesPage() {
     };
   }, [detailRow]);
 
+  // Sugerencia de set + arte alterno para cartas de EVENTO.
+  useEffect(() => {
+    if (!detailRow || detailRow.origin !== "events") {
+      setEventSuggestion(null);
+      setEventAltArt("");
+      setEventSetMode("suggested");
+      setEventExistingSetId(null);
+      setEventNewSetTitle("");
+      setPickSetRaw("");
+      setSetSearchResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    setEventSuggestionLoading(true);
+    const missingCardId = -detailRow.productId;
+    fetch(`/api/admin/catalog-gaps/us-alternates/event-suggestions?missingCardId=${missingCardId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("suggestion failed"))))
+      .then((data: EventSuggestion) => {
+        if (cancelled) return;
+        setEventSuggestion(data);
+        setEventAltArt(data.suggestedAlternateArt);
+        // Si ya procesamos otra carta de este mismo pack, reusa ese set.
+        const remembered = lastSetByPack[data.cardTitle];
+        if (remembered) {
+          setEventSetMode("existing");
+          setEventExistingSetId(remembered.id);
+          setEventNewSetTitle(remembered.title);
+        } else {
+          setEventSetMode("suggested");
+          setEventExistingSetId(data.existingSetId);
+          setEventNewSetTitle(data.suggestedSetTitle);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(error);
+          setEventSuggestion(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEventSuggestionLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailRow]);
+
+  // Buscar sets existentes mientras el operador escribe (para "elegir set existente").
+  useEffect(() => {
+    if (eventSetMode !== "existing" || !pickSetQuery.trim()) {
+      setSetSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSetSearchLoading(true);
+    fetch(`/api/admin/sets/search?title=${encodeURIComponent(pickSetQuery.trim())}&limit=8`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!cancelled) setSetSearchResults(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setSetSearchResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSetSearchLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventSetMode, pickSetQuery]);
+
   // "Ya la tengo, ES ESTA": linkea el candidato a una carta existente.
   const linkToCard = async (r: Row, cardId: number) => {
     setBusy((b) => new Set(b).add(r.refKey));
@@ -337,7 +443,8 @@ export default function UsAlternatesPage() {
 
   const createAlternate = async (
     r: Row,
-    overrideSet?: { setId: number | null; title: string; code: string | null } | null
+    overrideSet?: { setId: number | null; title: string; code: string | null } | null,
+    eventOverride?: { setId: number | null; setTitle: string | null; alternateArt: string | null } | null
   ) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
@@ -347,7 +454,16 @@ export default function UsAlternatesPage() {
         ? "/api/admin/catalog-gaps/us-alternates/create-from-event"
         : "/api/admin/catalog-gaps/us-alternates/create";
       const payload = isEvent
-        ? { missingCardId: -r.productId }
+        ? {
+            missingCardId: -r.productId,
+            ...(eventOverride?.setId != null ? { overrideSetId: Number(eventOverride.setId) } : {}),
+            ...(eventOverride?.setId == null && eventOverride?.setTitle
+              ? { overrideSetTitle: eventOverride.setTitle }
+              : {}),
+            ...(eventOverride?.alternateArt
+              ? { overrideAlternateArt: eventOverride.alternateArt }
+              : {}),
+          }
         : {
             productId: r.productId,
             ...(overrideSet?.setId != null
@@ -374,6 +490,12 @@ export default function UsAlternatesPage() {
             ? "carta nueva completa"
             : "alterna";
         setMsg(`✓ ${r.code} creada (${detail})`);
+        if (isEvent && data.setId && data.setTitle && eventSuggestion) {
+          setLastSetByPack((m) => ({
+            ...m,
+            [eventSuggestion.cardTitle]: { id: data.setId, title: data.setTitle, code: null },
+          }));
+        }
       } else {
         setMsg(`✕ ${r.code}: ${data.error ?? "no se pudo crear"}`);
       }
@@ -1027,6 +1149,162 @@ export default function UsAlternatesPage() {
                   </div>
                 )}
 
+                {detailRow.origin === "events" && (
+                  <div className="mt-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Set y arte alterno
+                    </h4>
+
+                    {eventSuggestionLoading ? (
+                      <div className="py-4 text-center">
+                        <Loader2 className="mx-auto h-4 w-4 animate-spin text-slate-400" />
+                      </div>
+                    ) : eventSuggestion ? (
+                      <div className="mt-3 space-y-3 text-xs">
+                        {eventSuggestion.siblingCount > 0 && (
+                          <div className="rounded-md bg-blue-50 px-2 py-1.5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                            💡 {eventSuggestion.siblingCount} carta
+                            {eventSuggestion.siblingCount === 1 ? "" : "s"} más pendiente
+                            {eventSuggestion.siblingCount === 1 ? "" : "s"} del mismo pack (
+                            <span className="font-medium">{eventSuggestion.cardTitle}</span>) —
+                            el set que elijas acá te queda recordado para esas también.
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="font-semibold text-slate-700 dark:text-slate-200">
+                            Arte alterno
+                          </label>
+                          <input
+                            value={eventAltArt}
+                            onChange={(e) => setEventAltArt(e.target.value)}
+                            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                            placeholder="ej. Winner Version"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="font-semibold text-slate-700 dark:text-slate-200">Set</div>
+                          <div className="mt-1.5 space-y-1.5">
+                            {!eventSuggestion.isGenericPack && (
+                              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 p-2 hover:border-blue-400 dark:border-slate-700">
+                                <input
+                                  type="radio"
+                                  name="event-set-mode"
+                                  checked={eventSetMode === "suggested"}
+                                  onChange={() => {
+                                    setEventSetMode("suggested");
+                                    setEventExistingSetId(eventSuggestion.existingSetId);
+                                    setEventNewSetTitle(eventSuggestion.suggestedSetTitle);
+                                  }}
+                                  className="mt-0.5 h-4 w-4 accent-blue-600"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-800 dark:text-slate-100">
+                                    Sugerido: {eventSuggestion.suggestedSetTitle}
+                                  </div>
+                                  <span
+                                    className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      eventSuggestion.existingSetId
+                                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                        : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                                    }`}
+                                  >
+                                    {eventSuggestion.existingSetId ? "ya existe" : "se creará"}
+                                  </span>
+                                </div>
+                              </label>
+                            )}
+
+                            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 p-2 hover:border-blue-400 dark:border-slate-700">
+                              <input
+                                type="radio"
+                                name="event-set-mode"
+                                checked={eventSetMode === "existing"}
+                                onChange={() => setEventSetMode("existing")}
+                                className="mt-0.5 h-4 w-4 accent-blue-600"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-slate-800 dark:text-slate-100">
+                                  Elegir set existente
+                                </div>
+                                {eventSetMode === "existing" && (
+                                  <div className="mt-1.5">
+                                    <input
+                                      value={pickSetRaw}
+                                      onChange={(e) => setPickSetRaw(e.target.value)}
+                                      placeholder="Buscar por nombre…"
+                                      className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                                    />
+                                    {setSearchLoading ? (
+                                      <div className="py-2 text-center">
+                                        <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-slate-400" />
+                                      </div>
+                                    ) : setSearchResults.length > 0 ? (
+                                      <div className="mt-1 max-h-32 space-y-1 overflow-y-auto">
+                                        {setSearchResults.map((s) => (
+                                          <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setEventExistingSetId(s.id);
+                                              setPickSetRaw(s.title);
+                                              setSetSearchResults([]);
+                                            }}
+                                            className={`block w-full rounded px-2 py-1 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                                              eventExistingSetId === s.id
+                                                ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                                                : ""
+                                            }`}
+                                          >
+                                            {s.title}
+                                            {s.code ? ` (${s.code})` : ""}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : pickSetQuery.trim() ? (
+                                      <div className="mt-1 text-slate-400">Sin resultados.</div>
+                                    ) : null}
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+
+                            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 p-2 hover:border-blue-400 dark:border-slate-700">
+                              <input
+                                type="radio"
+                                name="event-set-mode"
+                                checked={eventSetMode === "new"}
+                                onChange={() => setEventSetMode("new")}
+                                className="mt-0.5 h-4 w-4 accent-blue-600"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-slate-800 dark:text-slate-100">
+                                  Crear set nuevo
+                                </div>
+                                {eventSetMode === "new" && (
+                                  <div className="mt-1.5 flex gap-1.5">
+                                    <input
+                                      value={eventNewSetTitle}
+                                      onChange={(e) => setEventNewSetTitle(e.target.value)}
+                                      placeholder="Nombre del set nuevo"
+                                      className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-slate-500">
+                        No se pudo calcular una sugerencia de set.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {haveLoading ? (
                   <div className="py-8 text-center">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
@@ -1080,10 +1358,28 @@ export default function UsAlternatesPage() {
                               : `title:${option.title}::${option.code ?? ""}`;
                           return optionKey === selectedSetKey;
                         }) ?? null;
+                      const eventOverride =
+                        r.origin === "events"
+                          ? {
+                              setId: eventSetMode === "new" ? null : eventExistingSetId,
+                              setTitle:
+                                eventSetMode === "new"
+                                  ? eventNewSetTitle.trim() || null
+                                  : eventSetMode === "suggested"
+                                    ? eventSuggestion?.suggestedSetTitle ?? null
+                                    : null,
+                              alternateArt: eventAltArt.trim() || null,
+                            }
+                          : null;
                       setDetailRow(null);
-                      createAlternate(r, overrideSet);
+                      createAlternate(r, overrideSet, eventOverride);
                     }}
-                    disabled={busy.has(detailRow.refKey)}
+                    disabled={
+                      busy.has(detailRow.refKey) ||
+                      (detailRow.origin === "events" &&
+                        ((eventSetMode === "existing" && !eventExistingSetId) ||
+                          (eventSetMode === "new" && !eventNewSetTitle.trim())))
+                    }
                     className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                   >
                     <Plus className="h-3.5 w-3.5" />

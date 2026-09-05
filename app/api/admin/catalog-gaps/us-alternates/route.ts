@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const search = (sp.get("search") ?? "").trim().toUpperCase();
     const onlyMissing = sp.get("onlyMissing") === "1";
     const onlyCorroborated = sp.get("corroborated") === "1";
-    const sourceFilter = sp.get("source") ?? ""; // tcgplayer | dotgg | events
+    const sourceFilter = sp.get("source") ?? ""; // tcgplayer | dotgg | events | news
     const typeFilter = sp.get("type") ?? ""; // new | alt-art
     const showReviewed = sp.get("showReviewed") === "1"; // incluir have/ignored
     const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
       sourceUrl: string | null;
       eventText: string;
       variant: string;
+      isNews: boolean;
     };
     const eventByCode = new Map<string, EventCard[]>();
     for (const m of eventCardsRaw) {
@@ -163,6 +164,12 @@ export async function GET(req: NextRequest) {
       const eventTitles = m.events.map((e) => e.event.title).filter(Boolean).join(" ");
       const sourceUrl = m.events.map((e) => e.event.sourceUrl).find(Boolean) ?? null;
       const eventText = norm(`${eventTitles} ${m.title ?? ""}`);
+      // Distingue cartas encontradas en /news/ (campañas, anuncios) de las de
+      // /events/ (torneos) — mismo pipeline de scraping, fuente distinta para
+      // el filtro del panel.
+      const isNews =
+        m.events.length > 0 &&
+        m.events.every((e) => (e.event.sourceUrl ?? "").includes("/news/"));
 
       // Variante canónica de la carta de evento (independiente del evento).
       const canonicalKey =
@@ -201,7 +208,7 @@ export async function GET(req: NextRequest) {
       if (haveByVariant || haveByFuzzy) continue;
 
       const arr = eventByCode.get(code) ?? [];
-      arr.push({ id: m.id, code, title: m.title, imageUrl: m.imageUrl, sourceUrl, eventText, variant });
+      arr.push({ id: m.id, code, title: m.title, imageUrl: m.imageUrl, sourceUrl, eventText, variant, isNews });
       eventByCode.set(code, arr);
     }
 
@@ -210,7 +217,9 @@ export async function GET(req: NextRequest) {
       const s: string[] = [];
       if ((tcgTotal.get(code) ?? 0) > our) s.push("tcgplayer");
       if ((dotgg.get(code)?.total ?? 0) > our) s.push("dotgg");
-      if (eventByCode.has(code)) s.push("events");
+      const evs = eventByCode.get(code) ?? [];
+      if (evs.some((e) => !e.isNews)) s.push("events");
+      if (evs.some((e) => e.isNews)) s.push("news");
       return s;
     };
 
@@ -264,7 +273,7 @@ export async function GET(req: NextRequest) {
       for (const m of cards) {
         (candidates as any[]).push({
           productId: -m.id, // sintético para el key de React
-          origin: "events",
+          origin: m.isNews ? "news" : "events",
           type: our === 0 ? "new" : "alt-art",
           variant: "prize",
           prizeVariant: m.variant, // variante canónica: treasure-cup, serial…
@@ -293,7 +302,7 @@ export async function GET(req: NextRequest) {
     });
     const reviewByKey = new Map(reviews.map((r) => [r.refKey, r.status]));
     const refKeyOf = (c: any) =>
-      c.origin === "events" ? `mc:${-c.productId}` : `tcg:${c.productId}`;
+      c.origin === "events" || c.origin === "news" ? `mc:${-c.productId}` : `tcg:${c.productId}`;
     let withStatus = (candidates as any[]).map((c) => ({
       ...c,
       refKey: refKeyOf(c),
@@ -309,6 +318,7 @@ export async function GET(req: NextRequest) {
     const likelyMissing = candidates.filter((c) => c.likelyMissing).length;
     const corroborated = candidates.filter((c) => c.sources.length >= 2).length;
     const fromEvents = candidates.filter((c: any) => c.origin === "events").length;
+    const fromNews = candidates.filter((c: any) => c.origin === "news").length;
     const newCards = new Set(
       candidates.filter((c) => c.type === "new").map((c) => c.code)
     ).size;
@@ -335,6 +345,8 @@ export async function GET(req: NextRequest) {
       candidates = candidates.filter((c: any) => c.origin === "tcgplayer");
     else if (sourceFilter === "events")
       candidates = candidates.filter((c: any) => c.origin === "events");
+    else if (sourceFilter === "news")
+      candidates = candidates.filter((c: any) => c.origin === "news");
     else if (sourceFilter === "dotgg")
       candidates = candidates.filter((c) => c.sources.includes("dotgg"));
     if (typeFilter) candidates = candidates.filter((c) => c.type === typeFilter);
@@ -363,6 +375,7 @@ export async function GET(req: NextRequest) {
         likelyMissing,
         corroborated,
         fromEvents,
+        fromNews,
         newCards,
         altArts,
         reviewed: reviewedCount,

@@ -19,9 +19,16 @@ import {
   Clock3,
 } from "lucide-react";
 
+// Las cartas de "news" comparten TODO el pipeline de MissingCard con "events"
+// (mismo endpoint create-from-event, mismo missingCardId, mismo flujo de
+// set+arte alterno) — solo difieren en qué tan navegable es su fuente
+// original. Se tratan igual salvo donde el usuario necesita distinguirlas
+// (etiqueta, filtro de fuente, punto de color).
+const isEventLike = (origin: string) => origin === "events" || origin === "news";
+
 type Row = {
   productId: number;
-  origin: string; // "tcgplayer" | "events"
+  origin: string; // "tcgplayer" | "events" | "news"
   type: string; // "new" | "alt-art"
   variant: string | null; // reprint | parallel | manga | prize | null
   code: string;
@@ -46,6 +53,7 @@ type Stats = {
   likelyMissing: number;
   corroborated: number;
   fromEvents: number;
+  fromNews: number;
   newCards: number;
   altArts: number;
   reviewed: number;
@@ -199,7 +207,7 @@ export default function UsAlternatesPage() {
 
   const hoverPreviewFromCandidate = (r: Row) => ({
     key: "candidate",
-    src: (r.imageUrl ? (r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl) : null) ?? null,
+    src: (r.imageUrl ? (isEventLike(r.origin) ? proxyImage(r.imageUrl) : r.imageUrl) : null) ?? null,
     code: r.code,
     line2: r.name,
     line3: [r.variant, r.setCode].filter(Boolean).join(" · ") || null,
@@ -370,9 +378,9 @@ export default function UsAlternatesPage() {
     };
   }, [detailRow]);
 
-  // Sugerencia de set + arte alterno para cartas de EVENTO.
+  // Sugerencia de set + arte alterno para cartas de EVENTO/NEWS.
   useEffect(() => {
-    if (!detailRow || detailRow.origin !== "events") {
+    if (!detailRow || !isEventLike(detailRow.origin)) {
       setEventSuggestion(null);
       setEventAltArt("");
       setEventSetMode("suggested");
@@ -448,7 +456,7 @@ export default function UsAlternatesPage() {
   const linkToCard = async (r: Row, cardId: number) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
-      const isEvent = r.origin === "events";
+      const isEvent = isEventLike(r.origin);
       const payload = isEvent
         ? { origin: "events", missingCardId: -r.productId, cardId }
         : { origin: "tcgplayer", productId: r.productId, cardId };
@@ -484,8 +492,8 @@ export default function UsAlternatesPage() {
   ) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
-      // Eventos: crear desde el MissingCard (productId es -missingCardId).
-      const isEvent = r.origin === "events";
+      // Eventos/news: crear desde el MissingCard (productId es -missingCardId).
+      const isEvent = isEventLike(r.origin);
       const endpoint = isEvent
         ? "/api/admin/catalog-gaps/us-alternates/create-from-event"
         : "/api/admin/catalog-gaps/us-alternates/create";
@@ -646,13 +654,15 @@ export default function UsAlternatesPage() {
           <TypeBtn active={typeFilter === "new"} onClick={() => setTypeFilter("new")} label="Cartas nuevas" value={stats?.newCards} tone="blue" />
           <TypeBtn active={typeFilter === "alt-art"} onClick={() => setTypeFilter("alt-art")} label="Alt-arts" value={stats?.altArts} tone="rose" />
           <TypeBtn active={typeFilter === "" && false} onClick={() => setSourceFilter(sourceFilter === "events" ? "" : "events")} label="Solo prize (eventos)" value={stats?.fromEvents} tone="violet" activeOverride={sourceFilter === "events"} />
+          <TypeBtn active={typeFilter === "" && false} onClick={() => setSourceFilter(sourceFilter === "news" ? "" : "news")} label="Solo news" value={stats?.fromNews} tone="cyan" activeOverride={sourceFilter === "news"} />
         </div>
 
         {/* Stats */}
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
           <Stat label="Total faltantes" value={stats?.likelyMissing} tone="rose" />
           <Stat label="Corroboradas 2+" value={stats?.corroborated} tone="emerald" />
           <Stat label="De eventos (prize)" value={stats?.fromEvents} tone="violet" />
+          <Stat label="De news" value={stats?.fromNews} tone="cyan" />
           <Stat label="Códigos afectados" value={stats?.codesAffected} tone="amber" />
           <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="text-xs font-medium text-slate-500">Por rareza</div>
@@ -723,6 +733,7 @@ export default function UsAlternatesPage() {
             <option value="tcgplayer">TCGplayer</option>
             <option value="dotgg">DotGG</option>
             <option value="events">Eventos (prize)</option>
+            <option value="news">News</option>
           </select>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
             <input
@@ -798,7 +809,7 @@ export default function UsAlternatesPage() {
                   {r.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl}
+                      src={isEventLike(r.origin) ? proxyImage(r.imageUrl) : r.imageUrl}
                       alt={r.code}
                       className="h-full w-full object-cover"
                       loading="lazy"
@@ -868,7 +879,7 @@ export default function UsAlternatesPage() {
                       </button>
                     ) : (
                       <>
-                        {r.origin === "tcgplayer" || r.origin === "events" ? (
+                        {r.origin === "tcgplayer" || isEventLike(r.origin) ? (
                           <button
                             onClick={(e) => {
                               e.preventDefault();
@@ -877,8 +888,8 @@ export default function UsAlternatesPage() {
                             disabled={busy.has(r.refKey)}
                             className="flex flex-1 items-center justify-center gap-1 bg-blue-600/95 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-70"
                             title={
-                              r.origin === "events"
-                                ? "Crear la alterna con la imagen del evento (tipo y set automáticos)"
+                              isEventLike(r.origin)
+                                ? "Crear la alterna con la imagen del evento/news (tipo y set automáticos)"
                                 : "Crear la alterna en tu catálogo (set desde TCGplayer)"
                             }
                           >
@@ -936,6 +947,7 @@ export default function UsAlternatesPage() {
                       {r.sources.includes("tcgplayer") && <span className="h-2 w-2 rounded-full bg-blue-500" />}
                       {r.sources.includes("dotgg") && <span className="h-2 w-2 rounded-full bg-fuchsia-500" />}
                       {r.sources.includes("events") && <span className="h-2 w-2 rounded-full bg-violet-500" />}
+                      {r.sources.includes("news") && <span className="h-2 w-2 rounded-full bg-cyan-500" />}
                     </span>
                   </div>
                   <div className="truncate text-[11px] text-slate-500" title={r.name}>{r.name}</div>
@@ -948,6 +960,7 @@ export default function UsAlternatesPage() {
                       {r.sources.includes("tcgplayer") && <span className="h-2 w-2 rounded-full bg-blue-500" />}
                       {r.sources.includes("dotgg") && <span className="h-2 w-2 rounded-full bg-fuchsia-500" />}
                       {r.sources.includes("events") && <span className="h-2 w-2 rounded-full bg-violet-500" />}
+                      {r.sources.includes("news") && <span className="h-2 w-2 rounded-full bg-cyan-500" />}
                     </span>
                   </div>
                 </div>
@@ -1060,7 +1073,7 @@ export default function UsAlternatesPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={
-                        detailRow.origin === "events"
+                        isEventLike(detailRow.origin)
                           ? proxyImage(detailRow.imageUrl)
                           : detailRow.imageUrl
                       }
@@ -1075,7 +1088,11 @@ export default function UsAlternatesPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   <span className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white bg-slate-700">
-                    {detailRow.origin === "events" ? "Evento (prize)" : "TCGplayer"}
+                    {detailRow.origin === "events"
+                      ? "Evento (prize)"
+                      : detailRow.origin === "news"
+                        ? "News"
+                        : "TCGplayer"}
                   </span>
                   {detailRow.rarity && (
                     <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
@@ -1234,7 +1251,7 @@ export default function UsAlternatesPage() {
                   </div>
                 )}
 
-                {detailRow.origin === "events" && (
+                {isEventLike(detailRow.origin) && (
                   <div className="mt-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Set y arte alterno
@@ -1463,7 +1480,7 @@ export default function UsAlternatesPage() {
                           return optionKey === selectedSetKey;
                         }) ?? null;
                       const eventOverride =
-                        r.origin === "events"
+                        isEventLike(r.origin)
                           ? {
                               setId: eventSetMode === "new" ? null : eventExistingSetId,
                               setTitle:
@@ -1480,7 +1497,7 @@ export default function UsAlternatesPage() {
                     }}
                     disabled={
                       busy.has(detailRow.refKey) ||
-                      (detailRow.origin === "events" &&
+                      (isEventLike(detailRow.origin) &&
                         ((eventSetMode === "existing" && !eventExistingSetId) ||
                           (eventSetMode === "new" && !eventNewSetTitle.trim())))
                     }
@@ -1521,7 +1538,7 @@ function TypeBtn({
   value?: number;
   active: boolean;
   onClick: () => void;
-  tone?: "slate" | "blue" | "rose" | "violet";
+  tone?: "slate" | "blue" | "rose" | "violet" | "cyan";
   activeOverride?: boolean;
 }) {
   const on = activeOverride ?? active;
@@ -1530,6 +1547,7 @@ function TypeBtn({
     blue: "border-blue-500 bg-blue-600 text-white",
     rose: "border-rose-500 bg-rose-600 text-white",
     violet: "border-violet-500 bg-violet-600 text-white",
+    cyan: "border-cyan-500 bg-cyan-600 text-white",
   };
   return (
     <button
@@ -1555,7 +1573,7 @@ function Stat({
 }: {
   label: string;
   value?: number;
-  tone?: "rose" | "amber" | "slate" | "emerald" | "violet";
+  tone?: "rose" | "amber" | "slate" | "emerald" | "violet" | "cyan";
 }) {
   const tones: Record<string, string> = {
     rose: "text-rose-600 dark:text-rose-400",
@@ -1563,6 +1581,7 @@ function Stat({
     slate: "text-slate-500 dark:text-slate-400",
     emerald: "text-emerald-600 dark:text-emerald-400",
     violet: "text-violet-600 dark:text-violet-400",
+    cyan: "text-cyan-600 dark:text-cyan-400",
   };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

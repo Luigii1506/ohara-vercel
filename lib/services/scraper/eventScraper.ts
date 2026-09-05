@@ -2475,8 +2475,13 @@ export async function scrapeEventDetail(
 
     const $ = cheerio.load(html);
 
-    // Extrae información básica
-    const structuredTitle = $(".eventTit").first().text().trim();
+    // Extrae información básica. Las páginas de /news/ no usan ".eventTit"
+    // (eso es solo de /events/) sino ".pageTit"; su único <h1> es el logo del
+    // sitio (un <img> sin texto), así que sin este selector el título caía al
+    // <title> crudo de la página (con el sufijo "| ONE PIECE CARD GAME -
+    // Official Web Site" pegado).
+    const structuredTitle =
+      $(".eventTit").first().text().trim() || $(".pageTit").first().text().trim();
     const fallbackTitle =
       $("h1").first().text().trim() || $("title").text().trim();
     const title = cleanPageTitle(structuredTitle || fallbackTitle);

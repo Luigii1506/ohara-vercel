@@ -171,9 +171,41 @@ export default function UsAlternatesPage() {
   const [detailRow, setDetailRow] = useState<Row | null>(null);
   const [haveCards, setHaveCards] = useState<any[]>([]);
   const [haveLoading, setHaveLoading] = useState(false);
-  // Preview grande al pasar el mouse sobre una miniatura — para distinguir
+  // Preview grande al pasar el mouse sobre una imagen (la principal del
+  // candidato, o cualquiera de "cartas que ya tengo") — para distinguir
   // alternas parecidas sin tener que adivinar por la imagen chiquita.
-  const [hoverCard, setHoverCard] = useState<any | null>(null);
+  const [hoverCard, setHoverCard] = useState<{
+    key: string;
+    src: string | null;
+    code: string;
+    line2: string;
+    line3: string | null;
+    rarity: string | null;
+    region: string | null;
+  } | null>(null);
+
+  const hoverPreviewFromHaveCard = (c: any) => ({
+    key: `have-${c.id}`,
+    src: c.src ?? null,
+    code: c.code ?? "",
+    line2: c.isFirstEdition ? "Base" : c.alternateArt || "Alterna",
+    line3:
+      Array.isArray(c.sets) && c.sets.length > 0
+        ? c.sets.map((s: any) => s.set?.title).filter(Boolean).join(" · ")
+        : null,
+    rarity: c.rarity ?? null,
+    region: c.region ?? null,
+  });
+
+  const hoverPreviewFromCandidate = (r: Row) => ({
+    key: "candidate",
+    src: (r.imageUrl ? (r.origin === "events" ? proxyImage(r.imageUrl) : r.imageUrl) : null) ?? null,
+    code: r.code,
+    line2: r.name,
+    line3: [r.variant, r.setCode].filter(Boolean).join(" · ") || null,
+    rarity: r.rarity ?? null,
+    region: null,
+  });
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareData, setCompareData] = useState<ComparePayload | null>(null);
   const [selectedSetKey, setSelectedSetKey] = useState<string | null>(null);
@@ -958,29 +990,25 @@ export default function UsAlternatesPage() {
               tengo" — fixed y por encima de todo para que no lo tape el scroll
               del modal ni quede recortado por su overflow. */}
           {hoverCard && (
-            <div className="pointer-events-none fixed right-4 top-1/2 z-[60] w-64 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:right-8 sm:w-72">
+            <div className="pointer-events-none fixed right-4 top-1/2 z-[60] w-80 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:right-8 sm:w-[26rem]">
               <div className="overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                 {hoverCard.src ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={hoverCard.src}
-                    alt={hoverCard.alternateArt || "base"}
-                    className="w-full"
-                  />
+                  <img src={hoverCard.src} alt={hoverCard.code} className="w-full" />
                 ) : (
                   <div className="aspect-[5/7] w-full" />
                 )}
               </div>
-              <div className="mt-2 space-y-0.5 text-xs">
+              <div className="mt-2 space-y-0.5 text-sm">
                 <div className="font-mono font-bold text-slate-800 dark:text-slate-100">
                   {hoverCard.code}
                 </div>
                 <div className="font-semibold text-slate-700 dark:text-slate-200">
-                  {hoverCard.isFirstEdition ? "Base" : hoverCard.alternateArt || "Alterna"}
+                  {hoverCard.line2}
                 </div>
-                {Array.isArray(hoverCard.sets) && hoverCard.sets.length > 0 && (
-                  <div className="text-slate-500 dark:text-slate-400">
-                    {hoverCard.sets.map((s: any) => s.set?.title).filter(Boolean).join(" · ")}
+                {hoverCard.line3 && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {hoverCard.line3}
                   </div>
                 )}
                 <div className="flex flex-wrap gap-1 pt-1">
@@ -1019,7 +1047,15 @@ export default function UsAlternatesPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]">
               {/* Candidato */}
               <div>
-                <div className="aspect-[5/7] overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                <div
+                  onMouseEnter={() => setHoverCard(hoverPreviewFromCandidate(detailRow))}
+                  onMouseLeave={() =>
+                    setHoverCard((cur) => (cur?.key === "candidate" ? null : cur))
+                  }
+                  className={`aspect-[5/7] overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 ${
+                    hoverCard?.key === "candidate" ? "ring-2 ring-blue-300" : ""
+                  }`}
+                >
                   {detailRow.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1378,10 +1414,12 @@ export default function UsAlternatesPage() {
                     {haveCards.map((c: any) => (
                       <div
                         key={c.id}
-                        onMouseEnter={() => setHoverCard(c)}
-                        onMouseLeave={() => setHoverCard((cur: any) => (cur?.id === c.id ? null : cur))}
+                        onMouseEnter={() => setHoverCard(hoverPreviewFromHaveCard(c))}
+                        onMouseLeave={() =>
+                          setHoverCard((cur) => (cur?.key === `have-${c.id}` ? null : cur))
+                        }
                         className={`rounded-lg border p-1.5 text-center dark:border-slate-700 ${
-                          hoverCard?.id === c.id
+                          hoverCard?.key === `have-${c.id}`
                             ? "border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900"
                             : "border-slate-200"
                         }`}

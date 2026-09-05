@@ -185,6 +185,12 @@ export async function POST(req: NextRequest) {
         conditions: base.conditions.length ? { create: base.conditions.map((c) => ({ condition: c.condition })) } : undefined,
         texts: base.texts.length ? { create: base.texts.map((t) => ({ text: t.text })) } : undefined,
         sets: { create: { setId } },
+        // Vincula la carta a TODOS los eventos donde apareció esta carta de
+        // premio (puede repetirse en más de uno) — sin esto, "aprobar" la
+        // sacaba de la cola pero nunca quedaba como "carta confirmada" del
+        // evento (ej. en /admin/events/verify se veía "0 cartas confirmadas"
+        // aunque ya estuviera resuelta).
+        eventCards: { create: events.map((ev) => ({ eventId: ev.id })) },
       },
       select: { id: true },
     });

@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
                 alternateArt: true,
                 rarity: true,
                 region: true,
+                sets: { select: { setId: true } },
               },
             },
           },
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
           alternateArt: entry.card!.alternateArt,
           rarity: entry.card!.rarity,
           region: entry.card!.region,
+          setIds: entry.card!.sets.map((s) => s.setId),
         })),
       sets: event.sets
         .filter((entry) => entry.set)

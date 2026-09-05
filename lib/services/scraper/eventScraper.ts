@@ -1688,13 +1688,20 @@ export async function syncEventMissingCardsInDb(
     const existingRows = await prisma.missingCard.findMany({ where: { code } });
     for (const cand of group) {
       const candIdentity = normalizeImageIdentity(cand.imageUrl);
+      const candFileName = cand.imageUrl.split("/").pop() || "";
+      const candSuffix = extractImageVariantSuffix(candFileName, cand.code);
       // Guarda de seguridad: algunos eventos viejos usan nombres GENÉRICOS
       // ("card_01.png") repetidos en carpetas propias por evento — ese nombre
-      // NO identifica la carta, solo coincide por casualidad. Únicamente
-      // confía en el nombre de archivo cuando de verdad trae el código
-      // (ej. "OP15-108.webp", "EB02-054_F.webp") — si no, no es señal 100%
-      // confiable y se deja que la llave de texto/evento decida como antes.
-      if (!candIdentity || !candIdentity.includes(cand.code.toLowerCase())) continue;
+      // NO identifica la carta, solo coincide por casualidad. Y un archivo que
+      // es SOLO el código sin nada más (ej. "OP13-002.webp") TAMPOCO es
+      // confiable — confirmado real: dos alt-arts DISTINTAS de Portgas.D.Ace
+      // (una de Pirates Party Vol.2, otra de Extra Grand Battle — imágenes
+      // totalmente diferentes) ambas se subieron como "OP13-002.webp" sin
+      // sufijo, y se fusionaron por error en una sola carta. Solo confía en el
+      // filename cuando trae un sufijo que de verdad distingue algo (ej.
+      // "OP15-108.webp" → nada, pero "EB02-054_F.webp" → "F" si cuenta) — sin
+      // sufijo, se deja que la llave de texto/evento decida como antes.
+      if (!candIdentity || !candIdentity.includes(cand.code.toLowerCase()) || !candSuffix) continue;
       const match = existingRows.find(
         (r) => normalizeImageIdentity(r.imageUrl) === candIdentity
       );
@@ -1816,6 +1823,24 @@ export async function syncEventMissingCardsInDb(
       await prisma.eventMissingCard.deleteMany({
         where: { eventId, missingCardId: missingCard.id },
       });
+      // La aprobación la saca de la cola de pendientes, pero eso NO la deja
+      // como "carta confirmada" del evento si nadie crea el EventCard — se
+      // veía "0 cartas confirmadas" en /admin/events/verify aunque ya
+      // estuviera resuelta. `create-from-event` sube la imagen a R2 con un
+      // nombre `${code}-evt${missingCardId}-...` — un match exacto (no
+      // fuzzy) para encontrar EXACTAMENTE qué Card nació de este
+      // MissingCard, sin importar cuándo se aprobó.
+      const resolvedCard = await prisma.card.findFirst({
+        where: { src: { contains: `-evt${missingCard.id}-` } },
+        select: { id: true },
+      });
+      if (resolvedCard) {
+        await prisma.eventCard.upsert({
+          where: { eventId_cardId: { eventId, cardId: resolvedCard.id } },
+          create: { eventId, cardId: resolvedCard.id },
+          update: {},
+        });
+      }
       continue;
     }
 

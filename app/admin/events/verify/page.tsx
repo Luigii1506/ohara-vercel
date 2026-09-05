@@ -23,6 +23,7 @@ type EventCard = {
   alternateArt: string | null;
   rarity: string | null;
   region: string | null;
+  setIds: number[];
 };
 
 type EventSet = { id: number; title: string; code: string | null; image: string | null };
@@ -88,6 +89,43 @@ function Section({
       ) : (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">{children}</div>
       )}
+    </div>
+  );
+}
+
+function CardTile({
+  card,
+  showPreview,
+  hidePreview,
+}: {
+  card: EventCard;
+  showPreview: (src?: string | null, alt?: string) => void;
+  hidePreview: () => void;
+}) {
+  return (
+    <div
+      onMouseEnter={() =>
+        showPreview(card.src, `${card.code} · ${card.name}${card.alternateArt ? ` · ${card.alternateArt}` : ""}`)
+      }
+      onMouseLeave={hidePreview}
+      className="rounded-lg border border-slate-200 p-1.5 text-center dark:border-slate-700"
+    >
+      <div className="aspect-[5/7] overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
+        {card.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={card.src} alt={card.name} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-slate-300">
+            <Images className="h-6 w-6" />
+          </div>
+        )}
+      </div>
+      <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-700 dark:text-slate-200">
+        {card.code}
+      </div>
+      <div className="truncate text-[10px] text-slate-500 dark:text-slate-400">
+        {card.alternateArt || "Base"}
+      </div>
     </div>
   );
 }
@@ -276,57 +314,68 @@ export default function EventVerifyPage() {
               </div>
             </div>
 
-            <Section title="Sets confirmados" count={event.sets.length}>
-              {event.sets.map((s) => (
-                <div
-                  key={s.id}
-                  onMouseEnter={() => showPreview(s.image ? proxyImage(s.image) : null, s.title)}
-                  onMouseLeave={hidePreview}
-                  className="rounded-lg border border-slate-200 p-1.5 text-center dark:border-slate-700"
-                >
-                  <div className="aspect-[3/4] overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
-                    {s.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={proxyImage(s.image)} alt={s.title} className="h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-slate-300">
-                        <Images className="h-6 w-6" />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+                  Sets confirmados
+                </h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {event.sets.length} sets · {event.cards.length} cartas
+                </span>
+              </div>
+              {event.sets.length === 0 ? (
+                <p className="text-sm text-slate-400">Nada registrado.</p>
+              ) : (
+                <div className="space-y-5">
+                  {event.sets.map((s) => {
+                    const setCards = event.cards.filter((c) => c.setIds.includes(s.id));
+                    return (
+                      <div key={s.id}>
+                        <div
+                          onMouseEnter={() => showPreview(s.image ? proxyImage(s.image) : null, s.title)}
+                          onMouseLeave={hidePreview}
+                          className="mb-2 flex items-center gap-2"
+                        >
+                          <div className="h-10 w-8 shrink-0 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
+                            {s.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={proxyImage(s.image)} alt={s.title} className="h-full w-full object-cover" loading="lazy" />
+                            ) : null}
+                          </div>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {s.title}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            {setCards.length} cartas
+                          </span>
+                        </div>
+                        {setCards.length === 0 ? (
+                          <p className="pl-10 text-xs text-slate-400">
+                            Sin cartas confirmadas todavía para este set.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-3 pl-10 sm:grid-cols-4 md:grid-cols-6">
+                            {setCards.map((c) => (
+                              <CardTile key={c.id} card={c} showPreview={showPreview} hidePreview={hidePreview} />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="mt-1 truncate text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                    {s.title}
-                  </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </Section>
+              )}
+            </div>
 
-            <Section title="Cartas confirmadas" count={event.cards.length}>
-              {event.cards.map((c) => (
-                <div
-                  key={c.id}
-                  onMouseEnter={() => showPreview(c.src, `${c.code} · ${c.name}${c.alternateArt ? ` · ${c.alternateArt}` : ""}`)}
-                  onMouseLeave={hidePreview}
-                  className="rounded-lg border border-slate-200 p-1.5 text-center dark:border-slate-700"
-                >
-                  <div className="aspect-[5/7] overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
-                    {c.src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.src} alt={c.name} className="h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-slate-300">
-                        <Images className="h-6 w-6" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-700 dark:text-slate-200">
-                    {c.code}
-                  </div>
-                  <div className="truncate text-[10px] text-slate-500 dark:text-slate-400">
-                    {c.alternateArt || "Base"}
-                  </div>
-                </div>
-              ))}
+            <Section
+              title="Cartas confirmadas sin set"
+              count={event.cards.filter((c) => c.setIds.length === 0 || !event.sets.some((s) => c.setIds.includes(s.id))).length}
+            >
+              {event.cards
+                .filter((c) => c.setIds.length === 0 || !event.sets.some((s) => c.setIds.includes(s.id)))
+                .map((c) => (
+                  <CardTile key={c.id} card={c} showPreview={showPreview} hidePreview={hidePreview} />
+                ))}
             </Section>
 
             <Section title="Sets pendientes (missing)" count={event.missingSets.length}>

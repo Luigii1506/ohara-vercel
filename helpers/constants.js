@@ -1211,6 +1211,20 @@ export const altArtOptions = [
 
   { value: "Demo Version", label: "Demo Version" },
   { value: "Not for sale", label: "Not for sale" },
+
+  // Variantes de premio de evento (ver lib/services/events/eventAltArt.ts) —
+  // faltaban acá, así que el picker de "carta faltante → set/alterna" no
+  // tenía dónde ofrecerlas.
+  { value: "1st Place", label: "1st Place" },
+  { value: "2nd Place", label: "2nd Place" },
+  { value: "3rd Place", label: "3rd Place" },
+  { value: "1st Place Trophy Card", label: "1st Place Trophy Card" },
+  { value: "2nd Place Trophy Card", label: "2nd Place Trophy Card" },
+  { value: "3rd Place Trophy Card", label: "3rd Place Trophy Card" },
+  { value: "Trophy Card", label: "Trophy Card" },
+  { value: "Jumbo Card", label: "Jumbo Card" },
+  { value: "Regional", label: "Regional" },
+  { value: "Event Exclusive", label: "Event Exclusive" },
 ];
 
 export const conditionOptions = [];

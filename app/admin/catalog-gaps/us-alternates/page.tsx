@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { proxyImage } from "@/lib/proxyImage";
 import { useUser } from "@/app/context/UserContext";
+import { altArtOptions } from "@/helpers/constants";
 import {
   Search,
   ExternalLink,
@@ -170,6 +171,9 @@ export default function UsAlternatesPage() {
   const [detailRow, setDetailRow] = useState<Row | null>(null);
   const [haveCards, setHaveCards] = useState<any[]>([]);
   const [haveLoading, setHaveLoading] = useState(false);
+  // Preview grande al pasar el mouse sobre una miniatura — para distinguir
+  // alternas parecidas sin tener que adivinar por la imagen chiquita.
+  const [hoverCard, setHoverCard] = useState<any | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareData, setCompareData] = useState<ComparePayload | null>(null);
   const [selectedSetKey, setSelectedSetKey] = useState<string | null>(null);
@@ -950,6 +954,51 @@ export default function UsAlternatesPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={() => setDetailRow(null)}
         >
+          {/* Preview grande al hacer hover sobre una miniatura de "cartas que ya
+              tengo" — fixed y por encima de todo para que no lo tape el scroll
+              del modal ni quede recortado por su overflow. */}
+          {hoverCard && (
+            <div className="pointer-events-none fixed right-4 top-1/2 z-[60] w-64 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:right-8 sm:w-72">
+              <div className="overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                {hoverCard.src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={hoverCard.src}
+                    alt={hoverCard.alternateArt || "base"}
+                    className="w-full"
+                  />
+                ) : (
+                  <div className="aspect-[5/7] w-full" />
+                )}
+              </div>
+              <div className="mt-2 space-y-0.5 text-xs">
+                <div className="font-mono font-bold text-slate-800 dark:text-slate-100">
+                  {hoverCard.code}
+                </div>
+                <div className="font-semibold text-slate-700 dark:text-slate-200">
+                  {hoverCard.isFirstEdition ? "Base" : hoverCard.alternateArt || "Alterna"}
+                </div>
+                {Array.isArray(hoverCard.sets) && hoverCard.sets.length > 0 && (
+                  <div className="text-slate-500 dark:text-slate-400">
+                    {hoverCard.sets.map((s: any) => s.set?.title).filter(Boolean).join(" · ")}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {hoverCard.rarity && (
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                      {hoverCard.rarity}
+                    </span>
+                  )}
+                  {hoverCard.region && (
+                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      {hoverCard.region}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
@@ -1175,12 +1224,23 @@ export default function UsAlternatesPage() {
                           <label className="font-semibold text-slate-700 dark:text-slate-200">
                             Arte alterno
                           </label>
-                          <input
+                          <select
                             value={eventAltArt}
                             onChange={(e) => setEventAltArt(e.target.value)}
-                            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                            placeholder="ej. Winner Version"
-                          />
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                          >
+                            {/* La detección automática a veces da un valor dinámico (ej.
+                                "Top 64") que no está en la lista fija — se agrega para no
+                                perderlo, en vez de forzar a elegir otra cosa. */}
+                            {eventAltArt && !altArtOptions.some((o) => o.value === eventAltArt) && (
+                              <option value={eventAltArt}>{eventAltArt} (detectado)</option>
+                            )}
+                            {altArtOptions.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
 
                         <div>
@@ -1318,7 +1378,13 @@ export default function UsAlternatesPage() {
                     {haveCards.map((c: any) => (
                       <div
                         key={c.id}
-                        className="rounded-lg border border-slate-200 p-1.5 text-center dark:border-slate-700"
+                        onMouseEnter={() => setHoverCard(c)}
+                        onMouseLeave={() => setHoverCard((cur: any) => (cur?.id === c.id ? null : cur))}
+                        className={`rounded-lg border p-1.5 text-center dark:border-slate-700 ${
+                          hoverCard?.id === c.id
+                            ? "border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900"
+                            : "border-slate-200"
+                        }`}
                       >
                         {c.src ? (
                           // eslint-disable-next-line @next/next/no-img-element

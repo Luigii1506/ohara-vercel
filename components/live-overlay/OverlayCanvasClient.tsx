@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  createDefaultBattleConfig,
   normalizeLiveOverlayState,
   type LiveOverlayScene,
   type LiveOverlayState,
@@ -12,6 +13,7 @@ import FxLayer, { type FxVariant } from "@/components/live-overlay/scenes/FxLaye
 import { useOverlaySocket } from "@/lib/live-overlay/useOverlaySocket";
 import { playOverlaySfx, ensureOverlayAudio } from "@/lib/live-overlay/sfx";
 import BracketView from "@/components/live-overlay/BracketView";
+import BattleArena from "@/components/live-overlay/BattleArena";
 
 type OverlayCanvasClientProps = {
   token: string;
@@ -326,6 +328,8 @@ const EMPTY_STATE: LiveOverlayState = {
   topLikers: [],
   topGifters: [],
   viewerCount: 0,
+  battle: createDefaultBattleConfig(),
+  battleRoster: {},
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -417,9 +421,13 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
 
   useEffect(() => {
     loadState();
-    const interval = window.setInterval(loadState, connected ? 15000 : 1000);
+    // Con una ronda de batalla activa refrescamos más seguido (2.5s) incluso
+    // con socket conectado, así la barra de HP no se ve estancada entre
+    // eventos de TikTok.
+    const intervalMs = state.battle.active ? 2500 : connected ? 15000 : 1000;
+    const interval = window.setInterval(loadState, intervalMs);
     return () => window.clearInterval(interval);
-  }, [loadState, connected]);
+  }, [loadState, connected, state.battle.active]);
 
   // Escenas activas del stack.
   const confetti = state.scenes.find(
@@ -840,6 +848,15 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             100% { opacity: 1; transform: translateY(0) scale(1); }
           }
         `}</style>
+        {/* Team Battle: si hay una ronda activa, toma el lienzo COMPLETO (no
+            tiene sentido mostrar la carta/leaderboard a la vez) — sin fondo
+            propio, así se ve el chroma-key detrás, solo los círculos. */}
+        {state.battle.active ? (
+          <div className="absolute inset-0 z-[95]">
+            <BattleArena config={state.battle} roster={state.battleRoster} variant="embedded" />
+          </div>
+        ) : (
+        <>
         {/* Contadores: SIEMPRE los 5, píldoras compactas en el borde izquierdo. */}
         <div className="absolute left-0 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-3">
           {LIVE_OVERLAY_RARITY_COUNTER_KEYS.map((rarity) => (
@@ -1309,6 +1326,8 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
             )}
           </div>
         ) : null}
+        </>
+        )}
 
         {/* Aviso de audio bloqueado (solo hasta el primer clic; en OBS no sale) */}
         {!audioReady ? (

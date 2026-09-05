@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendLiveOverlayChatItem,
+  applyLiveOverlayBattleGiftPower,
+  applyLiveOverlayBattleLikeHeal,
   bumpLiveOverlayTopGifters,
   bumpLiveOverlayTopLikers,
+  getLiveOverlayState,
+  joinLiveOverlayBattleTeam,
+  matchLiveOverlayBattleJoinKeyword,
   setLiveOverlayLikeCount,
   setLiveOverlayViewerCount,
   triggerLiveOverlayAlert,
@@ -76,6 +81,16 @@ export async function POST(request: NextRequest) {
         // worker fallaban igual y quedaba loggeado como evento abandonado.
         return NextResponse.json({ ok: true, skipped: "empty text" });
       }
+      // Si hay una ronda de batalla activa, un comentario que matchea la
+      // keyword de un equipo une al espectador — no cambia en nada el
+      // comportamiento normal del chat feed.
+      if (user) {
+        const current = await getLiveOverlayState(overlayToken);
+        if (current.battle.active) {
+          const team = matchLiveOverlayBattleJoinKeyword(current.battle, text);
+          if (team) await joinLiveOverlayBattleTeam(overlayToken, user, avatar, team);
+        }
+      }
       nextState = await appendLiveOverlayChatItem(overlayToken, { user, avatar, text });
       break;
     }
@@ -97,6 +112,13 @@ export async function POST(request: NextRequest) {
       const gifterAmount = diamondCount > 0 ? diamondCount * (repeatCount ?? 1) : repeatCount ?? 1;
       if (user) {
         await bumpLiveOverlayTopGifters(overlayToken, user, gifterAmount, avatar);
+        await applyLiveOverlayBattleGiftPower(overlayToken, {
+          user,
+          avatar,
+          giftName,
+          diamondCount,
+          repeatCount: repeatCount ?? 1,
+        });
       }
       nextState = await triggerLiveOverlayAlert(overlayToken, {
         emoji: "🎁",
@@ -141,6 +163,7 @@ export async function POST(request: NextRequest) {
       const count = Number(body.count);
       if (user && Number.isFinite(count) && count > 0) {
         await bumpLiveOverlayTopLikers(overlayToken, user, count, avatar);
+        await applyLiveOverlayBattleLikeHeal(overlayToken, user, count);
       }
       nextState = await setLiveOverlayLikeCount(overlayToken, total);
       break;

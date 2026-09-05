@@ -4,9 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CardWithCollectionData } from "@/types";
 import {
   LIVE_OVERLAY_RARITY_COUNTER_KEYS,
+  createDefaultBattleConfig,
   createEmptyBracket,
+  deriveLiveOverlayBattleOutcome,
   inferClipKind,
   normalizeLiveOverlayState,
+  type LiveOverlayBattleConfig,
+  type LiveOverlayBattlePower,
   type LiveOverlayBracket,
   type LiveOverlayCard,
   type LiveOverlayRarityCounterKey,
@@ -80,7 +84,153 @@ const EMPTY_STATE: LiveOverlayState = {
   topLikers: [],
   topGifters: [],
   viewerCount: 0,
+  battle: createDefaultBattleConfig(),
+  battleRoster: {},
   updatedAt: new Date(0).toISOString(),
+};
+
+type BattlePowerKind =
+  | "hit"
+  | "nuke"
+  | "heal"
+  | "healAll"
+  | "shield"
+  | "freeze"
+  | "aoe"
+  | "chain"
+  | "pierce"
+  | "burn"
+  | "poison"
+  | "knockback"
+  | "growMaxHp"
+  | "rapidFire"
+  | "damageBoost";
+type BattlePowerRow = {
+  kind: BattlePowerKind;
+  amount: string;
+  durationSec: string;
+  targets: string;
+  hops: string;
+  dmgPerTick: string;
+  multiplier: string;
+};
+type BattleGiftRow = BattlePowerRow & { giftName: string };
+type BattleTierRow = BattlePowerRow & { min: string };
+
+const BATTLE_POWER_KIND_LABEL: Record<BattlePowerKind, string> = {
+  hit: "Golpe",
+  nuke: "Nuke (a todos)",
+  aoe: "Salpicadura (N enemigos)",
+  chain: "Cadena (rebota N veces)",
+  pierce: "Perforante (ignora escudo)",
+  freeze: "Congelar",
+  burn: "Quemar (daño sostenido)",
+  poison: "Envenenar (daño sostenido)",
+  knockback: "Empujar",
+  heal: "Curarse",
+  healAll: "Curar equipo",
+  shield: "Escudo",
+  growMaxHp: "Power-up de HP (agranda el círculo)",
+  rapidFire: "Disparo rápido (dispara doble)",
+  damageBoost: "Subir ataque (multiplica daño)",
+};
+
+const DEFAULT_BATTLE_POWER_ROW: BattlePowerRow = {
+  kind: "hit",
+  amount: "50",
+  durationSec: "5",
+  targets: "3",
+  hops: "3",
+  dmgPerTick: "10",
+  multiplier: "2",
+};
+
+/** Convierte un poder guardado (LiveOverlayBattlePower) a fila editable del form. */
+const powerToBattleRow = (power: LiveOverlayBattlePower): BattlePowerRow => {
+  const base = DEFAULT_BATTLE_POWER_ROW;
+  switch (power.kind) {
+    case "hit":
+    case "nuke":
+    case "heal":
+    case "healAll":
+    case "pierce":
+    case "growMaxHp":
+      return { ...base, kind: power.kind, amount: String(power.amount) };
+    case "shield":
+      return {
+        ...base,
+        kind: "shield",
+        amount: String(power.amount),
+        durationSec: String(Math.round(power.durationMs / 1000)),
+      };
+    case "freeze":
+      return { ...base, kind: "freeze", durationSec: String(Math.round(power.durationMs / 1000)) };
+    case "aoe":
+      return { ...base, kind: "aoe", amount: String(power.amount), targets: String(power.targets) };
+    case "chain":
+      return { ...base, kind: "chain", amount: String(power.amount), hops: String(power.hops) };
+    case "burn":
+    case "poison":
+      return {
+        ...base,
+        kind: power.kind,
+        dmgPerTick: String(power.dmgPerTick),
+        durationSec: String(Math.round(power.durationMs / 1000)),
+      };
+    case "knockback":
+      return { ...base, kind: "knockback" };
+    case "rapidFire":
+      return { ...base, kind: "rapidFire", durationSec: String(Math.round(power.durationMs / 1000)) };
+    case "damageBoost":
+      return {
+        ...base,
+        kind: "damageBoost",
+        multiplier: String(power.multiplier),
+        durationSec: String(Math.round(power.durationMs / 1000)),
+      };
+  }
+};
+
+/** Convierte una fila del form a un poder válido (LiveOverlayBattlePower). */
+const battleRowToPower = (row: BattlePowerRow): LiveOverlayBattlePower => {
+  const amount = Math.max(1, Number(row.amount) || 1);
+  const durationMs = Math.max(1000, (Number(row.durationSec) || 5) * 1000);
+  const dmgPerTick = Math.max(1, Number(row.dmgPerTick) || 1);
+  const targets = Math.max(1, Math.trunc(Number(row.targets) || 1));
+  const hops = Math.max(1, Math.trunc(Number(row.hops) || 1));
+  const multiplier = Math.max(1, Number(row.multiplier) || 1);
+  switch (row.kind) {
+    case "hit":
+      return { kind: "hit", amount };
+    case "nuke":
+      return { kind: "nuke", amount };
+    case "heal":
+      return { kind: "heal", amount };
+    case "healAll":
+      return { kind: "healAll", amount };
+    case "shield":
+      return { kind: "shield", amount, durationMs };
+    case "freeze":
+      return { kind: "freeze", durationMs };
+    case "aoe":
+      return { kind: "aoe", amount, targets };
+    case "chain":
+      return { kind: "chain", amount, hops };
+    case "pierce":
+      return { kind: "pierce", amount };
+    case "burn":
+      return { kind: "burn", dmgPerTick, durationMs };
+    case "poison":
+      return { kind: "poison", dmgPerTick, durationMs };
+    case "knockback":
+      return { kind: "knockback" };
+    case "growMaxHp":
+      return { kind: "growMaxHp", amount };
+    case "rapidFire":
+      return { kind: "rapidFire", durationMs };
+    case "damageBoost":
+      return { kind: "damageBoost", multiplier, durationMs };
+  }
 };
 
 const getSetTitleForCard = (card: CardWithCollectionData) => {
@@ -190,10 +340,10 @@ export default function LiveDeskClient({
   // Mobile: pestaña del controlador ("counters" = mando de rarezas, "cards" =
   // buscar/seleccionar carta en vivo, "effects" = escenas/efectos).
   const [mobileTab, setMobileTab] = useState<
-    "counters" | "cards" | "effects" | "bracket"
+    "counters" | "cards" | "effects" | "bracket" | "battle"
   >("counters");
   const [desktopTab, setDesktopTab] = useState<
-    "cards" | "counters" | "scenes" | "bracket"
+    "cards" | "counters" | "scenes" | "bracket" | "battle"
   >("cards");
   const [bannerText, setBannerText] = useState("");
   const [bannerSubtitle, setBannerSubtitle] = useState("");
@@ -222,13 +372,58 @@ export default function LiveDeskClient({
   // Tablet (Stream Deck): drawer inferior para buscar carta, banner, escenas o
   // bracket.
   const [tabletDrawer, setTabletDrawer] = useState<
-    null | "search" | "banner" | "scenes" | "bracket"
+    null | "search" | "banner" | "scenes" | "bracket" | "battle"
   >(null);
   // Formulario del bracket de torneo.
   const [bracketForm, setBracketForm] = useState<LiveOverlayBracket>(
     createEmptyBracket()
   );
   const bracketInit = useRef(false);
+  // Formulario de configuración de la batalla por equipos ("Side Battle").
+  // Los poderes se editan como filas planas (kind + amount + durationSec) y
+  // se arman al guardar — así el formulario no necesita un editor distinto
+  // por cada tipo de poder (ver BattlePowerKind/powerToBattleRow/
+  // battleRowToPower arriba del componente).
+  const [battleForm, setBattleForm] = useState<{
+    teamAName: string;
+    teamBName: string;
+    teamAKeyword: string;
+    teamBKeyword: string;
+    maxHp: string;
+    winMode: "elimination" | "firstToKills" | "timed" | "sandbox";
+    killTarget: string;
+    durationMin: string;
+    backgroundUrl: string;
+    autoFireEnabled: boolean;
+    autoFireCooldownSec: string;
+    autoFireAmount: string;
+    giftPowerMap: BattleGiftRow[];
+    diamondTierFallback: BattleTierRow[];
+  }>(() => {
+    const d = createDefaultBattleConfig();
+    return {
+      teamAName: d.teamAName,
+      teamBName: d.teamBName,
+      teamAKeyword: d.teamAKeyword,
+      teamBKeyword: d.teamBKeyword,
+      maxHp: String(d.maxHp),
+      winMode: d.winMode,
+      killTarget: String(d.killTarget ?? 10),
+      durationMin: String(Math.round((d.durationMs ?? 180000) / 60000)),
+      backgroundUrl: d.backgroundUrl ?? "",
+      autoFireEnabled: d.autoFireEnabled,
+      autoFireCooldownSec: String(Math.round(d.autoFireCooldownMs / 1000)),
+      autoFireAmount: String(d.autoFireAmount),
+      giftPowerMap: [],
+      diamondTierFallback: d.diamondTierFallback.map((t) => ({
+        min: String(t.min),
+        ...powerToBattleRow(t.power),
+      })),
+    };
+  });
+  const battleInit = useRef(false);
+  const [battleBgUploading, setBattleBgUploading] = useState(false);
+  const [battleBgError, setBattleBgError] = useState<string | null>(null);
   // Editor de clips de video.
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [vUrl, setVUrl] = useState("");
@@ -290,6 +485,36 @@ export default function LiveDeskClient({
       bracketInit.current = true;
     }
   }, [state.bracket]);
+
+  // Pre-llena el formulario de batalla UNA vez con lo que ya haya guardado.
+  useEffect(() => {
+    if (!battleInit.current && state.battle) {
+      const b = state.battle;
+      setBattleForm({
+        teamAName: b.teamAName,
+        teamBName: b.teamBName,
+        teamAKeyword: b.teamAKeyword,
+        teamBKeyword: b.teamBKeyword,
+        maxHp: String(b.maxHp),
+        winMode: b.winMode,
+        killTarget: String(b.killTarget ?? 10),
+        durationMin: String(Math.round((b.durationMs ?? 180000) / 60000)),
+        backgroundUrl: b.backgroundUrl ?? "",
+        autoFireEnabled: b.autoFireEnabled,
+        autoFireCooldownSec: String(Math.round(b.autoFireCooldownMs / 1000)),
+        autoFireAmount: String(b.autoFireAmount),
+        giftPowerMap: Object.entries(b.giftPowerMap).map(([giftName, power]) => ({
+          giftName,
+          ...powerToBattleRow(power),
+        })),
+        diamondTierFallback: b.diamondTierFallback.map((t) => ({
+          min: String(t.min),
+          ...powerToBattleRow(t.power),
+        })),
+      });
+      battleInit.current = true;
+    }
+  }, [state.battle]);
 
   useEffect(() => {
     if (!overlayToken) return;
@@ -1496,6 +1721,631 @@ export default function LiveDeskClient({
     </div>
   );
 
+  // ---------------------------------------------------------------------
+  // Team Battle ("Side Battle")
+  // ---------------------------------------------------------------------
+  const battleActive = state.battle.active;
+  const battleOutcome = useMemo(
+    () => deriveLiveOverlayBattleOutcome(state.battle, state.battleRoster),
+    [state.battle, state.battleRoster]
+  );
+
+  const saveBattleConfig = useCallback(() => {
+    const giftPowerMap: Record<string, unknown> = {};
+    for (const row of battleForm.giftPowerMap) {
+      if (!row.giftName.trim()) continue;
+      giftPowerMap[row.giftName.trim()] = battleRowToPower(row);
+    }
+    const diamondTierFallback = battleForm.diamondTierFallback.map((row) => ({
+      min: Math.max(0, Number(row.min) || 0),
+      power: battleRowToPower(row),
+    }));
+    return runAction(
+      {
+        action: "set_battle_config",
+        config: {
+          teamAName: battleForm.teamAName,
+          teamBName: battleForm.teamBName,
+          teamAKeyword: battleForm.teamAKeyword,
+          teamBKeyword: battleForm.teamBKeyword,
+          maxHp: Math.max(1, Number(battleForm.maxHp) || 1000),
+          winMode: battleForm.winMode,
+          killTarget: Math.max(1, Number(battleForm.killTarget) || 10),
+          durationMs: Math.max(1, Number(battleForm.durationMin) || 3) * 60000,
+          backgroundUrl: battleForm.backgroundUrl.trim() || null,
+          autoFireEnabled: battleForm.autoFireEnabled,
+          autoFireCooldownMs: Math.max(1, Number(battleForm.autoFireCooldownSec) || 4) * 1000,
+          autoFireAmount: Math.max(1, Number(battleForm.autoFireAmount) || 20),
+          giftPowerMap,
+          diamondTierFallback,
+        },
+      },
+      "battle-config"
+    );
+  }, [battleForm, runAction]);
+
+  // "Iniciar ronda" SIEMPRE guarda primero el formulario actual — si no, un
+  // cambio de modo/nombre/keyword que el operador olvidó "Guardar" antes de
+  // arrancar quedaría descartado y la ronda arrancaría con lo viejo (bug real
+  // reportado: seleccionaron "Sandbox" pero la ronda arrancó en "timed"
+  // porque nunca se guardó la config antes de darle a Iniciar).
+  const startBattle = useCallback(async () => {
+    await saveBattleConfig();
+    await runAction({ action: "start_battle_round" }, "battle-start");
+  }, [saveBattleConfig, runAction]);
+  const endBattle = useCallback(
+    () => runAction({ action: "end_battle_round" }, "battle-end"),
+    [runAction]
+  );
+
+  // Modo prueba: unir gente de mentira (o al propio operador) a un equipo y
+  // disparar cada poder a mano contra el roster real, sin depender de un
+  // regalo/comentario de TikTok — mismo camino de código que un regalo real
+  // (ver applyLiveOverlayBattleTestPower), así lo que se ve acá es
+  // exactamente lo que vería un espectador.
+  const [testJoinName, setTestJoinName] = useState("");
+  const [testActor, setTestActor] = useState("");
+  const rosterEntries = useMemo(
+    () => Object.entries(state.battleRoster),
+    [state.battleRoster]
+  );
+  useEffect(() => {
+    if (testActor && state.battleRoster[testActor]) return;
+    const firstUser = rosterEntries[0]?.[0] ?? "";
+    setTestActor(firstUser);
+  }, [rosterEntries, testActor, state.battleRoster]);
+
+  const joinTestFighter = useCallback(
+    (team: "A" | "B") => {
+      const name = testJoinName.trim() || `bot${Math.floor(Math.random() * 9000 + 1000)}`;
+      runAction({ action: "test_join_battle", user: name, team }, "battle-test-join");
+      setTestJoinName("");
+    },
+    [testJoinName, runAction]
+  );
+
+  const fireTestPower = useCallback(
+    (kind: BattlePowerKind) => {
+      if (!testActor) return;
+      runAction(
+        { action: "test_battle_power", user: testActor, power: { kind } },
+        "battle-test-power"
+      );
+    },
+    [testActor, runAction]
+  );
+
+  const uploadBattleBackground = useCallback(async (file: File) => {
+    setBattleBgError(null);
+    setBattleBgUploading(true);
+    try {
+      const contentType = file.type || "application/octet-stream";
+      const res = await fetch("/api/admin/live-overlay/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "No se pudo firmar la subida");
+      let put: Response;
+      try {
+        put = await fetch(data.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": data.contentType },
+          body: file,
+        });
+      } catch {
+        throw new Error(
+          "No se pudo conectar a R2 (CORS). Configura el CORS del bucket R2 para permitir PUT desde oharatcg.com."
+        );
+      }
+      if (!put.ok) throw new Error(`R2 rechazó la subida (HTTP ${put.status}).`);
+      setBattleForm((f) => ({ ...f, backgroundUrl: data.publicUrl }));
+    } catch (e) {
+      setBattleBgError((e as Error).message);
+    } finally {
+      setBattleBgUploading(false);
+    }
+  }, []);
+
+  const battleInput = bracketInput;
+
+  const BATTLE_KINDS_WITH_AMOUNT: BattlePowerKind[] = [
+    "hit",
+    "nuke",
+    "aoe",
+    "chain",
+    "pierce",
+    "heal",
+    "healAll",
+    "shield",
+    "growMaxHp",
+  ];
+  const BATTLE_KINDS_WITH_DURATION: BattlePowerKind[] = [
+    "shield",
+    "freeze",
+    "burn",
+    "poison",
+    "rapidFire",
+    "damageBoost",
+  ];
+
+  const battlePowerRowFields = (
+    row: BattlePowerRow,
+    onChange: (next: BattlePowerRow) => void,
+    onRemove: () => void
+  ) => (
+    <>
+      <select
+        value={row.kind}
+        onChange={(e) => onChange({ ...row, kind: e.target.value as BattlePowerKind })}
+        className={`${battleInput} w-40 shrink-0`}
+      >
+        {(Object.keys(BATTLE_POWER_KIND_LABEL) as BattlePowerKind[]).map((k) => (
+          <option key={k} value={k}>
+            {BATTLE_POWER_KIND_LABEL[k]}
+          </option>
+        ))}
+      </select>
+      {BATTLE_KINDS_WITH_AMOUNT.includes(row.kind) && (
+        <input
+          type="number"
+          value={row.amount}
+          onChange={(e) => onChange({ ...row, amount: e.target.value })}
+          placeholder="Cant."
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      {(row.kind === "burn" || row.kind === "poison") && (
+        <input
+          type="number"
+          value={row.dmgPerTick}
+          onChange={(e) => onChange({ ...row, dmgPerTick: e.target.value })}
+          placeholder="Daño/s"
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      {row.kind === "aoe" && (
+        <input
+          type="number"
+          value={row.targets}
+          onChange={(e) => onChange({ ...row, targets: e.target.value })}
+          placeholder="N objetivos"
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      {row.kind === "chain" && (
+        <input
+          type="number"
+          value={row.hops}
+          onChange={(e) => onChange({ ...row, hops: e.target.value })}
+          placeholder="Saltos"
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      {row.kind === "damageBoost" && (
+        <input
+          type="number"
+          value={row.multiplier}
+          onChange={(e) => onChange({ ...row, multiplier: e.target.value })}
+          placeholder="x2, x3…"
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      {BATTLE_KINDS_WITH_DURATION.includes(row.kind) && (
+        <input
+          type="number"
+          value={row.durationSec}
+          onChange={(e) => onChange({ ...row, durationSec: e.target.value })}
+          placeholder="Seg."
+          className={`${battleInput} w-16 shrink-0`}
+        />
+      )}
+      <button type="button" onClick={onRemove} className="shrink-0 px-1 text-slate-400">
+        ✕
+      </button>
+    </>
+  );
+
+  const battlePanel = (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={battleActive ? endBattle : startBattle}
+        disabled={actionLoading === "battle-start" || actionLoading === "battle-end"}
+        className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-black shadow-sm transition active:scale-[0.98] disabled:opacity-60 ${
+          battleActive ? "bg-rose-600 text-white" : "bg-emerald-500 text-white"
+        }`}
+      >
+        {battleActive ? "■ Terminar ronda" : "▶ Iniciar ronda"}
+      </button>
+
+      {state.battle.roundStartedAt && (
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+          <p>
+            {state.battle.teamAName}: ❤️ {battleOutcome.teamAHp} · {battleOutcome.teamAAlive} vivos ·{" "}
+            {battleOutcome.teamAKills} kills
+          </p>
+          <p>
+            {state.battle.teamBName}: ❤️ {battleOutcome.teamBHp} · {battleOutcome.teamBAlive} vivos ·{" "}
+            {battleOutcome.teamBKills} kills
+          </p>
+          {battleOutcome.ended && (
+            <p className="font-black text-emerald-600">
+              {battleOutcome.winner
+                ? `Ganó ${battleOutcome.winner === "A" ? state.battle.teamAName : state.battle.teamBName}`
+                : "Empate"}
+            </p>
+          )}
+        </div>
+      )}
+
+      {battleActive && (
+        <div className="space-y-3 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50 p-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-indigo-700">🧪 Modo prueba</p>
+            <p className="text-[11px] leading-snug text-indigo-600">
+              Únete tú mismo o agrega bots a cada equipo, elige quién actúa y dispara
+              cualquier poder con un clic para ver la animación — sin esperar un regalo real.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={testJoinName}
+              onChange={(e) => setTestJoinName(e.target.value)}
+              placeholder="tu nombre o el de un bot (vacío = bot al azar)"
+              className={`${battleInput} flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() => joinTestFighter("A")}
+              disabled={actionLoading === "battle-test-join"}
+              className="shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-bold text-white disabled:opacity-50"
+            >
+              + {state.battle.teamAName}
+            </button>
+            <button
+              type="button"
+              onClick={() => joinTestFighter("B")}
+              disabled={actionLoading === "battle-test-join"}
+              className="shrink-0 rounded-lg bg-indigo-500 px-3 text-xs font-bold text-white disabled:opacity-50"
+            >
+              + {state.battle.teamBName}
+            </button>
+          </div>
+
+          {rosterEntries.length > 0 ? (
+            <>
+              <div>
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+                  Actuar como
+                </span>
+                <select
+                  value={testActor}
+                  onChange={(e) => setTestActor(e.target.value)}
+                  className={battleInput}
+                >
+                  {rosterEntries.map(([user, f]) => (
+                    <option key={user} value={user}>
+                      {f.team === "A" ? "🅰️" : "🅱️"} {f.displayName} · {f.hp}/{f.maxHp} HP
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {(Object.keys(BATTLE_POWER_KIND_LABEL) as BattlePowerKind[]).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => fireTestPower(kind)}
+                    disabled={!testActor || actionLoading === "battle-test-power"}
+                    className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-[11px] font-bold leading-snug text-indigo-700 active:scale-[0.97] disabled:opacity-40"
+                  >
+                    {BATTLE_POWER_KIND_LABEL[kind]}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-[11px] font-semibold text-indigo-500">
+              Agrega a alguien a un equipo primero para poder disparar poderes.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Equipos
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            value={battleForm.teamAName}
+            onChange={(e) => setBattleForm((f) => ({ ...f, teamAName: e.target.value }))}
+            placeholder="Nombre equipo A"
+            className={battleInput}
+          />
+          <input
+            value={battleForm.teamBName}
+            onChange={(e) => setBattleForm((f) => ({ ...f, teamBName: e.target.value }))}
+            placeholder="Nombre equipo B"
+            className={battleInput}
+          />
+          <input
+            value={battleForm.teamAKeyword}
+            onChange={(e) => setBattleForm((f) => ({ ...f, teamAKeyword: e.target.value }))}
+            placeholder="Palabra clave A (ej. 1)"
+            className={battleInput}
+          />
+          <input
+            value={battleForm.teamBKeyword}
+            onChange={(e) => setBattleForm((f) => ({ ...f, teamBKeyword: e.target.value }))}
+            placeholder="Palabra clave B (ej. 2)"
+            className={battleInput}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            HP inicial
+          </span>
+          <input
+            type="number"
+            min={1}
+            value={battleForm.maxHp}
+            onChange={(e) => setBattleForm((f) => ({ ...f, maxHp: e.target.value }))}
+            className={battleInput}
+          />
+        </div>
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Modo de victoria
+          </span>
+          <select
+            value={battleForm.winMode}
+            onChange={(e) =>
+              setBattleForm((f) => ({
+                ...f,
+                winMode: e.target.value as typeof f.winMode,
+              }))
+            }
+            className={battleInput}
+          >
+            <option value="timed">Por tiempo</option>
+            <option value="elimination">Eliminación</option>
+            <option value="firstToKills">Primero a N kills</option>
+            <option value="sandbox">Sandbox (manual)</option>
+          </select>
+        </div>
+      </div>
+
+      {battleForm.winMode === "timed" && (
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Duración (minutos)
+          </span>
+          <input
+            type="number"
+            min={1}
+            value={battleForm.durationMin}
+            onChange={(e) => setBattleForm((f) => ({ ...f, durationMin: e.target.value }))}
+            className={battleInput}
+          />
+        </div>
+      )}
+      {battleForm.winMode === "firstToKills" && (
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Kills para ganar
+          </span>
+          <input
+            type="number"
+            min={1}
+            value={battleForm.killTarget}
+            onChange={(e) => setBattleForm((f) => ({ ...f, killTarget: e.target.value }))}
+            className={battleInput}
+          />
+        </div>
+      )}
+
+      <div>
+        <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <input
+            type="checkbox"
+            checked={battleForm.autoFireEnabled}
+            onChange={(e) => setBattleForm((f) => ({ ...f, autoFireEnabled: e.target.checked }))}
+            className="h-4 w-4"
+          />
+          Auto-ataque (para que nunca se vea congelado sin regalos)
+        </label>
+        {battleForm.autoFireEnabled && (
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              min={1}
+              value={battleForm.autoFireCooldownSec}
+              onChange={(e) => setBattleForm((f) => ({ ...f, autoFireCooldownSec: e.target.value }))}
+              placeholder="Cada cuántos segundos"
+              className={battleInput}
+            />
+            <input
+              type="number"
+              min={1}
+              value={battleForm.autoFireAmount}
+              onChange={(e) => setBattleForm((f) => ({ ...f, autoFireAmount: e.target.value }))}
+              placeholder="Daño por auto-ataque"
+              className={battleInput}
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Fondo (solo vista dedicada — /overlay/{overlayToken}/battle)
+        </span>
+        <div className="flex gap-2">
+          <input
+            value={battleForm.backgroundUrl}
+            onChange={(e) => setBattleForm((f) => ({ ...f, backgroundUrl: e.target.value }))}
+            placeholder="https://…"
+            className={battleInput}
+          />
+          <label
+            className={`flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 ${
+              battleBgUploading ? "pointer-events-none opacity-60" : ""
+            }`}
+          >
+            {battleBgUploading ? "Subiendo…" : "⬆ Subir"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadBattleBackground(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {battleBgError && <p className="mt-1 text-xs text-rose-600">{battleBgError}</p>}
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Regalo → poder
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setBattleForm((f) => ({
+                ...f,
+                giftPowerMap: [...f.giftPowerMap, { ...DEFAULT_BATTLE_POWER_ROW, giftName: "" }],
+              }))
+            }
+            className="text-xs font-bold text-amber-600"
+          >
+            + agregar
+          </button>
+        </div>
+        <div className="space-y-2">
+          {battleForm.giftPowerMap.map((row, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                value={row.giftName}
+                onChange={(e) =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    giftPowerMap: f.giftPowerMap.map((r, idx) =>
+                      idx === i ? { ...r, giftName: e.target.value } : r
+                    ),
+                  }))
+                }
+                placeholder="Nombre exacto del regalo"
+                className={battleInput}
+              />
+              {battlePowerRowFields(
+                row,
+                (next) =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    giftPowerMap: f.giftPowerMap.map((r, idx) => (idx === i ? { ...r, ...next } : r)),
+                  })),
+                () =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    giftPowerMap: f.giftPowerMap.filter((_, idx) => idx !== i),
+                  }))
+              )}
+            </div>
+          ))}
+          {battleForm.giftPowerMap.length === 0 && (
+            <p className="text-xs text-slate-400">
+              Sin regalos mapeados — todo cae al tramo automático por diamantes de abajo.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Tramos automáticos por diamantes (regalos sin mapear)
+        </span>
+        <div className="space-y-2">
+          {battleForm.diamondTierFallback.map((row, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={row.min}
+                onChange={(e) =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    diamondTierFallback: f.diamondTierFallback.map((r, idx) =>
+                      idx === i ? { ...r, min: e.target.value } : r
+                    ),
+                  }))
+                }
+                placeholder="≥ diamantes"
+                className={`${battleInput} w-24 shrink-0`}
+              />
+              {battlePowerRowFields(
+                row,
+                (next) =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    diamondTierFallback: f.diamondTierFallback.map((r, idx) =>
+                      idx === i ? { ...r, ...next } : r
+                    ),
+                  })),
+                () =>
+                  setBattleForm((f) => ({
+                    ...f,
+                    diamondTierFallback: f.diamondTierFallback.filter((_, idx) => idx !== i),
+                  }))
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setBattleForm((f) => ({
+                ...f,
+                diamondTierFallback: [
+                  ...f.diamondTierFallback,
+                  { ...DEFAULT_BATTLE_POWER_ROW, min: "0" },
+                ],
+              }))
+            }
+            className="text-xs font-bold text-amber-600"
+          >
+            + agregar tramo
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={saveBattleConfig}
+        disabled={actionLoading === "battle-config"}
+        className="h-11 w-full rounded-xl bg-slate-900 text-sm font-bold text-white active:bg-slate-800 disabled:opacity-40"
+      >
+        Guardar configuración
+      </button>
+
+      <p className="text-[11px] leading-snug text-slate-400">
+        Los espectadores se unen comentando la palabra clave de su equipo. "Iniciar
+        ronda" vacía el roster y arranca de nuevo — cambia la configuración ANTES
+        de iniciar.
+      </p>
+    </div>
+  );
+
   const renderedResults =
     searchMode === "cards" ? results : productResults;
   const isResultsLoading = searchMode === "cards" ? searchLoading : productLoading;
@@ -1892,6 +2742,7 @@ export default function LiveDeskClient({
               ["counters", "🔢 Contadores"],
               ["scenes", "🎬 Escenas y efectos"],
               ["bracket", "🏆 Torneo"],
+              ["battle", "🎮 Batalla"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -1994,8 +2845,10 @@ export default function LiveDeskClient({
               ) : null}
               {scenesPanel}
             </div>
-          ) : (
+          ) : desktopTab === "bracket" ? (
             <div className="mx-auto max-w-3xl">{bracketPanel}</div>
+          ) : (
+            <div className="mx-auto max-w-3xl">{battlePanel}</div>
           )}
         </div>
       </div>
@@ -2107,6 +2960,14 @@ export default function LiveDeskClient({
                 emoji: "🏆",
                 label: "Torneo",
                 onClick: () => setTabletDrawer("bracket"),
+                disabled: false,
+                tone: "slate" as const,
+              },
+              {
+                key: "battle",
+                emoji: "🎮",
+                label: "Batalla",
+                onClick: () => setTabletDrawer("battle"),
                 disabled: false,
                 tone: "slate" as const,
               },
@@ -2226,6 +3087,24 @@ export default function LiveDeskClient({
                     {bracketPanel}
                   </div>
                 </div>
+              ) : tabletDrawer === "battle" ? (
+                <div className="flex max-h-[80vh] flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">
+                      🎮 Batalla por equipos
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTabletDrawer(null)}
+                      className="text-sm font-bold text-slate-500"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {battlePanel}
+                  </div>
+                </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
@@ -2283,6 +3162,7 @@ export default function LiveDeskClient({
               ["cards", "Cartas"],
               ["effects", "Efectos"],
               ["bracket", "Torneo"],
+              ["battle", "Batalla"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -2414,6 +3294,10 @@ export default function LiveDeskClient({
         ) : mobileTab === "bracket" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {bracketPanel}
+          </div>
+        ) : mobileTab === "battle" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            {battlePanel}
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">

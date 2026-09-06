@@ -100,11 +100,16 @@ const resolveProductType = (category: string, title: string) => {
 
   const t = title.toLowerCase();
   if (t.includes("sleeve")) return "SLEEVE";
+  if (t.includes("playmat")) return "PLAYMAT";
+  // "don!!" con los signos — evita que "Donquixote" (Doflamingo, etc.) matchee.
+  // Mismo criterio que ya usa syncEventMissingCardsInDb para los DON!! que
+  // vienen de eventos/news/topics — un DON!! es un DON!! sin importar de qué
+  // lado del catálogo se detectó primero.
+  if (t.includes("don!!")) return "DON";
   if (t.includes("tin")) return "TIN_PACK";
   if (t.includes("illustration box")) return "ILLUSTRATION_BOX";
   if (t.includes("anniversary set")) return "ANNIVERSARY_SET";
   if (t.includes("premium card collection")) return "PREMIUM_CARD_COLLECTION";
-  if (t.includes("playmat")) return "PLAYMAT";
   if (t.includes("double pack")) return "DOUBLE_PACK";
   if (t.includes("devil fruit")) return "DEVIL_FRUIT";
   if (t.includes("storage box")) return "STORAGE_BOX";

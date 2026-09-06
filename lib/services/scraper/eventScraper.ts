@@ -2230,10 +2230,41 @@ async function detectSetsAndCards(
           codeInfo = altCodeInfo;
         }
       }
-      if (!codeInfo) return;
+      const resolved = resolveImageUrl(src, baseUrl);
+      if (!codeInfo) {
+        // Trophy/jumbo cards de placement ("CS25-26 World Final 1st Place
+        // Trophy Card") a veces no tienen NINGÚN código real en ningún lado
+        // — ni en el filename ("first_place_trophy_card.png") ni en el alt
+        // ("Card image of CS25-26 World Final 1st Place Trophy Card", puro
+        // texto descriptivo, sin prefijo OP/EB/ST/P). Sin código no hay con
+        // qué clonar una carta base — antes esto se perdía en silencio.
+        // Mismo tratamiento que /products/: placeholder único por imagen, el
+        // admin lo confirma a mano en el modal de catalog-gaps.
+        // OJO: el mismo widget de premios también lista MERCH que no es
+        // carta (fundas, playmat) con alt="Product image of…" en vez de
+        // "Card image of…" — sin este filtro esas también se colaban como
+        // "carta sin código".
+        if (!alt || !/^card image/i.test(alt)) return;
+        if (!resolved) return;
+        const title = headingText || alt || "";
+        if (!title) return;
+        // Las cartas DON!! ya las agarra el paso de texto de arriba (código
+        // fijo "DON!!", buscado por keyword en el heading) — sin este freno
+        // la MISMA imagen se duplicaba acá con un placeholder "UNK-" aparte.
+        if (/don!!/i.test(title)) return;
+        const hash = createHash("sha1").update(resolved).digest("hex").slice(0, 10);
+        const dedupeKey = `UNK-${hash}`;
+        if (seenCodeTitle.has(dedupeKey)) return;
+        seenCodeTitle.add(dedupeKey);
+        modernByCode.set(`block:${dedupeKey}`, {
+          code: `UNK-${hash}`,
+          title,
+          image: resolved,
+        });
+        return;
+      }
       if (existingCodes.has(codeInfo.code)) return;
 
-      const resolved = resolveImageUrl(src, baseUrl);
       const suffix = extractImageVariantSuffix(fileName, codeInfo.code);
       let title = headingText || alt || codeInfo.code;
       // Si no hay ningún texto útil (título = código pelado) pero el archivo

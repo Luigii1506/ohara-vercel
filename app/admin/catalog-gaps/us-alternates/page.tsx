@@ -1155,7 +1155,7 @@ export default function UsAlternatesPage() {
                       {p.thumbnailUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={p.thumbnailUrl}
+                          src={proxyImage(p.thumbnailUrl)}
                           alt={p.title}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -1238,7 +1238,7 @@ export default function UsAlternatesPage() {
             <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
               {productDetail.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={productDetail.thumbnailUrl} alt={productDetail.title} className="w-full" />
+                <img src={proxyImage(productDetail.thumbnailUrl)} alt={productDetail.title} className="w-full" />
               ) : (
                 <div className="aspect-[5/7] w-full" />
               )}

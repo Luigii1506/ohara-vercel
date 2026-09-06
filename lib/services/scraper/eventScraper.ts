@@ -3182,6 +3182,131 @@ export async function scrapeEvents(
 
   return result;
 }
+
+/**
+ * Descubre eventos "huérfanos": cada temporada Bandai arma un hub nuevo
+ * (/events/<año>/championship/) y dentro cuelgan world-final.php,
+ * offline/online_regional_waveN.php, etc. Cuando llega la temporada
+ * siguiente, la lista principal de /events/ deja de apuntar al hub viejo —
+ * pero el hub y todo lo que cuelga de él SIGUEN vivos y accesibles por URL
+ * directa, solo que ya no los encuentra el scraping normal (confirmado real:
+ * world-final.php de la temporada 25-26 se perdió así — el hub 2025 ya no
+ * estaba linkeado desde la lista principal, aunque seguía funcionando).
+ * Barato de revisar (unos pocos años, una request cada uno) y evita depender
+ * de que alguien lo reporte a mano cada vez que rota la temporada.
+ */
+export async function discoverChampionshipHubUrls(
+  years: number[]
+): Promise<string[]> {
+  const found = new Set<string>();
+  for (const year of years) {
+    const hubUrl = `https://en.onepiece-cardgame.com/events/${year}/championship/`;
+    let html: string;
+    try {
+      html = await fetchStaticHtml(hubUrl);
+    } catch {
+      continue;
+    }
+    const hrefs = html.match(/href="([^"]+)"/gi) ?? [];
+    for (const raw of hrefs) {
+      const href = raw.match(/href="([^"]+)"/i)?.[1];
+      if (!href) continue;
+      let resolved: URL;
+      try {
+        resolved = new URL(href, hubUrl);
+      } catch {
+        continue;
+      }
+      if (!resolved.pathname.startsWith(`/events/${year}/championship/`)) continue;
+      if (resolved.pathname.endsWith("/")) continue; // el hub mismo, no un sub-evento
+      found.add(resolved.toString());
+    }
+  }
+  return Array.from(found);
+}
+
+/**
+ * Scrapea UNA url de evento directa y la persiste (upsert Event + sets +
+ * missing sets + missing cards) — el mismo bloque que ya vive adentro del
+ * loop de scrapeEvents(), pero como pieza reusable para URLs sueltas que no
+ * vienen de un `sources` navegable (huérfanos de discoverChampionshipHubUrls,
+ * backfills puntuales, etc.). A propósito NO toca el bloque de scrapeEvents()
+ * que baja a COMPLETED los eventos no tocados por la fuente actual — eso es
+ * específico de una corrida completa por lista, no aplica a una URL suelta.
+ */
+export async function scrapeAndPersistEventUrl(
+  eventUrl: string
+): Promise<{ eventId: number; title: string; cardsFound: number } | null> {
+  const scrapedEvent = await scrapeEventDetail(eventUrl, {
+    locale: "en",
+    render: { mode: "static", waitMs: 2000 },
+  });
+  if (!scrapedEvent) return null;
+
+  const slug = generateSlug(
+    scrapedEvent.title,
+    scrapedEvent.region,
+    scrapedEvent.sourceUrl
+  );
+  const { matches: matchedSets, unmatchedCandidates } = await findMatchingSets(
+    scrapedEvent.detectedSets
+  );
+  const dedupedMissingSets = dedupeMissingCandidates(unmatchedCandidates);
+  const dedupedCards = dedupeCardCandidates(scrapedEvent.detectedCards);
+
+  const event = await prisma.event.upsert({
+    where: { slug },
+    create: {
+      slug,
+      title: scrapedEvent.title,
+      description: scrapedEvent.description,
+      content: scrapedEvent.content,
+      originalContent: scrapedEvent.originalContent,
+      locale: scrapedEvent.locale,
+      region: scrapedEvent.region,
+      status: scrapedEvent.status,
+      eventType: scrapedEvent.eventType,
+      category: scrapedEvent.category,
+      startDate: scrapedEvent.startDate,
+      endDate: scrapedEvent.endDate,
+      rawDateText: scrapedEvent.rawDateText,
+      location: scrapedEvent.location,
+      sourceUrl: scrapedEvent.sourceUrl,
+      imageUrl: scrapedEvent.imageUrl,
+      eventThumbnail: scrapedEvent.eventThumbnail,
+      eventTxt: scrapedEvent.eventTxt,
+      listOrder: scrapedEvent.listOrder,
+      isApproved: true,
+    },
+    update: {
+      title: scrapedEvent.title,
+      description: scrapedEvent.description,
+      content: scrapedEvent.content,
+      originalContent: scrapedEvent.originalContent,
+      locale: scrapedEvent.locale,
+      region: scrapedEvent.region,
+      status: scrapedEvent.status,
+      eventType: scrapedEvent.eventType,
+      category: scrapedEvent.category,
+      startDate: scrapedEvent.startDate,
+      endDate: scrapedEvent.endDate,
+      rawDateText: scrapedEvent.rawDateText,
+      location: scrapedEvent.location,
+      sourceUrl: scrapedEvent.sourceUrl,
+      imageUrl: scrapedEvent.imageUrl,
+      eventThumbnail: scrapedEvent.eventThumbnail,
+      eventTxt: scrapedEvent.eventTxt,
+      listOrder: scrapedEvent.listOrder,
+    },
+  });
+
+  await syncEventSetsInDb(event.id, matchedSets);
+  await syncEventMissingSetsInDb(event.id, dedupedMissingSets);
+  await syncEventMissingCardsInDb(event.id, dedupedCards);
+
+  return { eventId: event.id, title: event.title, cardsFound: dedupedCards.length };
+}
+
 interface VersionEntry {
   value: string;
   position: number;

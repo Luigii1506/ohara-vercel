@@ -3,6 +3,8 @@ import {
   scrapeEvents,
   DEFAULT_EVENT_LIST_SOURCES,
   PAST_EVENT_LIST_SOURCES,
+  discoverChampionshipHubUrls,
+  scrapeAndPersistEventUrl,
 } from "@/lib/services/scraper/eventScraper";
 
 export const maxDuration = 300;
@@ -56,6 +58,34 @@ async function runScrape(request: NextRequest) {
     maxEvents: 80,
   });
 
+  // Hubs de temporada de Championship (/events/<año>/championship/): cada
+  // temporada nueva, la lista principal deja de apuntar al hub de la
+  // temporada anterior (aunque siga vivo) y todo lo que cuelga de él — World
+  // Final, regionales, store championships — se pierde en silencio hasta que
+  // alguien lo nota a mano (confirmado real con World Final 25-26). Barato
+  // de revisar cada corrida: 3 años, unas pocas URLs de sub-evento cada uno.
+  const currentYear = new Date().getFullYear();
+  let hubEventsProcessed = 0;
+  const hubErrors: string[] = [];
+  try {
+    const hubUrls = await discoverChampionshipHubUrls([
+      currentYear,
+      currentYear - 1,
+      currentYear - 2,
+    ]);
+    for (const url of hubUrls) {
+      try {
+        const persisted = await scrapeAndPersistEventUrl(url);
+        if (persisted) hubEventsProcessed++;
+        else hubErrors.push(`scrape failed: ${url}`);
+      } catch (e) {
+        hubErrors.push(`${url}: ${(e as Error).message}`);
+      }
+    }
+  } catch (e) {
+    hubErrors.push(`hub discovery failed: ${(e as Error).message}`);
+  }
+
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
   const response = {
@@ -66,9 +96,11 @@ async function runScrape(request: NextRequest) {
       eventsProcessed: result.eventsProcessed,
       setsLinked: result.setsLinked,
       errors: result.errors.length,
+      hubEventsProcessed,
+      hubErrors: hubErrors.length,
     },
     events: result.events,
-    errors: result.errors,
+    errors: [...result.errors, ...hubErrors],
   };
 
   console.log("✅ Cron job completed:", response.stats);

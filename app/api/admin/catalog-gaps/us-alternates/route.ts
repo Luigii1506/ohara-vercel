@@ -160,19 +160,31 @@ export async function GET(req: NextRequest) {
     const eventByCode = new Map<string, EventCard[]>();
     for (const m of eventCardsRaw) {
       const code = (m.code ?? "").toUpperCase();
-      if (!ourCount.has(code)) continue;
+      if (!code) continue;
+      // OJO: antes se descartaba aquí cualquier código que no tuviéramos YA
+      // en el catálogo (`!ourCount.has(code)`) — eso escondía para siempre
+      // las cartas de evento/news/topics/products que son TOTALMENTE nuevas
+      // (0 filas nuestras), aunque el resto del código de abajo (el ternario
+      // `our === 0 ? "new" : "alt-art"`) claramente esperaba poder mostrarlas.
+      // Confirmado real: 5 códigos pendientes (incl. promos P-152/153/154)
+      // nunca aparecían en el panel por esto. `our` ya cae a 0 sin problema.
       const eventTitles = m.events.map((e) => e.event.title).filter(Boolean).join(" ");
       const sourceUrl = m.events.map((e) => e.event.sourceUrl).find(Boolean) ?? null;
       const eventText = norm(`${eventTitles} ${m.title ?? ""}`);
-      // Distingue cartas encontradas en /news/ o /topics/ (campañas, anuncios)
-      // de las de /events/ (torneos) — mismo pipeline de scraping, fuente
-      // distinta para el filtro del panel. /topics/ se agrupa bajo el mismo
-      // filtro "news" (ambas son páginas de anuncio, no de torneo).
+      // Distingue cartas encontradas en /news/, /topics/ o /products/
+      // (campañas, anuncios, colecciones especiales) de las de /events/
+      // (torneos) — mismo pipeline de scraping, fuente distinta para el
+      // filtro del panel. Las tres se agrupan bajo el mismo filtro "news"
+      // (todas son páginas de anuncio/producto, no de torneo).
       const isNews =
         m.events.length > 0 &&
         m.events.every((e) => {
           const url = e.event.sourceUrl ?? "";
-          return url.includes("/news/") || url.includes("/topics/");
+          return (
+            url.includes("/news/") ||
+            url.includes("/topics/") ||
+            url.includes("/products/")
+          );
         });
 
       // Variante canónica de la carta de evento (independiente del evento).

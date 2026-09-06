@@ -59,6 +59,11 @@ export async function POST(req: NextRequest) {
       typeof body.overrideSetTitle === "string" ? body.overrideSetTitle.trim() : "";
     const overrideAlternateArt =
       typeof body.overrideAlternateArt === "string" ? body.overrideAlternateArt.trim() : "";
+    // Cartas de /products/ (colecciones especiales) sin código detectable en
+    // la página: se guardan con un placeholder "UNK-<hash>" hasta que el
+    // operador lo lee a simple vista en la imagen y lo escribe acá.
+    const overrideCode =
+      typeof body.overrideCode === "string" ? body.overrideCode.trim().toUpperCase() : "";
 
     const mc = await prisma.missingCard.findUnique({
       where: { id: mcId },
@@ -81,10 +86,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Carta de evento no encontrada" }, { status: 404 });
     }
 
-    const code = (mc.code ?? "").toUpperCase();
+    const code = overrideCode || (mc.code ?? "").toUpperCase();
     if (!code || code === "DON!!") {
       return NextResponse.json(
         { error: "Esta carta (DON!! / sin código) aún no se puede crear automáticamente" },
+        { status: 422 }
+      );
+    }
+    if (code.startsWith("UNK-")) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta carta no tiene código detectado — ábrela, mira la imagen y escribe el código real antes de crearla",
+        },
         { status: 422 }
       );
     }
@@ -196,9 +210,15 @@ export async function POST(req: NextRequest) {
     });
 
     // 5) Saca el MissingCard del queue (aprobado) para que no se re-ofrezca.
+    // Si venía con placeholder "UNK-…" (código sin detectar), lo deja con el
+    // código real que acaba de confirmar el operador — si no, el historial
+    // queda con un código que ya no significa nada.
     await prisma.missingCard.update({
       where: { id: mcId },
-      data: { isApproved: true },
+      data: {
+        isApproved: true,
+        ...(overrideCode ? { code: overrideCode } : {}),
+      },
     });
 
     const set = await prisma.set.findUnique({

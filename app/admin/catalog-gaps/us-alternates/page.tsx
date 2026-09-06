@@ -25,6 +25,10 @@ import {
 // original. Se tratan igual salvo donde el usuario necesita distinguirlas
 // (etiqueta, filtro de fuente, punto de color).
 const isEventLike = (origin: string) => origin === "events" || origin === "news";
+// "/products/" (colecciones especiales) a veces no trae código detectable en
+// la página — se guarda con este placeholder hasta que el admin lo lee en la
+// imagen y lo escribe en el modal.
+const isCodeUnknown = (code: string) => code.startsWith("UNK-");
 
 type Row = {
   productId: number;
@@ -224,6 +228,9 @@ export default function UsAlternatesPage() {
   const [eventSuggestion, setEventSuggestion] = useState<EventSuggestion | null>(null);
   const [eventSuggestionLoading, setEventSuggestionLoading] = useState(false);
   const [eventAltArt, setEventAltArt] = useState("");
+  // Cartas de /products/ sin código detectable en la página (el admin lo lee
+  // a simple vista en la imagen y lo escribe acá — ver overrideCode).
+  const [eventCodeInput, setEventCodeInput] = useState("");
   const [eventSetMode, setEventSetMode] = useState<"suggested" | "existing" | "new">("suggested");
   const [eventExistingSetId, setEventExistingSetId] = useState<number | null>(null);
   const [eventNewSetTitle, setEventNewSetTitle] = useState("");
@@ -383,6 +390,7 @@ export default function UsAlternatesPage() {
     if (!detailRow || !isEventLike(detailRow.origin)) {
       setEventSuggestion(null);
       setEventAltArt("");
+      setEventCodeInput("");
       setEventSetMode("suggested");
       setEventExistingSetId(null);
       setEventNewSetTitle("");
@@ -390,6 +398,7 @@ export default function UsAlternatesPage() {
       setSetSearchResults([]);
       return;
     }
+    setEventCodeInput("");
 
     let cancelled = false;
     setEventSuggestionLoading(true);
@@ -488,7 +497,12 @@ export default function UsAlternatesPage() {
   const createAlternate = async (
     r: Row,
     overrideSet?: { setId: number | null; title: string; code: string | null } | null,
-    eventOverride?: { setId: number | null; setTitle: string | null; alternateArt: string | null } | null
+    eventOverride?: {
+      setId: number | null;
+      setTitle: string | null;
+      alternateArt: string | null;
+      code?: string | null;
+    } | null
   ) => {
     setBusy((b) => new Set(b).add(r.refKey));
     try {
@@ -507,6 +521,7 @@ export default function UsAlternatesPage() {
             ...(eventOverride?.alternateArt
               ? { overrideAlternateArt: eventOverride.alternateArt }
               : {}),
+            ...(eventOverride?.code ? { overrideCode: eventOverride.code } : {}),
           }
         : {
             productId: r.productId,
@@ -836,6 +851,11 @@ export default function UsAlternatesPage() {
                     {r.variant === "prize" && (
                       <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                         PRIZE
+                      </span>
+                    )}
+                    {isCodeUnknown(r.code) && (
+                      <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        ❓ SIN CÓDIGO
                       </span>
                     )}
                     {r.variant === "reprint" && (
@@ -1251,6 +1271,25 @@ export default function UsAlternatesPage() {
                   </div>
                 )}
 
+                {isEventLike(detailRow.origin) && isCodeUnknown(detailRow.code) && (
+                  <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      ⚠️ Código no detectado
+                    </h4>
+                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                      Esta imagen no traía el código en la página. Mira la
+                      esquina de la carta (junto a la rareza) y escríbelo acá
+                      antes de crear la alterna.
+                    </p>
+                    <input
+                      value={eventCodeInput}
+                      onChange={(e) => setEventCodeInput(e.target.value)}
+                      placeholder="Ej. P-124"
+                      className="mt-2 w-full rounded-md border border-amber-300 bg-white px-2 py-1.5 font-mono text-xs uppercase dark:border-amber-700 dark:bg-slate-800"
+                    />
+                  </div>
+                )}
+
                 {isEventLike(detailRow.origin) && (
                   <div className="mt-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1490,6 +1529,7 @@ export default function UsAlternatesPage() {
                                     ? eventSuggestion?.suggestedSetTitle ?? null
                                     : null,
                               alternateArt: eventAltArt.trim() || null,
+                              code: eventCodeInput.trim() || null,
                             }
                           : null;
                       setDetailRow(null);
@@ -1499,7 +1539,8 @@ export default function UsAlternatesPage() {
                       busy.has(detailRow.refKey) ||
                       (isEventLike(detailRow.origin) &&
                         ((eventSetMode === "existing" && !eventExistingSetId) ||
-                          (eventSetMode === "new" && !eventNewSetTitle.trim())))
+                          (eventSetMode === "new" && !eventNewSetTitle.trim()) ||
+                          (isCodeUnknown(detailRow.code) && !eventCodeInput.trim())))
                     }
                     className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                   >

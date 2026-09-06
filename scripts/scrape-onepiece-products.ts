@@ -159,17 +159,27 @@ const parseDetail = (html: string): Detail => {
     else if (label.includes("msrp") || label.includes("price")) priceText = value;
   });
 
+  // OJO: antes esto buscaba CUALQUIER <img> de la página cuyo src matcheara
+  // un regex de path muy amplio ("/products/" o "/renewal/images/products/")
+  // — eso agarraba también el carrusel "RELATED PRODUCTS" (otro producto
+  // completamente distinto) y el modal "browse by category", que viven en
+  // ese mismo path. Confirmado real: sleeve032.html traía 5 imágenes propias
+  // + 4 ajenas (de bestselection_vol6, playmat010, y los íconos del modal).
+  // Ahora se limita al carrusel de detalle real (".sliderColMain"), que no
+  // comparte clase con el de relacionados (".swiper-related").
+  // Las páginas viejas (/products/other/*.php, /products/boosters/*.php,
+  // /products/decks/*.php) usan otra plantilla (slick.js, ".productsMainSlider")
+  // en vez del carrusel Swiper nuevo — sin este fallback quedaban con 0 imágenes.
+  const selector = $(".sliderColMain").length
+    ? ".detailColSlider .sliderColMain img, .sliderColMain img"
+    : ".productsMainSlider img";
   const images = Array.from(
     new Set(
-      $("img")
+      $(selector)
         .map((_, el) => $(el).attr("data-src") || $(el).attr("src") || "")
         .get()
         .map((s) => buildAbsoluteUrl(s))
         .filter(Boolean)
-        .filter(
-          (src) =>
-            /\/products?\//.test(src) || /\/renewal\/images\/products\//.test(src)
-        )
         .filter((src) => !isPlaceholderImage(src))
     )
   );

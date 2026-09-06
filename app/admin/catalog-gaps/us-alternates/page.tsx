@@ -282,6 +282,39 @@ export default function UsAlternatesPage() {
   const [productDetail, setProductDetail] = useState<ProductRow | null>(null);
   const [productBusy, setProductBusy] = useState<Set<number>>(new Set());
 
+  // "¿Ya lo tengo?" para productos sin código (DON!!, sleeves, playmats…) —
+  // a diferencia de las cartas (que comparan por código), acá la única forma
+  // de saber si ya existe es mirar las imágenes de los productos que ya
+  // tenemos del MISMO tipo, uno al lado del otro.
+  const [existingSameType, setExistingSameType] = useState<
+    { id: number; name: string; imageUrl: string | null; thumbnailUrl: string | null }[]
+  >([]);
+  const [existingSameTypeLoading, setExistingSameTypeLoading] = useState(false);
+  const [existingSameTypeSearch, setExistingSameTypeSearch] = useState("");
+
+  useEffect(() => {
+    if (!productDetail?.productType) {
+      setExistingSameType([]);
+      return;
+    }
+    let cancelled = false;
+    setExistingSameTypeLoading(true);
+    fetch(`/api/products?type=${encodeURIComponent(productDetail.productType)}&limit=60&sort=name`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data) => {
+        if (!cancelled) setExistingSameType(Array.isArray(data.items) ? data.items : []);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingSameType([]);
+      })
+      .finally(() => {
+        if (!cancelled) setExistingSameTypeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productDetail?.productType]);
+
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
     try {
@@ -1218,7 +1251,7 @@ export default function UsAlternatesPage() {
           onClick={() => setProductDetail(null)}
         >
           <div
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1253,6 +1286,63 @@ export default function UsAlternatesPage() {
                 Ver fuente <ExternalLink className="h-3 w-3" />
               </a>
             )}
+
+            {productDetail.productType && (
+              <div className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    ¿Ya tengo un {productDetail.productType}? ({existingSameType.length})
+                  </h4>
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Esto no tiene código como las cartas — compara la imagen
+                  contra lo que ya está en el catálogo antes de crear uno nuevo.
+                </p>
+                <input
+                  value={existingSameTypeSearch}
+                  onChange={(e) => setExistingSameTypeSearch(e.target.value)}
+                  placeholder="Filtrar por nombre…"
+                  className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                />
+                {existingSameTypeLoading ? (
+                  <div className="py-4 text-center">
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin text-slate-400" />
+                  </div>
+                ) : existingSameType.length === 0 ? (
+                  <div className="mt-2 text-xs text-slate-400">
+                    Todavía no tienes ningún {productDetail.productType} en el catálogo.
+                  </div>
+                ) : (
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {existingSameType
+                      .filter((e) =>
+                        e.name.toLowerCase().includes(existingSameTypeSearch.trim().toLowerCase())
+                      )
+                      .map((e) => (
+                        <div key={e.id} className="text-center">
+                          <div className="overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                            {e.thumbnailUrl || e.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={proxyImage(e.thumbnailUrl || e.imageUrl)}
+                                alt={e.name}
+                                className="aspect-[5/7] w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="aspect-[5/7] w-full" />
+                            )}
+                          </div>
+                          <div className="mt-1 truncate text-[10px] text-slate-500" title={e.name}>
+                            {e.name}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2">
               <a
                 href={`/admin/missing-products/${productDetail.id}/approve`}

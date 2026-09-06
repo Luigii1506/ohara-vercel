@@ -53,6 +53,7 @@ const PRODUCT_TYPE_OPTIONS = [
   { value: "PREMIUM_CARD_COLLECTION", label: "Premium Card Collection" },
   { value: "DOUBLE_PACK", label: "Double Pack" },
   { value: "DEVIL_FRUIT", label: "Devil Fruit" },
+  { value: "DON", label: "DON!!" },
   { value: "BOOSTER", label: "Booster" },
   { value: "DECK", label: "Deck" },
   { value: "STARTER_DECK", label: "Starter Deck" },

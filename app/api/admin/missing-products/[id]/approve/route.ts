@@ -46,6 +46,7 @@ const PRODUCT_TYPE_VALUES = new Set([
   "PREMIUM_CARD_COLLECTION",
   "DOUBLE_PACK",
   "DEVIL_FRUIT",
+  "DON",
   "OTHER",
 ]);
 

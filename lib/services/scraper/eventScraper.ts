@@ -1634,15 +1634,58 @@ export async function syncEventMissingCardsInDb(
   // "Treasure Cup") para construir la identidad canónica de cada carta.
   const eventRow = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { title: true },
+    select: { title: true, sourceUrl: true },
   });
   const eventTitle = eventRow?.title ?? "";
+
+  // Los sets de DON!! no son "carta" (no tienen stats, no clonan una carta
+  // base) — son mercancía, igual que un sleeve o un playmat. Antes se
+  // guardaban como MissingCard con code:"DON!!" y se quedaban ahí varados
+  // para siempre (create-from-event los rechaza a propósito). Van a
+  // MissingProduct en su lugar, mismo catálogo que ya usa /admin/missing-products
+  // para sleeves/playmats/etc. Dedupe por (título, sourceUrl) — MissingProduct
+  // no tiene una llave única natural como MissingCard.
+  const donCandidates = withImage.filter((c) => c.code.toUpperCase() === "DON!!");
+  const nonDonCandidates = withImage.filter((c) => c.code.toUpperCase() !== "DON!!");
+  for (const don of donCandidates) {
+    // El detector de texto (arriba, Fase 1/2) solo busca la palabra "DON!!"
+    // en el heading — a veces cae sobre mercancía que ni es un DON card
+    // ("Don!! Sleeve", "Red Bull Double Don!! Playmat"). Corrige el tipo real
+    // por el título antes de guardarlo, para que el catálogo de productos no
+    // quede con sleeves/playmats etiquetados como si fueran cartas DON!!.
+    const donTitleLower = don.title.toLowerCase();
+    const donProductType = donTitleLower.includes("sleeve")
+      ? "SLEEVE"
+      : donTitleLower.includes("playmat")
+        ? "PLAYMAT"
+        : "DON";
+    const existing = await prisma.missingProduct.findFirst({
+      where: { title: don.title, sourceUrl: eventRow?.sourceUrl ?? undefined },
+    });
+    if (existing) {
+      await prisma.missingProduct.update({
+        where: { id: existing.id },
+        data: { thumbnailUrl: don.image, imagesJson: don.image ? [don.image] : [] },
+      });
+    } else {
+      await prisma.missingProduct.create({
+        data: {
+          title: don.title,
+          sourceUrl: eventRow?.sourceUrl ?? null,
+          productType: donProductType,
+          category: "Event Prize",
+          thumbnailUrl: don.image,
+          imagesJson: don.image ? [don.image] : [],
+        },
+      });
+    }
+  }
 
   // Enriquece cada candidato con imagen + llave canónica (independiente del evento).
   // El sufijo del archivo de imagen (batch_OP14-069_3.webp → "3") entra como
   // último respaldo de variante — solo pesa cuando ni el texto de la carta ni
   // el del evento supieron nombrar una (ver buildCardIdentityKey).
-  const enriched = withImage.map((candidate) => {
+  const enriched = nonDonCandidates.map((candidate) => {
     const imageFileName = (candidate.image || "").split("/").pop() || "";
     const variantHint = extractImageVariantSuffix(imageFileName, candidate.code);
     return {

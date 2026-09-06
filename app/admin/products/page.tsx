@@ -55,6 +55,7 @@ const PRODUCT_TYPES = [
   { key: "PREMIUM_CARD_COLLECTION", label: "Premium Card Collection" },
   { key: "DOUBLE_PACK", label: "Double Pack" },
   { key: "DEVIL_FRUIT", label: "Devil Fruit" },
+  { key: "DON", label: "DON!!" },
   { key: "BOOSTER", label: "Booster" },
   { key: "DECK", label: "Deck" },
   { key: "STARTER_DECK", label: "Starter Deck" },

@@ -1638,27 +1638,41 @@ export async function syncEventMissingCardsInDb(
   });
   const eventTitle = eventRow?.title ?? "";
 
-  // Los sets de DON!! no son "carta" (no tienen stats, no clonan una carta
-  // base) — son mercancía, igual que un sleeve o un playmat. Antes se
-  // guardaban como MissingCard con code:"DON!!" y se quedaban ahí varados
-  // para siempre (create-from-event los rechaza a propósito). Van a
-  // MissingProduct en su lugar, mismo catálogo que ya usa /admin/missing-products
-  // para sleeves/playmats/etc. Dedupe por (título, sourceUrl) — MissingProduct
+  // DON!!, sleeves y playmats no son "carta" (no tienen stats, no clonan una
+  // carta base) — son mercancía, sin importar si vinieron de /events/,
+  // /news/, /topics/ o /products/: da igual de qué lado del catálogo se
+  // detectaron primero, un DON!! es un DON!! en los tres casos. Antes solo se
+  // reconocía por code:"DON!!" (lo único que el pase de texto de arriba sabe
+  // asignar) — eso dejaba pasar como "carta" cualquier premio de sleeve/
+  // playmat SIN la palabra "DON!!" en el nombre (ej. un playmat de premio que
+  // el pase de imágenes (Fase 3) solo supo etiquetar con un código
+  // placeholder "UNK-…"). Ahora se detecta por palabra clave en el TÍTULO,
+  // no por código, y van a MissingProduct — mismo catálogo que ya usa
+  // /admin/missing-products. Dedupe por (título, sourceUrl) — MissingProduct
   // no tiene una llave única natural como MissingCard.
-  const donCandidates = withImage.filter((c) => c.code.toUpperCase() === "DON!!");
-  const nonDonCandidates = withImage.filter((c) => c.code.toUpperCase() !== "DON!!");
-  for (const don of donCandidates) {
-    // El detector de texto (arriba, Fase 1/2) solo busca la palabra "DON!!"
-    // en el heading — a veces cae sobre mercancía que ni es un DON card
-    // ("Don!! Sleeve", "Red Bull Double Don!! Playmat"). Corrige el tipo real
-    // por el título antes de guardarlo, para que el catálogo de productos no
-    // quede con sleeves/playmats etiquetados como si fueran cartas DON!!.
-    const donTitleLower = don.title.toLowerCase();
-    const donProductType = donTitleLower.includes("sleeve")
-      ? "SLEEVE"
-      : donTitleLower.includes("playmat")
-        ? "PLAYMAT"
-        : "DON";
+  const merchProductType = (title: string): "SLEEVE" | "PLAYMAT" | "DON" | null => {
+    const t = title.toLowerCase();
+    if (t.includes("sleeve")) return "SLEEVE";
+    if (t.includes("playmat")) return "PLAYMAT";
+    if (t.includes("don!!")) return "DON";
+    return null;
+  };
+  const merchCandidates: Array<{ candidate: (typeof withImage)[number]; productType: "SLEEVE" | "PLAYMAT" | "DON" }> = [];
+  const nonDonCandidates: typeof withImage = [];
+  const normalizedEventTitle = eventTitle.trim().toLowerCase();
+  for (const c of withImage) {
+    // Si el título del candidato es ni más ni menos que el título del propio
+    // evento/producto (el fallback que usa productScraper.ts cuando una
+    // imagen "Card image" suelta no trae nombre propio — ej. una carta bonus
+    // de "Playmat&Card Set -Luffy&Bonney-"), NO es señal de mercancía: es
+    // solo que no había nada más específico para nombrarla. Confiar en que
+    // ya llegó acá siendo "Card image" (no "Product image") desde el origen.
+    const isGenericFallbackTitle = c.title.trim().toLowerCase() === normalizedEventTitle;
+    const type = isGenericFallbackTitle ? null : merchProductType(c.title);
+    if (type) merchCandidates.push({ candidate: c, productType: type });
+    else nonDonCandidates.push(c);
+  }
+  for (const { candidate: don, productType: donProductType } of merchCandidates) {
     const existing = await prisma.missingProduct.findFirst({
       where: { title: don.title, sourceUrl: eventRow?.sourceUrl ?? undefined },
     });

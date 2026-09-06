@@ -82,6 +82,17 @@ export async function scrapeProductPage(
     seenSrc.add(rawSrc);
     const image = resolveUrl(rawSrc, url);
 
+    // DON!!/sleeve/playmat no son "carta" con código — sin este chequeo
+    // ANTES del regex genérico, "Card image of DON!! Card" se partía mal
+    // (el regex de código no incluye "!", capturaba code:"DON" y el título
+    // se quedaba con el resto, "!! Card", perdiendo la palabra clave "DON!!"
+    // que syncEventMissingCardsInDb necesita para mandarlo a MissingProduct
+    // en vez de crearlo como una carta rota).
+    if (/don!!|sleeve|playmat/i.test(alt)) {
+      cards.push({ code: "DON!!", title: alt.replace(/^card image of\s+/i, "").trim() || title, image, needsManualCode: false });
+      continue;
+    }
+
     const named = alt.match(/^card image of\s+([A-Za-z0-9-]+)\s*(.*)$/i);
     if (named) {
       const code = named[1].toUpperCase();

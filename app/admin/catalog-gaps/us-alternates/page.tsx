@@ -290,7 +290,6 @@ export default function UsAlternatesPage() {
     { id: number; name: string; imageUrl: string | null; thumbnailUrl: string | null }[]
   >([]);
   const [existingSameTypeLoading, setExistingSameTypeLoading] = useState(false);
-  const [existingSameTypeSearch, setExistingSameTypeSearch] = useState("");
 
   useEffect(() => {
     if (!productDetail?.productType) {
@@ -1268,10 +1267,14 @@ export default function UsAlternatesPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+            <div className="mt-3 flex max-h-[45vh] items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
               {productDetail.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proxyImage(productDetail.thumbnailUrl)} alt={productDetail.title} className="w-full" />
+                <img
+                  src={proxyImage(productDetail.thumbnailUrl)}
+                  alt={productDetail.title}
+                  className="max-h-[45vh] w-auto max-w-full object-contain"
+                />
               ) : (
                 <div className="aspect-[5/7] w-full" />
               )}
@@ -1297,13 +1300,8 @@ export default function UsAlternatesPage() {
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   Esto no tiene código como las cartas — compara la imagen
                   contra lo que ya está en el catálogo antes de crear uno nuevo.
+                  Se muestran todos, no hace falta buscar por nombre.
                 </p>
-                <input
-                  value={existingSameTypeSearch}
-                  onChange={(e) => setExistingSameTypeSearch(e.target.value)}
-                  placeholder="Filtrar por nombre…"
-                  className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-                />
                 {existingSameTypeLoading ? (
                   <div className="py-4 text-center">
                     <Loader2 className="mx-auto h-4 w-4 animate-spin text-slate-400" />
@@ -1313,12 +1311,8 @@ export default function UsAlternatesPage() {
                     Todavía no tienes ningún {productDetail.productType} en el catálogo.
                   </div>
                 ) : (
-                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                    {existingSameType
-                      .filter((e) =>
-                        e.name.toLowerCase().includes(existingSameTypeSearch.trim().toLowerCase())
-                      )
-                      .map((e) => (
+                  <div className="mt-2 grid max-h-[45vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+                    {existingSameType.map((e) => (
                         <div key={e.id} className="text-center">
                           <div className="overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                             {e.thumbnailUrl || e.imageUrl ? (
@@ -1326,7 +1320,7 @@ export default function UsAlternatesPage() {
                               <img
                                 src={proxyImage(e.thumbnailUrl || e.imageUrl)}
                                 alt={e.name}
-                                className="aspect-[5/7] w-full object-cover"
+                                className="aspect-[5/7] w-full object-contain"
                                 loading="lazy"
                               />
                             ) : (

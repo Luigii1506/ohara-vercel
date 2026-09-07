@@ -8,6 +8,7 @@ import {
   normalizeOfficialVariantToken,
   inferOfficialVariantCode,
 } from "@/lib/cards/officialVariant";
+import { getPrefixIndex } from "@/lib/cards/sort";
 
 /**
  * Sincronización con los sitios OFICIALES (plataforma Bandai): en/asia-en/jp/fr.
@@ -513,6 +514,46 @@ type PersistArgs = {
   refererBase: string;
 };
 
+// Misma fórmula que scripts/update-collection-order.ts / finish-collection-order.ts
+// / lib/cards/sort.ts (getCollectionOrderKey) — duplicada a propósito acá para no
+// acoplar este servicio al tipo CardWithCollectionData (pensado para la UI).
+// persistCard() es el camino PRIMARIO de creación (US/EN vía official-sync) y
+// antes dejaba collectionOrder en su default "" — Postgres ordena "" primero,
+// así que esas cartas terminaban arriba en vez de al final en páginas que no
+// hacen el resort de respaldo en cliente (confirmado real: /proxies).
+const digitsRegex = /\d+/g;
+const normalizeCodeSegment = (value: string) =>
+  value
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9-]/g, "")
+    .replace(digitsRegex, (match) => match.padStart(4, "0"));
+const normalizeAlternateOrder = (value?: string | null) => {
+  if (!value) return "zzzz";
+  const trimmed = value.trim();
+  if (!trimmed) return "zzzz";
+  const numeric = trimmed.match(/^\d+/);
+  if (numeric) return numeric[0].padStart(4, "0");
+  return trimmed.padStart(4, "0");
+};
+function buildCollectionOrder(card: {
+  id: number;
+  code: string;
+  category?: string | null;
+  baseCardId?: number | null;
+  order?: string | null;
+}): string {
+  const prefixIndex = getPrefixIndex(card.code, card.category ?? undefined);
+  const normalizedCode = normalizeCodeSegment(card.code);
+  const isBaseCard = card.baseCardId === null || card.baseCardId === undefined;
+  const suffix = isBaseCard
+    ? "00"
+    : `10_${normalizeAlternateOrder(card.order)}_${String(card.baseCardId ?? "").padStart(6, "0")}`;
+  return `${prefixIndex.toString().padStart(2, "0")}_${normalizedCode}_${suffix}_${card.id
+    .toString()
+    .padStart(6, "0")}`;
+}
+
 /** Descarga imagen → variantes a R2 → crea Card (+CardSet+CardSource). */
 async function persistCard(a: PersistArgs): Promise<number> {
   const keyBase = imageBase(a.source, a.cardId);
@@ -542,13 +583,24 @@ async function persistCard(a: PersistArgs): Promise<number> {
     attribute = sibling?.attribute ?? null;
   }
 
+  // Mismo criterio que ya usan krOfficialSync/cnOfficialSync: si otra región
+  // YA tiene este código con collectionOrder calculado, reusarlo tal cual
+  // (mantiene las variantes del mismo code agrupadas en el orden global) —
+  // solo se calcula desde cero cuando el código es genuinamente nuevo.
+  const orderSibling = await prisma.card.findFirst({
+    where: { code: a.code, collectionOrder: { not: "" } },
+    select: { collectionOrder: true },
+  });
+  const resolvedCategory = p?.category || "Character";
+  const cardOrder = a.variant ? a.variant.replace(/^p/i, "") : "0";
+
   const created = await prisma.card.create({
     data: {
       src,
       name: a.name || a.code,
       code: a.code,
       setCode: a.setCode || a.code.split("-")[0],
-      category: p?.category || "Character",
+      category: resolvedCategory,
       rarity: p?.rarity ?? null,
       attribute,
       cost: p?.cost ?? null,
@@ -558,7 +610,8 @@ async function persistCard(a: PersistArgs): Promise<number> {
       triggerCard: p?.trigger ?? null,
       isFirstEdition: !a.isAlternate,
       alias: "",
-      order: a.variant ? a.variant.replace(/^p/i, "") : "0",
+      order: cardOrder,
+      collectionOrder: orderSibling?.collectionOrder ?? "",
       officialVariantCode: a.variant ? normalizeOfficialVariantToken(a.variant) : null,
       alternateArt: a.isAlternate ? "Alternate Art" : null,
       baseCardId: a.baseCardId,
@@ -567,6 +620,23 @@ async function persistCard(a: PersistArgs): Promise<number> {
     } as never,
     select: { id: true },
   });
+  if (!orderSibling?.collectionOrder) {
+    // Código genuinamente nuevo — nada de qué copiar. La fórmula necesita el
+    // id propio (recién asignado por el create), así que se calcula y se
+    // guarda en un segundo paso.
+    await prisma.card.update({
+      where: { id: created.id },
+      data: {
+        collectionOrder: buildCollectionOrder({
+          id: created.id,
+          code: a.code,
+          category: resolvedCategory,
+          baseCardId: a.baseCardId,
+          order: cardOrder,
+        }),
+      },
+    });
+  }
   if (setId) {
     await prisma.cardSet
       .create({ data: { cardId: created.id, setId } })

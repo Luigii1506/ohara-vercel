@@ -33,6 +33,7 @@ import { getOptimizedImageUrl } from "@/lib/imageOptimization";
 import { generateProxySheetPdf } from "@/lib/print/generateProxySheetPdf";
 import { DeckCard } from "@/types";
 import SortSelect, { SortOption } from "../SortSelect";
+import { sortByCollectionOrder } from "@/lib/cards/sort";
 import BaseCardsToggle from "../BaseCardsToggle";
 import DropdownSearch from "../DropdownSearch";
 import {
@@ -233,14 +234,19 @@ const ProxiesBuilder = ({
 
   // Get cards from paginated data or initial data
   const allCards = useMemo(() => {
-    if (paginatedCards?.length) {
-      return paginatedCards;
-    }
-    if (matchesInitialFilters) {
-      return initialData?.items ?? [];
-    }
-    return [];
-  }, [paginatedCards, initialData, matchesInitialFilters]);
+    const base = paginatedCards?.length
+      ? paginatedCards
+      : matchesInitialFilters
+        ? (initialData?.items ?? [])
+        : [];
+    // Respaldo en cliente cuando se usa el orden de colección por default
+    // (selectedSort === "" → sortBy: undefined, server ordena por
+    // collectionOrder) — mismo self-healing que ya hace CardListClient para
+    // cartas con collectionOrder vacío ("" ordena primero en Postgres, así
+    // que sin este resort esas cartas aparecían arriba en vez de al final).
+    // Los sorts explícitos (code/name asc/desc) no lo necesitan.
+    return selectedSort ? base : [...base].sort(sortByCollectionOrder);
+  }, [paginatedCards, initialData, matchesInitialFilters, selectedSort]);
 
   // Drawer states
   const [selectedCard, setSelectedCard] = useState<DeckCard | null>(null);

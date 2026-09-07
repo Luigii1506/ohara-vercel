@@ -487,6 +487,7 @@ function buildCreateData(
     priceUpdatedAt: null,
     alias: baseCard.alias,
     order: baseCard.order,
+    collectionOrder: baseCard.collectionOrder,
     isFirstEdition: false,
     isPro: baseCard.isPro,
     region: baseCard.region,

@@ -9,6 +9,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { ProductType } from "@prisma/client";
 import sharp from "sharp";
+import {
+  resolveSiblingCollectionOrder,
+  assignCollectionOrderAfterCreate,
+} from "@/lib/cards/collectionOrder";
 
 // Initialize S3 client for R2
 const s3Client = new S3Client({
@@ -309,8 +313,17 @@ async function createAlternatesFromCardImages(
       highPrice: _highPrice,
       priceCurrency: _priceCurrency,
       priceUpdatedAt: _priceUpdatedAt,
+      collectionOrder: _collectionOrder,
       ...otherData
     } = baseCard;
+
+    // Mismo criterio que el resto del catálogo: reusa el collectionOrder de
+    // un sibling con el mismo código si ya existe, si no se calcula desde
+    // cero después del create (necesita el id propio). Sin esto, el spread
+    // de "otherData" hubiera copiado el collectionOrder de `baseCard` tal
+    // cual — pero baseCard puede ser a su vez otra alterna con un baseCardId
+    // distinto, dando un sufijo equivocado.
+    const siblingCollectionOrder = await resolveSiblingCollectionOrder(baseCard.code);
 
     const newAlternate = await prisma.card.create({
       data: {
@@ -322,6 +335,7 @@ async function createAlternatesFromCardImages(
         isFirstEdition: false,
         alias,
         order: "0",
+        collectionOrder: siblingCollectionOrder ?? "",
         baseCardId: baseCard.baseCardId ?? baseCard.id,
         types:
           baseCard.types.length > 0
@@ -352,6 +366,18 @@ async function createAlternatesFromCardImages(
         priceUpdatedAt: null,
       },
     });
+    if (!siblingCollectionOrder) {
+      await assignCollectionOrderAfterCreate(
+        newAlternate.id,
+        {
+          code: baseCard.code,
+          category: baseCard.category,
+          baseCardId: baseCard.baseCardId ?? baseCard.id,
+          order: "0",
+        },
+        null
+      );
+    }
 
     await prisma.cardSet.create({
       data: {
@@ -816,8 +842,11 @@ export async function POST(
           highPrice: _highPrice,
           priceCurrency: _priceCurrency,
           priceUpdatedAt: _priceUpdatedAt,
+          collectionOrder: _collectionOrder,
           ...otherData
         } = baseCard;
+
+        const siblingCollectionOrder = await resolveSiblingCollectionOrder(baseCard.code);
 
         const newAlternate = await prisma.card.create({
           data: {
@@ -829,6 +858,7 @@ export async function POST(
             isFirstEdition: false,
             alias: safeAlias,
             order: "0",
+            collectionOrder: siblingCollectionOrder ?? "",
             baseCardId: baseCard.baseCardId ?? baseCard.id,
             types:
               baseCard.types.length > 0
@@ -859,6 +889,18 @@ export async function POST(
             priceUpdatedAt: null,
           },
         });
+        if (!siblingCollectionOrder) {
+          await assignCollectionOrderAfterCreate(
+            newAlternate.id,
+            {
+              code: baseCard.code,
+              category: baseCard.category,
+              baseCardId: baseCard.baseCardId ?? baseCard.id,
+              order: "0",
+            },
+            null
+          );
+        }
 
         if (baseCard.sets.length > 0) {
           await prisma.cardSet.createMany({

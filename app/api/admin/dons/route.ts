@@ -7,6 +7,10 @@ import {
   parseSetIds,
   sanitizeOptionalString,
 } from "./utils";
+import {
+  resolveSiblingCollectionOrder,
+  assignCollectionOrderAfterCreate,
+} from "@/lib/cards/collectionOrder";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +146,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const siblingCollectionOrder = await resolveSiblingCollectionOrder(code);
     const newCard = await prisma.card.create({
       data: {
         name,
@@ -156,9 +161,19 @@ export async function POST(req: NextRequest) {
         category: DON_CATEGORY,
         isFirstEdition,
         isPro: Boolean(body.isPro),
+        collectionOrder: siblingCollectionOrder ?? "",
         ...(baseCardIdValue ? { baseCardId: baseCardIdValue } : {}),
       },
     });
+    if (!siblingCollectionOrder) {
+      // DON_CATEGORY ya empuja el prefijo al final (índice 5) sin importar el
+      // código — así se cumple "los dones van al final" aunque code venga vacío.
+      await assignCollectionOrderAfterCreate(
+        newCard.id,
+        { code, category: DON_CATEGORY, baseCardId: baseCardIdValue, order },
+        null
+      );
+    }
 
     if (setIds.length) {
       await prisma.cardSet.createMany({

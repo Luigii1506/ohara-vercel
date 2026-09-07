@@ -15,6 +15,10 @@ import {
   normalizeRarity,
 } from "@/lib/services/tcgplayerCardData";
 import { findBestSetMatch, resolveTcgSetTargets } from "@/lib/services/catalogSetResolver";
+import {
+  resolveSiblingCollectionOrder,
+  assignCollectionOrderAfterCreate,
+} from "@/lib/cards/collectionOrder";
 
 /**
  * POST /api/admin/catalog-gaps/us-alternates/create
@@ -218,6 +222,7 @@ export async function POST(req: NextRequest) {
           ...priceData,
           alias: base.alias,
           order: base.order,
+          collectionOrder: base.collectionOrder,
           isFirstEdition: false,
           isPro: base.isPro,
           region: base.region ?? "US",
@@ -231,6 +236,13 @@ export async function POST(req: NextRequest) {
         },
         select: { id: true },
       });
+      if (!base.collectionOrder) {
+        await assignCollectionOrderAfterCreate(
+          card.id,
+          { code: base.code, category: base.category, baseCardId: base.id, order: base.order },
+          null
+        );
+      }
     } else {
       // === No la tenemos → crear la carta COMPLETA desde TCGplayer (base) ===
       mode = "new-base";
@@ -241,6 +253,7 @@ export async function POST(req: NextRequest) {
           { status: 422 }
         );
       }
+      const siblingCollectionOrder = await resolveSiblingCollectionOrder(parsed.code);
       card = await prisma.card.create({
         data: {
           name: parsed.name,
@@ -266,6 +279,7 @@ export async function POST(req: NextRequest) {
           isFirstEdition: true,
           region: "US",
           baseCardId: null,
+          collectionOrder: siblingCollectionOrder ?? "",
           colors: parsed.colors.length ? { create: parsed.colors.map((color) => ({ color })) } : undefined,
           types: parsed.types.length ? { create: parsed.types.map((type) => ({ type })) } : undefined,
           effects: parsed.effects.length ? { create: parsed.effects.map((effect) => ({ effect })) } : undefined,
@@ -274,6 +288,13 @@ export async function POST(req: NextRequest) {
         },
         select: { id: true },
       });
+      if (!siblingCollectionOrder) {
+        await assignCollectionOrderAfterCreate(
+          card.id,
+          { code: parsed.code, category: parsed.category, baseCardId: null, order: null },
+          null
+        );
+      }
     }
 
     // Linkear el producto del mirror a la nueva carta.

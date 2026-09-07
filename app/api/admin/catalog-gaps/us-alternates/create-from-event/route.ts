@@ -10,6 +10,7 @@ import {
   cleanEventTitleForSet,
   normalizeDashes,
 } from "@/lib/services/events/eventAltArt";
+import { assignCollectionOrderAfterCreate } from "@/lib/cards/collectionOrder";
 
 /**
  * POST /api/admin/catalog-gaps/us-alternates/create-from-event
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
         triggerCard: base.triggerCard,
         alias: base.alias,
         order: base.order,
+        collectionOrder: base.collectionOrder,
         isFirstEdition: false,
         isPro: base.isPro,
         region: base.region ?? "US",
@@ -208,6 +210,15 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true },
     });
+    if (!base.collectionOrder) {
+      // La base todavía no tiene collectionOrder (caso raro, backfill
+      // pendiente) — calcularlo desde cero en vez de heredar vacío.
+      await assignCollectionOrderAfterCreate(
+        card.id,
+        { code, category: base.category, baseCardId: base.id, order: base.order },
+        null
+      );
+    }
 
     // 5) Saca el MissingCard del queue (aprobado) para que no se re-ofrezca.
     // Si venía con placeholder "UNK-…" (código sin detectar), lo deja con el

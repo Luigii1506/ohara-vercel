@@ -500,10 +500,10 @@ function buildPrintHtml(pages: Array<Array<string | null>>) {
         <style>
           :root {
             --page-width: 210mm;
-            --page-height: 297mm;
-            --page-padding-top: 10mm;
+            --page-height: 277mm;
+            --page-padding-top: 6mm;
             --page-padding-right: 11mm;
-            --page-padding-bottom: 10mm;
+            --page-padding-bottom: 6mm;
             --page-padding-left: 11mm;
             --card-width: 62mm;
             --card-height: 87mm;
@@ -511,7 +511,7 @@ function buildPrintHtml(pages: Array<Array<string | null>>) {
           }
 
           @page {
-            size: A4 portrait;
+            size: letter portrait;
             margin: 0;
           }
 

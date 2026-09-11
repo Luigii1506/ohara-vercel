@@ -112,13 +112,7 @@ export async function POST(request: NextRequest) {
       const gifterAmount = diamondCount > 0 ? diamondCount * (repeatCount ?? 1) : repeatCount ?? 1;
       if (user) {
         await bumpLiveOverlayTopGifters(overlayToken, user, gifterAmount, avatar);
-        await applyLiveOverlayBattleGiftPower(overlayToken, {
-          user,
-          avatar,
-          giftName,
-          diamondCount,
-          repeatCount: repeatCount ?? 1,
-        });
+        await applyLiveOverlayBattleGiftPower(overlayToken, { user, avatar, giftName });
       }
       nextState = await triggerLiveOverlayAlert(overlayToken, {
         emoji: "🎁",

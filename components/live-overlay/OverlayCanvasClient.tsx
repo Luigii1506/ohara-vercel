@@ -421,10 +421,11 @@ export default function OverlayCanvasClient({ token }: OverlayCanvasClientProps)
 
   useEffect(() => {
     loadState();
-    // Con una ronda de batalla activa refrescamos más seguido (2.5s) incluso
-    // con socket conectado, así la barra de HP no se ve estancada entre
-    // eventos de TikTok.
-    const intervalMs = state.battle.active ? 2500 : connected ? 15000 : 1000;
+    // Con una ronda de batalla activa refrescamos MUY seguido (500ms) incluso
+    // con socket conectado — el auto-ataque dispara cada `autoFireCooldownMs`
+    // (metralleta continua) y si el polling es más lento que eso, el overlay
+    // se ve "a saltos" en vez de fuego continuo.
+    const intervalMs = state.battle.active ? 500 : connected ? 15000 : 1000;
     const interval = window.setInterval(loadState, intervalMs);
     return () => window.clearInterval(interval);
   }, [loadState, connected, state.battle.active]);

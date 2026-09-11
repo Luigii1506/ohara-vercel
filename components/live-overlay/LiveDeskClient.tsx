@@ -96,11 +96,8 @@ type BattlePowerKind =
   | "healAll"
   | "shield"
   | "freeze"
-  | "aoe"
   | "chain"
-  | "pierce"
   | "burn"
-  | "poison"
   | "knockback"
   | "growMaxHp"
   | "rapidFire"
@@ -109,23 +106,18 @@ type BattlePowerRow = {
   kind: BattlePowerKind;
   amount: string;
   durationSec: string;
-  targets: string;
   hops: string;
   dmgPerTick: string;
   multiplier: string;
 };
 type BattleGiftRow = BattlePowerRow & { giftName: string };
-type BattleTierRow = BattlePowerRow & { min: string };
 
 const BATTLE_POWER_KIND_LABEL: Record<BattlePowerKind, string> = {
   hit: "Golpe",
   nuke: "Nuke (a todos)",
-  aoe: "Salpicadura (N enemigos)",
   chain: "Cadena (rebota N veces)",
-  pierce: "Perforante (ignora escudo)",
   freeze: "Congelar",
   burn: "Quemar (daño sostenido)",
-  poison: "Envenenar (daño sostenido)",
   knockback: "Empujar",
   heal: "Curarse",
   healAll: "Curar equipo",
@@ -139,7 +131,6 @@ const DEFAULT_BATTLE_POWER_ROW: BattlePowerRow = {
   kind: "hit",
   amount: "50",
   durationSec: "5",
-  targets: "3",
   hops: "3",
   dmgPerTick: "10",
   multiplier: "2",
@@ -153,7 +144,6 @@ const powerToBattleRow = (power: LiveOverlayBattlePower): BattlePowerRow => {
     case "nuke":
     case "heal":
     case "healAll":
-    case "pierce":
     case "growMaxHp":
       return { ...base, kind: power.kind, amount: String(power.amount) };
     case "shield":
@@ -165,12 +155,9 @@ const powerToBattleRow = (power: LiveOverlayBattlePower): BattlePowerRow => {
       };
     case "freeze":
       return { ...base, kind: "freeze", durationSec: String(Math.round(power.durationMs / 1000)) };
-    case "aoe":
-      return { ...base, kind: "aoe", amount: String(power.amount), targets: String(power.targets) };
     case "chain":
       return { ...base, kind: "chain", amount: String(power.amount), hops: String(power.hops) };
     case "burn":
-    case "poison":
       return {
         ...base,
         kind: power.kind,
@@ -196,7 +183,6 @@ const battleRowToPower = (row: BattlePowerRow): LiveOverlayBattlePower => {
   const amount = Math.max(1, Number(row.amount) || 1);
   const durationMs = Math.max(1000, (Number(row.durationSec) || 5) * 1000);
   const dmgPerTick = Math.max(1, Number(row.dmgPerTick) || 1);
-  const targets = Math.max(1, Math.trunc(Number(row.targets) || 1));
   const hops = Math.max(1, Math.trunc(Number(row.hops) || 1));
   const multiplier = Math.max(1, Number(row.multiplier) || 1);
   switch (row.kind) {
@@ -212,16 +198,10 @@ const battleRowToPower = (row: BattlePowerRow): LiveOverlayBattlePower => {
       return { kind: "shield", amount, durationMs };
     case "freeze":
       return { kind: "freeze", durationMs };
-    case "aoe":
-      return { kind: "aoe", amount, targets };
     case "chain":
       return { kind: "chain", amount, hops };
-    case "pierce":
-      return { kind: "pierce", amount };
     case "burn":
       return { kind: "burn", dmgPerTick, durationMs };
-    case "poison":
-      return { kind: "poison", dmgPerTick, durationMs };
     case "knockback":
       return { kind: "knockback" };
     case "growMaxHp":
@@ -395,10 +375,9 @@ export default function LiveDeskClient({
     durationMin: string;
     backgroundUrl: string;
     autoFireEnabled: boolean;
-    autoFireCooldownSec: string;
+    autoFireCooldownMs: string;
     autoFireAmount: string;
     giftPowerMap: BattleGiftRow[];
-    diamondTierFallback: BattleTierRow[];
   }>(() => {
     const d = createDefaultBattleConfig();
     return {
@@ -412,18 +391,21 @@ export default function LiveDeskClient({
       durationMin: String(Math.round((d.durationMs ?? 180000) / 60000)),
       backgroundUrl: d.backgroundUrl ?? "",
       autoFireEnabled: d.autoFireEnabled,
-      autoFireCooldownSec: String(Math.round(d.autoFireCooldownMs / 1000)),
+      autoFireCooldownMs: String(d.autoFireCooldownMs),
       autoFireAmount: String(d.autoFireAmount),
       giftPowerMap: [],
-      diamondTierFallback: d.diamondTierFallback.map((t) => ({
-        min: String(t.min),
-        ...powerToBattleRow(t.power),
-      })),
     };
   });
   const battleInit = useRef(false);
   const [battleBgUploading, setBattleBgUploading] = useState(false);
   const [battleBgError, setBattleBgError] = useState<string | null>(null);
+  // Cooldown/daño del auto-ataque casi nunca hace falta tocarlos (ya vienen
+  // con un default afinado) — colapsados por defecto para no ensuciar la
+  // vista con inputs que casi nadie necesita.
+  const [showAutoFireAdvanced, setShowAutoFireAdvanced] = useState(false);
+  const [giftCatalog, setGiftCatalog] = useState<
+    { id: number; name: string; diamondCount: number }[]
+  >([]);
   // Editor de clips de video.
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [vUrl, setVUrl] = useState("");
@@ -444,6 +426,23 @@ export default function LiveDeskClient({
 
   useEffect(() => {
     setOrigin(window.location.origin);
+  }, []);
+
+  // Catálogo real de regalos de TikTok, para autocompletar el mapeo de
+  // regalo→poder de la Batalla en vez de tipear el nombre exacto a ciegas.
+  // Si todavía no está configurada EULERSTREAM_API_KEY en el servidor, esto
+  // falla en silencio y el input de abajo sigue funcionando como texto libre.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/live-overlay/gift-catalog")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.ok) setGiftCatalog(data.gifts ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadState = useCallback(async () => {
@@ -501,15 +500,11 @@ export default function LiveDeskClient({
         durationMin: String(Math.round((b.durationMs ?? 180000) / 60000)),
         backgroundUrl: b.backgroundUrl ?? "",
         autoFireEnabled: b.autoFireEnabled,
-        autoFireCooldownSec: String(Math.round(b.autoFireCooldownMs / 1000)),
+        autoFireCooldownMs: String(b.autoFireCooldownMs),
         autoFireAmount: String(b.autoFireAmount),
         giftPowerMap: Object.entries(b.giftPowerMap).map(([giftName, power]) => ({
           giftName,
           ...powerToBattleRow(power),
-        })),
-        diamondTierFallback: b.diamondTierFallback.map((t) => ({
-          min: String(t.min),
-          ...powerToBattleRow(t.power),
         })),
       });
       battleInit.current = true;
@@ -1736,10 +1731,6 @@ export default function LiveDeskClient({
       if (!row.giftName.trim()) continue;
       giftPowerMap[row.giftName.trim()] = battleRowToPower(row);
     }
-    const diamondTierFallback = battleForm.diamondTierFallback.map((row) => ({
-      min: Math.max(0, Number(row.min) || 0),
-      power: battleRowToPower(row),
-    }));
     return runAction(
       {
         action: "set_battle_config",
@@ -1754,10 +1745,9 @@ export default function LiveDeskClient({
           durationMs: Math.max(1, Number(battleForm.durationMin) || 3) * 60000,
           backgroundUrl: battleForm.backgroundUrl.trim() || null,
           autoFireEnabled: battleForm.autoFireEnabled,
-          autoFireCooldownMs: Math.max(1, Number(battleForm.autoFireCooldownSec) || 4) * 1000,
-          autoFireAmount: Math.max(1, Number(battleForm.autoFireAmount) || 20),
+          autoFireCooldownMs: Math.max(100, Number(battleForm.autoFireCooldownMs) || 300),
+          autoFireAmount: Math.max(1, Number(battleForm.autoFireAmount) || 3),
           giftPowerMap,
-          diamondTierFallback,
         },
       },
       "battle-config"
@@ -1853,9 +1843,7 @@ export default function LiveDeskClient({
   const BATTLE_KINDS_WITH_AMOUNT: BattlePowerKind[] = [
     "hit",
     "nuke",
-    "aoe",
     "chain",
-    "pierce",
     "heal",
     "healAll",
     "shield",
@@ -1865,10 +1853,30 @@ export default function LiveDeskClient({
     "shield",
     "freeze",
     "burn",
-    "poison",
     "rapidFire",
     "damageBoost",
   ];
+  // La "Cant." significa algo distinto según el poder — sin esto quedaba un
+  // número suelto sin decir qué es (daño, curación, HP de escudo…).
+  const BATTLE_AMOUNT_LABEL: Partial<Record<BattlePowerKind, string>> = {
+    hit: "Daño",
+    nuke: "Daño (a todos)",
+    chain: "Daño inicial",
+    heal: "Curación",
+    healAll: "Curación (equipo)",
+    shield: "HP del escudo",
+    growMaxHp: "+HP máximo",
+  };
+
+  // Cada campo lleva su etiqueta arriba (en vez de solo un placeholder que
+  // desaparece al tipear) — sin esto no quedaba claro qué representaba cada
+  // número (daño vs. curación vs. HP de escudo vs. segundos, etc.).
+  const battleField = (label: string, input: React.ReactNode) => (
+    <div className="flex w-24 shrink-0 flex-col gap-1">
+      <span className="text-[10px] font-semibold leading-tight text-slate-400">{label}</span>
+      {input}
+    </div>
+  );
 
   const battlePowerRowFields = (
     row: BattlePowerRow,
@@ -1876,72 +1884,77 @@ export default function LiveDeskClient({
     onRemove: () => void
   ) => (
     <>
-      <select
-        value={row.kind}
-        onChange={(e) => onChange({ ...row, kind: e.target.value as BattlePowerKind })}
-        className={`${battleInput} w-40 shrink-0`}
+      <div className="flex w-40 shrink-0 flex-col gap-1">
+        <span className="text-[10px] font-semibold leading-tight text-slate-400">Poder</span>
+        <select
+          value={row.kind}
+          onChange={(e) => onChange({ ...row, kind: e.target.value as BattlePowerKind })}
+          className={battleInput}
+        >
+          {(Object.keys(BATTLE_POWER_KIND_LABEL) as BattlePowerKind[]).map((k) => (
+            <option key={k} value={k}>
+              {BATTLE_POWER_KIND_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {BATTLE_KINDS_WITH_AMOUNT.includes(row.kind) &&
+        battleField(
+          BATTLE_AMOUNT_LABEL[row.kind] ?? "Cantidad",
+          <input
+            type="number"
+            value={row.amount}
+            onChange={(e) => onChange({ ...row, amount: e.target.value })}
+            className={battleInput}
+          />
+        )}
+      {row.kind === "burn" &&
+        battleField(
+          "Daño/seg",
+          <input
+            type="number"
+            value={row.dmgPerTick}
+            onChange={(e) => onChange({ ...row, dmgPerTick: e.target.value })}
+            className={battleInput}
+          />
+        )}
+      {row.kind === "chain" &&
+        battleField(
+          "Saltos",
+          <input
+            type="number"
+            value={row.hops}
+            onChange={(e) => onChange({ ...row, hops: e.target.value })}
+            className={battleInput}
+          />
+        )}
+      {row.kind === "damageBoost" &&
+        battleField(
+          "Multiplicador",
+          <input
+            type="number"
+            value={row.multiplier}
+            onChange={(e) => onChange({ ...row, multiplier: e.target.value })}
+            placeholder="x2, x3…"
+            className={battleInput}
+          />
+        )}
+      {BATTLE_KINDS_WITH_DURATION.includes(row.kind) &&
+        battleField(
+          "Duración (seg)",
+          <input
+            type="number"
+            value={row.durationSec}
+            onChange={(e) => onChange({ ...row, durationSec: e.target.value })}
+            className={battleInput}
+          />
+        )}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Quitar"
+        className="flex h-9 w-9 shrink-0 items-center justify-center self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
       >
-        {(Object.keys(BATTLE_POWER_KIND_LABEL) as BattlePowerKind[]).map((k) => (
-          <option key={k} value={k}>
-            {BATTLE_POWER_KIND_LABEL[k]}
-          </option>
-        ))}
-      </select>
-      {BATTLE_KINDS_WITH_AMOUNT.includes(row.kind) && (
-        <input
-          type="number"
-          value={row.amount}
-          onChange={(e) => onChange({ ...row, amount: e.target.value })}
-          placeholder="Cant."
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      {(row.kind === "burn" || row.kind === "poison") && (
-        <input
-          type="number"
-          value={row.dmgPerTick}
-          onChange={(e) => onChange({ ...row, dmgPerTick: e.target.value })}
-          placeholder="Daño/s"
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      {row.kind === "aoe" && (
-        <input
-          type="number"
-          value={row.targets}
-          onChange={(e) => onChange({ ...row, targets: e.target.value })}
-          placeholder="N objetivos"
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      {row.kind === "chain" && (
-        <input
-          type="number"
-          value={row.hops}
-          onChange={(e) => onChange({ ...row, hops: e.target.value })}
-          placeholder="Saltos"
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      {row.kind === "damageBoost" && (
-        <input
-          type="number"
-          value={row.multiplier}
-          onChange={(e) => onChange({ ...row, multiplier: e.target.value })}
-          placeholder="x2, x3…"
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      {BATTLE_KINDS_WITH_DURATION.includes(row.kind) && (
-        <input
-          type="number"
-          value={row.durationSec}
-          onChange={(e) => onChange({ ...row, durationSec: e.target.value })}
-          placeholder="Seg."
-          className={`${battleInput} w-16 shrink-0`}
-        />
-      )}
-      <button type="button" onClick={onRemove} className="shrink-0 px-1 text-slate-400">
         ✕
       </button>
     </>
@@ -1961,17 +1974,23 @@ export default function LiveDeskClient({
       </button>
 
       {state.battle.roundStartedAt && (
-        <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-          <p>
-            {state.battle.teamAName}: ❤️ {battleOutcome.teamAHp} · {battleOutcome.teamAAlive} vivos ·{" "}
-            {battleOutcome.teamAKills} kills
-          </p>
-          <p>
-            {state.battle.teamBName}: ❤️ {battleOutcome.teamBHp} · {battleOutcome.teamBAlive} vivos ·{" "}
-            {battleOutcome.teamBKills} kills
-          </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-black text-slate-900">{state.battle.teamAName}</span>
+              <span>❤️ {battleOutcome.teamAHp} HP</span>
+              <span>{battleOutcome.teamAAlive} vivos</span>
+              <span>{battleOutcome.teamAKills} kills</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-black text-slate-900">{state.battle.teamBName}</span>
+              <span>❤️ {battleOutcome.teamBHp} HP</span>
+              <span>{battleOutcome.teamBAlive} vivos</span>
+              <span>{battleOutcome.teamBKills} kills</span>
+            </div>
+          </div>
           {battleOutcome.ended && (
-            <p className="font-black text-emerald-600">
+            <p className="mt-2 font-black text-emerald-600">
               {battleOutcome.winner
                 ? `Ganó ${battleOutcome.winner === "A" ? state.battle.teamAName : state.battle.teamBName}`
                 : "Empate"}
@@ -2163,24 +2182,36 @@ export default function LiveDeskClient({
           Auto-ataque (para que nunca se vea congelado sin regalos)
         </label>
         {battleForm.autoFireEnabled && (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              min={1}
-              value={battleForm.autoFireCooldownSec}
-              onChange={(e) => setBattleForm((f) => ({ ...f, autoFireCooldownSec: e.target.value }))}
-              placeholder="Cada cuántos segundos"
-              className={battleInput}
-            />
-            <input
-              type="number"
-              min={1}
-              value={battleForm.autoFireAmount}
-              onChange={(e) => setBattleForm((f) => ({ ...f, autoFireAmount: e.target.value }))}
-              placeholder="Daño por auto-ataque"
-              className={battleInput}
-            />
-          </div>
+          <>
+            <button
+              type="button"
+              onClick={() => setShowAutoFireAdvanced((v) => !v)}
+              className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+            >
+              {showAutoFireAdvanced ? "▾" : "▸"} Ajustes avanzados (cooldown/daño)
+            </button>
+            {showAutoFireAdvanced && (
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={100}
+                  step={50}
+                  value={battleForm.autoFireCooldownMs}
+                  onChange={(e) => setBattleForm((f) => ({ ...f, autoFireCooldownMs: e.target.value }))}
+                  placeholder="Cooldown en ms (300 = metralleta)"
+                  className={battleInput}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={battleForm.autoFireAmount}
+                  onChange={(e) => setBattleForm((f) => ({ ...f, autoFireAmount: e.target.value }))}
+                  placeholder="Daño por auto-ataque"
+                  className={battleInput}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -2216,8 +2247,8 @@ export default function LiveDeskClient({
         {battleBgError && <p className="mt-1 text-xs text-rose-600">{battleBgError}</p>}
       </div>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Regalo → poder
           </span>
@@ -2234,98 +2265,84 @@ export default function LiveDeskClient({
             + agregar
           </button>
         </div>
-        <div className="space-y-2">
-          {battleForm.giftPowerMap.map((row, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <input
-                value={row.giftName}
-                onChange={(e) =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    giftPowerMap: f.giftPowerMap.map((r, idx) =>
-                      idx === i ? { ...r, giftName: e.target.value } : r
-                    ),
-                  }))
-                }
-                placeholder="Nombre exacto del regalo"
-                className={battleInput}
-              />
-              {battlePowerRowFields(
-                row,
-                (next) =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    giftPowerMap: f.giftPowerMap.map((r, idx) => (idx === i ? { ...r, ...next } : r)),
-                  })),
-                () =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    giftPowerMap: f.giftPowerMap.filter((_, idx) => idx !== i),
-                  }))
-              )}
-            </div>
-          ))}
-          {battleForm.giftPowerMap.length === 0 && (
-            <p className="text-xs text-slate-400">
-              Sin regalos mapeados — todo cae al tramo automático por diamantes de abajo.
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Tramos automáticos por diamantes (regalos sin mapear)
-        </span>
-        <div className="space-y-2">
-          {battleForm.diamondTierFallback.map((row, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <input
-                type="number"
-                value={row.min}
-                onChange={(e) =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    diamondTierFallback: f.diamondTierFallback.map((r, idx) =>
-                      idx === i ? { ...r, min: e.target.value } : r
-                    ),
-                  }))
-                }
-                placeholder="≥ diamantes"
-                className={`${battleInput} w-24 shrink-0`}
-              />
-              {battlePowerRowFields(
-                row,
-                (next) =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    diamondTierFallback: f.diamondTierFallback.map((r, idx) =>
-                      idx === i ? { ...r, ...next } : r
-                    ),
-                  })),
-                () =>
-                  setBattleForm((f) => ({
-                    ...f,
-                    diamondTierFallback: f.diamondTierFallback.filter((_, idx) => idx !== i),
-                  }))
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
+        {giftCatalog.length > 0 && (
+          <datalist id="tiktok-gift-names">
+            {giftCatalog.map((g) => (
+              <option key={g.id} value={g.name} />
+            ))}
+          </datalist>
+        )}
+        <div className="space-y-2.5">
+          {battleForm.giftPowerMap.map((row, i) => {
+            const typed = row.giftName.trim().toLowerCase();
+            const matchedGift = typed
+              ? giftCatalog.find((g) => g.name.trim().toLowerCase() === typed)
+              : undefined;
+            const catalogReady = giftCatalog.length > 0;
+            const setGiftName = (value: string) =>
               setBattleForm((f) => ({
                 ...f,
-                diamondTierFallback: [
-                  ...f.diamondTierFallback,
-                  { ...DEFAULT_BATTLE_POWER_ROW, min: "0" },
-                ],
-              }))
-            }
-            className="text-xs font-bold text-amber-600"
-          >
-            + agregar tramo
-          </button>
+                giftPowerMap: f.giftPowerMap.map((r, idx) =>
+                  idx === i ? { ...r, giftName: value } : r
+                ),
+              }));
+            return (
+            <div key={i} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                {catalogReady ? (
+                  <select
+                    value={row.giftName}
+                    onChange={(e) => setGiftName(e.target.value)}
+                    className={battleInput}
+                  >
+                    <option value="">— Elegí un regalo —</option>
+                    {giftCatalog.map((g) => (
+                      <option key={g.id} value={g.name}>
+                        {g.name} ({g.diamondCount}💎)
+                      </option>
+                    ))}
+                    {row.giftName && !matchedGift && (
+                      <option value={row.giftName}>{row.giftName} (guardado, no está en el catálogo)</option>
+                    )}
+                  </select>
+                ) : (
+                  <>
+                    <input
+                      value={row.giftName}
+                      onChange={(e) => setGiftName(e.target.value)}
+                      list="tiktok-gift-names"
+                      placeholder="Nombre exacto del regalo"
+                      className={battleInput}
+                    />
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      Catálogo no disponible — escribí el nombre exacto del regalo
+                    </span>
+                  </>
+                )}
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                {battlePowerRowFields(
+                  row,
+                  (next) =>
+                    setBattleForm((f) => ({
+                      ...f,
+                      giftPowerMap: f.giftPowerMap.map((r, idx) => (idx === i ? { ...r, ...next } : r)),
+                    })),
+                  () =>
+                    setBattleForm((f) => ({
+                      ...f,
+                      giftPowerMap: f.giftPowerMap.filter((_, idx) => idx !== i),
+                    }))
+                )}
+              </div>
+            </div>
+            );
+          })}
+          {battleForm.giftPowerMap.length === 0 && (
+            <p className="text-xs text-slate-400">
+              Sin regalos mapeados — ningún regalo va a disparar un poder todavía.
+            </p>
+          )}
         </div>
       </div>
 

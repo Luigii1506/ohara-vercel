@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   LiveOverlayBattleConfig,
-  LiveOverlayBattleDiamondTier,
   LiveOverlayBattleEvent,
   LiveOverlayBattleFighter,
   LiveOverlayBattlePower,
@@ -23,7 +22,6 @@ import type {
 } from "@/lib/live-overlay/types";
 import {
   BATTLE_POWER_DISPLAY,
-  DEFAULT_BATTLE_DIAMOND_TIERS,
   LIVE_OVERLAY_BATTLE_EVENT_MAX,
   LIVE_OVERLAY_CHAT_FEED_MAX,
   LIVE_OVERLAY_LEADERBOARD_SIZE,
@@ -188,31 +186,17 @@ const normalizeBattlePower = (raw: unknown): LiveOverlayBattlePower | null => {
   switch (r.kind) {
     case "hit":
       return { kind: "hit", amount: num(r.amount, 50) };
-    case "aoe":
-      return {
-        kind: "aoe",
-        amount: num(r.amount, 30),
-        targets: Math.max(1, Math.trunc(num(r.targets, 3))),
-      };
     case "chain":
       return {
         kind: "chain",
         amount: num(r.amount, 40),
         hops: Math.max(1, Math.trunc(num(r.hops, 3))),
       };
-    case "pierce":
-      return { kind: "pierce", amount: num(r.amount, 50) };
     case "freeze":
       return { kind: "freeze", durationMs: Math.max(0, num(r.durationMs, 5000)) };
     case "burn":
       return {
         kind: "burn",
-        dmgPerTick: num(r.dmgPerTick, 10),
-        durationMs: Math.max(0, num(r.durationMs, 10000)),
-      };
-    case "poison":
-      return {
-        kind: "poison",
         dmgPerTick: num(r.dmgPerTick, 10),
         durationMs: Math.max(0, num(r.durationMs, 10000)),
       };
@@ -243,21 +227,6 @@ const normalizeBattlePower = (raw: unknown): LiveOverlayBattlePower | null => {
     default:
       return null;
   }
-};
-
-const normalizeDiamondTiers = (raw: unknown): LiveOverlayBattleDiamondTier[] => {
-  if (!Array.isArray(raw)) return DEFAULT_BATTLE_DIAMOND_TIERS;
-  const tiers: LiveOverlayBattleDiamondTier[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const r = item as Record<string, unknown>;
-    const power = normalizeBattlePower(r.power);
-    if (!power) continue;
-    const min = typeof r.min === "number" && Number.isFinite(r.min) ? Math.max(0, r.min) : 0;
-    tiers.push({ min, power });
-  }
-  tiers.sort((a, b) => a.min - b.min);
-  return tiers.length > 0 ? tiers : DEFAULT_BATTLE_DIAMOND_TIERS;
 };
 
 /** Claves guardadas en minúscula: el lookup por nombre de regalo es case-insensitive. */
@@ -335,10 +304,9 @@ const normalizeBattleConfig = (raw: unknown): LiveOverlayBattleConfig => {
     roundStartedAt: typeof r.roundStartedAt === "string" ? r.roundStartedAt : null,
     roundEndsAt: typeof r.roundEndsAt === "string" ? r.roundEndsAt : null,
     giftPowerMap: normalizeGiftPowerMap(r.giftPowerMap),
-    diamondTierFallback: normalizeDiamondTiers(r.diamondTierFallback),
     backgroundUrl: typeof r.backgroundUrl === "string" && r.backgroundUrl ? r.backgroundUrl : null,
     autoFireEnabled: r.autoFireEnabled !== false,
-    autoFireCooldownMs: Math.max(1000, Math.trunc(num(r.autoFireCooldownMs, base.autoFireCooldownMs))),
+    autoFireCooldownMs: Math.max(100, Math.trunc(num(r.autoFireCooldownMs, base.autoFireCooldownMs))),
     autoFireAmount: Math.max(1, Math.trunc(num(r.autoFireAmount, base.autoFireAmount))),
     lastAutoFireAt: typeof r.lastAutoFireAt === "string" ? r.lastAutoFireAt : null,
     recentEvents: normalizeBattleEvents(r.recentEvents),
@@ -367,13 +335,11 @@ const normalizeBattleFighter = (raw: unknown): LiveOverlayBattleFighter | null =
     burnUntil: strOrNull(r.burnUntil),
     burnDmgPerTick: Math.max(0, num(r.burnDmgPerTick, 0)),
     burnLastTickAt: strOrNull(r.burnLastTickAt),
-    poisonUntil: strOrNull(r.poisonUntil),
-    poisonDmgPerTick: Math.max(0, num(r.poisonDmgPerTick, 0)),
-    poisonLastTickAt: strOrNull(r.poisonLastTickAt),
     rapidFireUntil: strOrNull(r.rapidFireUntil),
     damageBoostUntil: strOrNull(r.damageBoostUntil),
     damageBoostMultiplier: Math.max(1, num(r.damageBoostMultiplier, 1)),
     joinedAt: str(r.joinedAt) || new Date(0).toISOString(),
+    damageDealt: Math.max(0, num(r.damageDealt, 0)),
   };
 };
 
@@ -450,8 +416,8 @@ export const getLiveOverlayState = async (
         ? Math.max(0, (row as { viewerCount: number }).viewerCount)
         : 0,
     battle: normalizeBattleConfig((row as { battle?: unknown }).battle),
-    // Proyección de solo-lectura: aplica el daño de burn/poison pendiente
-    // para que la barra de HP se vea viva entre eventos, sin escribir nada.
+    // Proyección de solo-lectura: aplica el daño de burn pendiente para que
+    // la barra de HP se vea viva entre eventos, sin escribir nada.
     battleRoster: applyPendingBattleDot(
       normalizeBattleRoster((row as { battleRoster?: unknown }).battleRoster)
     ),
@@ -1074,8 +1040,8 @@ const withBattleState = async (
   const rawRoster = normalizeBattleRoster(
     row ? (row as Record<string, unknown>).battleRoster : null
   );
-  // Asienta el daño de burn/poison pendiente ANTES del evento nuevo, así
-  // nunca se pierde ni se cuenta dos veces (ver applyPendingBattleDot).
+  // Asienta el daño de burn pendiente ANTES del evento nuevo, así nunca se
+  // pierde ni se cuenta dos veces (ver applyPendingBattleDot).
   const settledRoster = applyPendingBattleDot(rawRoster);
   const result = mutator(config, settledRoster);
   const rosterSettledOnly = settledRoster !== rawRoster;
@@ -1159,13 +1125,11 @@ const createFighter = (
   burnUntil: null,
   burnDmgPerTick: 0,
   burnLastTickAt: null,
-  poisonUntil: null,
-  poisonDmgPerTick: 0,
-  poisonLastTickAt: null,
   rapidFireUntil: null,
   damageBoostUntil: null,
   damageBoostMultiplier: 1,
   joinedAt: new Date().toISOString(),
+  damageDealt: 0,
 });
 
 /** Inicia una ronda nueva: vacía el roster y arma los tiempos según el modo. */
@@ -1192,6 +1156,11 @@ export const startLiveOverlayBattleRound = async (token: string): Promise<LiveOv
             ? new Date(now + config.durationMs).toISOString()
             : null,
         recentEvents: [],
+        // Si no se resetea acá, un round que arranca mucho después del
+        // anterior heredaría un `lastAutoFireAt` viejo y el catch-up de ticks
+        // de `applyLiveOverlayBattleAutoFire` dispararía una ráfaga gigante
+        // en el primer poll.
+        lastAutoFireAt: new Date(now).toISOString(),
       },
     };
   });
@@ -1237,23 +1206,13 @@ export const joinLiveOverlayBattleTeam = (
     return { ...roster, [user]: createFighter(team, avatar, user, config.maxHp) };
   });
 
+/** Sin mapeo explícito → null (el regalo no dispara ningún poder). */
 const resolveGiftPower = (
   config: LiveOverlayBattleConfig,
-  giftName: string,
-  diamondValue: number
-): LiveOverlayBattlePower => {
+  giftName: string
+): LiveOverlayBattlePower | null => {
   const key = giftName.trim().toLowerCase();
-  const mapped = key ? config.giftPowerMap[key] : undefined;
-  if (mapped) return mapped;
-  const tiers =
-    config.diamondTierFallback.length > 0
-      ? config.diamondTierFallback
-      : DEFAULT_BATTLE_DIAMOND_TIERS;
-  let chosen = tiers[0];
-  for (const tier of tiers) {
-    if (diamondValue >= tier.min) chosen = tier;
-  }
-  return chosen.power;
+  return (key ? config.giftPowerMap[key] : undefined) ?? null;
 };
 
 const livingMembers = (
@@ -1292,27 +1251,20 @@ const damageBoostMultiplierOf = (fighter: LiveOverlayBattleFighter, now: number)
 const hasRapidFire = (fighter: LiveOverlayBattleFighter, now: number): boolean =>
   !!fighter.rapidFireUntil && Date.parse(fighter.rapidFireUntil) > now;
 
-/**
- * Aplica daño respetando el escudo activo (si lo hay), salvo que
- * `ignoreShield` sea true (poder "pierce" — lo atraviesa sin gastarlo).
- * Devuelve si el golpe mató.
- */
+/** Aplica daño respetando el escudo activo (si lo hay). Devuelve si el golpe mató. */
 const applyDamage = (
   fighter: LiveOverlayBattleFighter,
   amount: number,
-  now: number,
-  ignoreShield = false
+  now: number
 ): { fighter: LiveOverlayBattleFighter; killed: boolean } => {
   let remaining = amount;
   let shieldHp = fighter.shieldHp;
-  if (!ignoreShield) {
-    if (shieldHp > 0 && fighter.shieldUntil && Date.parse(fighter.shieldUntil) > now) {
-      const absorbed = Math.min(shieldHp, remaining);
-      shieldHp -= absorbed;
-      remaining -= absorbed;
-    } else {
-      shieldHp = 0;
-    }
+  if (shieldHp > 0 && fighter.shieldUntil && Date.parse(fighter.shieldUntil) > now) {
+    const absorbed = Math.min(shieldHp, remaining);
+    shieldHp -= absorbed;
+    remaining -= absorbed;
+  } else {
+    shieldHp = 0;
   }
   const hp = Math.max(0, fighter.hp - remaining);
   const killed = fighter.hp > 0 && hp === 0;
@@ -1337,13 +1289,17 @@ const applyResolvedBattlePower = (
   // Para el letrero "qué pasó" del overlay — a quién afectó esta acción.
   const affectedTargets: string[] = [];
 
-  const dealHit = (targetUser: string, amount: number, ignoreShield = false) => {
+  const dealHit = (targetUser: string, amount: number) => {
     const target = next[targetUser];
     if (!target) return;
     const boosted = amount * damageBoostMultiplierOf(next[attackerUser], now);
-    const { fighter, killed } = applyDamage(target, boosted, now, ignoreShield);
+    const { fighter, killed } = applyDamage(target, boosted, now);
     next[targetUser] = fighter;
-    if (killed) next[attackerUser] = { ...next[attackerUser], kills: next[attackerUser].kills + 1 };
+    next[attackerUser] = {
+      ...next[attackerUser],
+      damageDealt: next[attackerUser].damageDealt + boosted,
+      ...(killed ? { kills: next[attackerUser].kills + 1 } : null),
+    };
     affectedTargets.push(targetUser);
   };
 
@@ -1393,21 +1349,10 @@ const applyResolvedBattlePower = (
         }
         break;
       }
-      case "aoe": {
-        for (const targetUser of pickRandom(livingMembers(next, enemyTeam), power.targets)) {
-          dealHit(targetUser, power.amount);
-        }
-        break;
-      }
       case "chain": {
         pickRandom(livingMembers(next, enemyTeam), power.hops).forEach((targetUser, i) => {
           dealHit(targetUser, Math.round(power.amount * Math.pow(BATTLE_CHAIN_DECAY, i)));
         });
-        break;
-      }
-      case "pierce": {
-        const [targetUser] = pickRandom(livingMembers(next, enemyTeam), 1);
-        if (targetUser) dealHit(targetUser, power.amount, true);
         break;
       }
       case "burn": {
@@ -1418,19 +1363,6 @@ const applyResolvedBattlePower = (
             burnUntil: new Date(now + power.durationMs).toISOString(),
             burnDmgPerTick: power.dmgPerTick,
             burnLastTickAt: new Date(now).toISOString(),
-          };
-          affectedTargets.push(targetUser);
-        }
-        break;
-      }
-      case "poison": {
-        const [targetUser] = pickRandom(livingMembers(next, enemyTeam), 1);
-        if (targetUser) {
-          next[targetUser] = {
-            ...next[targetUser],
-            poisonUntil: new Date(now + power.durationMs).toISOString(),
-            poisonDmgPerTick: power.dmgPerTick,
-            poisonLastTickAt: new Date(now).toISOString(),
           };
           affectedTargets.push(targetUser);
         }
@@ -1490,7 +1422,9 @@ const buildBattleEvent = (
 /**
  * Aplica el poder de un regalo al roster. Si el gifter no está en el roster
  * todavía, se auto-asigna al equipo con menos miembros (ningún regalo se
- * pierde por no haberse "anotado" antes). No-op si la ronda no está activa.
+ * pierde por no haberse "anotado" antes). No-op si la ronda no está activa,
+ * o si el regalo no tiene un poder mapeado a mano (sin fallback por
+ * diamantes: un regalo sin mapear no hace nada, a propósito).
  */
 export const applyLiveOverlayBattleGiftPower = (
   token: string,
@@ -1498,14 +1432,15 @@ export const applyLiveOverlayBattleGiftPower = (
     user: string;
     avatar: string;
     giftName: string;
-    diamondCount: number;
-    repeatCount: number;
   }
 ) =>
   withBattleState(token, (config, roster) => {
     if (!input.user) return null;
     const outcome = deriveLiveOverlayBattleOutcome(config, roster);
     if (outcome.ended) return null;
+
+    const power = resolveGiftPower(config, input.giftName);
+    if (!power) return null;
 
     const next: LiveOverlayBattleRoster = { ...roster };
     let attacker = next[input.user];
@@ -1520,8 +1455,6 @@ export const applyLiveOverlayBattleGiftPower = (
       next[input.user] = attacker;
     }
 
-    const diamondValue = Math.max(0, input.diamondCount) * Math.max(1, input.repeatCount);
-    const power = resolveGiftPower(config, input.giftName, diamondValue);
     const now = Date.now();
     const affectedTargets = applyResolvedBattlePower(next, input.user, power, now);
     const event = buildBattleEvent(input.user, attacker.team, power, affectedTargets, now);
@@ -1577,17 +1510,30 @@ export const applyLiveOverlayBattleLikeHeal = (token: string, user: string, coun
   });
 
 /**
+ * Tope de volleys que se procesan en una sola llamada. Sin esto, si nadie
+ * pollea por un rato (pestaña en background, overlay cerrado) el próximo
+ * poll calcularía cientos de ticks pendientes y los volcaría todos de
+ * golpe — un one-shot kill de la nada en vez de "metralleta continua".
+ */
+const AUTO_FIRE_MAX_TICKS_PER_CALL = 12;
+
+/**
  * Auto-ataque real (no cosmético): mientras la ronda está activa y no
  * terminó, cada equipo dispara un golpe chico a un enemigo vivo al azar cada
  * `autoFireCooldownMs`, así el juego nunca se ve "congelado" entre regalos —
  * igual que Side Battle. Se llama desde el endpoint de polling público
  * (`/api/live-overlay/state`), NO desde un cron ni el Worker de Cloudflare:
- * ese endpoint ya se pide cada 1-2.5s desde cualquier overlay abierto durante
+ * ese endpoint ya se pide seguido desde cualquier overlay abierto durante
  * una ronda activa, así que reusarlo da un tick real sin infraestructura
- * nueva. El chequeo de cooldown vive en el servidor y se relee fresco en cada
- * llamada, así que aunque varias pestañas hagan polling a la vez, como mucho
- * se dispara un poquito más seguido de lo esperado (no se pierde ni se
- * acumula) — mismo perfil de riesgo que el resto del estado no-transaccional.
+ * nueva.
+ *
+ * En vez de "como mucho un volley por llamada" (lo que antes ataba el ritmo
+ * real de disparo al intervalo de polling, no a `autoFireCooldownMs`), acá
+ * se recupera CUÁNTOS ticks pasaron desde el último disparo y se procesan
+ * todos de una — así con un cooldown chico (metralleta) el daño real no
+ * queda pisado por el polling, aunque una llamada tarde en llegar.
+ * `lastAutoFireAt` avanza en pasos exactos de `autoFireCooldownMs` (no a
+ * `now`) para no perder el resto fraccionario entre llamadas.
  */
 export const applyLiveOverlayBattleAutoFire = (token: string) =>
   withBattleState(token, (config, roster) => {
@@ -1596,18 +1542,12 @@ export const applyLiveOverlayBattleAutoFire = (token: string) =>
     if (outcome.ended) return null;
 
     const now = Date.now();
-    const last = config.lastAutoFireAt ? Date.parse(config.lastAutoFireAt) : 0;
-    if (now - last < config.autoFireCooldownMs) return null;
+    const last = config.lastAutoFireAt ? Date.parse(config.lastAutoFireAt) : now;
+    const ticksElapsed = Math.floor((now - last) / config.autoFireCooldownMs);
+    if (ticksElapsed < 1) return null;
+    const ticks = Math.min(ticksElapsed, AUTO_FIRE_MAX_TICKS_PER_CALL);
 
     const next: LiveOverlayBattleRoster = { ...roster };
-    // TODOS los que estaban vivos al empezar el tick disparan una vez — se
-    // fija la lista de antemano para que morir a mitad del tick no le quite
-    // su disparo a nadie más (y para que la cantidad de acción escale con
-    // cuánta gente se haya unido, no con un tope fijo de 1 por equipo).
-    const attackersThisTick = Object.entries(roster)
-      .filter(([, f]) => f.hp > 0)
-      .map(([user, f]) => ({ user, team: f.team }));
-
     let changed = false;
     const fireOneShot = (attackerUser: string, enemyTeam: LiveOverlayBattleTeam) => {
       const [targetUser] = pickRandom(livingMembers(next, enemyTeam), 1);
@@ -1615,19 +1555,35 @@ export const applyLiveOverlayBattleAutoFire = (token: string) =>
       const amount = config.autoFireAmount * damageBoostMultiplierOf(next[attackerUser], now);
       const { fighter, killed } = applyDamage(next[targetUser], amount, now);
       next[targetUser] = fighter;
-      if (killed) next[attackerUser] = { ...next[attackerUser], kills: next[attackerUser].kills + 1 };
+      next[attackerUser] = {
+        ...next[attackerUser],
+        damageDealt: next[attackerUser].damageDealt + amount,
+        ...(killed ? { kills: next[attackerUser].kills + 1 } : null),
+      };
       changed = true;
     };
-    for (const attacker of attackersThisTick) {
-      if (next[attacker.user].hp <= 0) continue; // ya lo mataron en este mismo tick
-      const enemyTeam = opposingTeam(attacker.team);
-      fireOneShot(attacker.user, enemyTeam);
-      // "rapidFire": dispara una segunda vez en el mismo tick.
-      if (next[attacker.user].hp > 0 && hasRapidFire(next[attacker.user], now)) {
+
+    for (let tick = 0; tick < ticks; tick++) {
+      // Se recalcula quién sigue vivo EN CADA volley (no solo al inicio de
+      // la llamada), para que morir a mitad de la ráfaga le quite el turno.
+      const attackersThisTick = Object.entries(next)
+        .filter(([, f]) => f.hp > 0)
+        .map(([user, f]) => ({ user, team: f.team }));
+      for (const attacker of attackersThisTick) {
+        if (next[attacker.user].hp <= 0) continue; // ya lo mataron en este mismo volley
+        const enemyTeam = opposingTeam(attacker.team);
         fireOneShot(attacker.user, enemyTeam);
+        // "rapidFire": dispara una segunda vez en el mismo volley.
+        if (next[attacker.user].hp > 0 && hasRapidFire(next[attacker.user], now)) {
+          fireOneShot(attacker.user, enemyTeam);
+        }
       }
+      if (deriveLiveOverlayBattleOutcome(config, next).ended) break; // ya hay ganador, no seguir de más
     }
 
     if (!changed) return null;
-    return { config: { lastAutoFireAt: new Date(now).toISOString() }, roster: next };
+    return {
+      config: { lastAutoFireAt: new Date(last + ticks * config.autoFireCooldownMs).toISOString() },
+      roster: next,
+    };
   });

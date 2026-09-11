@@ -18,6 +18,9 @@ export type BattleEffectDef =
       mode: "sheet";
       src: string;
       cols: number;
+      // Grillas de más de una fila (ej. 4x4, 8x7) — si no se pasa, se asume
+      // todo en una sola fila (comportamiento de siempre).
+      rows?: number;
       frameCount: number;
       frameWidth: number;
       frameHeight: number;
@@ -28,25 +31,51 @@ export type BattleEffectDef =
 
 const pad4 = (i: number) => String(i).padStart(4, "0");
 
-/** Un golpe de impacto genérico (hit/aoe/pierce) — sheet de 7 frames. */
+/**
+ * Golpe de impacto genérico (hit) — pack elegido por el usuario
+ * ("Hit Animation - Frame by frame", OpenGameArt CC0) sobre el sheet
+ * original: grilla 4x4, 16 frames, 1024x1024 total (256px/frame).
+ */
 const HIT_SHEET: BattleEffectDef = {
   mode: "sheet",
-  src: `${BASE}/hit/Hit Effect 01 1.png`,
-  cols: 7,
-  frameCount: 7,
-  frameWidth: 48,
-  frameHeight: 48,
-  displaySize: 90,
+  src: `${BASE}/hit-v2/hit-yellow.png`,
+  cols: 4,
+  rows: 4,
+  frameCount: 16,
+  frameWidth: 256,
+  frameHeight: 256,
+  displaySize: 110,
   fps: 24,
 };
 
+/**
+ * Fuego elegido por el usuario ("Free Flame Effects Sprite Pack", CraftPix)
+ * — pack con múltiples variantes; se usó "flame4" (columna de fuego
+ * ardiendo, forma estable cuadro a cuadro) para el burst de impacto Y el
+ * loop persistente mientras dura "burn" — antes esto era un placeholder
+ * genérico, ahora es fuego real ardiendo sobre el objetivo.
+ */
 const FIRE: BattleEffectDef = {
   mode: "frames",
-  frame: (i) => `${BASE}/fire/fire_1f_40_${i + 1}.png`,
-  frameCount: 40,
+  frame: (i) => `${BASE}/fire-burn-loop/frame_${String(i).padStart(2, "0")}.png`,
+  frameCount: 53,
   width: 70,
-  height: 106,
+  height: 83,
   fps: 30,
+};
+
+/**
+ * Bola de fuego que viaja hacia el objetivo (mismo pack, variante "flame2":
+ * orbe redondo que crece/pulsa) — pedido explícito del usuario ("tirar una
+ * bola de fuego que viaja e impacta").
+ */
+const FIRE_PROJECTILE: BattleEffectDef = {
+  mode: "frames",
+  frame: (i) => `${BASE}/fire-projectile/frame_${String(i).padStart(2, "0")}.png`,
+  frameCount: 16,
+  width: 56,
+  height: 56,
+  fps: 24,
 };
 
 const ICE: BattleEffectDef = {
@@ -58,17 +87,37 @@ const ICE: BattleEffectDef = {
   fps: 20,
 };
 
+/**
+ * Proyectil de hielo para "freeze" (pack Icicle Spell, OpenGameArt CC-BY 3.0):
+ * grilla de 8 direcciones x 8 frames, 512x512 total (64px/frame). Se usa UNA
+ * sola fila (dirección) como carámbano volando — no hace falta orientar por
+ * dirección real ya que el proyectil siempre viaja en línea recta entre dos
+ * puntos calculados en runtime.
+ */
+const ICICLE_PROJECTILE: BattleEffectDef = {
+  mode: "sheet",
+  src: `${BASE}/hielo-icicle/icicle.png`,
+  // La grilla real de la imagen es 8x8 (8 direcciones x 8 frames) — hay que
+  // declarar las 8 filas reales para que el backgroundSize calculado
+  // coincida con el archivo, aunque frameCount se corte en 8 para quedarnos
+  // solo con la primera fila (una dirección) como proyectil.
+  cols: 8,
+  rows: 8,
+  frameCount: 8,
+  frameWidth: 64,
+  frameHeight: 64,
+  displaySize: 48,
+  fps: 20,
+};
+
+/** Nuke — elegida entre 4 candidatas comparadas en vivo (untiedgames "X-plosion"). */
 const EXPLOSION: BattleEffectDef = {
   mode: "frames",
-  frame: (i) => `${BASE}/explosion/blue-ring-explosion-39frames/Blue Ring Explosion${i + 1}.png`,
-  // La carpeta se llama "39frames" pero el pack real solo trae 19 (confirmado
-  // contra el GIF fuente) — usar 39 aquí hacía que la animación intentara
-  // cargar frames inexistentes (404 → ícono de imagen rota a mitad de la
-  // explosión).
-  frameCount: 19,
-  width: 160,
-  height: 160,
-  fps: 24,
+  frame: (i) => `${BASE}/nuke/frame${String(i).padStart(4, "0")}.png`,
+  frameCount: 64,
+  width: 130,
+  height: 130,
+  fps: 30,
 };
 
 const HEAL_SHEET: BattleEffectDef = {
@@ -91,25 +140,17 @@ const STARBURST: BattleEffectDef = {
   fps: 40,
 };
 
+/**
+ * Rayo elegido por el usuario ("Lightning Lines Pixel Art Effect",
+ * sanctumpixel/itch.io) — se usa tanto para el burst de impacto de "chain"
+ * como para el proyectil que viaja (ver PROJECTILE_SPRITE más abajo).
+ */
 const LIGHTNING: BattleEffectDef = {
   mode: "frames",
-  frame: (i) => `${BASE}/lightning/oga-bonus-lightning-animation-11frames/${i}.png`,
-  frameCount: 11,
-  width: 130,
-  height: 65,
-  fps: 24,
-};
-
-/** El pack de explosión disponible es un anillo AZUL — se tiñe a naranja/fuego
- * para que "nuke" se lea como explosión y no como un efecto de hielo. */
-export const EXPLOSION_TINT = "hue-rotate(180deg) saturate(2.2) brightness(1.15)";
-
-const POISON_BURST: BattleEffectDef = {
-  mode: "frames",
-  frame: (i) => `${BASE}/poison/${pad4(i)}.png`,
-  frameCount: 30,
-  width: 90,
-  height: 90,
+  frame: (i) => `${BASE}/lightning-v2/lightning_line3a${i + 1}.png`,
+  frameCount: 12,
+  width: 100,
+  height: 100,
   fps: 24,
 };
 
@@ -130,46 +171,77 @@ export const AURA_FRAME_COUNT = 60;
 /** Efecto de un solo disparo por tipo de poder — golpea/curación/etc, no estados con duración. */
 export const ONE_SHOT_EFFECT: Partial<Record<LiveOverlayBattlePower["kind"], BattleEffectDef>> = {
   hit: HIT_SHEET,
-  aoe: HIT_SHEET,
-  pierce: HIT_SHEET,
   chain: LIGHTNING,
   nuke: EXPLOSION,
   burn: FIRE,
   freeze: ICE,
-  poison: POISON_BURST,
   heal: HEAL_SHEET,
   healAll: HEAL_SHEET,
   growMaxHp: STARBURST,
   knockback: WIND_STATIC,
 };
 
-/** Reproduce un efecto UNA vez en una posición fija (% de la arena) y se auto-destruye. */
+/**
+ * Loop persistente mientras el status con duración sigue activo (fuego
+ * ardiendo, hielo brillando) — antes esto era invisible salvo por un anillo
+ * de color + emoji fijo, nunca una animación real corriendo.
+ */
+export const PERSISTENT_STATUS_EFFECT: Partial<Record<"burn" | "freeze", BattleEffectDef>> = {
+  burn: FIRE,
+  freeze: ICE,
+};
+
+/**
+ * Proyectil temático que viaja del atacante al objetivo antes de que se vea
+ * el impacto — pedido explícito del usuario ("tirar una bola de fuego...").
+ * Kinds sin entrada acá siguen usando el punto de color genérico existente
+ * (`Projectile` en BattleArena.tsx) hasta que haya un sprite temático real.
+ */
+export const PROJECTILE_SPRITE: Partial<Record<LiveOverlayBattlePower["kind"], BattleEffectDef>> = {
+  freeze: ICICLE_PROJECTILE,
+  chain: LIGHTNING,
+  burn: FIRE_PROJECTILE,
+};
+
+/**
+ * Reproduce un efecto en una posición fija (% de la arena).
+ * Por defecto una sola vez (se auto-destruye vía `onDone`); con `loop` sigue
+ * para siempre (usado para estados con duración — fuego/veneno/hielo activos
+ * — el padre decide cuándo desmontarlo según el `*Until` del fighter, no una
+ * duración fija de la animación).
+ */
 export function PowerEffectView({
   def,
   onDone,
   tint,
+  loop = false,
 }: {
   def: BattleEffectDef;
-  onDone: () => void;
+  onDone?: () => void;
   tint?: string;
+  loop?: boolean;
 }) {
   const [frame, setFrame] = useState(0);
   const frameCount = def.mode === "static" ? 1 : def.frameCount;
   const fps = def.mode === "static" ? 2 : def.fps;
 
   useEffect(() => {
-    const durationMs = def.mode === "static" ? 500 : Math.ceil((frameCount / fps) * 1000);
-    const doneTimer = window.setTimeout(onDone, durationMs);
-    if (def.mode === "static") return () => window.clearTimeout(doneTimer);
+    const doneTimer = loop
+      ? null
+      : window.setTimeout(
+          () => onDone?.(),
+          def.mode === "static" ? 500 : Math.ceil((frameCount / fps) * 1000)
+        );
+    if (def.mode === "static") return () => { if (doneTimer) window.clearTimeout(doneTimer); };
     const interval = window.setInterval(() => {
-      setFrame((f) => Math.min(f + 1, frameCount - 1));
+      setFrame((f) => (loop ? (f + 1) % frameCount : Math.min(f + 1, frameCount - 1)));
     }, 1000 / fps);
     return () => {
-      window.clearTimeout(doneTimer);
+      if (doneTimer) window.clearTimeout(doneTimer);
       window.clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loop]);
 
   if (def.mode === "frames") {
     return (
@@ -182,9 +254,12 @@ export function PowerEffectView({
     );
   }
   if (def.mode === "sheet") {
+    const rows = def.rows ?? 1;
     const scale = def.displaySize / def.frameHeight;
-    const sheetWidth = def.frameWidth * def.frameCount * scale;
-    const sheetHeight = def.frameHeight * scale;
+    const sheetWidth = def.frameWidth * def.cols * scale;
+    const sheetHeight = def.frameHeight * rows * scale;
+    const col = frame % def.cols;
+    const row = Math.floor(frame / def.cols);
     return (
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -198,7 +273,7 @@ export function PowerEffectView({
           backgroundImage: `url("${def.src}")`,
           backgroundRepeat: "no-repeat",
           backgroundSize: `${sheetWidth}px ${sheetHeight}px`,
-          backgroundPosition: `-${frame * def.frameWidth * scale}px 0px`,
+          backgroundPosition: `-${col * def.frameWidth * scale}px -${row * def.frameHeight * scale}px`,
           filter: tint,
         }}
       />

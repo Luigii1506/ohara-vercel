@@ -13,6 +13,9 @@ export const LIVE_OVERLAY_SFX = [
   { id: "pop", label: "Pop", emoji: "🫧" },
   { id: "whoosh", label: "Whoosh", emoji: "💨" },
   { id: "alert", label: "Alerta", emoji: "🚨" },
+  { id: "hit", label: "Golpe", emoji: "🥊" },
+  { id: "explosion", label: "Explosión", emoji: "💥" },
+  { id: "ko", label: "KO", emoji: "☠️" },
 ] as const;
 
 export type LiveOverlaySfxId = (typeof LIVE_OVERLAY_SFX)[number]["id"];
@@ -111,6 +114,28 @@ const noiseSweep = (ctx: AudioContext, start: number, duration: number) => {
   src.stop(start + duration + 0.02);
 };
 
+// Golpe seco (ruido filtrado en pasa-bajos, decae rápido) — para impactos/KO.
+const thump = (ctx: AudioContext, start: number, duration: number, lowFreq: number, gain: number) => {
+  const bufferSize = Math.floor(ctx.sampleRate * duration);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(lowFreq, start);
+  filter.frequency.exponentialRampToValueAtTime(lowFreq * 0.3, start + duration);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, start);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  src.connect(filter).connect(g).connect(ctx.destination);
+  src.start(start);
+  src.stop(start + duration + 0.02);
+};
+
 /** Reproduce un SFX por id. Seguro de llamar en cada disparo. */
 export const playOverlaySfx = (id: string) => {
   const ctx = getCtx();
@@ -141,6 +166,17 @@ export const playOverlaySfx = (id: string) => {
       tone(ctx, { freq: 880, start: t, duration: 0.15, type: "sawtooth", gain: 0.2 });
       tone(ctx, { freq: 660, start: t + 0.16, duration: 0.15, type: "sawtooth", gain: 0.2 });
       tone(ctx, { freq: 880, start: t + 0.32, duration: 0.2, type: "sawtooth", gain: 0.2 });
+      break;
+    case "hit":
+      thump(ctx, t, 0.12, 900, 0.3);
+      break;
+    case "explosion":
+      thump(ctx, t, 0.5, 500, 0.45);
+      tone(ctx, { freq: 90, start: t, duration: 0.4, type: "sine", gain: 0.3 });
+      break;
+    case "ko":
+      tone(ctx, { freq: 330, start: t, duration: 0.22, type: "sawtooth", gain: 0.22 });
+      tone(ctx, { freq: 220, start: t + 0.16, duration: 0.35, type: "sawtooth", gain: 0.22 });
       break;
     default:
       tone(ctx, { freq: 880, start: t, duration: 0.15, type: "sine", gain: 0.25 });

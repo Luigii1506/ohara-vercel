@@ -146,12 +146,9 @@ export type LiveOverlayBattleTeam = "A" | "B";
 
 export type LiveOverlayBattlePower =
   | { kind: "hit"; amount: number }
-  | { kind: "aoe"; amount: number; targets: number }
   | { kind: "chain"; amount: number; hops: number }
-  | { kind: "pierce"; amount: number }
   | { kind: "freeze"; durationMs: number }
   | { kind: "burn"; dmgPerTick: number; durationMs: number }
-  | { kind: "poison"; dmgPerTick: number; durationMs: number }
   | { kind: "knockback" }
   | { kind: "heal"; amount: number }
   | { kind: "healAll"; amount: number }
@@ -160,11 +157,6 @@ export type LiveOverlayBattlePower =
   | { kind: "growMaxHp"; amount: number }
   | { kind: "rapidFire"; durationMs: number }
   | { kind: "damageBoost"; multiplier: number; durationMs: number };
-
-export type LiveOverlayBattleDiamondTier = {
-  min: number;
-  power: LiveOverlayBattlePower;
-};
 
 export type LiveOverlayBattleWinMode =
   | "elimination"
@@ -185,7 +177,6 @@ export type LiveOverlayBattleConfig = {
   roundStartedAt: string | null;
   roundEndsAt: string | null;
   giftPowerMap: Record<string, LiveOverlayBattlePower>;
-  diamondTierFallback: LiveOverlayBattleDiamondTier[];
   backgroundUrl: string | null;
   // Auto-ataque real (no solo cosmético): cada equipo se pega solo cada
   // `autoFireCooldownMs` mientras el chat/regalos están tranquilos, para que
@@ -222,12 +213,9 @@ export const BATTLE_POWER_DISPLAY: Record<
 > = {
   hit: { emoji: "⚔️", label: "Golpe" },
   nuke: { emoji: "💣", label: "Bomba" },
-  aoe: { emoji: "💥", label: "Salpicadura" },
   chain: { emoji: "⚡", label: "Cadena" },
-  pierce: { emoji: "🗡️", label: "Perforante" },
   freeze: { emoji: "❄️", label: "Congelar" },
   burn: { emoji: "🔥", label: "Quemar" },
-  poison: { emoji: "☠️", label: "Envenenar" },
   knockback: { emoji: "👊", label: "Empujón" },
   heal: { emoji: "💚", label: "Curarse" },
   healAll: { emoji: "💙", label: "Curar equipo" },
@@ -236,13 +224,6 @@ export const BATTLE_POWER_DISPLAY: Record<
   rapidFire: { emoji: "🌀", label: "Disparo rápido" },
   damageBoost: { emoji: "💪", label: "Subir ataque" },
 };
-
-export const DEFAULT_BATTLE_DIAMOND_TIERS: LiveOverlayBattleDiamondTier[] = [
-  { min: 0, power: { kind: "hit", amount: 30 } },
-  { min: 10, power: { kind: "hit", amount: 80 } },
-  { min: 100, power: { kind: "hit", amount: 220 } },
-  { min: 500, power: { kind: "nuke", amount: 150 } },
-];
 
 export const createDefaultBattleConfig = (): LiveOverlayBattleConfig => ({
   active: false,
@@ -257,11 +238,10 @@ export const createDefaultBattleConfig = (): LiveOverlayBattleConfig => ({
   roundStartedAt: null,
   roundEndsAt: null,
   giftPowerMap: {},
-  diamondTierFallback: DEFAULT_BATTLE_DIAMOND_TIERS,
   backgroundUrl: null,
   autoFireEnabled: true,
-  autoFireCooldownMs: 1500,
-  autoFireAmount: 12,
+  autoFireCooldownMs: 300,
+  autoFireAmount: 3,
   lastAutoFireAt: null,
   recentEvents: [],
 });
@@ -279,13 +259,12 @@ export type LiveOverlayBattleFighter = {
   burnUntil: string | null;
   burnDmgPerTick: number;
   burnLastTickAt: string | null;
-  poisonUntil: string | null;
-  poisonDmgPerTick: number;
-  poisonLastTickAt: string | null;
   rapidFireUntil: string | null;
   damageBoostUntil: string | null;
   damageBoostMultiplier: number;
   joinedAt: string;
+  /** Daño bruto infligido (poderes + auto-ataque, sin descontar escudo) — usado para elegir el MVP al cerrar la ronda. */
+  damageDealt: number;
 };
 
 /** Clave = tiktok uniqueId. Igual patrón que likerTallies/gifterTallies. */
@@ -366,17 +345,17 @@ export const deriveLiveOverlayBattleOutcome = (
   return { ended, winner, teamAHp, teamBHp, teamAAlive, teamBAlive, teamAKills, teamBKills };
 };
 
-/** Cada cuánto se aplica un "tick" de daño sostenido (burn/poison). */
+/** Cada cuánto se aplica un "tick" de daño sostenido (burn). */
 const BATTLE_DOT_TICK_MS = 1000;
 
 /**
- * Aplica el daño de burn/poison PENDIENTE desde el último tick registrado
- * hasta `now` (o hasta que la duración del efecto expire, lo que pase
- * primero). Es una proyección pura — no persiste nada por sí sola. Se usa en
- * dos lugares (store.ts): de forma NO destructiva al leer el estado (para que
- * la barra de HP se vea viva entre eventos de TikTok), y para "asentar" el
- * daño pendiente antes de aplicar un evento nuevo (join/gift/like), así el
- * daño sostenido nunca se pierde ni se cuenta dos veces.
+ * Aplica el daño de burn PENDIENTE desde el último tick registrado hasta
+ * `now` (o hasta que la duración del efecto expire, lo que pase primero). Es
+ * una proyección pura — no persiste nada por sí sola. Se usa en dos lugares
+ * (store.ts): de forma NO destructiva al leer el estado (para que la barra
+ * de HP se vea viva entre eventos de TikTok), y para "asentar" el daño
+ * pendiente antes de aplicar un evento nuevo (join/gift/like), así el daño
+ * sostenido nunca se pierde ni se cuenta dos veces.
  */
 export const applyPendingBattleDot = (
   roster: LiveOverlayBattleRoster,
@@ -387,7 +366,7 @@ export const applyPendingBattleDot = (
   for (const [user, original] of Object.entries(roster)) {
     let fighter = original;
     if (fighter.hp > 0) {
-      (["burn", "poison"] as const).forEach((effect) => {
+      (["burn"] as const).forEach((effect) => {
         const untilKey = `${effect}Until` as const;
         const dmgKey = `${effect}DmgPerTick` as const;
         const lastTickKey = `${effect}LastTickAt` as const;

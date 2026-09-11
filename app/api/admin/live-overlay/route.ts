@@ -180,7 +180,6 @@ type OverlayAction =
         durationMs?: number;
         backgroundUrl?: string | null;
         giftPowerMap?: Record<string, unknown>;
-        diamondTierFallback?: Array<{ min: number; power: unknown }>;
         autoFireEnabled?: boolean;
         autoFireCooldownMs?: number;
         autoFireAmount?: number;
@@ -271,29 +270,15 @@ const sanitizeBattlePower = (raw: unknown): LiveOverlayBattlePower | null => {
       };
     case "freeze":
       return { kind: "freeze", durationMs: Math.max(1000, num(r.durationMs, 5000)) };
-    case "aoe":
-      return {
-        kind: "aoe",
-        amount: Math.max(1, num(r.amount, 30)),
-        targets: Math.max(1, Math.trunc(num(r.targets, 3))),
-      };
     case "chain":
       return {
         kind: "chain",
         amount: Math.max(1, num(r.amount, 40)),
         hops: Math.max(1, Math.trunc(num(r.hops, 3))),
       };
-    case "pierce":
-      return { kind: "pierce", amount: Math.max(1, num(r.amount, 50)) };
     case "burn":
       return {
         kind: "burn",
-        dmgPerTick: Math.max(1, num(r.dmgPerTick, 10)),
-        durationMs: Math.max(1000, num(r.durationMs, 10000)),
-      };
-    case "poison":
-      return {
-        kind: "poison",
         dmgPerTick: Math.max(1, num(r.dmgPerTick, 10)),
         durationMs: Math.max(1000, num(r.durationMs, 10000)),
       };
@@ -323,22 +308,6 @@ const sanitizeGiftPowerMap = (raw: unknown): Record<string, LiveOverlayBattlePow
     if (power && key) map[key] = power;
   }
   return map;
-};
-
-const sanitizeDiamondTiers = (
-  raw: unknown
-): { min: number; power: LiveOverlayBattlePower }[] => {
-  if (!Array.isArray(raw)) return [];
-  const tiers: { min: number; power: LiveOverlayBattlePower }[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const r = item as Record<string, unknown>;
-    const power = sanitizeBattlePower(r.power);
-    if (!power) continue;
-    const min = Number(r.min);
-    tiers.push({ min: Number.isFinite(min) ? Math.max(0, min) : 0, power });
-  }
-  return tiers.sort((a, b) => a.min - b.min);
 };
 
 export async function GET(request: NextRequest) {
@@ -654,15 +623,12 @@ export async function POST(request: NextRequest) {
         patch.backgroundUrl = c.backgroundUrl ? String(c.backgroundUrl) : null;
       }
       if (c.giftPowerMap !== undefined) patch.giftPowerMap = sanitizeGiftPowerMap(c.giftPowerMap);
-      if (c.diamondTierFallback !== undefined) {
-        patch.diamondTierFallback = sanitizeDiamondTiers(c.diamondTierFallback);
-      }
       if (c.autoFireEnabled !== undefined) patch.autoFireEnabled = c.autoFireEnabled === true;
       if (c.autoFireCooldownMs !== undefined) {
-        patch.autoFireCooldownMs = Math.max(1000, sanitizeNumber(c.autoFireCooldownMs, 1500));
+        patch.autoFireCooldownMs = Math.max(100, sanitizeNumber(c.autoFireCooldownMs, 300));
       }
       if (c.autoFireAmount !== undefined) {
-        patch.autoFireAmount = Math.max(1, sanitizeNumber(c.autoFireAmount, 12));
+        patch.autoFireAmount = Math.max(1, sanitizeNumber(c.autoFireAmount, 3));
       }
       nextState = await setLiveOverlayBattleConfig(overlayToken, patch);
       break;

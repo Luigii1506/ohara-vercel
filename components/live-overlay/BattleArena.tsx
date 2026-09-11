@@ -6,19 +6,50 @@ import {
   deriveLiveOverlayBattleOutcome,
   type LiveOverlayBattleConfig,
   type LiveOverlayBattleFighter,
+  type LiveOverlayBattlePower,
   type LiveOverlayBattleRoster,
   type LiveOverlayBattleTeam,
 } from "@/lib/live-overlay/types";
 import {
-  EXPLOSION_TINT,
   ONE_SHOT_EFFECT,
+  PERSISTENT_STATUS_EFFECT,
   PersistentAura,
   PowerEffectView,
+  PROJECTILE_SPRITE,
   SHIELD_IMAGE,
   type BattleEffectDef,
 } from "@/components/live-overlay/BattleEffects";
+import { playOverlaySfx } from "@/lib/live-overlay/sfx";
+import ConfettiLayer from "@/components/live-overlay/scenes/ConfettiLayer";
 
-const POISON_TINT = "hue-rotate(100deg) saturate(3.5) brightness(0.95)";
+/** Sonido por tipo de poder — todo lo que no está acá cae en "hit" (golpe genérico). */
+const POWER_SFX: Partial<Record<LiveOverlayBattlePower["kind"], string>> = {
+  nuke: "explosion",
+  heal: "ding",
+  healAll: "ding",
+  shield: "pop",
+  freeze: "whoosh",
+  growMaxHp: "levelup",
+  rapidFire: "pop",
+  damageBoost: "pop",
+};
+
+/**
+ * Poderes que pegan a todos los objetivos a la vez (no hay "un" viaje que
+ * mostrar) o que no tienen un enemigo del otro lado — se quedan con el burst
+ * instantáneo de siempre, sin proyectil. El resto (target único: hit, freeze,
+ * burn, knockback, chain) sí lanza proyectil-que-viaja.
+ */
+const NO_PROJECTILE_KINDS = new Set<LiveOverlayBattlePower["kind"]>([
+  "nuke",
+  "healAll",
+  "heal",
+  "shield",
+  "growMaxHp",
+  "rapidFire",
+  "damageBoost",
+]);
+
 const RAPID_FIRE_TINT = "sepia(1) saturate(6) hue-rotate(35deg) brightness(1.3)";
 const DAMAGE_BOOST_TINT = "sepia(1) saturate(8) hue-rotate(-50deg) brightness(1.05)";
 
@@ -62,33 +93,23 @@ const formatCountdown = (ms: number): string => {
   return `${min}:${String(sec).padStart(2, "0")}`;
 };
 
-function HitFlash() {
-  const [frame, setFrame] = useState(1);
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setFrame((f) => (f >= 4 ? 4 : f + 1));
-    }, 60);
-    return () => window.clearInterval(interval);
-  }, []);
-  return (
-    <img
-      src={`/live-overlay/sprites/hit-effect/flash-0${frame}.png`}
-      alt=""
-      className="pointer-events-none absolute inset-0 m-auto h-[140%] w-[140%] object-contain opacity-90"
-    />
-  );
-}
-
-/** Un disparo viajando de un punto a otro — puramente visual, se auto-destruye. */
+/**
+ * Un disparo viajando de un punto a otro — puramente visual, se auto-destruye.
+ * Con `spriteDef` anima un sprite temático (bola de fuego, esquirla de hielo,
+ * etc); sin él, el punto de color genérico de siempre (kinds sin sprite
+ * propio todavía).
+ */
 function Projectile({
   from,
   to,
   color,
+  spriteDef,
   onDone,
 }: {
   from: { x: number; y: number };
   to: { x: number; y: number };
   color: string;
+  spriteDef?: BattleEffectDef;
   onDone: () => void;
 }) {
   const [pos, setPos] = useState(from);
@@ -106,14 +127,22 @@ function Projectile({
   }, []);
   return (
     <div
-      className={`pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${color}`}
+      className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
       style={{
         left: `${pos.x}%`,
         top: `${pos.y}%`,
         transition: "left 350ms linear, top 350ms linear",
-        boxShadow: "0 0 8px 2px currentColor",
       }}
-    />
+    >
+      {spriteDef ? (
+        <PowerEffectView def={spriteDef} loop />
+      ) : (
+        <div
+          className={`h-2.5 w-2.5 rounded-full ${color}`}
+          style={{ boxShadow: "0 0 8px 2px currentColor" }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -124,11 +153,11 @@ function FighterCircle({
   size,
   baseMaxHp,
   home,
-  justHit,
   justHealed,
   justPoweredUp,
   knockedBack,
   dying,
+  damageFloat,
 }: {
   user: string;
   fighter: LiveOverlayBattleFighter;
@@ -136,11 +165,11 @@ function FighterCircle({
   size: number;
   baseMaxHp: number;
   home: { x: number; y: number };
-  justHit: boolean;
   justHealed: boolean;
   justPoweredUp: boolean;
   knockedBack: boolean;
   dying: boolean;
+  damageFloat: { amount: number; at: number } | null;
 }) {
   const alive = fighter.hp > 0;
   // El radio se calcula contra el HP BASE de la ronda (config.maxHp), no
@@ -151,7 +180,6 @@ function FighterCircle({
   const diameter = Math.max(size * 0.5, size * Math.sqrt(hpRatio || 0.02));
   const shieldActive = fighter.shieldHp > 0 && !!fighter.shieldUntil && Date.parse(fighter.shieldUntil) > now;
   const frozenActive = !!fighter.frozenUntil && Date.parse(fighter.frozenUntil) > now;
-  const poisonActive = !!fighter.poisonUntil && Date.parse(fighter.poisonUntil) > now;
   const burnActive = !!fighter.burnUntil && Date.parse(fighter.burnUntil) > now;
   const rapidFireActive = !!fighter.rapidFireUntil && Date.parse(fighter.rapidFireUntil) > now;
   const damageBoostActive = !!fighter.damageBoostUntil && Date.parse(fighter.damageBoostUntil) > now;
@@ -164,15 +192,13 @@ function FighterCircle({
     ? { ring: "ring-amber-300", emoji: "🛡️" }
     : frozenActive
       ? { ring: "ring-sky-300", emoji: "❄️" }
-      : poisonActive
-        ? { ring: "ring-purple-400", emoji: "☠️" }
-        : burnActive
-          ? { ring: "ring-orange-500", emoji: "🔥" }
-          : damageBoostActive
-            ? { ring: "ring-red-500", emoji: "💪" }
-            : rapidFireActive
-              ? { ring: "ring-lime-300", emoji: "🌀" }
-              : null;
+      : burnActive
+        ? { ring: "ring-orange-500", emoji: "🔥" }
+        : damageBoostActive
+          ? { ring: "ring-red-500", emoji: "💪" }
+          : rapidFireActive
+            ? { ring: "ring-lime-300", emoji: "🌀" }
+            : null;
   const ringClass = statusBadge?.ring ?? (fighter.team === "A" ? "ring-rose-400" : "ring-indigo-400");
 
   const wanderVariant = 1 + (hashString(user) % 4);
@@ -186,7 +212,7 @@ function FighterCircle({
   return (
     <div
       className="absolute -translate-x-1/2 -translate-y-1/2"
-      style={{ left: `${home.x}%`, top: `${home.y}%` }}
+      style={{ left: `${home.x}%`, top: `${home.y}%`, animation: "battle-enter 380ms ease-out" }}
     >
       <div
         style={{
@@ -216,6 +242,16 @@ function FighterCircle({
             <div className="relative flex items-center justify-center">
               {rapidFireActive && <PersistentAura style={1} tint={RAPID_FIRE_TINT} size={diameter * 1.7} />}
               {damageBoostActive && <PersistentAura style={2} tint={DAMAGE_BOOST_TINT} size={diameter * 1.7} />}
+              {/* Loop persistente mientras dura el status — antes esto era
+                  invisible salvo por el anillo de color + emoji fijo, nunca
+                  una animación real corriendo (a diferencia de rapidFire/
+                  damageBoost, que arriba SÍ ya tenían su aura en loop). */}
+              {burnActive && PERSISTENT_STATUS_EFFECT.burn && (
+                <PowerEffectView def={PERSISTENT_STATUS_EFFECT.burn} loop />
+              )}
+              {frozenActive && PERSISTENT_STATUS_EFFECT.freeze && (
+                <PowerEffectView def={PERSISTENT_STATUS_EFFECT.freeze} loop />
+              )}
               {shieldActive && (
                 <img
                   src={SHIELD_IMAGE}
@@ -247,7 +283,15 @@ function FighterCircle({
                   <div className="h-full w-full bg-black/60" />
                 )}
               </div>
-              {justHit && <HitFlash />}
+              {damageFloat && now - damageFloat.at < 900 && (
+                <span
+                  key={damageFloat.at}
+                  className="pointer-events-none absolute -top-1 text-sm font-black text-rose-300"
+                  style={{ animation: "battle-float-up 900ms ease-out" }}
+                >
+                  -{damageFloat.amount}
+                </span>
+              )}
               {justHealed && (
                 <span className="pointer-events-none absolute -top-1 text-lg" style={{ animation: "battle-float-up 900ms ease-out" }}>
                   💚
@@ -293,11 +337,22 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
   }, []);
 
   const [projectiles, setProjectiles] = useState<
-    { id: string; from: { x: number; y: number }; to: { x: number; y: number }; color: string }[]
+    {
+      id: string;
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      color: string;
+      spriteDef?: BattleEffectDef;
+    }[]
   >([]);
-  const spawnProjectile = (from: { x: number; y: number }, to: { x: number; y: number }, color: string) => {
+  const spawnProjectile = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    color: string,
+    spriteDef?: BattleEffectDef
+  ) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setProjectiles((p) => [...p, { id, from, to, color }]);
+    setProjectiles((p) => [...p, { id, from, to, color, spriteDef }]);
   };
   const removeProjectile = (id: string) =>
     setProjectiles((p) => p.filter((proj) => proj.id !== id));
@@ -309,20 +364,31 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
   // pulso dorado — antes estos dos últimos eran invisibles (solo cambiaba un
   // número), confirmado confuso al probar en vivo.
   const prevRosterRef = useRef<LiveOverlayBattleRoster>({});
-  const [hitAt, setHitAt] = useState<Record<string, number>>({});
+  // Evita tratar a TODOS los que ya estaban peleando como "recién unidos" en
+  // el primer render tras montar/refrescar el overlay (prevRosterRef arranca
+  // vacío, así que sin esta bandera el primer diff vería a todo el roster
+  // existente como nuevo).
+  const hasSyncedRosterRef = useRef(false);
   const [healAt, setHealAt] = useState<Record<string, number>>({});
   const [powerUpAt, setPowerUpAt] = useState<Record<string, number>>({});
   const [dyingUntil, setDyingUntil] = useState<Record<string, number>>({});
+  const [damageFloatAt, setDamageFloatAt] = useState<Record<string, { amount: number; at: number }>>({});
   useEffect(() => {
     const prev = prevRosterRef.current;
-    const hitUpdates: Record<string, number> = {};
+    const isFirstSync = !hasSyncedRosterRef.current;
     const healUpdates: Record<string, number> = {};
     const powerUpUpdates: Record<string, number> = {};
     const deathUpdates: Record<string, number> = {};
+    const damageFloatUpdates: Record<string, { amount: number; at: number }> = {};
     for (const [user, fighter] of Object.entries(roster)) {
       const before = prev[user];
+      // Recién se une (no en el primer sync tras montar/refrescar — ahí todo
+      // el roster existente sonaría como "nuevo" de golpe, todos a la vez).
+      if (!before && !isFirstSync) {
+        playOverlaySfx("pop");
+      }
       if (before && fighter.hp < before.hp) {
-        hitUpdates[user] = Date.now();
+        damageFloatUpdates[user] = { amount: Math.round(before.hp - fighter.hp), at: Date.now() };
         const attackTeam = opposingTeamOf(fighter.team);
         const attackers = Object.entries(roster).filter(([, f]) => f.team === attackTeam && f.hp > 0);
         const [attackerUser] =
@@ -340,11 +406,14 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
       }
       if (before && before.hp > 0 && fighter.hp <= 0) {
         deathUpdates[user] = Date.now() + DEATH_FADE_MS;
+        playOverlaySfx("ko");
+        triggerScreenImpact("rgba(239,68,68,0.3)");
       }
     }
     prevRosterRef.current = roster;
-    if (Object.keys(hitUpdates).length > 0) {
-      setHitAt((current) => ({ ...current, ...hitUpdates }));
+    hasSyncedRosterRef.current = true;
+    if (Object.keys(damageFloatUpdates).length > 0) {
+      setDamageFloatAt((current) => ({ ...current, ...damageFloatUpdates }));
     }
     if (Object.keys(healUpdates).length > 0) {
       setHealAt((current) => ({ ...current, ...healUpdates }));
@@ -376,7 +445,15 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
   useEffect(() => {
     const fresh = config.recentEvents.filter((e) => !seenEventIdsRef.current.has(e.id));
     if (fresh.length === 0) return;
-    fresh.forEach((e) => seenEventIdsRef.current.add(e.id));
+    fresh.forEach((e) => {
+      seenEventIdsRef.current.add(e.id);
+      // Solo poderes disparados por regalo/modo-prueba llegan acá (el
+      // auto-ataque de fondo no manda recentEvents a propósito) — así el
+      // sonido suena en cada acción real sin volverse ruido a la cadencia de
+      // metralleta del auto-ataque.
+      playOverlaySfx(POWER_SFX[e.kind] ?? "hit");
+      if (e.kind === "nuke") triggerScreenImpact("rgba(251,146,60,0.4)");
+    });
     const newToasts = fresh.map((e) => {
       const display = BATTLE_POWER_DISPLAY[e.kind];
       const targetsLabel = e.targets.length > 0 ? ` → ${e.targets.join(", ")}` : "";
@@ -404,21 +481,47 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
     // quien lo usó, para curarse/escudo/power-ups que no tienen "targets"
     // enemigos). growMaxHp/shield ya tienen su propio pulso/ícono aparte —
     // aquí solo se listan los que tienen un asset de un solo uso.
+    //
+    // Para poderes de un solo objetivo enemigo (hit/freeze/burn/knockback/
+    // chain) el impacto ya NO aparece instantáneo: primero se lanza un
+    // proyectil (temático si hay uno, si no el punto genérico de siempre)
+    // desde el atacante hacia el objetivo, y el burst de impacto se dispara
+    // recién cuando "llega" — pedido explícito del usuario ("tirar una bola
+    // de fuego que viaja e impacta"). nuke/healAll pegan a todo el equipo a
+    // la vez (no hay "un" viaje que mostrar) y los self-buffs (heal/shield/
+    // growMaxHp/rapidFire/damageBoost) tampoco tienen enemigo del otro lado
+    // — esos siguen como burst instantáneo.
     const newEffects: { id: string; def: BattleEffectDef; x: number; y: number; tint?: string }[] = [];
     for (const e of fresh) {
       const def = ONE_SHOT_EFFECT[e.kind];
       if (!def) continue;
-      const tint = e.kind === "poison" ? POISON_TINT : e.kind === "nuke" ? EXPLOSION_TINT : undefined;
+
       const affected = e.targets.length > 0 ? e.targets : [e.user];
+      const isSelfOnly = affected.length === 1 && affected[0] === e.user;
+      const wantsProjectile = !isSelfOnly && !NO_PROJECTILE_KINDS.has(e.kind);
+
       affected.forEach((target, i) => {
         const fighter = roster[target];
         if (!fighter) return;
-        newEffects.push({
-          id: `${e.id}-${i}`,
-          def,
-          ...homePercent(target, fighter.team),
-          tint,
-        });
+        const targetPos = homePercent(target, fighter.team);
+        if (wantsProjectile) {
+          const attacker = roster[e.user];
+          const fromPos = attacker ? homePercent(e.user, attacker.team) : targetPos;
+          spawnProjectile(
+            fromPos,
+            targetPos,
+            e.team === "A" ? "bg-rose-400" : "bg-indigo-400",
+            PROJECTILE_SPRITE[e.kind]
+          );
+          window.setTimeout(() => {
+            setPowerEffects((current) => [
+              ...current,
+              { id: `${e.id}-${i}`, def, ...targetPos },
+            ]);
+          }, 380);
+        } else {
+          newEffects.push({ id: `${e.id}-${i}`, def, ...targetPos });
+        }
       });
     }
     if (newEffects.length > 0) {
@@ -444,6 +547,72 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
 
   const started = !!config.roundStartedAt;
   const circleSize = variant === "embedded" ? 64 : 96;
+
+  // MVP del cierre de ronda: mayor daño infligido, desempate por kills y
+  // luego por antigüedad — se calcula siempre (barato) pero solo se muestra
+  // cuando la ronda termina.
+  const mvp = useMemo(() => {
+    let best: [string, LiveOverlayBattleFighter] | null = null;
+    for (const entry of Object.entries(roster)) {
+      const [, f] = entry;
+      if (
+        !best ||
+        f.damageDealt > best[1].damageDealt ||
+        (f.damageDealt === best[1].damageDealt && f.kills > best[1].kills) ||
+        (f.damageDealt === best[1].damageDealt &&
+          f.kills === best[1].kills &&
+          f.joinedAt < best[1].joinedAt)
+      ) {
+        best = entry;
+      }
+    }
+    return best;
+  }, [roster]);
+
+  // Sonido de arranque — se compara contra el `roundStartedAt` YA conocido al
+  // montar (no contra null), así reabrir el overlay a mitad de una ronda ya
+  // en curso no dispara el sonido de golpe.
+  const roundKeyRef = useRef<string | null>(config.roundStartedAt);
+  const endedNotifiedRef = useRef(outcome.ended);
+  const [victoryBurstKey, setVictoryBurstKey] = useState<number | null>(null);
+
+  // Impacto a pantalla completa (nuke / muerte) — antes TODO pasaba "adentro
+  // del círculo" (un sprite de ~100px sobre el avatar), así que un golpe
+  // grande no se leía de un vistazo rápido a la stream.
+  const shakeContainerRef = useRef<HTMLDivElement | null>(null);
+  const [shakeAt, setShakeAt] = useState<number | null>(null);
+  const [flash, setFlash] = useState<{ color: string; at: number } | null>(null);
+  const triggerScreenImpact = (color: string) => {
+    setShakeAt(Date.now());
+    setFlash({ color, at: Date.now() });
+  };
+  useEffect(() => {
+    // Reinicia la animación CSS a mano (en vez de con `key`, que remontaría
+    // TODO lo de adentro y perdería el estado de cada FighterCircle) — forzar
+    // un reflow entre "none" y el valor real hace que el navegador la
+    // reproduzca de nuevo aunque dos shakes lleguen seguidos.
+    const el = shakeContainerRef.current;
+    if (!el || shakeAt == null) return;
+    el.style.animation = "none";
+    void el.offsetHeight;
+    el.style.animation = "battle-screen-shake 320ms ease-out";
+  }, [shakeAt]);
+  useEffect(() => {
+    if (config.roundStartedAt && config.roundStartedAt !== roundKeyRef.current) {
+      roundKeyRef.current = config.roundStartedAt;
+      endedNotifiedRef.current = false;
+      setVictoryBurstKey(null);
+      playOverlaySfx("alert");
+    }
+  }, [config.roundStartedAt]);
+  useEffect(() => {
+    if (outcome.ended && !endedNotifiedRef.current) {
+      endedNotifiedRef.current = true;
+      playOverlaySfx("levelup");
+      setVictoryBurstKey(Date.now());
+      triggerScreenImpact("rgba(250,204,21,0.4)");
+    }
+  }, [outcome.ended]);
 
   const teamHeader = (team: LiveOverlayBattleTeam) => {
     const name = team === "A" ? config.teamAName : config.teamBName;
@@ -509,6 +678,23 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
           0% { opacity: 1; transform: translateY(0); }
           100% { opacity: 0; transform: translateY(-28px); }
         }
+        @keyframes battle-enter {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+          70% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes battle-screen-shake {
+          0% { transform: translate(0, 0); }
+          20% { transform: translate(-8px, 4px); }
+          40% { transform: translate(7px, -5px); }
+          60% { transform: translate(-5px, -3px); }
+          80% { transform: translate(4px, 3px); }
+          100% { transform: translate(0, 0); }
+        }
+        @keyframes battle-screen-flash {
+          0% { opacity: 0.9; }
+          100% { opacity: 0; }
+        }
         @keyframes battle-shield-pulse {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50% { opacity: 0.9; transform: scale(1.06); }
@@ -529,7 +715,14 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
           </span>
         </div>
       ) : (
-        <>
+        <div ref={shakeContainerRef} className="relative h-full w-full">
+          {flash && now - flash.at < 400 && (
+            <div
+              key={flash.at}
+              className="pointer-events-none absolute inset-0 z-[55]"
+              style={{ background: flash.color, animation: "battle-screen-flash 350ms ease-out forwards" }}
+            />
+          )}
           <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-center gap-4 pt-2">
             {teamHeader("A")}
             {config.winMode === "timed" && config.roundEndsAt && (
@@ -539,6 +732,16 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
             )}
             {teamHeader("B")}
           </div>
+
+          {/* Leyenda de cómo unirse — sin esto nadie que llega a mitad de
+              stream sabe qué comentar para participar. */}
+          {!outcome.ended && (
+            <div className="absolute inset-x-2 top-11 z-10 flex justify-center">
+              <span className="rounded-full bg-black/55 px-3 py-1 text-[11px] font-semibold text-white/90">
+                💬 Comenta <b>{config.teamAKeyword}</b> o <b>{config.teamBKeyword}</b> para unirte
+              </span>
+            </div>
+          )}
 
           {/* Letrero "qué pasó" — para que quede claro qué acción se probó/disparó. */}
           <div className="absolute inset-x-2 top-16 z-30 flex flex-col items-center gap-1">
@@ -566,11 +769,11 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
                 size={circleSize}
                 baseMaxHp={config.maxHp}
                 home={homePercent(user, fighter.team)}
-                justHit={!!hitAt[user] && now - hitAt[user] < 400}
                 justHealed={!!healAt[user] && now - healAt[user] < 900}
                 justPoweredUp={!!powerUpAt[user] && now - powerUpAt[user] < 900}
                 knockedBack={!!knockbackAt[user] && now - knockbackAt[user] < 150}
                 dying={fighter.hp <= 0 && !!dyingUntil[user] && now <= dyingUntil[user]}
+                damageFloat={damageFloatAt[user] ?? null}
               />
             ))}
 
@@ -580,6 +783,7 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
                 from={p.from}
                 to={p.to}
                 color={p.color}
+                spriteDef={p.spriteDef}
                 onDone={() => removeProjectile(p.id)}
               />
             ))}
@@ -596,15 +800,23 @@ export default function BattleArena({ config, roster, variant }: BattleArenaProp
           </div>
 
           {outcome.ended && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/60">
               <span className="rounded-lg bg-black/70 px-6 py-3 text-xl font-black uppercase tracking-wide text-white">
                 {outcome.winner
                   ? `¡Ganó ${outcome.winner === "A" ? config.teamAName : config.teamBName}!`
                   : "Empate"}
               </span>
+              {mvp && mvp[1].damageDealt > 0 && (
+                <span className="rounded-full bg-amber-400/90 px-4 py-1.5 text-sm font-bold text-black">
+                  🏆 MVP: {mvp[1].displayName || mvp[0]} ({Math.round(mvp[1].damageDealt)} dmg)
+                </span>
+              )}
             </div>
           )}
-        </>
+          {victoryBurstKey !== null && (
+            <ConfettiLayer key={victoryBurstKey} onDone={() => setVictoryBurstKey(null)} />
+          )}
+        </div>
       )}
     </div>
   );
